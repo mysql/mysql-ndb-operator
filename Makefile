@@ -11,6 +11,7 @@ PKG      := github.com/ocklin/ndb-operator/
 CMD_DIRECTORIES := $(sort $(dir $(wildcard ./cmd/*/)))
 COMMANDS := $(CMD_DIRECTORIES:./cmd/%/=%)
 
+# point BASEDIR to your mysql ndb *build* directory (not install)
 BASEDIR=/home/bo/prg/mysql-bld/trunk
 RTDIR=${BASEDIR}/runtime_output_directory
 
