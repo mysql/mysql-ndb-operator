@@ -27,7 +27,7 @@ ENV CONFD_VERSION=0.16.0
 #ADD https://github.com/kelseyhightower/confd/releases/download/v${CONFD_VERSION}/confd-${CONFD_VERSION}-linux-amd64 /usr/bin/confd
 
 # we use a self build version on go 1.11+ which supports variable overwrite
-COPY vendor/confd-${CONFD_VERSION}-linux-amd64 /usr/bin/confd
+COPY 3rdparty/confd-${CONFD_VERSION}-linux-amd64 /usr/bin/confd
 RUN chmod a+rx /usr/bin/confd
 
 
