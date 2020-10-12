@@ -1,0 +1,240 @@
+*this is generated - edits in confluence will die after next generation*
+
+# Requirements
+
+
+## Operator levels 
+
+Shamelessly borrowed from [Oracle DB Operator](https://confluence.oraclecorp.com/confluence/display/DBJAVA/Oracle+Database+Kubernetes+Operator)
+
+Level 1 -  Basic Install: automated application provisioning and configuration management
+            Cassandra, CouchDB, YugaBytes
+
+Level 2 - Seamless Upgrades: patch and minor version upgrades supported
+            PostgreSQL Operator (Openlabs), Redis, HazelCast
+
+Level 3 - Full Lifecycle: App lifecycle, storage lifecycle (backup/recovery)
+            Elastic Cloud on Kubernetes (ElasticSearch), PostgreSQL Operator (by Zalando  and by Dev4Ddevs), etcd (CoreOS, archieved)
+
+Level 4 - Deep Insights: Metrics, alerts, log processing and workload analysis
+            MongoDB (by MongoDB and by Percona), MariaDB
+
+Level 5 - Auto Pilot: Horizontal/vertical scaling, auto config tuning, abnormal detection, scheduling tuning
+            CouchBase, PostgreSQL (by Crunchy Data)
+
+# Goals
+
+- Fast to market, startup mode
+- Ship some basic Level 1 first (don't be ashamed - we would be in good company)
+- then iterate with updates
+
+List [opertorhub.io](https://operatorhub.io/operator/?category=Database) asap.
+
+- Aim for a level 5, but level 3 is good already
+
+Rely as much as possible on k8 features
+
+- rolling restarts
+- status objects
+- probes
+
+ignore (in the beginning) incomplete k8 features such as 
+- etcd not being the perfect backend for leader elections or object status
+- k8 object store not acid e.g. when changing multiple objcts or listing pods
+
+## Best practices
+
+[Operator framework best practices](https://github.com/operator-framework/community-operators/blob/master/docs/best-practices.md)
+[Google cloud best practices](https://cloud.google.com/blog/products/containers-kubernetes/best-practices-for-building-kubernetes-operators-and-stateful-apps)
+
+## Features
+
+- Cluster life-cycle
+  - provisioning
+  - scaling
+  - upgrade
+  - config changes
+  - auto-recovery
+- Cluster configuration
+- MySQL Server certificate set-up
+- Persistent volumes
+- Pod-affinity and anti-affinity
+- Resource management
+- Server groups
+- Backup and restore
+- Prometheus monitoring
+
+## Advanced mysqld features
+
+- TLS and certificate rotation
+- User and group management (mysqld)
+- Cross data center replication via mysqld
+
+## 3rd Party
+
+Openshift
+
+## License
+
+Apache?
+
+# Architecture
+
+## Kubernetes 
+
+![Kubernetes architecture](pics/architecture-k8.png)
+
+## Ndb Operator
+
+![Operator architecture](pics/architecture-ndb-operator.png)
+
+## CustomResourceDefinition
+
+Complete cluster configuration with parameters in 
+one CRD or two CRDs (ndb + mysqld layers) possible.
+
+## Deployment
+
+Operator can run outside (mostly testing) and inside the kubernetes cluster.
+
+## Components
+
+StatefulSets for data nodes and managent server
+- one per ndb replica (?)
+- one for both management servers
+
+ReplicaSets for mysqld
+- separate simple operator even?
+
+## Controllers
+
+- management servers 
+- data node (one per ndb replica?)
+- backup and restore
+- mysqld  
+
+## Cluster state
+
+Each controller syncs desidered spec and tries to align cluster state. 
+This happens in workqueue processing object change events. 
+
+Each controller must be able to crash and fail over (leader re-election) 
+without corrupting cluster or operator state. 
+
+NDB needs to be able to run without the operator running. A cluster created with the operator should at any point in time be manageable by the operator 
+again (unless someone has interacted with the cluster manually and changed fundamental aspects of the installation).
+
+## Idempotency 
+
+Due to how we need to survive operator crashes and failovers and the fact that we have a declarative API approach the operator has to be idempotent.
+
+### Questions
+
+How much do we rely on k8's Ndb object status versus "real state" extracted from ndb?
+
+# ndb nodes, operators and containers/pod
+
+Each ndb node and operator runs in its own container inside its own pod.
+A pod can consist of a ndb node and an agent sidecar pod. 
+
+The management server probably needs a small wrapper 
+agent running inside its container in the first versions until 
+we fixed ndb_mgmd to start and stop remotely. 
+
+Operators can run inside a pod or outside.
+
+Nodes run in --foreground and --nodaemon inside their container. A failed process will thus lead to a pod- or container restart. How about management server here?
+
+# readiness
+
+StatefulSets rely on pod readiness states for managing 
+rolling restarts. 
+
+Readiness probes - can have additional [readinessGates](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-readiness-gate) for each pod defined. 
+
+The ndb operator needs to retrieve cluster state as well in order to 
+avoid undesired maintainence operations (e.g. avoid triggering 
+restart of one pod while all other nodes of node group are down)
+
+# stop, start and restarts
+
+Nodes shall whenever possible be stopped by either stopping the ndb nodes and not the container/pod it is running in.
+
+SfSets: 
+  - rolling restart if any property changed
+  - parallel if set
+  - partitioned & parallel - probably not possible
+
+Pods: 
+  - don't restart if property changed, done via SfSet
+
+container termination with SIGNAL - node shutdown shutdown is graceful within period
+
+Conflicts between k8 and ndb with its advanced failure handling and self-healing?
+
+Before restarting a pod or perform a rolling / parallel restart of statefulsets via k8 ndb cluster state needs to be carefully checked.
+
+## ndb_mgmd
+
+unline ndbmtd ndb_mgmd has no -n mode to wait and take e.g. a remote start command
+thus we wrap ndb_mgmd into an agent for that purpose
+
+config changes require a re-write or patching of the configuration
+Both management servers need to be in stopped state in parallel for a moment to reload a new config version from the ini file. (How can we achieve that with very "agressive" k8 pod restarts?)
+
+
+# ndb docker image
+
+can't use standard container atm, because it lacks
+
+- a way create to "inject" a config ini or information about the environment (hosts, etc.)
+- need an additional agent for ndb_mgmd, different container on the same pod not possible atm
+  as direct process interaction is necessary for starting and stopping of ndb_mgmd (see restarts)
+  
+
+# multiple sidecars / operators 
+
+multiple operators will decide over [leaderelection](https://kubernetes.io/blog/2016/01/simple-leader-election-with-kubernetes/) via [k8 api](k8s.io/client-go/tools/leaderelection)
+  
+  not tested yet
+
+according to [jepsen](https://jepsen.io/analyses/etcd-3.4.3) leader leases have a HA problem though as they are stored in etcd
+
+More on this in a [blog about K8 HA](https://medium.com/@dominik.tornow/kubernetes-high-availability-d2c9cbbdd864)
+
+
+# deploy 
+
+## Install Custom Resource Definitions, ServiceAccounts, ClusterRoles, and ClusterRoleBindings
+
+```bash
+kubectl -n ${NAMESPACE} apply -f artifacts/manifests/crd.yaml
+sed -e "s/<NAMESPACE>/${NAMESPACE}/g" artifacts/manifests/rbac.yaml | kubectl -n ${NAMESPACE} apply -f -
+```
+
+## Create NDB Object of kind Ndb 
+
+Applying or deleting a CRD of kind Ndb will deploy a new cluster setup or delete an existing.
+
+## Configuration
+
+The entire cluster configuration can be done via the Ndb object. 
+Most of the normal standard config shall be available there (such as LockPages ...)
+  optionally (is this simpler in first step?) a ConfigMap can provide a 
+  classic ini file which will be merged with the configuration parts coming from the Ndb CRD object
+
+Tension between topology parameters and other config parameters.
+
+
+# Config changes and scaling 
+
+
+# Logging
+
+Log aggregation? 
+
+fluentd
+logstash
+OCI logging framework
+
+

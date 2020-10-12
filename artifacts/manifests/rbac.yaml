@@ -1,0 +1,78 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+    name: ndb-agent
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+    name: ndb-agent
+rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch
+
+    - apiGroups: [""]
+      resources: ["endpoints"]
+      verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch
+
+    - apiGroups: ["apps"]
+      resources: ["statefulsets"]
+      verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch
+
+    - apiGroups: ["ndbcontroller.mysql.com"]
+      resources:
+      - ndbs
+      verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch
+
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ndb-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ndb-agent
+subjects:
+- kind: ServiceAccount
+  name: ndb-agent
+  namespace: <NAMESPACE>
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+    name: ndb-agent
+roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: ndb-agent
+subjects:
+- kind: ServiceAccount
+  name: ndb-agent
+  namespace: <NAMESPACE>
+    

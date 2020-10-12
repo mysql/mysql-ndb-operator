@@ -1,0 +1,10 @@
+[template]
+src = "ndb-cluster.cnf.tmpl"
+dest = "/etc/ndb-cluster.cnf"
+onetime = true
+keys = [
+    "/ndb/replicas",
+    "/ndb/mgmd/hosts",
+    "/ndb/ndbd/hosts",
+    "/ndb/api/hosts",
+]
