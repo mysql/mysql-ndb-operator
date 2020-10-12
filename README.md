@@ -41,14 +41,35 @@ It requires some copying as described in the script.
 Generators are in [k8s.io/code-generator](https://github.com/kubernetes/code-generator)
 and generate a typed client, informers, listers and deep-copy functions.
 
-## Running
-
-**Prerequisite**: Since the ndb-operator uses `apps/v1` deployments, the Kubernetes cluster version should be greater than 1.9.
+## Building
 
 ```sh
-# assumes you have a working kubeconfig, not required if operating in-cluster
+# Build ndb-operator 
 make build
+```
 
+## Image building
+
+**Prerequisite**: You have a build directory available that is build for OL8. You can use a OL8 build container in docker/ol8 for that. 
+
+If you use minikube then set the environment to minikube:
+
+```sh
+# copy necessary ndb binaries 
+make install-minimal
+
+# point to minikube
+$ eval $(minikube docker-env)
+
+# build docker image
+make build-docker
+```
+
+## Running
+
+**Prerequisite**: operator built, docker images build and made available in kubernetes 
+
+```sh
 kubectl -n ${NAMESPACE} apply -f artifacts/manifests/crd.yaml
 sed -e "s/<NAMESPACE>/${NAMESPACE}/g" artifacts/manifests/rbac.yaml | kubectl -n ${NAMESPACE} apply -f -
 
