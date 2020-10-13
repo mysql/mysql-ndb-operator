@@ -50,9 +50,10 @@ make build
 
 ## Image building
 
-**Prerequisite**: You have a build directory available that is build for OL8. You can use a OL8 build container in docker/ol8 for that. 
+**Prerequisite**: You have a build directory available that is build for OL8. 
+You can use a OL8 build-container in docker/ol8 for that or download a readily compiled OL8 build.
 
-If you use minikube then set the environment to minikube:
+If you use minikube then set the environment to minikube first before building the image.
 
 ```sh
 # copy necessary ndb binaries 
@@ -67,7 +68,7 @@ make build-docker
 
 ## Running
 
-**Prerequisite**: operator built, docker images build and made available in kubernetes 
+**Prerequisite**: operator built, docker images built and made available in kubernetes 
 
 ```sh
 kubectl -n ${NAMESPACE} apply -f artifacts/manifests/crd.yaml
