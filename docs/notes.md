@@ -1,11 +1,8 @@
-*this is generated - edits in confluence will die after next generation*
-
 # Requirements
 
+## Operator capability levels 
 
-## Operator levels 
-
-Shamelessly borrowed from [Oracle DB Operator](https://confluence.oraclecorp.com/confluence/display/DBJAVA/Oracle+Database+Kubernetes+Operator)
+Further reading with a detailed description of [operator capability levels](https://sdk.operatorframework.io/docs/advanced-topics/operator-capabilities/operator-capabilities/).
 
 Level 1 -  Basic Install: automated application provisioning and configuration management
             Cassandra, CouchDB, YugaBytes
@@ -24,11 +21,10 @@ Level 5 - Auto Pilot: Horizontal/vertical scaling, auto config tuning, abnormal 
 
 # Goals
 
-- Fast to market, startup mode
-- Ship some basic Level 1 first (don't be ashamed - we would be in good company)
+- Ship some basic Level 1 first
 - then iterate with updates
 
-List [opertorhub.io](https://operatorhub.io/operator/?category=Database) asap.
+List in [opertorhub.io](https://operatorhub.io/operator/?category=Database)?
 
 - Aim for a level 5, but level 3 is good already
 
@@ -108,29 +104,53 @@ ReplicaSets for mysqld
 
 ## Controllers
 
+A controller reads the desidered state and takes actions based on the actual state. 
+
 - management servers 
 - data node (one per ndb replica?)
 - backup and restore
 - mysqld  
 
-## Cluster state
+### Cluster spec and status
 
-Each controller syncs desidered spec and tries to align cluster state. 
-This happens in workqueue processing object change events. 
+A user describes the new desired Ndb cluster state and topology by changing the spec of the Ndb CRD.
 
-Each controller must be able to crash and fail over (leader re-election) 
-without corrupting cluster or operator state. 
+In order to enable the controller to take action based on the new spec it subscribes to object change events from the Ndb CRD and other resources.
+
+These change events are placed in a (rate limited) workqueue and then
+processed in a sync() loop which reads the resources new spec describing the desired state and compares with the actual status.
+
+Rate limited workqueues are used and automatically collapse quick following changes into a single change.
+
+Based on the difference between the desired and actual state action will be taken.
+
+```mermaid
+sequenceDiagram
+  User->>spec: change spec
+  loop k8 event handler
+    spec->>k8 Informer: listen to changes
+  end
+  k8 Informer->>controller:handle add/del/upd spec
+  loop sync()
+    spec->>controller:read resource object spec
+    Ndb cluster / k8 api->>controller:get status
+    controller->>controller: compare spec and status
+    controller->>Ndb cluster / k8 api: take action
+  end
+```
+
+Each controller must be able to crash and fail over (leader re-election) without corrupting cluster or operator state. 
 
 NDB needs to be able to run without the operator running. A cluster created with the operator should at any point in time be manageable by the operator 
 again (unless someone has interacted with the cluster manually and changed fundamental aspects of the installation).
 
-## Idempotency 
+### Idempotency 
 
 Due to how we need to survive operator crashes and failovers and the fact that we have a declarative API approach the operator has to be idempotent.
 
-### Questions
+### Status information
 
-How much do we rely on k8's Ndb object status versus "real state" extracted from ndb?
+Certain status information will need to be stored in kubernetes objects' status. However, whenever possible the actual cluster state should be extraced from NDB itself rather than via object status.
 
 # ndb nodes, operators and containers/pod
 
@@ -228,6 +248,23 @@ Tension between topology parameters and other config parameters.
 
 # Config changes and scaling 
 
+In order to handle config changes data nodes and management nodes need to be restarted. 
+Driving ndb to the new config across multiple pods and statefulsets requires to keep track 
+of the desired configuration and the actual config state in cluster.
+
+One solution is to use each configuration's unique "fingerprint" by e.g. calculating the hash
+and timestamp of the generated config.ini. 
+
+A more detailed solution could be to compare the desired config with the actual configuration 
+of each data node via ndbinfo. 
+
+Once the ndb controller observes a new configuration the configuration's fingerprint will 
+be updated in the annotation section of the Ndb CRD object. 
+
+This fingerprint will be compared with the fingerprint stored in the Ndb object's status.
+
+As soon as each stateful set fully restarted with the new configuration then 
+the configuration's finger print will be updated in the Ndb object's status. 
 
 # Logging
 
