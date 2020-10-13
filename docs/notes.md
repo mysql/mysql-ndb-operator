@@ -41,6 +41,7 @@ ignore (in the beginning) incomplete k8 features such as
 ## Best practices
 
 [Operator framework best practices](https://github.com/operator-framework/community-operators/blob/master/docs/best-practices.md)
+
 [Google cloud best practices](https://cloud.google.com/blog/products/containers-kubernetes/best-practices-for-building-kubernetes-operators-and-stateful-apps)
 
 ## Features
@@ -243,8 +244,36 @@ Most of the normal standard config shall be available there (such as LockPages .
   optionally (is this simpler in first step?) a ConfigMap can provide a 
   classic ini file which will be merged with the configuration parts coming from the Ndb CRD object
 
-Tension between topology parameters and other config parameters.
+Tension between topology parameters and other config parameters. Possible example
 
+```
+spec:
+  ndbd:
+    nodes: 2
+    reduncancy: 2  
+    datamemory: 2GB
+    transactionmemory: 200MB
+    sharedglobalmemory: 100MB
+    volumeClaimTemplate:
+      metadata:
+        name: data
+      spec:
+        storageClassName: manual
+        accessModes:
+          - ReadWriteMany
+        resources:
+          requests:
+            storage: 1Gi
+  mgmd:
+    nodes: 2
+  mysqld:
+    replicas: 12
+    sslSecret:
+      name: mysql-ssl-secret
+    
+```
+
+Ideally cluster configures itself based on configured resource limitations.
 
 # Config changes and scaling 
 
