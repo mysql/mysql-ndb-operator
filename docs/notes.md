@@ -158,10 +158,6 @@ Certain status information will need to be stored in kubernetes objects' status.
 Each ndb node and operator runs in its own container inside its own pod.
 A pod can consist of a ndb node and an agent sidecar pod. 
 
-The management server probably needs a small wrapper 
-agent running inside its container in the first versions until 
-we fixed ndb_mgmd to start and stop remotely. 
-
 Operators can run inside a pod or outside.
 
 Nodes run in --foreground and --nodaemon inside their container. A failed process will thus lead to a pod- or container restart. How about management server here?
@@ -199,6 +195,11 @@ Before restarting a pod or perform a rolling / parallel restart of statefulsets 
 
 unline ndbmtd ndb_mgmd has no -n mode to wait and take e.g. a remote start command
 thus we wrap ndb_mgmd into an agent for that purpose
+
+The management server probably needs a small wrapper 
+agent running inside its container in the first versions until 
+we fixed ndb_mgmd to start and stop remotely. 
+This could be part of the standard docker image as well.
 
 config changes require a re-write or patching of the configuration
 Both management servers need to be in stopped state in parallel for a moment to reload a new config version from the ini file. (How can we achieve that with very "agressive" k8 pod restarts?)
@@ -294,6 +295,31 @@ This fingerprint will be compared with the fingerprint stored in the Ndb object'
 
 As soon as each stateful set fully restarted with the new configuration then 
 the configuration's finger print will be updated in the Ndb object's status. 
+
+## config injection
+
+While handing over of configuration to kubernetes via objects and specs 
+is obviously no problem there is no natural oberlap with what ndb would expect.
+
+ConfigMaps, [Presets](https://kubernetes.io/docs/tasks/inject-data-application/podpreset/) 
+or environment variables can inject configuration into a container or pod *only at creation time*. 
+But injecting information at runtime is only possible via e.g. network, IPC or maybe 
+shared volumes. 
+
+* Option #1 - config controller in mgmd sidecar
+
+  K8 Pod Objects for the management server could be patched by the central Ndb Controller relaying 
+  configuration from Ndb CR. A mgmd side car can subscribe to change events from the Pod Object and 
+  re-create the config information.
+
+  Other flavours are TCP connections transfering config changes directly to the side car.
+
+* Option #2 - container recreation
+
+  Ndb operator re-creates the mgmd pods every time the config changes. 
+  Config file is re-created from env variables inside mgmd container or its sidecar.
+
+Both options allow to keep the original ndb image unchanged by running in a side car.
 
 # Logging
 
