@@ -12,8 +12,10 @@ CMD_DIRECTORIES := $(sort $(dir $(wildcard ./cmd/*/)))
 COMMANDS := $(CMD_DIRECTORIES:./cmd/%/=%)
 
 # point BASEDIR to your mysql ndb *build* directory (not install)
-BASEDIR=/home/bo/prg/mysql-bld/trunk
-RTDIR=${BASEDIR}/runtime_output_directory
+# BASEDIR=/home/bo/prg/mysql-bld/trunk
+BASEDIR=/Users/bo/Downloads/mysql-cluster-8.0.22-el7-x86_64
+#RTDIR=${BASEDIR}/runtime_output_directory
+RTDIR=${BASEDIR}/bin
 
 BINDIR   :=bin/
 SBINDIR  :=sbin/
@@ -111,4 +113,4 @@ generate:
 	./hack/update-codegen.sh
 
 run:
-	bin/linux_amd64/ndb-operator --kubeconfig=/home/bo/.kube/config 
+	bin/$(OS)_$(ARCH)/ndb-operator --kubeconfig=$(HOME)/.kube/config 
