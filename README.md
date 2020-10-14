@@ -76,6 +76,9 @@ sed -e "s/<NAMESPACE>/${NAMESPACE}/g" artifacts/manifests/rbac.yaml | kubectl -n
 
 ./ndb-operator -kubeconfig=$HOME/.kube/config
 
+# create configmap in case example uses it
+kubectl apply -f artifacts/examples/configmap.yaml
+
 # create a custom resource of type Ndb
 kubectl apply -f artifacts/examples/example-ndb.yaml
 
