@@ -58,7 +58,7 @@ const (
 	MessageResourceSynced = "Ndb synced successfully"
 )
 
-// Controller is the controller implementation for Ndb resources
+// Controller is the main controller implementation for Ndb resources
 type Controller struct {
 	// kubeclientset is a standard kubernetes clientset
 	kubeclientset kubernetes.Interface
@@ -298,11 +298,11 @@ func (c *Controller) syncHandler(key string) error {
 	}
 	nsName := types.NamespacedName{Namespace: namespace, Name: name}
 
-	// Get the Foo resource with this namespace/name
+	// Get the Ndb resource with this namespace/name
 	ndb, err := c.ndbsLister.Ndbs(namespace).Get(name)
 	if err != nil {
 		klog.Infof("Ndb does not exist as resource, %s", name)
-		// The Foo resource may no longer exist, in which case we stop
+		// The Ndb resource may no longer exist, in which case we stop
 		// processing.
 		if apierrors.IsNotFound(err) {
 			utilruntime.HandleError(fmt.Errorf("ndb '%s' in work queue no longer exists", key))
@@ -325,8 +325,8 @@ func (c *Controller) syncHandler(key string) error {
 		return c.updateClusterLabels(ndb.DeepCopy(), labels.Set(ndb.Labels))
 	}
 
+	// Create the service if it doesn't exist
 	svc, err := c.serviceLister.Services(ndb.Namespace).Get(ndb.Name)
-	// If the resource doesn't exist, we'll create it
 	if apierrors.IsNotFound(err) {
 		klog.Infof("Creating a new Service for cluster %q", nsName)
 		svc = NewService(ndb)
@@ -337,6 +337,7 @@ func (c *Controller) syncHandler(key string) error {
 		return err
 	}
 
+	// create the management stateful set if it doesn't exist
 	if c.mgmdController == nil {
 		mgmdSfSet := resources.NewMgmdStatefulSet(ndb, svc.Name)
 		c.mgmdController =
@@ -352,6 +353,7 @@ func (c *Controller) syncHandler(key string) error {
 		return err
 	}
 
+	// create the data node stateful set if it doesn't exist
 	if c.ndbdController == nil {
 		ndbdSfSet := resources.NewNdbdStatefulSet(ndb, svc.Name)
 		c.ndbdController =

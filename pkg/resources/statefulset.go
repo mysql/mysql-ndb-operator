@@ -268,12 +268,15 @@ func (bss *baseStatefulSet) NewStatefulSet(cluster *v1alpha1.Ndb) *apps.Stateful
 	}
 
 	containers := []v1.Container{}
+	serviceaccount := ""
+
 	replicas := func(i int32) *int32 { return &i }((0))
 	if bss.typeName == "mgmd" {
 		containers = []v1.Container{
 			bss.mgmdContainer(cluster),
 			//agentContainer(cluster, ndbAgentImage),
 		}
+		//serviceaccount = "ndb-agent"
 		replicas = cluster.Spec.Mgmd.NodeCount
 
 	} else {
@@ -281,11 +284,20 @@ func (bss *baseStatefulSet) NewStatefulSet(cluster *v1alpha1.Ndb) *apps.Stateful
 			bss.ndbmtdContainer(cluster),
 			//agentContainer(cluster, ndbAgentImage),
 		}
+		//serviceaccount = "ndb-agent"
 		replicas = cluster.Spec.Ndbd.NodeCount
 	}
 
 	podLabels := map[string]string{
 		constants.ClusterLabel: cluster.Name,
+	}
+
+	podspec := v1.PodSpec{
+		Containers: containers,
+		Volumes:    podVolumes,
+	}
+	if serviceaccount != "" {
+		podspec.ServiceAccountName = "ndb-agent"
 	}
 
 	ss := &apps.StatefulSet{
@@ -312,11 +324,12 @@ func (bss *baseStatefulSet) NewStatefulSet(cluster *v1alpha1.Ndb) *apps.Stateful
 					Labels:      podLabels,
 					Annotations: map[string]string{},
 				},
-				Spec: v1.PodSpec{
+				Spec: podspec,
+				/*v1.PodSpec{
 					ServiceAccountName: "ndb-agent",
 					Containers:         containers,
 					Volumes:            podVolumes,
-				},
+				},*/
 			},
 			ServiceName: bss.serviceName,
 		},
