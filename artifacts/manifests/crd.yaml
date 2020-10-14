@@ -4,7 +4,51 @@ metadata:
   name: ndbs.ndbcontroller.mysql.com
 spec:
   group: ndbcontroller.mysql.com
-  version: v1alpha1
+  versions: 
+    - name: v1alpha1
+      # Each version can be enabled/disabled by Served flag.
+      served: true
+      # One and only one version must be marked as the storage version.
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                deploymentName:
+                  type: string
+                config:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                ndbd:
+                  type: object
+                  properties:
+                    name: 
+                      type: string
+                    nodecount: 
+                      type: integer
+                    noofreplicas: 
+                      type: integer
+                mgmd:
+                  type: object
+                  properties:
+                    name: 
+                      type: string
+                    nodecount: 
+                      type: integer
+                mysqld:
+                  type: object
+                  properties:
+                    name: 
+                      type: string
+                    nodecount: 
+                      type: integer
+            
+
   names:
     kind: Ndb
     plural: ndbs
