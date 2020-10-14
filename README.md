@@ -71,6 +71,7 @@ make build-docker
 **Prerequisite**: operator built, docker images built and made available in kubernetes 
 
 ```sh
+NAMESPACE=default
 kubectl -n ${NAMESPACE} apply -f artifacts/manifests/crd.yaml
 sed -e "s/<NAMESPACE>/${NAMESPACE}/g" artifacts/manifests/rbac.yaml | kubectl -n ${NAMESPACE} apply -f -
 
