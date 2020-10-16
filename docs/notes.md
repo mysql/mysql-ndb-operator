@@ -321,6 +321,33 @@ shared volumes.
 
 Both options allow to keep the original ndb image unchanged by running in a side car.
 
+## config versioning
+
+cluster allows a "manual" `ConfigGenerationNumber` in the system section on the cluster config 
+this number could be used to track if a generation was rolled out to mgmd and data nodes 
+
+## pod whoami
+
+How to know which pod one is own? Injecting ENV variables.
+
+https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test
+spec:
+  containers:
+    - name: test-container
+      env:
+        - name: MY_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+```
+
+
 # Logging
 
 Log aggregation? 
