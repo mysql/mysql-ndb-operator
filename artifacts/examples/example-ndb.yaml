@@ -12,3 +12,5 @@ spec:
     noofreplicas: 2
   mgmd: 
     nodecount: 2
+  mysqld:
+    nodecount: 2
