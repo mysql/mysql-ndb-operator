@@ -3,9 +3,9 @@ apiVersion: v1
 metadata:
   name: config-ini
   namespace: default
-  uid: a7ec90d9-f2a9-11ea-95f5-000d3a2ebd7f
-  resourceVersion: '58127766'
-  creationTimestamp: '2020-09-09T14:35:06Z'
+  #uid: a7ec90d9-f2a9-11ea-95f5-000d3a2ebd7f
+  #resourceVersion: '58127766'
+  #creationTimestamp: '2020-09-09T14:35:06Z'
 data:
   config.ini: |
     [DB DEFAULT]
