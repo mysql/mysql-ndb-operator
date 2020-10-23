@@ -153,6 +153,12 @@ Due to how we need to survive operator crashes and failovers and the fact that w
 
 Certain status information will need to be stored in kubernetes objects' status. However, whenever possible the actual cluster state should be extraced from NDB itself rather than via object status.
 
+## Images
+
+docker vs k8 images? Leave docker images as-is and just base new k8 images on the existing ones? Replace with "hybrid" images for both worlds? Two separate images?
+
+Could use [Multi-architecture images](https://kubernetes.io/docs/concepts/containers/images/#multi-architecture-images-with-manifests) but that seems to be rather hardware architecture related?
+
 # ndb nodes, operators and containers/pod
 
 Each ndb node and operator runs in its own container inside its own pod.
@@ -240,12 +246,13 @@ Applying or deleting a CRD of kind Ndb will deploy a new cluster setup or delete
 
 ## Configuration
 
-The entire cluster configuration can be done via the Ndb object. 
-Most of the normal standard config shall be available there (such as LockPages ...)
-  optionally (is this simpler in first step?) a ConfigMap can provide a 
-  classic ini file which will be merged with the configuration parts coming from the Ndb CRD object
+The entire cluster configuration can be done via the Ndb object. Most of the normal standard config shall be available there (such as LockPages ...). Optionally (is this simpler in first step?) a ConfigMap can provide a classic ini file which will be merged with the configuration parts coming from the Ndb CRD object
 
-Tension between topology parameters and other config parameters. Possible example
+There is also a tension between topology parameters and other config parameters when mixing "classic" config.ini configuration and mixing it with k8 operator configuration. A classic config.ini configuration carries information about e.g. the amount of memory to use but also about the number of nodes. 
+
+Decision: no external configuration via config.ini, environment variables or ConfigMap. All configuration for cluster comes from the Ndb object described via yaml.
+
+Possible example
 
 ```
 spec:
@@ -278,33 +285,23 @@ Ideally cluster configures itself based on configured resource limitations.
 
 # Config changes and scaling 
 
-In order to handle config changes data nodes and management nodes need to be restarted. 
-Driving ndb to the new config across multiple pods and statefulsets requires to keep track 
-of the desired configuration and the actual config state in cluster.
+In order to handle config changes data nodes and management nodes need to be restarted. Driving ndb to the new config across multiple pods and statefulsets requires to keep track of the desired configuration and the actual config state in cluster.
 
-One solution is to use each configuration's unique "fingerprint" by e.g. calculating the hash
-and timestamp of the generated config.ini. 
+One solution is to use each configuration's unique "fingerprint" by e.g. calculating the hash and timestamp of the generated config.ini. 
 
-A more detailed solution could be to compare the desired config with the actual configuration 
-of each data node via ndbinfo. 
+A more detailed solution could be to compare the desired config with the actual configuration of each data node via ndbinfo. 
 
-Once the ndb controller observes a new configuration the configuration's fingerprint will 
-be updated in the annotation section of the Ndb CRD object. 
+Once the ndb controller observes a new configuration the configuration's fingerprint will be updated in the annotation section of the Ndb CRD object. 
 
 This fingerprint will be compared with the fingerprint stored in the Ndb object's status.
 
-As soon as each stateful set fully restarted with the new configuration then 
-the configuration's finger print will be updated in the Ndb object's status. 
+As soon as each stateful set fully restarted with the new configuration then the configuration's finger print will be updated in the Ndb object's status. 
 
 ## config injection
 
-While handing over of configuration to kubernetes via objects and specs 
-is obviously no problem there is no natural oberlap with what ndb would expect.
+While handing over of configuration to kubernetes via objects and specs is obviously no problem there is no natural oberlap with how ndb handles initial configuration and configuraiton changes.
 
-ConfigMaps, [Presets](https://kubernetes.io/docs/tasks/inject-data-application/podpreset/) 
-or environment variables can inject configuration into a container or pod *only at creation time*. 
-But injecting information at runtime is only possible via e.g. network, IPC or maybe 
-shared volumes. 
+ConfigMaps, [Presets](https://kubernetes.io/docs/tasks/inject-data-application/podpreset/) or environment variables can inject configuration into a container or pod *only at creation time*. Injecting information at runtime is only possible via e.g. network, IPC or maybe shared volumes. 
 
 * Option #1 - config controller in mgmd sidecar
 
@@ -314,12 +311,26 @@ shared volumes.
 
   Other flavours are TCP connections transfering config changes directly to the side car.
 
+  Common problem remains that ndb_mgmd requires both ndb_mgmd to be stopped simultaneously 
+  and started then with the new config version.
+
 * Option #2 - container recreation
 
   Ndb operator re-creates the mgmd pods every time the config changes. 
+
+  and 
+
   Config file is re-created from env variables inside mgmd container or its sidecar.
 
-Both options allow to keep the original ndb image unchanged by running in a side car.
+  or
+
+  Config file is re-created with an initContainer from Ndb object.
+
+For the first version simplest is to use Option #2 with an initContainer creating 
+a new config.ini from an Ndb object.
+
+Both options allow to keep the original ndb image unchanged by running in a side car 
+or separate container.
 
 ## config versioning
 
