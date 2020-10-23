@@ -114,3 +114,9 @@ generate:
 
 run:
 	bin/$(OS)_$(ARCH)/ndb-operator --kubeconfig=$(HOME)/.kube/config 
+
+run-agent:
+	MY_POD_NAMESPACE=default \
+	MY_NDB_NAME=example-ndb \
+	MY_POD_SERVERPORT=1186 \
+	bin/$(OS)_$(ARCH)/ndb-agent --kubeconfig=$(HOME)/.kube/config 
