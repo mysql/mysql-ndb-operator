@@ -13,6 +13,7 @@ import (
 	"time"
 
 	apps "k8s.io/api/apps/v1"
+	coreapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -21,11 +22,11 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog"
 
 	ndbcontroller "github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned/fake"
 	informers "github.com/ocklin/ndb-operator/pkg/generated/informers/externalversions"
-	"github.com/ocklin/ndb-operator/pkg/resources"
 )
 
 var (
@@ -38,9 +39,18 @@ type fixture struct {
 
 	client     *fake.Clientset
 	kubeclient *k8sfake.Clientset
+
+	// stop channel
+	stopCh chan struct{}
+
+	sif  informers.SharedInformerFactory
+	k8If kubeinformers.SharedInformerFactory
+
 	// Objects to put in the store.
 	ndbLister        []*ndbcontroller.Ndb
 	deploymentLister []*apps.Deployment
+	configMapLister  []*coreapi.ConfigMap
+
 	// Actions expected to happen on the client.
 	kubeactions []core.Action
 	actions     []core.Action
@@ -54,10 +64,33 @@ func newFixture(t *testing.T) *fixture {
 	f.t = t
 	f.objects = []runtime.Object{}
 	f.kubeobjects = []runtime.Object{}
+
 	return f
 }
 
-func newFoo(name string, replicas *int32) *ndbcontroller.Ndb {
+func (f *fixture) init() {
+
+	f.client = fake.NewSimpleClientset(f.objects...)
+	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
+
+	f.sif = informers.NewSharedInformerFactory(f.client, noResyncPeriodFunc())
+	f.k8If = kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
+
+	f.stopCh = make(chan struct{})
+}
+
+func (f *fixture) start() {
+	// start informers
+	f.sif.Start(f.stopCh)
+	f.k8If.Start(f.stopCh)
+}
+
+func (f *fixture) close() {
+	klog.Info("Closing fixture")
+	close(f.stopCh)
+}
+
+func newNdb(name string, noofnodes int) *ndbcontroller.Ndb {
 	return &ndbcontroller.Ndb{
 		TypeMeta: metav1.TypeMeta{APIVersion: ndbcontroller.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -66,43 +99,36 @@ func newFoo(name string, replicas *int32) *ndbcontroller.Ndb {
 		},
 		Spec: ndbcontroller.NdbSpec{
 			DeploymentName: fmt.Sprintf("%s-deployment", name),
-			Replicas:       replicas,
+			Ndbd: ndbcontroller.NdbNdbdSpec{
+				//NodeCount: func(i int32) *int32 { return &i }((int32(noofnodes))),
+				NodeCount:    int32Ptr(int32(noofnodes)),
+				NoOfReplicas: int32Ptr(int32(2)),
+			},
+			Mgmd: ndbcontroller.NdbMgmdSpec{
+				NodeCount: int32Ptr(int32(noofnodes)),
+			},
 		},
 	}
 }
 
-func (f *fixture) newController() (*Controller, informers.SharedInformerFactory, kubeinformers.SharedInformerFactory) {
-	f.client = fake.NewSimpleClientset(f.objects...)
-	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
-
-	i := informers.NewSharedInformerFactory(f.client, noResyncPeriodFunc())
-	k8sI := kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
+func (f *fixture) newController() *Controller {
 
 	c := NewController(f.kubeclient, f.client,
-		k8sI.Apps().V1().Deployments(),
-		k8sI.Apps().V1().StatefulSets(),
-		k8sI.Core().V1().Services(),
-		i.Ndbcontroller().V1alpha1().Ndbs())
+		f.k8If.Apps().V1().StatefulSets(),
+		f.k8If.Core().V1().Services(),
+		f.k8If.Core().V1().Pods(),
+		f.k8If.Core().V1().ConfigMaps(),
+		f.sif.Ndbcontroller().V1alpha1().Ndbs())
 
-	for _, f := range f.ndbLister {
-		i.Ndbcontroller().V1alpha1().Ndbs().Informer().GetIndexer().Add(f)
+	for _, n := range f.ndbLister {
+		f.sif.Ndbcontroller().V1alpha1().Ndbs().Informer().GetIndexer().Add(n)
 	}
 
-	for _, d := range f.deploymentLister {
-		k8sI.Apps().V1().Deployments().Informer().GetIndexer().Add(d)
+	for _, d := range f.configMapLister {
+		f.k8If.Core().V1().ConfigMaps().Informer().GetIndexer().Add(d)
 	}
 
-	return c, i, k8sI
-}
-
-func (f *fixture) newStatefulSet(ndb ndbcontroller.Ndb) (*apps.StatefulSet, error) {
-	ndbdSfSet := resources.NewNdbdStatefulSet(ndb, svc.Name)
-	ndbdController :=
-		&realStatefulSetControl{
-			client:            f.kubeclient,
-			statefulSetLister: c.statefulSetLister,
-			statefulSetType:   ndbdSfSet}
-	return ndbdController.EnsureStatefulSet(ndb)
+	return c
 }
 
 func (f *fixture) run(fooName string) {
@@ -114,21 +140,20 @@ func (f *fixture) runExpectError(fooName string) {
 }
 
 func (f *fixture) runController(fooName string, startInformers bool, expectError bool) {
-	c, i, k8sI := f.newController()
+	c := f.newController()
 	if startInformers {
-		stopCh := make(chan struct{})
-		defer close(stopCh)
-		i.Start(stopCh)
-		k8sI.Start(stopCh)
+		f.start()
 	}
 
 	err := c.syncHandler(fooName)
 	if !expectError && err != nil {
-		f.t.Errorf("error syncing foo: %v", err)
+		f.t.Errorf("error syncing ndb: %v", err)
 	} else if expectError && err == nil {
-		f.t.Error("expected error syncing foo, got nil")
+		f.t.Error("expected error syncing ndb, got nil")
 	}
+	klog.Infof("Successfully syncing ndb")
 
+	filterInformerActions(f.client.Actions())
 	actions := filterInformerActions(f.client.Actions())
 	for i, action := range actions {
 		if len(f.actions) < i+1 {
@@ -211,31 +236,40 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 // Since list and watch don't change resource state we can filter it to lower
 // nose level in our tests.
 func filterInformerActions(actions []core.Action) []core.Action {
+	//klog.Infof("Filtering %d actions", len(actions))
 	ret := []core.Action{}
 	for _, action := range actions {
 		if len(action.GetNamespace()) == 0 &&
-			(action.Matches("list", "foos") ||
-				action.Matches("watch", "foos") ||
-				action.Matches("list", "deployments") ||
-				action.Matches("watch", "deployments")) {
+			(action.Matches("list", "ndbs") ||
+				action.Matches("watch", "ndbs") ||
+				action.Matches("list", "pods") ||
+				action.Matches("watch", "pods") ||
+				action.Matches("list", "services") ||
+				action.Matches("watch", "services") ||
+				action.Matches("list", "configmaps") ||
+				action.Matches("watch", "configmaps") ||
+				action.Matches("list", "statefulsets") ||
+				action.Matches("watch", "statefulsets")) {
+			//klog.Infof("Filtering +%v", action)
 			continue
 		}
+		klog.Infof("Appending +%v", action)
 		ret = append(ret, action)
 	}
 
 	return ret
 }
 
-func (f *fixture) expectCreateDeploymentAction(d *apps.Deployment) {
-	f.kubeactions = append(f.kubeactions, core.NewCreateAction(schema.GroupVersionResource{Resource: "deployments"}, d.Namespace, d))
+func (f *fixture) expectCreateAction(ns string, resource string, o runtime.Object) {
+	f.kubeactions = append(f.kubeactions, core.NewCreateAction(schema.GroupVersionResource{Resource: resource}, ns, o))
 }
 
-func (f *fixture) expectUpdateDeploymentAction(d *apps.Deployment) {
-	f.kubeactions = append(f.kubeactions, core.NewUpdateAction(schema.GroupVersionResource{Resource: "deployments"}, d.Namespace, d))
+func (f *fixture) expectUpdateAction(ns string, resource string, o runtime.Object) {
+	f.kubeactions = append(f.kubeactions, core.NewUpdateAction(schema.GroupVersionResource{Resource: resource}, ns, o))
 }
 
-func (f *fixture) expectUpdateFooStatusAction(foo *ndbcontroller.Ndb) {
-	action := core.NewUpdateAction(schema.GroupVersionResource{Resource: "ndbs"}, foo.Namespace, foo)
+func (f *fixture) expectUpdateNdbStatusAction(ndb *ndbcontroller.Ndb) {
+	action := core.NewUpdateAction(schema.GroupVersionResource{Resource: "ndbs"}, ndb.Namespace, ndb)
 	// TODO: Until #38113 is merged, we can't use Subresource
 	//action.Subresource = "status"
 	f.actions = append(f.actions, action)
@@ -250,66 +284,83 @@ func getKey(foo *ndbcontroller.Ndb, t *testing.T) string {
 	return key
 }
 
-func TestCreatesDeployment(t *testing.T) {
+func TestCreatesCluster(t *testing.T) {
+
 	f := newFixture(t)
-	foo := newFoo("test", int32Ptr(1))
+	defer f.close()
 
-	f.ndbLister = append(f.ndbLister, foo)
-	f.objects = append(f.objects, foo)
+	ndb := newNdb("test", 1)
 
-	expDeployment := newDeployment(foo)
-	f.expectCreateDeploymentAction(expDeployment)
-	f.expectUpdateFooStatusAction(foo)
+	// we first need to set up arrays with objects ...
+	f.ndbLister = append(f.ndbLister, ndb)
+	f.objects = append(f.objects, ndb)
 
-	f.run(getKey(foo, t))
+	// ... before we init the fake clients with those objects.
+	// objects not listed in arrays at fakeclient setup will eventually be deleted
+	f.init()
+
+	//expDeployment := newDeployment(foo)
+	//f.expectCreateDeploymentAction(expDeployment)
+
+	// update labels will happen first sync run
+	f.expectUpdateNdbStatusAction(ndb)
+
+	f.run(getKey(ndb, t))
 }
+
+/*
 
 func TestDoNothing(t *testing.T) {
 	f := newFixture(t)
-	foo := newFoo("test", int32Ptr(1))
-	d := newDeployment(foo)
+	foo := newNdb("test", 1)
 
-	f.ndbLister = append(f.ndbLister, foo)
-	f.objects = append(f.objects, foo)
-	f.deploymentLister = append(f.deploymentLister, d)
-	f.kubeobjects = append(f.kubeobjects, d)
+		d := newDeployment(foo)
 
-	f.expectUpdateFooStatusAction(foo)
-	f.run(getKey(foo, t))
+		f.ndbLister = append(f.ndbLister, foo)
+		f.objects = append(f.objects, foo)
+		f.deploymentLister = append(f.deploymentLister, d)
+		f.kubeobjects = append(f.kubeobjects, d)
+
+		f.expectUpdateFooStatusAction(foo)
+		f.run(getKey(foo, t))
 }
 
 func TestUpdateDeployment(t *testing.T) {
 	f := newFixture(t)
-	foo := newFoo("test", int32Ptr(1))
-	d := newDeployment(foo)
+	foo := newNdb("test", 1)
 
-	// Update replicas
-	foo.Spec.Replicas = int32Ptr(2)
-	expDeployment := newDeployment(foo)
+		d := newDeployment(foo)
 
-	f.ndbLister = append(f.ndbLister, foo)
-	f.objects = append(f.objects, foo)
-	f.deploymentLister = append(f.deploymentLister, d)
-	f.kubeobjects = append(f.kubeobjects, d)
+		// Update replicas
+		foo.Spec.NodeCount = int32Ptr(2)
+		expDeployment := newDeployment(foo)
 
-	f.expectUpdateFooStatusAction(foo)
-	f.expectUpdateDeploymentAction(expDeployment)
-	f.run(getKey(foo, t))
+		f.ndbLister = append(f.ndbLister, foo)
+		f.objects = append(f.objects, foo)
+		f.deploymentLister = append(f.deploymentLister, d)
+		f.kubeobjects = append(f.kubeobjects, d)
+
+		f.expectUpdateFooStatusAction(foo)
+		f.expectUpdateDeploymentAction(expDeployment)
+		f.run(getKey(foo, t))
 }
 
 func TestNotControlledByUs(t *testing.T) {
 	f := newFixture(t)
-	foo := newFoo("test", int32Ptr(1))
-	d := newDeployment(foo)
+	foo := newNdb("test", 1)
 
-	d.ObjectMeta.OwnerReferences = []metav1.OwnerReference{}
+		d := newDeployment(foo)
 
-	f.ndbLister = append(f.ndbLister, foo)
-	f.objects = append(f.objects, foo)
-	f.deploymentLister = append(f.deploymentLister, d)
-	f.kubeobjects = append(f.kubeobjects, d)
+		d.ObjectMeta.OwnerReferences = []metav1.OwnerReference{}
 
-	f.runExpectError(getKey(foo, t))
+		f.ndbLister = append(f.ndbLister, foo)
+		f.objects = append(f.objects, foo)
+		f.deploymentLister = append(f.deploymentLister, d)
+		f.kubeobjects = append(f.kubeobjects, d)
+
+		f.runExpectError(getKey(foo, t))
 }
+
+*/
 
 func int32Ptr(i int32) *int32 { return &i }
