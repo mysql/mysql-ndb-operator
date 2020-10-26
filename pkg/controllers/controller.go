@@ -12,6 +12,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -103,6 +105,7 @@ func NewController(
 	statefulSetInformer appsinformers.StatefulSetInformer,
 	serviceInformer coreinformers.ServiceInformer,
 	podInformer coreinformers.PodInformer,
+	configMapInformer coreinformers.ConfigMapInformer,
 	ndbInformer informers.NdbInformer) *Controller {
 
 	// Create event broadcaster
@@ -135,14 +138,33 @@ func NewController(
 	ndbInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.enqueueNdb,
 		UpdateFunc: func(old, new interface{}) {
-			controller.enqueueNdb(new)
+			oldNdb := old.(*v1alpha1.Ndb)
+			newNdb := new.(*v1alpha1.Ndb)
+
+			if oldNdb.ResourceVersion == newNdb.ResourceVersion {
+				return
+			}
+			if !equality.Semantic.DeepEqual(oldNdb.Spec, newNdb.Spec) {
+				klog.Infof("Difference in spec: %d : %d", *oldNdb.Spec.Ndbd.NodeCount, *newNdb.Spec.Ndbd.NodeCount)
+			}
+
+			controller.enqueueNdb(newNdb)
 		},
 		DeleteFunc: func(obj interface{}) {
-			ndb, ok := obj.(*v1alpha1.Ndb)
-			if ok {
-				controller.onDeleteNdb(ndb)
+			var ndb *v1alpha1.Ndb
+			switch obj.(type) {
+			case *v1alpha1.Ndb:
+				ndb = obj.(*v1alpha1.Ndb)
+			case cache.DeletedFinalStateUnknown:
+				del := obj.(cache.DeletedFinalStateUnknown).Obj
+				ndb = del.(*v1alpha1.Ndb)
 			}
-			controller.enqueueNdb(ndb)
+
+			klog.Infof("Delete object received and queued %v", ndb)
+
+			if ndb != nil {
+				controller.enqueueNdb(ndb)
+			}
 		},
 	})
 
@@ -283,9 +305,56 @@ func (c *Controller) updateClusterLabels(ndb *v1alpha1.Ndb, lbls labels.Set) err
 	})
 }
 
+func (c *Controller) ensureDefaults(ndb *v1alpha1.Ndb) {
+
+}
+
 // syncHandler compares the actual state with the desired, and attempts to
 // converge the two. It then updates the Status block of the Foo resource
 // with the current status of the resource.
+func (c *Controller) syncHandler2(key string) error {
+
+	klog.Infof("Sync handler: %s", key)
+
+	// Convert the namespace/name string into a distinct namespace and name
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("invalid resource key: %s", key))
+		return nil
+	}
+
+	// Get the Ndb resource with this namespace/name
+	ndb, err := c.ndbsLister.Ndbs(namespace).Get(name)
+	if err != nil {
+		klog.Infof("Ndb does not exist as resource, %s", name)
+		// The Ndb resource may no longer exist, in which case we stop
+		// processing.
+		if apierrors.IsNotFound(err) {
+			utilruntime.HandleError(fmt.Errorf("ndb '%s' in work queue no longer exists", key))
+			return nil
+		}
+
+		return err
+	}
+
+	// Create the service if it doesn't exist
+	_, err = c.serviceLister.Services(namespace).Get(name)
+	if apierrors.IsNotFound(err) {
+		nsName := types.NamespacedName{Namespace: namespace, Name: name}
+		klog.Infof("Creating a new Service for cluster %q", nsName)
+		s := NewService(ndb)
+		_, err = c.kubeclientset.CoreV1().Services(ndb.Namespace).Create(s)
+	}
+	if err != nil {
+		// re-queue if something went wrong
+		return err
+	}
+
+	time.Sleep(2000 * time.Millisecond)
+	//c.recorder.Event(ndb, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
+	return nil
+}
+
 func (c *Controller) syncHandler(key string) error {
 
 	klog.Infof("Sync handler: %s", key)
@@ -314,18 +383,13 @@ func (c *Controller) syncHandler(key string) error {
 
 	// Ensure that the required labels are set on the cluster.
 	sel4ndb := labels.SelectorFromSet(labels.Set{constants.ClusterLabel: ndb.Name})
-	klog.V(4).Infof("Labels on cluster: %s", sel4ndb.String())
-	klog.V(4).Infof("Labels on cluster: %s", ndb.Labels)
 	if !sel4ndb.Matches(labels.Set(ndb.Labels)) {
 		klog.Infof("Setting labels on cluster %s", sel4ndb.String())
-		if ndb.Labels == nil {
-			ndb.Labels = make(map[string]string)
-		}
-		ndb.Labels[constants.ClusterLabel] = ndb.Name
-		return c.updateClusterLabels(ndb.DeepCopy(), labels.Set(ndb.Labels))
+		c.updateClusterLabels(ndb.DeepCopy(), labels.Set{constants.ClusterLabel: ndb.Name})
 	}
 
 	// Create the service if it doesn't exist
+
 	svc, err := c.serviceLister.Services(ndb.Namespace).Get(ndb.Name)
 	if apierrors.IsNotFound(err) {
 		klog.Infof("Creating a new Service for cluster %q", nsName)
@@ -337,9 +401,10 @@ func (c *Controller) syncHandler(key string) error {
 		return err
 	}
 
+	svcName := svc.Name
 	// create the management stateful set if it doesn't exist
 	if c.mgmdController == nil {
-		mgmdSfSet := resources.NewMgmdStatefulSet(ndb, svc.Name)
+		mgmdSfSet := resources.NewMgmdStatefulSet(ndb, svcName)
 		c.mgmdController =
 			&realStatefulSetControl{
 				client:            c.kubeclientset,
@@ -355,7 +420,7 @@ func (c *Controller) syncHandler(key string) error {
 
 	// create the data node stateful set if it doesn't exist
 	if c.ndbdController == nil {
-		ndbdSfSet := resources.NewNdbdStatefulSet(ndb, svc.Name)
+		ndbdSfSet := resources.NewNdbdStatefulSet(ndb, svcName)
 		c.ndbdController =
 			&realStatefulSetControl{
 				client:            c.kubeclientset,
@@ -364,7 +429,6 @@ func (c *Controller) syncHandler(key string) error {
 	}
 
 	sfset, err = c.ndbdController.EnsureStatefulSet(ndb)
-
 	if err != nil {
 		return err
 	}
@@ -375,13 +439,6 @@ func (c *Controller) syncHandler(key string) error {
 		msg := fmt.Sprintf(MessageResourceExists, sfset.Name)
 		c.recorder.Event(ndb, corev1.EventTypeWarning, ErrResourceExists, msg)
 		return fmt.Errorf(msg)
-	}
-
-	// If an error occurs during Update, we'll requeue the item so we can
-	// attempt processing again later. This could have been caused by a
-	// temporary network failure, or any other transient reason.
-	if err != nil {
-		return err
 	}
 
 	// If this number of the members on the Cluster does not equal the
@@ -397,14 +454,16 @@ func (c *Controller) syncHandler(key string) error {
 		}
 	}
 
-	// Finally, we update the status block of the Foo resource to reflect the
+	// Finally, we update the status block of the Ndb resource to reflect the
 	// current state of the world
 	err = c.updateNdbStatus(ndb, sfset)
 	if err != nil {
+		klog.Errorf("updating status failed: %v", err)
 		return err
 	}
 
-	c.podListing(ndb)
+	//c.podListing(ndb)
+	klog.Infof("Returning from syncHandler")
 
 	c.recorder.Event(ndb, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
 	return nil
@@ -478,17 +537,41 @@ func (c *Controller) podListing(ndb *v1alpha1.Ndb) error {
 func (c *Controller) updateNdbStatus(ndb *v1alpha1.Ndb, sfset *appsv1.StatefulSet) error {
 
 	klog.Infof("Updating ndb cluster status with replicas: %d", sfset.Status.Replicas)
-	// NEVER modify objects from the store. It's a read-only, local cache.
-	// You can use DeepCopy() to make a deep copy of original object and modify this copy
-	// Or create a copy manually for better performance
 	ndbCopy := ndb.DeepCopy()
-	ndbCopy.Status.AvailableReplicas = sfset.Status.Replicas
-	// If the CustomResourceSubresources feature gate is not enabled,
-	// we must use Update instead of UpdateStatus to update the Status block of the Ndb resource.
-	// UpdateStatus will not allow changes to the Spec of the resource,
-	// which is ideal for ensuring nothing other than resource status has been updated.
-	_, err := c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Update(ndbCopy)
-	return err
+
+	updateErr := wait.ExponentialBackoff(retry.DefaultBackoff, func() (ok bool, err error) {
+		// NEVER modify objects from the store. It's a read-only, local cache.
+		// You can use DeepCopy() to make a deep copy of original object and modify this copy
+		// Or create a copy manually for better performance
+		ndbCopy.Status.AvailableReplicas = sfset.Status.Replicas
+
+		// If the CustomResourceSubresources feature gate is not enabled,
+		// we must use Update instead of UpdateStatus to update the Status block of the Ndb resource.
+		// UpdateStatus will not allow changes to the Spec of the resource,
+		// which is ideal for ensuring nothing other than resource status has been updated.
+		ndbCopy, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Update(ndbCopy)
+
+		//ndbCopy, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(original.Namespace).UpdateStatus(toUpdate)
+		if err == nil {
+			return true, nil
+		}
+		if !errors.IsConflict(err) {
+			return false, err
+		}
+
+		ndbCopy, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Get(ndb.Name, metav1.GetOptions{})
+		if err != nil {
+			klog.Errorf("failed to get Ndb %s/%s: %v", ndb.Namespace, ndb.Name, err)
+			return false, err
+		}
+		return false, err
+	})
+
+	if updateErr != nil {
+		klog.Errorf("failed to update Ndb %s/%s: %v", ndb.Namespace, ndb.Name, updateErr)
+		return updateErr
+	}
+	return nil
 }
 
 func (c *Controller) onDeleteNdb(ndb *v1alpha1.Ndb) {}
@@ -506,6 +589,7 @@ func (c *Controller) enqueueNdb(obj interface{}) {
 		utilruntime.HandleError(err)
 		return
 	}
+	klog.Infof("Processing Ndb: %s", key)
 	c.workqueue.Add(key)
 }
 
@@ -542,11 +626,12 @@ func (c *Controller) handleObject(obj interface{}) {
 
 		ndb, err := c.ndbsLister.Ndbs(object.GetNamespace()).Get(ownerRef.Name)
 		if err != nil {
-			klog.V(4).Infof("ignoring orphaned object '%s' of ndb '%s'", object.GetSelfLink(), ownerRef.Name)
+			klog.Infof("ignoring orphaned object '%s' of ndb '%s'", object.GetSelfLink(), ownerRef.Name)
 			return
 		}
 
-		c.enqueueNdb(ndb)
+		klog.Infof("Ignoring object: %s", ndb.GetName())
+		//c.enqueueNdb(ndb)
 		return
 	}
 }
