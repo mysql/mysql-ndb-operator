@@ -309,52 +309,6 @@ func (c *Controller) ensureDefaults(ndb *v1alpha1.Ndb) {
 
 }
 
-// syncHandler compares the actual state with the desired, and attempts to
-// converge the two. It then updates the Status block of the Foo resource
-// with the current status of the resource.
-func (c *Controller) syncHandler2(key string) error {
-
-	klog.Infof("Sync handler: %s", key)
-
-	// Convert the namespace/name string into a distinct namespace and name
-	namespace, name, err := cache.SplitMetaNamespaceKey(key)
-	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("invalid resource key: %s", key))
-		return nil
-	}
-
-	// Get the Ndb resource with this namespace/name
-	ndb, err := c.ndbsLister.Ndbs(namespace).Get(name)
-	if err != nil {
-		klog.Infof("Ndb does not exist as resource, %s", name)
-		// The Ndb resource may no longer exist, in which case we stop
-		// processing.
-		if apierrors.IsNotFound(err) {
-			utilruntime.HandleError(fmt.Errorf("ndb '%s' in work queue no longer exists", key))
-			return nil
-		}
-
-		return err
-	}
-
-	// Create the service if it doesn't exist
-	_, err = c.serviceLister.Services(namespace).Get(name)
-	if apierrors.IsNotFound(err) {
-		nsName := types.NamespacedName{Namespace: namespace, Name: name}
-		klog.Infof("Creating a new Service for cluster %q", nsName)
-		s := NewService(ndb)
-		_, err = c.kubeclientset.CoreV1().Services(ndb.Namespace).Create(s)
-	}
-	if err != nil {
-		// re-queue if something went wrong
-		return err
-	}
-
-	time.Sleep(2000 * time.Millisecond)
-	//c.recorder.Event(ndb, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
-	return nil
-}
-
 func (c *Controller) syncHandler(key string) error {
 
 	klog.Infof("Sync handler: %s", key)
