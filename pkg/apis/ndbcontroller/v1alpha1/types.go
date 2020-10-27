@@ -32,11 +32,17 @@ type NdbMgmdSpec struct {
 	Name      string `json:"name"`
 }
 
+type NdbMysqldSpec struct {
+	NodeCount *int32 `json:"nodecount"`
+	Name      string `json:"name"`
+}
+
 // NdbSpec is the spec for a Ndb resource
 type NdbSpec struct {
-	DeploymentName string      `json:"deploymentName"`
-	Mgmd           NdbMgmdSpec `json:"mgmd"`
-	Ndbd           NdbNdbdSpec `json:"ndbd"`
+	DeploymentName string        `json:"deploymentName"`
+	Mgmd           NdbMgmdSpec   `json:"mgmd"`
+	Ndbd           NdbNdbdSpec   `json:"ndbd"`
+	Mysqld         NdbMysqldSpec `json:"mysqld"`
 
 	// Config allows a user to specify a custom configuration file for MySQL.
 	// +optional
