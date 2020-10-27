@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ocklin/ndb-operator/pkg/constants"
-	"github.com/ocklin/ndb-operator/pkg/controllers"
 	clientset "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned"
 	ndbinformers "github.com/ocklin/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
 	ndblisters "github.com/ocklin/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
@@ -181,13 +180,11 @@ func (c *Agent) Run(stopCh <-chan struct{}) error {
 	sel4ndb := labels.SelectorFromSet(labels.Set{constants.ClusterLabel: "example-ndb"})
 	ndbsLister := c.ndbInformer.Lister()
 
-	ndb, err := ndbsLister.Ndbs("default").List(sel4ndb)
+	_, err := ndbsLister.Ndbs("default").List(sel4ndb)
 	// ndb, err := ndbsLister.Ndbs("default").Get("example-ndb")
 	if err != nil {
 		klog.Fatalf("Error generating lsiting ndbd: %s", err.Error())
 	}
-
-	cc := &controllers.ConfigControl{}
 
 	/*
 		currentPodJSON, err := json.MarshalIndent(ndb[0], "", "  ")
@@ -195,11 +192,6 @@ func (c *Agent) Run(stopCh <-chan struct{}) error {
 			klog.Infof(string(currentPodJSON))
 		}
 	*/
-
-	err = cc.WriteConfig(ndb[0])
-	if err != nil {
-		klog.Fatalf("Error generating log file: %s", err.Error())
-	}
 
 	klog.Info("Starting workers")
 	// Launch worker to process Ndb resources

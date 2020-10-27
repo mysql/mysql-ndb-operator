@@ -253,7 +253,7 @@ func filterInformerActions(actions []core.Action) []core.Action {
 			//klog.Infof("Filtering +%v", action)
 			continue
 		}
-		klog.Infof("Appending +%v", action)
+		//klog.Infof("Appending +%v", action)
 		ret = append(ret, action)
 	}
 
