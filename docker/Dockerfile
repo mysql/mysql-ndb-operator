@@ -45,8 +45,6 @@ COPY bin/mysql/sbin/mysqladmin /usr/sbin/
 COPY bin/mysql/bin/ndb_mgm /usr/bin/
 COPY bin/mysql/bin/mysql /usr/bin/
 
-COPY bin/linux_amd64/ndb-agent /usr/sbin
-
 COPY docker/docker-entrypoint.sh /entrypoint.sh
 COPY docker/cnf/my.cnf /etc/
 COPY docker/cnf/ndb-cluster.toml /etc/confd/conf.d/
