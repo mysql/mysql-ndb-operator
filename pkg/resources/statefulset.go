@@ -56,15 +56,14 @@ func volumeMounts(cluster *v1alpha1.Ndb) []v1.VolumeMount {
 
 	mounts = append(mounts, v1.VolumeMount{
 		Name:      mgmdVolumeName,
-		MountPath: "/var/lib/ndb",
-		SubPath:   "ndb",
+		MountPath: constants.DataDir,
 	})
 
 	// A user may explicitly define a config file for ndb via config map
 	if cluster.Spec.Config != nil {
 		mounts = append(mounts, v1.VolumeMount{
 			Name:      "config-volume",
-			MountPath: "/var/lib/ndb/config.ini.in",
+			MountPath: constants.DataDir + "/config",
 		})
 	}
 
@@ -254,18 +253,20 @@ func (bss *baseStatefulSet) NewStatefulSet(cluster *v1alpha1.Ndb) *apps.Stateful
 			},
 		},
 	)
-	if cluster.Spec.Config != nil {
-		podVolumes = append(podVolumes, v1.Volume{
-			Name: "config-volume",
-			VolumeSource: v1.VolumeSource{
-				ConfigMap: &v1.ConfigMapVolumeSource{
-					LocalObjectReference: v1.LocalObjectReference{
-						Name: cluster.Spec.Config.Name,
-					},
+	//if cluster.Spec.Config != nil {
+	podVolumes = append(podVolumes, v1.Volume{
+		Name: "config-volume",
+		VolumeSource: v1.VolumeSource{
+			ConfigMap: &v1.ConfigMapVolumeSource{
+				LocalObjectReference: v1.LocalObjectReference{
+					//Name: cluster.Spec.Config.Name,
+					//TODO: obviously get a useful name
+					Name: "ndb-config-ini",
 				},
 			},
-		})
-	}
+		},
+	})
+	//}
 
 	containers := []v1.Container{}
 	serviceaccount := ""
@@ -276,7 +277,7 @@ func (bss *baseStatefulSet) NewStatefulSet(cluster *v1alpha1.Ndb) *apps.Stateful
 			bss.mgmdContainer(cluster),
 			//agentContainer(cluster, ndbAgentImage),
 		}
-		//serviceaccount = "ndb-agent"
+		serviceaccount = "ndb-agent"
 		replicas = cluster.Spec.Mgmd.NodeCount
 
 	} else {
@@ -284,7 +285,7 @@ func (bss *baseStatefulSet) NewStatefulSet(cluster *v1alpha1.Ndb) *apps.Stateful
 			bss.ndbmtdContainer(cluster),
 			//agentContainer(cluster, ndbAgentImage),
 		}
-		//serviceaccount = "ndb-agent"
+		serviceaccount = "ndb-agent"
 		replicas = cluster.Spec.Ndbd.NodeCount
 	}
 
@@ -325,11 +326,6 @@ func (bss *baseStatefulSet) NewStatefulSet(cluster *v1alpha1.Ndb) *apps.Stateful
 					Annotations: map[string]string{},
 				},
 				Spec: podspec,
-				/*v1.PodSpec{
-					ServiceAccountName: "ndb-agent",
-					Containers:         containers,
-					Volumes:            podVolumes,
-				},*/
 			},
 			ServiceName: bss.serviceName,
 		},

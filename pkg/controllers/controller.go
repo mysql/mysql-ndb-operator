@@ -74,8 +74,9 @@ type Controller struct {
 	ndbsLister listers.NdbLister
 	ndbsSynced cache.InformerSynced
 
-	mgmdController StatefulSetControlInterface
-	ndbdController StatefulSetControlInterface
+	mgmdController      StatefulSetControlInterface
+	ndbdController      StatefulSetControlInterface
+	configMapController ConfigMapControlInterface
 
 	serviceLister       corelisters.ServiceLister
 	serviceListerSynced cache.InformerSynced
@@ -129,6 +130,7 @@ func NewController(
 		serviceListerSynced:     serviceInformer.Informer().HasSynced,
 		podLister:               podInformer.Lister(),
 		podListerSynced:         podInformer.Informer().HasSynced,
+		configMapController:     NewConfigMapControl(kubeclientset, configMapInformer),
 		workqueue:               workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Ndbs"),
 		recorder:                recorder,
 	}
@@ -160,10 +162,11 @@ func NewController(
 				ndb = del.(*v1alpha1.Ndb)
 			}
 
-			klog.Infof("Delete object received and queued %v", ndb)
-
 			if ndb != nil {
+				klog.Infof("Delete object received and queued %s/%s", ndb.Namespace, ndb.Name)
 				controller.enqueueNdb(ndb)
+			} else {
+				klog.Infof("Unkown deleted object ignored")
 			}
 		},
 	})
@@ -343,7 +346,6 @@ func (c *Controller) syncHandler(key string) error {
 	}
 
 	// Create the service if it doesn't exist
-
 	svc, err := c.serviceLister.Services(ndb.Namespace).Get(ndb.Name)
 	if apierrors.IsNotFound(err) {
 		klog.Infof("Creating a new Service for cluster %q", nsName)
@@ -352,6 +354,11 @@ func (c *Controller) syncHandler(key string) error {
 	}
 	if err != nil {
 		// re-queue if something went wrong
+		return err
+	}
+
+	_, err = c.configMapController.EnsureConfigMap(ndb)
+	if err != nil {
 		return err
 	}
 

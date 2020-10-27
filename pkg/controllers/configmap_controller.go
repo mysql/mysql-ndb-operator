@@ -6,8 +6,8 @@ package controllers
 
 import (
 	"github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/ocklin/ndb-operator/pkg/resources"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -16,8 +16,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 )
-
-const configMapName = "ndb-config-ini"
 
 type ConfigMapControlInterface interface {
 	EnsureConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigMap, error)
@@ -47,62 +45,17 @@ func NewConfigMapControl(client kubernetes.Interface,
 	return configMapControl
 }
 
-func createConfigMapObject(ndb *v1alpha1.Ndb) *corev1.ConfigMap {
-
-	/*
-		kind: ConfigMap
-		apiVersion: v1
-		metadata:
-			name: config-ini
-			namespace: default
-			#uid: a7ec90d9-f2a9-11ea-95f5-000d3a2ebd7f
-			#resourceVersion: '58127766'
-			#creationTimestamp: '2020-09-09T14:35:06Z'
-		data:
-			config.ini: |
-				[DB DEFAULT]
-				NoOfReplicas=2
-				DataMemory=100M
-
-				[TCP DEFAULT]
-				AllowUnresolvedHostnames=true
-				SendBufferMemory=64M
-				ReceiveBufferMemory=8M
-
-
-	*/
-
-	configStr := `
-	[DB DEFAULT]	
-	NoOfReplicas=2
-	DataMemory=100M
-	`
-
-	data := map[string]string{
-		"config.ini": configStr,
-	}
-
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      configMapName,
-			Namespace: ndb.Namespace,
-		},
-		Data: data,
-	}
-
-	return cm
-}
-
 func (rcmc *ConfigMapControl) EnsureConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigMap, error) {
 
 	// Get the StatefulSet with the name specified in Ndb.spec
-	cm, err := rcmc.configMapLister.ConfigMaps(ndb.Namespace).Get(configMapName)
+	// TODO: probably dangerous if we do not sync caches, maybe fetch uncached directly
+	cm, err := rcmc.configMapLister.ConfigMaps(ndb.Namespace).Get(resources.ConfigMapName)
 
 	// If the resource doesn't exist, we'll create it
 	if errors.IsNotFound(err) {
-		klog.Infof("Creating ConfigMap %s/%s", ndb.Namespace, configMapName)
+		klog.Infof("Creating ConfigMap %s/%s", ndb.Namespace, resources.ConfigMapName)
 
-		cm = createConfigMapObject(ndb)
+		cm = resources.GenerateConfigMapObject(ndb)
 		cm, err = rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Create(cm)
 	}
 	return cm, err
