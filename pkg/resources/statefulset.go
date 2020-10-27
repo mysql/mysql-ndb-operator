@@ -145,40 +145,23 @@ func (bss *baseStatefulSet) getNdbdHostnames(ndb *v1alpha1.Ndb) string {
 // Builds the Ndb operator container for a mgmd.
 func (bss *baseStatefulSet) mgmdContainer(ndb *v1alpha1.Ndb) v1.Container {
 
-	/*args := []string{
-		"-f", "/var/lib/ndb/config.ini",
-		"--configdir=/var/lib/ndb",
-		"--initial",
-		"--nodaemon",
-		"-v",
-	}
-	*/
-	args := []string{
-		"ndb_mgmd",
-	}
-
-	cmdArgs := strings.Join(args, " ")
-	cmd := fmt.Sprintf(`/entrypoint.sh %s`, cmdArgs)
+	runWithEntrypoint := false
+	cmd := ""
+	environment := []v1.EnvVar{}
 
 	imageName := fmt.Sprintf("%s:%s", mgmdImage, ndbVersion)
-	mgmdHostname := bss.getMgmdHostname(ndb)
-	ndbdHostnames := bss.getNdbdHostnames(ndb)
 
-	klog.Infof("Creating mgmd container from image %s with hostnames mgmd: %s, ndbd: %s",
-		imageName, mgmdHostname, ndbdHostnames)
+	if runWithEntrypoint {
+		args := []string{
+			"ndb_mgmd",
+		}
+		cmdArgs := strings.Join(args, " ")
+		cmd = fmt.Sprintf(`/entrypoint.sh %s`, cmdArgs)
 
-	return v1.Container{
-		Name:  mgmdName,
-		Image: imageName,
-		Ports: []v1.ContainerPort{
-			{
-				ContainerPort: 1186,
-			},
-		},
-		VolumeMounts:    volumeMounts(ndb),
-		Command:         []string{"/bin/bash", "-ecx", cmd},
-		ImagePullPolicy: v1.PullNever,
-		Env: []v1.EnvVar{
+		mgmdHostname := bss.getMgmdHostname(ndb)
+		ndbdHostnames := bss.getNdbdHostnames(ndb)
+
+		environment = []v1.EnvVar{
 			{
 				Name:  "NDB_REPLICAS",
 				Value: fmt.Sprintf("%d", *ndb.Spec.Ndbd.NoOfReplicas),
@@ -191,7 +174,35 @@ func (bss *baseStatefulSet) mgmdContainer(ndb *v1alpha1.Ndb) v1.Container {
 				Name:  "NDB_NDBD_HOSTS",
 				Value: ndbdHostnames,
 			},
+		}
+		klog.Infof("Creating mgmd container from image %s with hostnames mgmd: %s, ndbd: %s",
+			imageName, mgmdHostname, ndbdHostnames)
+
+	} else {
+		args := []string{
+			"-f", "/var/lib/ndb/config/config.ini",
+			"--configdir=/var/lib/ndb",
+			"--initial",
+			"--nodaemon",
+			"-v",
+		}
+		cmdArgs := strings.Join(args, " ")
+		cmd = fmt.Sprintf(`/usr/sbin/ndb_mgmd %s`, cmdArgs)
+		klog.Infof("Creating mgmd container from image %s", imageName)
+	}
+
+	return v1.Container{
+		Name:  mgmdName,
+		Image: imageName,
+		Ports: []v1.ContainerPort{
+			{
+				ContainerPort: 1186,
+			},
 		},
+		VolumeMounts:    volumeMounts(ndb),
+		Command:         []string{"/bin/bash", "-ecx", cmd},
+		ImagePullPolicy: v1.PullNever,
+		Env:             environment,
 	}
 }
 
@@ -253,7 +264,7 @@ func (bss *baseStatefulSet) NewStatefulSet(cluster *v1alpha1.Ndb) *apps.Stateful
 			},
 		},
 	)
-	//if cluster.Spec.Config != nil {
+	// add the configmap generated with config.ini
 	podVolumes = append(podVolumes, v1.Volume{
 		Name: "config-volume",
 		VolumeSource: v1.VolumeSource{

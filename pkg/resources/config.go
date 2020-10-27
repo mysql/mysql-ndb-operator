@@ -69,6 +69,7 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 		configString += "\n"
 	}
 
+	// data node sections
 	for i := 0; i < int(*ndb.Spec.Ndbd.NodeCount); i++ {
 
 		ns := ndbdSection
@@ -80,6 +81,11 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 		nodeId++
 		configString += "\n"
 	}
+
+	// mysqld sections
+	// at least 1 must be there in order to not fail ndb_mgmd start
+	configString += "[mysqld]\n"
+	configString += "[mysqld]\n"
 
 	/* pure estetics - trim whitespace from lines */
 	s := strings.Split(configString, "\n")
