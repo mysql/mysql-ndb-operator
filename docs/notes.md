@@ -244,6 +244,11 @@ sed -e "s/<NAMESPACE>/${NAMESPACE}/g" artifacts/manifests/rbac.yaml | kubectl -n
 
 Applying or deleting a CRD of kind Ndb will deploy a new cluster setup or delete an existing.
 
+## Deleting NDB Object
+
+Ideally all components have owner references and will be garbage 
+collected automatically when Ndb is deleted.
+
 ## Configuration
 
 The entire cluster configuration can be done via the Ndb object. Most of the normal standard config shall be available there (such as LockPages ...). Optionally (is this simpler in first step?) a ConfigMap can provide a classic ini file which will be merged with the configuration parts coming from the Ndb CRD object
