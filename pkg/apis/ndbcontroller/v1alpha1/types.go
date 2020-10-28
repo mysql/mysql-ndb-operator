@@ -5,8 +5,10 @@
 package v1alpha1
 
 import (
+	"github.com/ocklin/ndb-operator/pkg/constants"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 // +genclient
@@ -62,4 +64,40 @@ type NdbList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	Items []Ndb `json:"items"`
+}
+
+// Ndb main label ...
+func (ndb *Ndb) GetLabels() map[string]string {
+	l := map[string]string{
+		constants.ClusterLabel: ndb.Name,
+	}
+	return l
+}
+
+// Ndb data node label ...
+func (ndb *Ndb) GetDataNodeLabels() map[string]string {
+	l := map[string]string{
+		constants.ClusterNodeTypeLabel: "ndbd",
+	}
+	return labels.Merge(l, ndb.GetLabels())
+}
+
+// Ndb management server label ...
+func (ndb *Ndb) GetManagementNodeLabels() map[string]string {
+	l := map[string]string{
+		constants.ClusterNodeTypeLabel: "mgmd",
+	}
+	return labels.Merge(l, ndb.GetLabels())
+}
+
+func (ndb *Ndb) GetServiceName() string {
+	return ndb.Name
+}
+
+func (ndb *Ndb) GetConfigMapName() string {
+	return ndb.Name + "-config"
+}
+
+func (ndb *Ndb) GetPodDisruptionBudgetName() string {
+	return ndb.Name + "-pdb"
 }

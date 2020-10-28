@@ -35,7 +35,6 @@ import (
 	"k8s.io/klog"
 
 	"github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/ocklin/ndb-operator/pkg/constants"
 	clientset "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned"
 	samplescheme "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned/scheme"
 	informers "github.com/ocklin/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
@@ -308,8 +307,36 @@ func (c *Controller) updateClusterLabels(ndb *v1alpha1.Ndb, lbls labels.Set) err
 	})
 }
 
+/* TODO function should ensure useful and needed default values for
+the ndb setup */
 func (c *Controller) ensureDefaults(ndb *v1alpha1.Ndb) {
 
+}
+
+func (c *Controller) ensureServices(ndb *v1alpha1.Ndb) (*corev1.Service, error) {
+	svc, err := c.serviceLister.Services(ndb.Namespace).Get(ndb.Name)
+	if apierrors.IsNotFound(err) {
+		klog.Infof("Creating a new Service for cluster %q",
+			types.NamespacedName{Namespace: ndb.Namespace, Name: ndb.Name})
+		svc = resources.NewService(ndb)
+		_, err = c.kubeclientset.CoreV1().Services(ndb.Namespace).Create(svc)
+	}
+	return svc, err
+}
+
+func (c *Controller) ensurePodDisruptionBudget(ndb *v1alpha1.Ndb) error {
+	pdbs := c.kubeclientset.PolicyV1beta1().PodDisruptionBudgets(ndb.Namespace)
+	pdb, err := pdbs.Get(ndb.GetPodDisruptionBudgetName(), metav1.GetOptions{})
+	if err != nil {
+		klog.Errorf("error finding pdb: %s", err)
+	}
+	if apierrors.IsNotFound(err) {
+		klog.Infof("Creating a new PodDisruptionBudget for Data Nodes of Cluster %q",
+			types.NamespacedName{Namespace: ndb.Namespace, Name: ndb.Name})
+		pdb = resources.NewPodDisruptionBudget(ndb)
+		_, err = pdbs.Create(pdb)
+	}
+	return err
 }
 
 func (c *Controller) syncHandler(key string) error {
@@ -339,20 +366,17 @@ func (c *Controller) syncHandler(key string) error {
 	}
 
 	// Ensure that the required labels are set on the cluster.
-	sel4ndb := labels.SelectorFromSet(labels.Set{constants.ClusterLabel: ndb.Name})
+	sel4ndb := labels.SelectorFromSet(ndb.GetLabels())
 	if !sel4ndb.Matches(labels.Set(ndb.Labels)) {
 		klog.Infof("Setting labels on cluster %s", sel4ndb.String())
-		c.updateClusterLabels(ndb.DeepCopy(), labels.Set{constants.ClusterLabel: ndb.Name})
+		c.updateClusterLabels(ndb.DeepCopy(), ndb.GetLabels())
 	}
 
-	// Create the service if it doesn't exist
-	svc, err := c.serviceLister.Services(ndb.Namespace).Get(ndb.Name)
-	if apierrors.IsNotFound(err) {
-		klog.Infof("Creating a new Service for cluster %q", nsName)
-		svc = NewService(ndb)
-		_, err = c.kubeclientset.CoreV1().Services(ndb.Namespace).Create(svc)
+	if _, err := c.ensureServices(ndb); err != nil {
+		// re-queue if something went wrong
+		return err
 	}
-	if err != nil {
+	if err := c.ensurePodDisruptionBudget(ndb); err != nil {
 		// re-queue if something went wrong
 		return err
 	}
@@ -362,10 +386,9 @@ func (c *Controller) syncHandler(key string) error {
 		return err
 	}
 
-	svcName := svc.Name
 	// create the management stateful set if it doesn't exist
 	if c.mgmdController == nil {
-		mgmdSfSet := resources.NewMgmdStatefulSet(ndb, svcName)
+		mgmdSfSet := resources.NewMgmdStatefulSet(ndb)
 		c.mgmdController =
 			&realStatefulSetControl{
 				client:            c.kubeclientset,
@@ -381,7 +404,7 @@ func (c *Controller) syncHandler(key string) error {
 
 	// create the data node stateful set if it doesn't exist
 	if c.ndbdController == nil {
-		ndbdSfSet := resources.NewNdbdStatefulSet(ndb, svcName)
+		ndbdSfSet := resources.NewNdbdStatefulSet(ndb)
 		c.ndbdController =
 			&realStatefulSetControl{
 				client:            c.kubeclientset,
@@ -477,7 +500,7 @@ func patchPod(kubeClient kubernetes.Interface, oldData *corev1.Pod, newData *cor
 
 func (c *Controller) podListing(ndb *v1alpha1.Ndb) error {
 
-	sel4ndb := labels.SelectorFromSet(labels.Set{constants.ClusterLabel: ndb.Name})
+	sel4ndb := labels.SelectorFromSet(ndb.GetLabels())
 	pods, err := c.podLister.List(sel4ndb)
 	if err != nil {
 		return apierrors.NewNotFound(v1alpha1.Resource("Pod"), sel4ndb.String())
