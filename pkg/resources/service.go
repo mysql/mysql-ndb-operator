@@ -2,7 +2,7 @@
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-package controllers
+package resources
 
 import (
 	corev1 "k8s.io/api/core/v1"
@@ -11,7 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/ocklin/ndb-operator/pkg/constants"
 )
 
 // NewForCluster will return a new headless Kubernetes service for a MySQL cluster
@@ -19,8 +18,8 @@ func NewService(ndb *v1alpha1.Ndb) *corev1.Service {
 	mysqlPort := corev1.ServicePort{Port: 1186}
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{constants.ClusterLabel: ndb.Name},
-			Name:   ndb.Name,
+			Labels: ndb.GetLabels(),
+			Name:   ndb.GetServiceName(),
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(ndb, schema.GroupVersionKind{
 					Group:   v1.SchemeGroupVersion.Group,
@@ -33,10 +32,8 @@ func NewService(ndb *v1alpha1.Ndb) *corev1.Service {
 			},
 		},
 		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{mysqlPort},
-			Selector: map[string]string{
-				constants.ClusterLabel: ndb.Name,
-			},
+			Ports:     []corev1.ServicePort{mysqlPort},
+			Selector:  ndb.GetLabels(),
 			ClusterIP: corev1.ClusterIPNone,
 			Type:      corev1.ServiceTypeClusterIP,
 			//Type: corev1.ServiceTypeNodePort,

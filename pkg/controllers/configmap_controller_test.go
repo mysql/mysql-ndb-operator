@@ -53,7 +53,7 @@ func TestCreateConfigMap(t *testing.T) {
 	}
 
 	// Get the StatefulSet with the name specified in Ndb.spec
-	cmget, err := rcmc.configMapLister.ConfigMaps(ndb.Namespace).Get(configMapName)
+	cmget, err := rcmc.configMapLister.ConfigMaps(ndb.Namespace).Get(ndb.GetConfigMapName())
 	if err != nil {
 		t.Errorf("Unexpected error getting created ConfigMap: %v", err)
 	}

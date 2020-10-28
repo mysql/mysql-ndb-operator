@@ -49,11 +49,11 @@ func (rcmc *ConfigMapControl) EnsureConfigMap(ndb *v1alpha1.Ndb) (*corev1.Config
 
 	// Get the StatefulSet with the name specified in Ndb.spec
 	// TODO: probably dangerous if we do not sync caches, maybe fetch uncached directly
-	cm, err := rcmc.configMapLister.ConfigMaps(ndb.Namespace).Get(resources.ConfigMapName)
+	cm, err := rcmc.configMapLister.ConfigMaps(ndb.Namespace).Get(ndb.GetConfigMapName())
 
 	// If the resource doesn't exist, we'll create it
 	if errors.IsNotFound(err) {
-		klog.Infof("Creating ConfigMap %s/%s", ndb.Namespace, resources.ConfigMapName)
+		klog.Infof("Creating ConfigMap %s/%s", ndb.Namespace, ndb.GetConfigMapName())
 
 		cm = resources.GenerateConfigMapObject(ndb)
 		cm, err = rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Create(cm)

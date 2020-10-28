@@ -6,14 +6,11 @@ package resources
 
 import (
 	"github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/ocklin/ndb-operator/pkg/constants"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
-
-const ConfigMapName = "ndb-config-ini"
 
 func GenerateConfigMapObject(ndb *v1alpha1.Ndb) *corev1.ConfigMap {
 
@@ -43,11 +40,9 @@ func GenerateConfigMapObject(ndb *v1alpha1.Ndb) *corev1.ConfigMap {
 
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ConfigMapName,
+			Name:      ndb.GetConfigMapName(),
 			Namespace: ndb.Namespace,
-			Labels: map[string]string{
-				constants.ClusterLabel: ndb.Name,
-			},
+			Labels:    ndb.GetLabels(),
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(ndb, schema.GroupVersionKind{
 					Group:   corev1.SchemeGroupVersion.Group,
