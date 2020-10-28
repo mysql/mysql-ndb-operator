@@ -159,6 +159,16 @@ docker vs k8 images? Leave docker images as-is and just base new k8 images on th
 
 Could use [Multi-architecture images](https://kubernetes.io/docs/concepts/containers/images/#multi-architecture-images-with-manifests) but that seems to be rather hardware architecture related?
 
+Standard docker image lacks
+
+- a way create to "inject" a config ini or information about the environment (hosts, etc.)
+- an additional agent for ndb_mgmd, on e.g. a different container on the same pod could 
+  not start or restart ndb_mgmd as direct process interaction is necessary. 
+  Also lack of something like an angel for ndb_mgmd.
+  
+Standard image will still be used. ndb_mgmd will be started with a config from a generated config map. 
+Restarts are done by restarting the pod. 
+
 # ndb nodes, operators and containers/pod
 
 Each ndb node and operator runs in its own container inside its own pod.
@@ -197,6 +207,28 @@ Conflicts between k8 and ndb with its advanced failure handling and self-healing
 
 Before restarting a pod or perform a rolling / parallel restart of statefulsets via k8 ndb cluster state needs to be carefully checked.
 
+## rolling restarts
+
+Rolling restarts will be performed by triggering a node (re-)start via MGMAPI. Pod state needs to be considered to avoid outages. PDB could be checked and guide rolling restarts to also stay in line with k8.
+
+At the moment scale down is not supported. But Scaling down is tricky as here k8 will scale down number of pods while also MGMAPI could try to stop nodes. In this case graceful shutdown is less important. Data nodes can be scaled down by k8 as hopefully data nodes are re-organized and drained first.
+
+## pod disruption budgets (PDB)
+
+Budgets for pods can be defined based on labels. 
+
+Unfortunately budgets are only considered when using the [Eviction API](https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/#eviction-api). Eviction API is only used on node level when e.g. draining nodes. 
+
+The Eviction API could be used via client API and pod Eviction subresources for policy-controlled pod deletion. We are not doing that. At least not in a first step.
+
+kubectl delete pod or scaling a statefulset does not evaluate budgets.
+
+Using PDBs is still useful as an extra level of security in the larger context of a production setup to avoid  unwanted outages when e.g. nodes are drained.
+
+## start and state monitoring
+
+Starts should be monitored and controlled by timestamp to take action when starts might hang. 
+
 ## ndb_mgmd
 
 unline ndbmtd ndb_mgmd has no -n mode to wait and take e.g. a remote start command
@@ -211,14 +243,6 @@ config changes require a re-write or patching of the configuration
 Both management servers need to be in stopped state in parallel for a moment to reload a new config version from the ini file. (How can we achieve that with very "agressive" k8 pod restarts?)
 
 
-# ndb docker image
-
-can't use standard container atm, because it lacks
-
-- a way create to "inject" a config ini or information about the environment (hosts, etc.)
-- need an additional agent for ndb_mgmd, different container on the same pod not possible atm
-  as direct process interaction is necessary for starting and stopping of ndb_mgmd (see restarts)
-  
 
 # multiple sidecars / operators 
 
@@ -306,40 +330,15 @@ As soon as each stateful set fully restarted with the new configuration then the
 
 While handing over of configuration to kubernetes via objects and specs is obviously no problem there is no natural oberlap with how ndb handles initial configuration and configuraiton changes.
 
-ConfigMaps, [Presets](https://kubernetes.io/docs/tasks/inject-data-application/podpreset/) or environment variables can inject configuration into a container or pod *only at creation time*. Injecting information at runtime is only possible via e.g. network, IPC or maybe shared volumes. 
+[Presets](https://kubernetes.io/docs/tasks/inject-data-application/podpreset/) or environment variables can inject configuration into a container or pod *only at creation time*. Injecting information at runtime is only possible via e.g. network, IPC or maybe shared volumes. 
 
-* Option #1 - config controller in mgmd sidecar
+ConfigMaps can be changed at pod runtime but may take some time to synchronize (observed in minikube > 30secs). 
 
-  K8 Pod Objects for the management server could be patched by the central Ndb Controller relaying 
-  configuration from Ndb CR. A mgmd side car can subscribe to change events from the Pod Object and 
-  re-create the config information.
-
-  Other flavours are TCP connections transfering config changes directly to the side car.
-
-  Common problem remains that ndb_mgmd requires both ndb_mgmd to be stopped simultaneously 
-  and started then with the new config version.
-
-* Option #2 - container recreation
-
-  Ndb operator re-creates the mgmd pods every time the config changes. 
-
-  and 
-
-  Config file is re-created from env variables inside mgmd container or its sidecar.
-
-  or
-
-  Config file is re-created with an initContainer from Ndb object.
-
-For the first version simplest is to use Option #2 with an initContainer creating 
-a new config.ini from an Ndb object.
-
-Both options allow to keep the original ndb image unchanged by running in a side car 
-or separate container.
+Ndb operator re-creates the mgmd pods every time the config changes to be sure to pick up the latest version. 
 
 ## config versioning
 
-cluster allows a "manual" `ConfigGenerationNumber` in the system section on the cluster config 
+Cluster allows a "manual" `ConfigGenerationNumber` in the system section on the cluster config 
 this number could be used to track if a generation was rolled out to mgmd and data nodes 
 
 ## pod whoami
