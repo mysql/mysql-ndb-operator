@@ -7,6 +7,8 @@ package controllers
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -35,6 +37,7 @@ import (
 	"k8s.io/klog"
 
 	"github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/ocklin/ndb-operator/pkg/constants"
 	clientset "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned"
 	samplescheme "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned/scheme"
 	informers "github.com/ocklin/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
@@ -145,8 +148,15 @@ func NewController(
 			if oldNdb.ResourceVersion == newNdb.ResourceVersion {
 				return
 			}
+
+			klog.Infof("Generation: %d -> %d", oldNdb.ObjectMeta.Generation, newNdb.ObjectMeta.Generation)
 			if !equality.Semantic.DeepEqual(oldNdb.Spec, newNdb.Spec) {
 				klog.Infof("Difference in spec: %d : %d", *oldNdb.Spec.Ndbd.NodeCount, *newNdb.Spec.Ndbd.NodeCount)
+			} else if !equality.Semantic.DeepEqual(oldNdb.Status, newNdb.Status) {
+				klog.Infof("Difference in status")
+			} else {
+				klog.Infof("Other difference in spec")
+				//diff.ObjectGoPrintSideBySide(oldNdb, newNdb))
 			}
 
 			controller.enqueueNdb(newNdb)
@@ -167,6 +177,32 @@ func NewController(
 			} else {
 				klog.Infof("Unkown deleted object ignored")
 			}
+		},
+	})
+
+	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			pod := obj.(*v1.Pod)
+			ls := labels.Set(pod.Labels)
+			if !ls.Has(constants.ClusterLabel) {
+				return
+			}
+			//s, _ := json.MarshalIndent(pod.Status, "", "  ")
+			//klog.Infof("%s", string(s))
+			klog.Infof("pod new %s: phase= %s, ip=%s", pod.Name, pod.Status.Phase, pod.Status.PodIP)
+		},
+		UpdateFunc: func(old, new interface{}) {
+			newPod := new.(*v1.Pod)
+			ls := labels.Set(newPod.Labels)
+			if !ls.Has(constants.ClusterLabel) {
+				return
+			}
+
+			//oldPod := old.(*v1.Pod)
+			//s, _ := json.MarshalIndent(newPod.Status, "", "  ")
+			klog.Infof("pod upd %s: phase= %s, ip=%s", newPod.Name, newPod.Status.Phase, newPod.Status.PodIP)
+		},
+		DeleteFunc: func(obj interface{}) {
 		},
 	})
 
@@ -313,15 +349,24 @@ func (c *Controller) ensureDefaults(ndb *v1alpha1.Ndb) {
 
 }
 
-func (c *Controller) ensureServices(ndb *v1alpha1.Ndb) (*corev1.Service, error) {
-	svc, err := c.serviceLister.Services(ndb.Namespace).Get(ndb.Name)
+func (c *Controller) ensureService(ndb *v1alpha1.Ndb, mgmd bool, name string) error {
+	_, err := c.serviceLister.Services(ndb.Namespace).Get(name)
 	if apierrors.IsNotFound(err) {
 		klog.Infof("Creating a new Service for cluster %q",
 			types.NamespacedName{Namespace: ndb.Namespace, Name: ndb.Name})
-		svc = resources.NewService(ndb)
+		svc := resources.NewService(ndb, mgmd, name)
 		_, err = c.kubeclientset.CoreV1().Services(ndb.Namespace).Create(svc)
 	}
-	return svc, err
+	return err
+}
+
+func (c *Controller) ensureServices(ndb *v1alpha1.Ndb) error {
+	err := c.ensureService(ndb, true, ndb.GetManagementServiceName())
+	if err != nil {
+		return err
+	}
+	err = c.ensureService(ndb, false, ndb.GetDataNodeServiceName())
+	return err
 }
 
 func (c *Controller) ensurePodDisruptionBudget(ndb *v1alpha1.Ndb) error {
@@ -337,6 +382,46 @@ func (c *Controller) ensurePodDisruptionBudget(ndb *v1alpha1.Ndb) error {
 		_, err = pdbs.Create(pdb)
 	}
 	return err
+}
+
+func (c *Controller) rollingRestart(ndb *v1alpha1.Ndb) error {
+
+	klog.Infof("Rolling restart")
+
+	sel4ndb := labels.SelectorFromSet(ndb.GetLabels())
+	pods, err := c.podLister.List(sel4ndb)
+	if err != nil {
+		return apierrors.NewNotFound(v1alpha1.Resource("Pod"), sel4ndb.String())
+	}
+	for _, pod := range pods {
+		//url := fmt.Sprintf("http://%s:%d/ready", pod.Status.PodIP, 8080)
+
+		// TODO for testing with external operator on minikube we start minikube tunnel and create a LoadBalancer
+		url := fmt.Sprintf("http://%s:%d/ready", "127.0.0.1", 8080)
+		resp, err := http.Get(url)
+		if err != nil {
+			klog.Errorf("error pinging pod %s %s: %s", pod.Name, pod.Status.PodIP, err)
+		} else {
+			defer resp.Body.Close()
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				klog.Infof("pinging pod %s %s: no body", pod.Name, pod.Status.PodIP)
+			} else {
+				klog.Infof("pinging pod %s %s: %s", pod.Name, pod.Status.PodIP, body)
+			}
+
+		}
+	}
+	return nil
+}
+
+func (c *Controller) ensureClusterLabel(ndb *v1alpha1.Ndb) {
+	// Ensure that the required labels are set on the cluster.
+	sel4ndb := labels.SelectorFromSet(ndb.GetLabels())
+	if !sel4ndb.Matches(labels.Set(ndb.Labels)) {
+		klog.Infof("Setting labels on cluster %s", sel4ndb.String())
+		c.updateClusterLabels(ndb.DeepCopy(), ndb.GetLabels())
+	}
 }
 
 func (c *Controller) syncHandler(key string) error {
@@ -365,14 +450,11 @@ func (c *Controller) syncHandler(key string) error {
 		return err
 	}
 
-	// Ensure that the required labels are set on the cluster.
-	sel4ndb := labels.SelectorFromSet(ndb.GetLabels())
-	if !sel4ndb.Matches(labels.Set(ndb.Labels)) {
-		klog.Infof("Setting labels on cluster %s", sel4ndb.String())
-		c.updateClusterLabels(ndb.DeepCopy(), ndb.GetLabels())
-	}
+	// TODO - not sure if we need a cluster level label on the CRD
+	//      causes an update event looping us in here again
+	// c.ensureClusterLabel(ndb)
 
-	if _, err := c.ensureServices(ndb); err != nil {
+	if err := c.ensureServices(ndb); err != nil {
 		// re-queue if something went wrong
 		return err
 	}
@@ -436,6 +518,10 @@ func (c *Controller) syncHandler(key string) error {
 			// This could have been caused by a temporary network failure etc.
 			return err
 		}
+	}
+
+	if ndb.Status.ProcessedGeneration != ndb.ObjectMeta.Generation {
+		c.rollingRestart(ndb)
 	}
 
 	// Finally, we update the status block of the Ndb resource to reflect the
@@ -521,21 +607,23 @@ func (c *Controller) podListing(ndb *v1alpha1.Ndb) error {
 func (c *Controller) updateNdbStatus(ndb *v1alpha1.Ndb, sfset *appsv1.StatefulSet) error {
 
 	klog.Infof("Updating ndb cluster status with replicas: %d", sfset.Status.Replicas)
+	// NEVER modify objects from the store. It's a read-only, local cache.
+	// You can use DeepCopy() to make a deep copy of original object and modify this copy
+	// Or create a copy manually for better performance
 	ndbCopy := ndb.DeepCopy()
 
 	updateErr := wait.ExponentialBackoff(retry.DefaultBackoff, func() (ok bool, err error) {
-		// NEVER modify objects from the store. It's a read-only, local cache.
-		// You can use DeepCopy() to make a deep copy of original object and modify this copy
-		// Or create a copy manually for better performance
-		ndbCopy.Status.AvailableReplicas = sfset.Status.Replicas
+
+		ndbCopy.Status.LastUpdate = metav1.NewTime(time.Now())
+		ndbCopy.Status.ProcessedGeneration = ndb.ObjectMeta.Generation
 
 		// If the CustomResourceSubresources feature gate is not enabled,
 		// we must use Update instead of UpdateStatus to update the Status block of the Ndb resource.
 		// UpdateStatus will not allow changes to the Spec of the resource,
 		// which is ideal for ensuring nothing other than resource status has been updated.
-		ndbCopy, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Update(ndbCopy)
+		//ndbCopy, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Update(ndbCopy)
 
-		//ndbCopy, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(original.Namespace).UpdateStatus(toUpdate)
+		ndbCopy, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).UpdateStatus(ndbCopy)
 		if err == nil {
 			return true, nil
 		}

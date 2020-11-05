@@ -254,6 +254,7 @@ k8s.io/sample-controller v0.17.0 h1:XWXk7bDFuU2IA2GSsvFOGICh6JFYDdsyZjw8D4ADRPo=
 k8s.io/sample-controller v0.17.0/go.mod h1:/qDFKdxOwcu3XSKxR0u3WsUt4sQ0oTtKrkXGdct70RE=
 k8s.io/utils v0.0.0-20191114184206-e782cd3c129f h1:GiPwtSzdP43eI1hpPCbROQCCIgCuiMMNF8YUVLF3vJo=
 k8s.io/utils v0.0.0-20191114184206-e782cd3c129f/go.mod h1:sZAwmy6armz5eXlNoLmJcl4F1QuKu7sr+mFQ0byX7Ew=
+k8s.io/utils v0.0.0-20201027101359-01387209bb0d h1:1qqs/6lQQGCeZhCu0tO7La4lAazDXic6BiCmpjWcWUo=
 modernc.org/cc v1.0.0/go.mod h1:1Sk4//wdnYJiUIxnW8ddKpaOJCF37yAdqYnkxUpaYxw=
 modernc.org/golex v1.0.0/go.mod h1:b/QX9oBD/LhixY6NDh+IdGv17hgB+51fET1i2kPSmvk=
 modernc.org/mathutil v1.0.0/go.mod h1:wU0vUrJsVWBZ4P6e7xtFJEhFSNsfRLJ8H458uRjg03k=
