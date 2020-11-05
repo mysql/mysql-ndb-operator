@@ -1,16 +1,10 @@
 package main
 
 import (
-	"bufio"
-	"encoding/base64"
 	"flag"
 	"fmt"
-	"io"
-	"log"
-	"net"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/ocklin/ndb-operator/pkg/controllers/agent"
@@ -40,89 +34,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	name, _ := os.Hostname()
 	fmt.Fprintf(w, "Hi there from %s!\n", name)
 }
-
-func tcp_client() {
-
-	// connect to server
-	conn, _ := net.Dial("tcp", "127.0.0.1:1186")
-	err := conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	if err != nil {
-		log.Println("SetReadDeadline failed:", err)
-		// do something else, for example create new conn
-		return
-	}
-
-	defer conn.Close()
-
-	{
-		// send to server
-		//		fmt.Fprintln(conn, "get status")
-		//		fmt.Fprintln(conn, "")
-
-		fmt.Fprintf(conn, "get config_v2\n")
-		fmt.Fprintf(conn, "%s: %d\n", "version", 524311)
-		fmt.Fprintf(conn, "%s: %d\n", "nodetype", -1)
-		fmt.Fprintf(conn, "%s: %d\n", "node", 1)
-		fmt.Fprintf(conn, "\n")
-
-		// wait for reply
-		var tmp []byte
-		var buf []byte
-		tmp = make([]byte, 64)
-		for {
-			n, err := conn.Read(tmp)
-			if err != nil {
-				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					log.Println("read timeout:", err)
-					// time out
-				} else {
-					if err != io.EOF {
-						fmt.Println("read error:", err)
-					}
-				}
-				break
-			}
-
-			buf = append(buf, tmp[:n]...)
-			if n < 64 {
-				break
-			}
-		}
-
-		reply := []string{
-			"",
-			"get config reply",
-			"result",
-			"Content-Length",
-			"Content-Type",
-			"Content-Transfer-Encoding",
-		}
-
-		lineno := 1
-		scanner := bufio.NewScanner(strings.NewReader(string(buf)))
-		base64str := ""
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-
-			if lineno < len(reply) {
-
-			} else {
-				base64str += line
-			}
-			fmt.Printf("[%d] %s\n", lineno, line)
-			lineno++
-		}
-
-		data, err := base64.StdEncoding.DecodeString(base64str)
-		if err != nil {
-			fmt.Println("error:", err)
-			return
-		}
-		fmt.Printf("%q\n", data)
-
-	}
-}
-
 func agent_main() {
 
 	flag.Parse()
@@ -136,6 +47,8 @@ func agent_main() {
 	/* just testing for readiness probes */
 	go func() {
 		http.HandleFunc("/", handler)
+		http.HandleFunc("/live", handler)
+		http.HandleFunc("/ready", handler)
 		klog.Fatal(http.ListenAndServe(":8080", nil))
 	}()
 
@@ -168,5 +81,5 @@ func agent_main() {
 }
 
 func main() {
-	tcp_client()
+	agent_main()
 }
