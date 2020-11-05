@@ -53,3 +53,12 @@ spec:
                       type: string
                     nodecount: 
                       type: integer
+            status:
+              type: object
+              properties:
+                LastUpdate:
+                  format: date-time
+                  type: string
+                ProcessedGeneration:
+                  format: int64
+                  type: integer

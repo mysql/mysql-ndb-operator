@@ -53,7 +53,8 @@ type NdbSpec struct {
 
 // NdbStatus is the status for a Ndb resource
 type NdbStatus struct {
-	AvailableReplicas int32 `json:"availableReplicas"`
+	ProcessedGeneration int64       `json:"processedGeneration,omitempty"`
+	LastUpdate          metav1.Time `json:"lastUpdate,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -66,8 +67,8 @@ type NdbList struct {
 	Items []Ndb `json:"items"`
 }
 
-// Ndb main label ...
 func (ndb *Ndb) GetLabels() map[string]string {
+	// Ndb main label ...
 	l := map[string]string{
 		constants.ClusterLabel: ndb.Name,
 	}
@@ -90,8 +91,16 @@ func (ndb *Ndb) GetManagementNodeLabels() map[string]string {
 	return labels.Merge(l, ndb.GetLabels())
 }
 
-func (ndb *Ndb) GetServiceName() string {
-	return ndb.Name
+//func (ndb *Ndb) GetServiceName() string {
+//	return ndb.Name
+//}
+
+func (ndb *Ndb) GetManagementServiceName() string {
+	return ndb.Name + "-mgmd"
+}
+
+func (ndb *Ndb) GetDataNodeServiceName() string {
+	return ndb.Name + "-ndbd"
 }
 
 func (ndb *Ndb) GetConfigMapName() string {
