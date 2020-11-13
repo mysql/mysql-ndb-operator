@@ -170,6 +170,11 @@ func (in *NdbSpec) DeepCopy() *NdbSpec {
 func (in *NdbStatus) DeepCopyInto(out *NdbStatus) {
 	*out = *in
 	in.LastUpdate.DeepCopyInto(&out.LastUpdate)
+	if in.ReceivedConfigHash != nil {
+		in, out := &in.ReceivedConfigHash, &out.ReceivedConfigHash
+		*out = make([]byte, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 
