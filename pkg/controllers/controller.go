@@ -462,7 +462,8 @@ func (c *Controller) syncHandler(key string) error {
 
 	// obviously there is nothing to do in this loop, should never end up here
 	if equalConfig {
-		klog.Infof("No update to configuration detected in %s based on hash", nsName)
+		klog.Infof("No update to configuration detected in %s based on hash %s",
+			nsName, configHash)
 		// just using it for fyi at the moment
 		// return nil
 	} else {
@@ -495,11 +496,21 @@ func (c *Controller) syncHandler(key string) error {
 		return err
 	}
 
-	hash, generation := resources.GetConfigHashAndGenerationFromConfig(configString)
+	klog.Infof("Config string %s\n", configString)
 
-	if hash != string(configHash) {
+	hash, generation, err := resources.GetConfigHashAndGenerationFromConfig(configString)
+
+	if err != nil {
+		klog.Errorf("Extracting hash or config generation from configuration failed. hash= %s, gen= %d",
+			hash, generation)
+		return err
+	}
+	klog.Infof("Extracting hash or config generation from configuration: hash= %s, gen= %d",
+		hash, generation)
+
+	if hash != configHash {
 		klog.Infof("Config received is different from config map config. config map: \"%s\", new: \"%s\"",
-			hash, string(configHash))
+			hash, configHash)
 	}
 	if ndb.Status.ProcessedGeneration != ndb.ObjectMeta.Generation {
 		klog.Infof("Config generation received different from config map generation. config map: %d, new: %d",

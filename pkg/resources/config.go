@@ -5,7 +5,6 @@
 package resources
 
 import (
-	"encoding/base64"
 	"fmt"
 	"strconv"
 	"strings"
@@ -15,14 +14,14 @@ import (
 	"github.com/ocklin/ndb-operator/pkg/helpers"
 )
 
-func GetConfigHashAndGenerationFromConfig(configStr string) (string, int64) {
+func GetConfigHashAndGenerationFromConfig(configStr string) (string, int64, error) {
 
 	config, err := helpers.ParseString(configStr)
 
 	var generation int64
 
 	if err != nil {
-		return "", generation
+		return "", generation, err
 	}
 
 	configHash := helpers.GetValueFromSingleSectionGroup(config, "header", "ConfigHash")
@@ -30,7 +29,7 @@ func GetConfigHashAndGenerationFromConfig(configStr string) (string, int64) {
 
 	generation, _ = strconv.ParseInt(generationStr, 10, 64)
 
-	return configHash, generation
+	return configHash, generation, nil
 }
 
 func getMgmdHostname(ndb *v1alpha1.Ndb, count int) string {
@@ -84,7 +83,7 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 	configString := ""
 
 	// header
-	hash := base64.StdEncoding.EncodeToString(ndb.Status.ReceivedConfigHash)
+	hash := ndb.Status.ReceivedConfigHash
 	configString += strings.ReplaceAll(header, "{{$confighash}}", hash)
 	configString += "\n"
 
