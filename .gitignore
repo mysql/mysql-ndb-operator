@@ -8,6 +8,7 @@ vendor/
 .container-iad*
 .DS_store
 settings.json
+istio*
 
 test/system/runner.log
 test/system/terraform/cluster/.terraform/
