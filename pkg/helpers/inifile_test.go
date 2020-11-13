@@ -19,6 +19,14 @@ func TestReadInifile(t *testing.T) {
 	}
 
 	testini := `
+	;
+	; this is a header section
+	;
+	; ConfigHash=asdasdlkajhhnxh=?   
+	;               notice this ^
+
+	; should not create 2nd header with just empty line
+
 	[ndbd default]
 	NoOfReplicas=2
 	DataMemory=80M
@@ -29,11 +37,15 @@ func TestReadInifile(t *testing.T) {
 	[tcp default]
 	AllowUnresolvedHostnames=1
 	
+	# more comments to be ignored
+
 	[ndb_mgmd]
 	NodeId=0
 	Hostname=example-ndb-0.example-ndb.svc.default-namespace.com
 	DataDir=/var/lib/ndb
 	
+	# key=value
+	# comment with key value pair here should be ignored
 	[ndbd]
 	NodeId=1
 	Hostname=example-ndb-0.example-ndb.svc.default-namespace.com
@@ -44,8 +56,7 @@ func TestReadInifile(t *testing.T) {
 	NodeId=1
 	Hostname=example-ndb-0.example-ndb.svc.default-namespace.com
 	
-	[mysqld]
-	`
+	[mysqld]`
 
 	l, err := f.WriteString(testini)
 	if err != nil {
@@ -61,7 +72,7 @@ func TestReadInifile(t *testing.T) {
 	}
 	f.Close()
 
-	c, err := parseFile("test.txt")
+	c, err := ParseFile("test.txt")
 
 	if err != nil {
 		t.Error(err)
@@ -77,10 +88,12 @@ func TestReadInifile(t *testing.T) {
 	t.Log("Iterating")
 	for s, grp := range c.Groups {
 		for _, sec := range grp {
-			t.Log("[" + s + "] ")
+			t.Log("[" + s + "]")
 			for key, val := range sec {
 				t.Log(key + ": " + val)
 			}
 		}
 	}
+
+	t.Fail()
 }
