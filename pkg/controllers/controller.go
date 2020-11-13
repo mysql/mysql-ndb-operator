@@ -349,23 +349,23 @@ func (c *Controller) ensureDefaults(ndb *v1alpha1.Ndb) {
 
 }
 
-func (c *Controller) ensureService(ndb *v1alpha1.Ndb, mgmd bool, name string) error {
+func (c *Controller) ensureService(ndb *v1alpha1.Ndb, isMgmd bool, externalIP bool, name string) error {
 	_, err := c.serviceLister.Services(ndb.Namespace).Get(name)
 	if apierrors.IsNotFound(err) {
 		klog.Infof("Creating a new Service for cluster %q",
 			types.NamespacedName{Namespace: ndb.Namespace, Name: ndb.Name})
-		svc := resources.NewService(ndb, mgmd, name)
+		svc := resources.NewService(ndb, isMgmd, externalIP, name)
 		_, err = c.kubeclientset.CoreV1().Services(ndb.Namespace).Create(svc)
 	}
 	return err
 }
 
 func (c *Controller) ensureServices(ndb *v1alpha1.Ndb) error {
-	err := c.ensureService(ndb, true, ndb.GetManagementServiceName())
+	err := c.ensureService(ndb, true, false, ndb.GetManagementServiceName())
 	if err != nil {
 		return err
 	}
-	err = c.ensureService(ndb, false, ndb.GetDataNodeServiceName())
+	err = c.ensureService(ndb, false, false, ndb.GetDataNodeServiceName())
 	return err
 }
 
@@ -437,7 +437,7 @@ func (c *Controller) syncHandler(key string) error {
 	nsName := types.NamespacedName{Namespace: namespace, Name: name}
 
 	// Get the Ndb resource with this namespace/name
-	ndb, err := c.ndbsLister.Ndbs(namespace).Get(name)
+	ndbOrg, err := c.ndbsLister.Ndbs(namespace).Get(name)
 	if err != nil {
 		klog.Infof("Ndb does not exist as resource, %s", name)
 		// The Ndb resource may no longer exist, in which case we stop
@@ -450,9 +450,31 @@ func (c *Controller) syncHandler(key string) error {
 		return err
 	}
 
+	// take a copy and process that for the update at the end
+	// make all changes to the copy only and patch the original in the end
+	ndb := ndbOrg.DeepCopy()
+
+	// first get a hash of the new config to see if anything changed
+	configHash, equalConfig, err := ndb.IsConfigHashEqual()
+	if err != nil {
+		return err
+	}
+
+	// obviously there is nothing to do in this loop, should never end up here
+	if equalConfig {
+		klog.Infof("No update to configuration detected in %s based on hash", nsName)
+		// just using it for fyi at the moment
+		// return nil
+	} else {
+		klog.Infof("Configuration change detected in %s based on hash", nsName)
+		klog.Infof("org: %x %d %s", ndb.Status.ReceivedConfigHash, ndb.Status.ProcessedGeneration, ndb.Status.LastUpdate)
+		ndb.Status.ReceivedConfigHash = configHash
+		klog.Infof("new: %x", configHash)
+	}
+
 	// TODO - not sure if we need a cluster level label on the CRD
 	//      causes an update event looping us in here again
-	// c.ensureClusterLabel(ndb)
+	c.ensureClusterLabel(ndb)
 
 	if err := c.ensureServices(ndb); err != nil {
 		// re-queue if something went wrong
@@ -463,9 +485,25 @@ func (c *Controller) syncHandler(key string) error {
 		return err
 	}
 
-	_, err = c.configMapController.EnsureConfigMap(ndb)
+	cm, err := c.configMapController.EnsureConfigMap(ndb)
 	if err != nil {
 		return err
+	}
+
+	configString, err := c.configMapController.ExtractConfig(cm)
+	if err != nil {
+		return err
+	}
+
+	hash, generation := resources.GetConfigHashAndGenerationFromConfig(configString)
+
+	if hash != string(configHash) {
+		klog.Infof("Config received is different from config map config. config map: \"%s\", new: \"%s\"",
+			hash, string(configHash))
+	}
+	if ndb.Status.ProcessedGeneration != ndb.ObjectMeta.Generation {
+		klog.Infof("Config generation received different from config map generation. config map: %d, new: %d",
+			generation, ndb.ObjectMeta.Generation)
 	}
 
 	// create the management stateful set if it doesn't exist
@@ -526,7 +564,7 @@ func (c *Controller) syncHandler(key string) error {
 
 	// Finally, we update the status block of the Ndb resource to reflect the
 	// current state of the world
-	err = c.updateNdbStatus(ndb, sfset)
+	err = c.updateNdbStatus(ndb)
 	if err != nil {
 		klog.Errorf("updating status failed: %v", err)
 		return err
@@ -604,26 +642,28 @@ func (c *Controller) podListing(ndb *v1alpha1.Ndb) error {
 	return nil
 }
 
-func (c *Controller) updateNdbStatus(ndb *v1alpha1.Ndb, sfset *appsv1.StatefulSet) error {
+func (c *Controller) updateNdbStatus(ndb *v1alpha1.Ndb) error {
 
-	klog.Infof("Updating ndb cluster status with replicas: %d", sfset.Status.Replicas)
 	// NEVER modify objects from the store. It's a read-only, local cache.
 	// You can use DeepCopy() to make a deep copy of original object and modify this copy
 	// Or create a copy manually for better performance
-	ndbCopy := ndb.DeepCopy()
+
+	// we already received a copy here
 
 	updateErr := wait.ExponentialBackoff(retry.DefaultBackoff, func() (ok bool, err error) {
 
-		ndbCopy.Status.LastUpdate = metav1.NewTime(time.Now())
-		ndbCopy.Status.ProcessedGeneration = ndb.ObjectMeta.Generation
+		klog.Infof("Updating ndb cluster status")
+
+		ndb.Status.LastUpdate = metav1.NewTime(time.Now())
+		ndb.Status.ProcessedGeneration = ndb.ObjectMeta.Generation
 
 		// If the CustomResourceSubresources feature gate is not enabled,
 		// we must use Update instead of UpdateStatus to update the Status block of the Ndb resource.
 		// UpdateStatus will not allow changes to the Spec of the resource,
 		// which is ideal for ensuring nothing other than resource status has been updated.
-		//ndbCopy, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Update(ndbCopy)
+		//_, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Update(ndb)
 
-		ndbCopy, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).UpdateStatus(ndbCopy)
+		_, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).UpdateStatus(ndb)
 		if err == nil {
 			return true, nil
 		}
@@ -631,12 +671,13 @@ func (c *Controller) updateNdbStatus(ndb *v1alpha1.Ndb, sfset *appsv1.StatefulSe
 			return false, err
 		}
 
-		ndbCopy, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Get(ndb.Name, metav1.GetOptions{})
+		updated, err := c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Get(ndb.Name, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("failed to get Ndb %s/%s: %v", ndb.Namespace, ndb.Name, err)
 			return false, err
 		}
-		return false, err
+		ndb = updated.DeepCopy()
+		return false, nil
 	})
 
 	if updateErr != nil {

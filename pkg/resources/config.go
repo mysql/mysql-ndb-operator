@@ -5,27 +5,59 @@
 package resources
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/ocklin/ndb-operator/pkg/constants"
+	"github.com/ocklin/ndb-operator/pkg/helpers"
 )
+
+func GetConfigHashAndGenerationFromConfig(configStr string) (string, int64) {
+
+	config, err := helpers.ParseString(configStr)
+
+	var generation int64
+
+	if err != nil {
+		return "", generation
+	}
+
+	configHash := helpers.GetValueFromSingleSectionGroup(config, "header", "ConfigHash")
+	generationStr := helpers.GetValueFromSingleSectionGroup(config, "system", "ConfigGenerationNumber")
+
+	generation, _ = strconv.ParseInt(generationStr, 10, 64)
+
+	return configHash, generation
+}
 
 func getMgmdHostname(ndb *v1alpha1.Ndb, count int) string {
 	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
-	mgmHostname := fmt.Sprintf("%s-%d.%s.%s", ndb.Name+"-mgmd", count, ndb.Name, dnsZone)
+	mgmHostname := fmt.Sprintf("%s-%d.%s.%s", ndb.Name+"-mgmd", count, ndb.GetManagementServiceName(), dnsZone)
 	return mgmHostname
 }
 
 func getNdbdHostname(ndb *v1alpha1.Ndb, count int) string {
 	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
-	mgmHostname := fmt.Sprintf("%s-%d.%s.%s", ndb.Name+"-ndbd", count, ndb.Name, dnsZone)
+	mgmHostname := fmt.Sprintf("%s-%d.%s.%s", ndb.Name+"-ndbd", count, ndb.GetDataNodeServiceName(), dnsZone)
 	return mgmHostname
 }
 
 func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
+
+	header := `
+	# auto generated config.ini - do not edit
+	#
+	# ConfigHash={{$confighash}}
+	`
+
+	systemSection := `
+	[system]
+	ConfigGenerationNumber={{$configgeneration}}
+	Name={{$clustername}}
+	`
 
 	defaultSections := `
   [ndbd default]
@@ -48,9 +80,26 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
   DataDir={{$datadir}}
   ServerPort=1186`
 
+	// START of generation
+	configString := ""
+
+	// header
+	hash := base64.StdEncoding.EncodeToString(ndb.Status.ReceivedConfigHash)
+	configString += strings.ReplaceAll(header, "{{$confighash}}", hash)
+	configString += "\n"
+
+	// system section
+	// TODO - this is wrong - needs to be reeived generation (as received config hash)
+	generation := fmt.Sprintf("%d", ndb.ObjectMeta.Generation)
+	syss := systemSection
+	syss = strings.ReplaceAll(syss, "{{$configgeneration}}", generation)
+	syss = strings.ReplaceAll(syss, "{{$clustername}}", ndb.Name)
+	configString += syss + "\n"
+
+	// ndbd default
 	noofrepl := fmt.Sprintf("%d", *ndb.Spec.Ndbd.NoOfReplicas)
 	//noofrepl := strconv.Itoa(*ndb.Spec.Ndbd.NoOfReplicas)
-	configString := strings.ReplaceAll(defaultSections, "{{$noofreplicas}}", noofrepl)
+	configString += strings.ReplaceAll(defaultSections, "{{$noofreplicas}}", noofrepl)
 	configString += "\n"
 
 	/*
@@ -81,11 +130,19 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 		nodeId++
 		configString += "\n"
 	}
+	configString += "\n"
 
 	// mysqld sections
 	// at least 1 must be there in order to not fail ndb_mgmd start
-	configString += "[mysqld]\n"
-	configString += "[mysqld]\n"
+	mysqlSections := 1
+	if ndb.Spec.Mysqld.NodeCount != nil && int(*ndb.Spec.Mysqld.NodeCount) > 1 {
+		// we alloc one section more than needed for internal purposes
+		mysqlSections = int(*ndb.Spec.Mysqld.NodeCount) + 1
+	}
+
+	for i := 0; i < mysqlSections; i++ {
+		configString += "[mysqld]\n"
+	}
 
 	/* pure estetics - trim whitespace from lines */
 	s := strings.Split(configString, "\n")
@@ -93,5 +150,7 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 	for _, line := range s {
 		configString += strings.TrimSpace(line) + "\n"
 	}
+
+	//klog.Infof("Config string: \n %s", configString)
 	return configString, nil
 }
