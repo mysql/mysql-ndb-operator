@@ -90,17 +90,16 @@ func (f *fixture) close() {
 	close(f.stopCh)
 }
 
-func newNdb(name string, noofnodes int) *ndbcontroller.Ndb {
+func newNdb(namespace string, name string, noofnodes int) *ndbcontroller.Ndb {
 	return &ndbcontroller.Ndb{
 		TypeMeta: metav1.TypeMeta{APIVersion: ndbcontroller.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: metav1.NamespaceDefault,
+			Namespace: namespace,
 		},
 		Spec: ndbcontroller.NdbSpec{
 			DeploymentName: fmt.Sprintf("%s-deployment", name),
 			Ndbd: ndbcontroller.NdbNdbdSpec{
-				//NodeCount: func(i int32) *int32 { return &i }((int32(noofnodes))),
 				NodeCount:    int32Ptr(int32(noofnodes)),
 				NoOfReplicas: int32Ptr(int32(2)),
 			},
@@ -270,8 +269,8 @@ func (f *fixture) expectUpdateAction(ns string, resource string, o runtime.Objec
 
 func (f *fixture) expectUpdateNdbStatusAction(ndb *ndbcontroller.Ndb) {
 	action := core.NewUpdateAction(schema.GroupVersionResource{Resource: "ndbs"}, ndb.Namespace, ndb)
-	// TODO: Until #38113 is merged, we can't use Subresource
-	//action.Subresource = "status"
+	// TODO: before #38113 was merged, we can't use Subresource
+	action.Subresource = "status"
 	f.actions = append(f.actions, action)
 }
 
@@ -289,7 +288,8 @@ func TestCreatesCluster(t *testing.T) {
 	f := newFixture(t)
 	defer f.close()
 
-	ndb := newNdb("test", 1)
+	ns := metav1.NamespaceDefault
+	ndb := newNdb(ns, "test", 1)
 
 	// we first need to set up arrays with objects ...
 	f.ndbLister = append(f.ndbLister, ndb)
@@ -299,10 +299,12 @@ func TestCreatesCluster(t *testing.T) {
 	// objects not listed in arrays at fakeclient setup will eventually be deleted
 	f.init()
 
-	//expDeployment := newDeployment(foo)
-	//f.expectCreateDeploymentAction(expDeployment)
-
 	// update labels will happen first sync run
+	f.expectUpdateAction(ns, "ndbs", ndb)
+
+	// two services for ndbd and mgmds
+	f.expectCreateAction(ns, "services", ndb)
+	f.expectCreateAction(ns, "services", ndb)
 	f.expectUpdateNdbStatusAction(ndb)
 
 	f.run(getKey(ndb, t))
