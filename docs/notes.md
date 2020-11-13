@@ -341,6 +341,16 @@ Ndb operator re-creates the mgmd pods every time the config changes to be sure t
 Cluster allows a "manual" `ConfigGenerationNumber` in the system section on the cluster config 
 this number could be used to track if a generation was rolled out to mgmd and data nodes 
 
+## config differences
+
+how to find the diff between the spec'd config and the actual?
+
+### marshalling objects deterministic?
+
+Uncertain but one dev from golang team @ google thinks it is:
+
+https://groups.google.com/g/golang-nuts/c/_he7g1TL0K8/m/8BBCFB0tCgAJ
+
 ## pod whoami
 
 How to know which pod one is own? Injecting ENV variables.
