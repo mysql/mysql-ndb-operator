@@ -5,6 +5,10 @@
 package v1alpha1
 
 import (
+	"crypto/md5"
+	"encoding/json"
+	"io"
+
 	"github.com/ocklin/ndb-operator/pkg/constants"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,7 +45,7 @@ type NdbMysqldSpec struct {
 
 // NdbSpec is the spec for a Ndb resource
 type NdbSpec struct {
-	DeploymentName string        `json:"deploymentName"`
+	DeploymentName string        `json:"deploymentname"`
 	Mgmd           NdbMgmdSpec   `json:"mgmd"`
 	Ndbd           NdbNdbdSpec   `json:"ndbd"`
 	Mysqld         NdbMysqldSpec `json:"mysqld"`
@@ -55,6 +59,10 @@ type NdbSpec struct {
 type NdbStatus struct {
 	ProcessedGeneration int64       `json:"processedGeneration,omitempty"`
 	LastUpdate          metav1.Time `json:"lastUpdate,omitempty"`
+
+	/* here we store the config hash of every
+	   new generation of a spec that we received and thus acknowledged */
+	ReceivedConfigHash []byte `json:"receivedConfigHash,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -109,4 +117,40 @@ func (ndb *Ndb) GetConfigMapName() string {
 
 func (ndb *Ndb) GetPodDisruptionBudgetName() string {
 	return ndb.Name + "-pdb"
+}
+
+/* Calculate a hash of the current Spec */
+/* TODO - not quite clear if its deterministic
+there is no documented guarantee that reflect used in Marshal
+has a guaranteed order of fields in the struct or if e.g. compiler could change it */
+func (ndb *Ndb) calculateNewConfigHash() ([]byte, error) {
+	jsonNdb, err := json.Marshal(ndb.Spec)
+	if err != nil {
+		return nil, err
+	}
+	hash := md5.New()
+	io.WriteString(hash, string(jsonNdb))
+	return hash.Sum(nil), nil
+}
+
+/* comparing the stored hash with the newly calculated hash of the Spec we see if it changed */
+func (ndb *Ndb) IsConfigHashEqual() ([]byte, bool, error) {
+
+	configHash, err := ndb.calculateNewConfigHash()
+	if err != nil {
+		return nil, false, err
+	}
+	if ndb.Status.ReceivedConfigHash == nil {
+		return configHash, false, nil
+	}
+
+	if len(ndb.Status.ReceivedConfigHash) != len(configHash) {
+		return configHash, false, nil
+	}
+	for i, v := range ndb.Status.ReceivedConfigHash {
+		if v != configHash[i] {
+			return configHash, false, nil
+		}
+	}
+	return configHash, true, nil
 }
