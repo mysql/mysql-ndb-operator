@@ -14,7 +14,7 @@ import (
 )
 
 // NewForCluster will return a new headless Kubernetes service for a MySQL cluster
-func NewService(ndb *v1alpha1.Ndb, mgmd bool, svcName string) *corev1.Service {
+func NewService(ndb *v1alpha1.Ndb, mgmd bool, externalIP bool, svcName string) *corev1.Service {
 
 	selector := ndb.GetDataNodeLabels()
 	svcType := corev1.ServiceTypeClusterIP
@@ -22,6 +22,9 @@ func NewService(ndb *v1alpha1.Ndb, mgmd bool, svcName string) *corev1.Service {
 
 	if mgmd {
 		selector = ndb.GetManagementNodeLabels()
+	}
+
+	if externalIP {
 		svcType = corev1.ServiceTypeLoadBalancer
 		clusterIP = ""
 	}
@@ -42,7 +45,8 @@ func NewService(ndb *v1alpha1.Ndb, mgmd bool, svcName string) *corev1.Service {
 			PublishNotReadyAddresses: true,
 			Ports: []corev1.ServicePort{
 				// TODO: two ports in array didn't work, at least not exposing via minikube tunnel
-				corev1.ServicePort{Port: 8080, Name: "agent", Protocol: "TCP"},
+				//corev1.ServicePort{Port: 8080, Name: "agent", Protocol: "TCP"},
+				corev1.ServicePort{Port: 1186, Name: "ndb-node", Protocol: "TCP"},
 			},
 			Selector:  selector,
 			ClusterIP: clusterIP,

@@ -7,18 +7,69 @@
 package controllers
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
 )
+
+func Test_TestThingsrelatedToConfigMaps(t *testing.T) {
+
+	configString := "Version 1"
+	ns := metav1.NamespaceDefault
+
+	d1 := map[string]string{
+		"config.ini": configString,
+	}
+	d2 := map[string]string{
+		"config.ini": "Version 2",
+	}
+
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "configtest",
+			Namespace: ns,
+		},
+		Data: d1,
+	}
+
+	cm2 := cm.DeepCopy()
+
+	j, err := json.Marshal(cm)
+	if err != nil {
+		t.Error(err)
+	}
+
+	cm2.Data = d2
+
+	j2, err := json.Marshal(cm2)
+	if err != nil {
+		t.Error(err)
+	}
+	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(
+		j, j2, corev1.ConfigMap{})
+	if err != nil {
+		t.Error(err)
+	}
+
+	fmt.Println(string(patchBytes))
+
+	t.Fail()
+}
 
 func TestCreateConfigMap(t *testing.T) {
 
 	f := newFixture(t)
 	defer f.close()
 
-	ndb := newNdb("test", 1)
+	ns := metav1.NamespaceDefault
+	ndb := newNdb(ns, "test", 1)
+	ndb.Spec.Mysqld.NodeCount = int32Ptr(7)
 
 	// we first need to set up arrays with objects ...
 	f.ndbLister = append(f.ndbLister, ndb)
@@ -61,4 +112,11 @@ func TestCreateConfigMap(t *testing.T) {
 		t.Errorf("Unexpected error EnsuringConfigMap: didn't find created ConfigMap")
 	}
 
+	ndb.Spec.Mysqld.NodeCount = int32Ptr(12)
+
+	cm, err = cmc.PatchConfigMap(ndb)
+
+	s, _ := json.MarshalIndent(cm, "", "  ")
+
+	t.Errorf(string(s))
 }
