@@ -22,15 +22,15 @@ import (
 
 const mgmdVolumeName = "mgmdvolume"
 const mgmdName = "mgmd"
-const mgmdImage = "mysql-cluster"
+
+const ndbImage = "mysql/mysql-cluster"
+const ndbVersion = "8.0.22"
 
 const ndbdName = "ndbd"
 
 const ndbAgentName = "ndb-agent"
 const ndbAgentImage = "ndb-agent"
 const ndbAgentVersion = "1.0.0"
-
-const ndbVersion = "1.0.0"
 
 type StatefulSetInterface interface {
 	NewStatefulSet(cluster *v1alpha1.Ndb) *apps.StatefulSet
@@ -148,7 +148,7 @@ func (bss *baseStatefulSet) mgmdContainer(ndb *v1alpha1.Ndb) v1.Container {
 	cmd := ""
 	environment := []v1.EnvVar{}
 
-	imageName := fmt.Sprintf("%s:%s", mgmdImage, ndbVersion)
+	imageName := fmt.Sprintf("%s:%s", ndbImage, ndbVersion)
 
 	if runWithEntrypoint {
 		args := []string{
@@ -188,6 +188,7 @@ func (bss *baseStatefulSet) mgmdContainer(ndb *v1alpha1.Ndb) v1.Container {
 		}
 		cmdArgs := strings.Join(args, " ")
 		cmd = fmt.Sprintf(`/usr/sbin/ndb_mgmd %s`, cmdArgs)
+
 		klog.Infof("Creating mgmd container from image %s", imageName)
 	}
 
@@ -201,7 +202,7 @@ func (bss *baseStatefulSet) mgmdContainer(ndb *v1alpha1.Ndb) v1.Container {
 		},
 		VolumeMounts:    volumeMounts(ndb),
 		Command:         []string{"/bin/bash", "-ecx", cmd},
-		ImagePullPolicy: v1.PullNever,
+		ImagePullPolicy: v1.PullIfNotPresent, //v1.PullNever,
 		Env:             environment,
 	}
 }
@@ -217,7 +218,7 @@ func (bss *baseStatefulSet) ndbmtdContainer(ndb *v1alpha1.Ndb) v1.Container {
 	cmd := fmt.Sprintf(`/entrypoint.sh %s`, entryPointArgs)
 
 	mgmdHostname := bss.getMgmdHostname(ndb)
-	imageName := fmt.Sprintf("%s:%s", mgmdImage, ndbVersion)
+	imageName := fmt.Sprintf("%s:%s", ndbImage, ndbVersion)
 	klog.Infof("Creating ndbmtd container from image %s for hostnames %s",
 		imageName, mgmdHostname)
 
@@ -231,7 +232,7 @@ func (bss *baseStatefulSet) ndbmtdContainer(ndb *v1alpha1.Ndb) v1.Container {
 		},
 		VolumeMounts:    volumeMounts(ndb),
 		Command:         []string{"/bin/bash", "-ecx", cmd},
-		ImagePullPolicy: v1.PullNever,
+		ImagePullPolicy: v1.PullIfNotPresent, //v1.PullNever,
 		Env: []v1.EnvVar{
 			{
 				Name:  "NDB_REPLICAS",
@@ -285,8 +286,8 @@ func (bss *baseStatefulSet) NewStatefulSet(ndb *v1alpha1.Ndb) *apps.StatefulSet 
 
 	if bss.typeName == "mgmd" {
 		containers = []v1.Container{
-			//bss.mgmdContainer(cluster),
-			agentContainer(ndb, ndbAgentImage),
+			bss.mgmdContainer(ndb),
+			//agentContainer(ndb, ndbAgentImage),
 		}
 		serviceaccount = "ndb-agent"
 		replicas = ndb.Spec.Mgmd.NodeCount
@@ -295,8 +296,8 @@ func (bss *baseStatefulSet) NewStatefulSet(ndb *v1alpha1.Ndb) *apps.StatefulSet 
 
 	} else {
 		containers = []v1.Container{
-			//bss.ndbmtdContainer(cluster),
-			agentContainer(ndb, ndbAgentImage),
+			bss.ndbmtdContainer(ndb),
+			//agentContainer(ndb, ndbAgentImage),
 		}
 		serviceaccount = "ndb-agent"
 		replicas = ndb.Spec.Ndbd.NodeCount
