@@ -3,6 +3,7 @@ package ndb
 import (
 	"bufio"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -70,6 +71,28 @@ func (api *mgmclient) restart() error {
 	return nil
 }
 
+func (api *mgmclient) showConfig() error {
+
+	conn := api.connection
+
+	fmt.Fprintf(conn, "show config\n")
+	fmt.Fprintf(conn, "\n")
+
+	buf, err := api.getReply()
+	if err != nil {
+		return err
+	}
+
+	lineno := 1
+	scanner := bufio.NewScanner(strings.NewReader(string(buf)))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		fmt.Printf("[%d]  %s\n", lineno, line)
+		lineno++
+	}
+	return nil
+}
+
 func (api *mgmclient) getStatus() error {
 
 	conn := api.connection
@@ -89,6 +112,69 @@ func (api *mgmclient) getStatus() error {
 		fmt.Printf("[%d]  %s\n", lineno, line)
 		lineno++
 	}
+	return nil
+}
+
+const InvalidTypeId = 0
+const IntTypeId = 1
+const StringTypeId = 2
+const SectionTypeId = 3
+const Int64TypeId = 4
+
+const V2_TYPE_SHIFT = 28
+const V2_TYPE_MASK = 15
+const V2_KEY_SHIFT = 0
+const V2_KEY_MASK = 0x0FFFFFFF
+
+func readUint32(data []byte, offset *int) uint32 {
+	v := binary.BigEndian.Uint32(data[*offset : *offset+4])
+	*offset += 4
+	return v
+}
+
+func readString(data []byte, offset *int) string {
+	len := int(readUint32(data, offset))
+	s := string(data[*offset : *offset+len])
+	len = len + ((4 - (len & 3)) & 3)
+	*offset += len
+	return s
+}
+
+func (api *mgmclient) readEntry(data []byte, offset *int) error {
+
+	key := readUint32(data, offset)
+
+	key_type := (key >> V2_TYPE_SHIFT) & V2_TYPE_MASK
+
+	key = (key >> V2_KEY_SHIFT) & V2_KEY_MASK
+
+	switch key_type {
+	case IntTypeId:
+		{
+			val := readUint32(data, offset)
+			fmt.Printf("key: %d = %d\n", key, val)
+			break
+		}
+	case Int64TypeId:
+		{
+			high := readUint32(data, offset)
+			low := readUint32(data, offset)
+			val := (uint64(high) << 32) + uint64(low)
+			fmt.Printf("key: %d = %d\n", key, val)
+			break
+		}
+	case StringTypeId:
+		{
+			val := readString(data, offset)
+			fmt.Printf("key: %d = %s\n", key, val)
+			break
+		}
+	default:
+		{
+			return nil
+		}
+	}
+
 	return nil
 }
 
@@ -140,7 +226,75 @@ func (api *mgmclient) getConfig() error {
 	}
 	fmt.Printf("%q\n", data)
 
+	magic := string(data[0:8])
+	/*
+	* Header section (7 words)
+	*  1. Total length in words of configuration binary
+	*  2. Configuration binary version (this is version 2)
+	*  3. Number of default sections in configuration binary
+	*     - Data node defaults
+	*     - API node defaults
+	*     - MGM server node defaults
+	*     - TCP communication defaults
+	*     - SHM communication defaults
+	*     So always 5 in this version
+	*  4. Number of data nodes
+	*  5. Number of API nodes
+	*  6. Number of MGM server nodes
+	*  7. Number of communication sections
+	 */
+	header := data[8 : 8+4*7]
+
+	fmt.Printf("magic: %s\n", magic)
+	fmt.Printf("header len: %d\n", len(header))
+
+	offset := int(0)
+	totalLen := readUint32(header, &offset)
+	version := readUint32(header, &offset)
+	noOfDefaults := int(binary.BigEndian.Uint32(header[8:12]))
+	noOfDN := binary.BigEndian.Uint32(header[12:16])
+	noOfAPI := binary.BigEndian.Uint32(header[16:20])
+	noOfMGM := binary.BigEndian.Uint32(header[20:24])
+	noOfTCP := binary.BigEndian.Uint32(header[24:28])
+
+	fmt.Printf("length: %d, version: %d, default sections: %d, DN: %d, API: %d, MGM: %d, TCP: %d\n",
+		totalLen, version, noOfDefaults, noOfDN, noOfAPI, noOfMGM, noOfTCP)
+
+	offset = 8 + 28
+
+	for ds := 0; ds < noOfDefaults; ds++ {
+		api.readSection(data, &offset)
+	}
+
+	// system
+	api.readSection(data, &offset)
+
+	// nodes
+	for n := 0; n < int(noOfDN+noOfMGM+noOfAPI); n++ {
+		api.readSection(data, &offset)
+	}
+
+	// comm
+	for n := 0; n < int(noOfTCP); n++ {
+		api.readSection(data, &offset)
+	}
+
 	return nil
+}
+
+func (api *mgmclient) readSection(data []byte, offset *int) {
+
+	// section header data nodes
+	len := readUint32(data, offset)
+	noEntries := int(readUint32(data, offset))
+	nodeType := readUint32(data, offset)
+
+	fmt.Printf("len: %d, no entries: %d, type: %d\n", len, noEntries, nodeType)
+
+	for e := 0; e < noEntries; e++ {
+		api.readEntry(data, offset)
+	}
+	fmt.Printf("offset: %d\n", *offset)
 }
 
 func (api *mgmclient) getReply() ([]byte, error) {

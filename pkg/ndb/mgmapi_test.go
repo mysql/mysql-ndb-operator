@@ -45,3 +45,37 @@ func TestRestart(t *testing.T) {
 		return
 	}
 }
+
+func TestGetConfig(t *testing.T) {
+	api := &mgmclient{}
+
+	err := api.connect()
+	if err != nil {
+		t.Errorf("Connection failed: %s", err)
+		return
+	}
+	defer api.disconnect()
+
+	err = api.getConfig()
+	if err != nil {
+		t.Errorf("getting config failed : %s", err)
+		return
+	}
+}
+
+func TestShowConfig(t *testing.T) {
+	api := &mgmclient{}
+
+	err := api.connect()
+	if err != nil {
+		t.Errorf("Connection failed: %s", err)
+		return
+	}
+	defer api.disconnect()
+
+	err = api.showConfig()
+	if err != nil {
+		t.Errorf("getting config failed : %s", err)
+		return
+	}
+}
