@@ -118,7 +118,22 @@ func (bss *baseStatefulSet) getMgmdHostname(ndb *v1alpha1.Ndb) string {
 		if i > 0 {
 			mgmHostnames += ","
 		}
-		mgmHostnames += fmt.Sprintf("%s-%d.%s.%s", bss.clusterName+"-mgmd", i, bss.clusterName, dnsZone)
+		mgmHostnames += fmt.Sprintf("%s-%d.%s.%s", bss.clusterName+"-mgmd", i, ndb.GetManagementServiceName(), dnsZone)
+	}
+
+	return mgmHostnames
+}
+
+func (bss *baseStatefulSet) getConnectstring(ndb *v1alpha1.Ndb) string {
+	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
+	port := "1186"
+
+	mgmHostnames := ""
+	for i := 0; i < (int)(*ndb.Spec.Mgmd.NodeCount); i++ {
+		if i > 0 {
+			mgmHostnames += ","
+		}
+		mgmHostnames += fmt.Sprintf("%s-%d.%s.%s:%s", bss.clusterName+"-mgmd", i, ndb.GetManagementServiceName(), dnsZone, port)
 	}
 
 	return mgmHostnames
@@ -136,7 +151,7 @@ func (bss *baseStatefulSet) getNdbdHostnames(ndb *v1alpha1.Ndb) string {
 		if i > 0 {
 			ndbHostnames += ","
 		}
-		ndbHostnames += fmt.Sprintf("%s-%d.%s.%s", bss.clusterName+"-ndbd", i, bss.clusterName, dnsZone)
+		ndbHostnames += fmt.Sprintf("%s-%d.%s.%s", bss.clusterName+"-ndbd", i, ndb.GetDataNodeServiceName(), dnsZone)
 	}
 	return ndbHostnames
 }
@@ -210,17 +225,17 @@ func (bss *baseStatefulSet) mgmdContainer(ndb *v1alpha1.Ndb) v1.Container {
 // Builds the Ndb operator container for a mgmd.
 func (bss *baseStatefulSet) ndbmtdContainer(ndb *v1alpha1.Ndb) v1.Container {
 
-	args := []string{
-		"ndbmtd",
-	}
-
-	entryPointArgs := strings.Join(args, " ")
-	cmd := fmt.Sprintf(`/entrypoint.sh %s`, entryPointArgs)
-
-	mgmdHostname := bss.getMgmdHostname(ndb)
 	imageName := fmt.Sprintf("%s:%s", ndbImage, ndbVersion)
-	klog.Infof("Creating ndbmtd container from image %s for hostnames %s",
-		imageName, mgmdHostname)
+	connectString := bss.getConnectstring(ndb)
+	args := []string{
+		"-c", connectString,
+		"--nodaemon",
+		"-v",
+	}
+	cmdArgs := strings.Join(args, " ")
+	cmd := fmt.Sprintf(`/usr/sbin/ndbmtd %s`, cmdArgs)
+
+	klog.Infof("Creating ndbmtd container from image %s", imageName)
 
 	return v1.Container{
 		Name:  ndbdName,
@@ -233,16 +248,6 @@ func (bss *baseStatefulSet) ndbmtdContainer(ndb *v1alpha1.Ndb) v1.Container {
 		VolumeMounts:    volumeMounts(ndb),
 		Command:         []string{"/bin/bash", "-ecx", cmd},
 		ImagePullPolicy: v1.PullIfNotPresent, //v1.PullNever,
-		Env: []v1.EnvVar{
-			{
-				Name:  "NDB_REPLICAS",
-				Value: fmt.Sprintf("%d", *ndb.Spec.Ndbd.NoOfReplicas),
-			},
-			{
-				Name:  "NDB_MGMD_HOSTS",
-				Value: mgmdHostname,
-			},
-		},
 	}
 }
 
