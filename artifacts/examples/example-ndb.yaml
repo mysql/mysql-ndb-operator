@@ -1,0 +1,16 @@
+apiVersion: ndbcontroller.mysql.com/v1alpha1
+kind: Ndb
+metadata:
+  name: example-ndb
+spec:
+  deploymentName: ndb-cluster
+  config:
+    name: config-ini
+  ndbd:
+    name: ndbd
+    nodecount: 2
+    noofreplicas: 2
+  mgmd: 
+    nodecount: 2
+  mysqld:
+    nodecount: 2
