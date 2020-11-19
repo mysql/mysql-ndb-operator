@@ -6,14 +6,15 @@ VERSION ?= 1.0.0
 
 ARCH     ?= amd64
 OS       ?= darwin
+#OS       ?= linux
 UNAME_S  := $(shell uname -s)
-PKG      := github.com/ocklin/ndb-operator/
+PKG      := github.com/mysql/ndb-operator/
 CMD_DIRECTORIES := $(sort $(dir $(wildcard ./cmd/*/)))
 COMMANDS := $(CMD_DIRECTORIES:./cmd/%/=%)
 
 # point BASEDIR to your mysql ndb *build* directory (not install)
 # BASEDIR=/home/bo/prg/mysql-bld/trunk
-BASEDIR=/Users/bo/Downloads/mysql-cluster-8.0.22-el7-x86_64
+BASEDIR=/Users/bo/Downloads/mysql-cluster-commercial-8.0.23-linux-x86_64
 #RTDIR=${BASEDIR}/runtime_output_directory
 RTDIR=${BASEDIR}/bin
 
