@@ -9,10 +9,10 @@ package v1alpha1
 import (
 	time "time"
 
-	ndbcontrollerv1alpha1 "github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	versioned "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned"
-	internalinterfaces "github.com/ocklin/ndb-operator/pkg/generated/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/ocklin/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
+	ndbcontrollerv1alpha1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	versioned "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
+	internalinterfaces "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"

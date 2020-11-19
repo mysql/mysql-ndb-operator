@@ -7,8 +7,8 @@ package controllers
 import (
 	"encoding/json"
 
-	"github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/ocklin/ndb-operator/pkg/resources"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/resources"
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"

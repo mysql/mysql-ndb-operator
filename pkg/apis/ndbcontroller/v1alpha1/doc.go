@@ -6,4 +6,4 @@
 // +groupName=ndbcontroller.mysql.com
 
 // Package v1alpha1 is the v1alpha1 version of the API.
-package v1alpha1 // import "github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+package v1alpha1 // import "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"

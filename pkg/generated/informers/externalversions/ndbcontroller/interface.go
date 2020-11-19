@@ -7,8 +7,8 @@
 package ndbcontroller
 
 import (
-	internalinterfaces "github.com/ocklin/ndb-operator/pkg/generated/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/ocklin/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
+	internalinterfaces "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
 )
 
 // Interface provides access to each of this group's versions.

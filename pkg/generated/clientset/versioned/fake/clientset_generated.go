@@ -7,9 +7,9 @@
 package fake
 
 import (
-	clientset "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned"
-	ndbcontrollerv1alpha1 "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned/typed/ndbcontroller/v1alpha1"
-	fakendbcontrollerv1alpha1 "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned/typed/ndbcontroller/v1alpha1/fake"
+	clientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
+	ndbcontrollerv1alpha1 "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/typed/ndbcontroller/v1alpha1"
+	fakendbcontrollerv1alpha1 "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/typed/ndbcontroller/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

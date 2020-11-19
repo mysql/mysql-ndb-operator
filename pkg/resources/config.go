@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/ocklin/ndb-operator/pkg/constants"
-	"github.com/ocklin/ndb-operator/pkg/helpers"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/constants"
+	"github.com/mysql/ndb-operator/pkg/helpers"
 )
 
 func GetConfigHashAndGenerationFromConfig(configStr string) (string, int64, error) {

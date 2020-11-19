@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/ocklin/ndb-operator/pkg/constants"
+	"github.com/mysql/ndb-operator/pkg/constants"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 )

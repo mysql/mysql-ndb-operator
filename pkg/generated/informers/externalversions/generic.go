@@ -9,7 +9,7 @@ package externalversions
 import (
 	"fmt"
 
-	v1alpha1 "github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	v1alpha1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )

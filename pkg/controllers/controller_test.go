@@ -24,9 +24,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
 
-	ndbcontroller "github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned/fake"
-	informers "github.com/ocklin/ndb-operator/pkg/generated/informers/externalversions"
+	ndbcontroller "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/fake"
+	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
 )
 
 var (
