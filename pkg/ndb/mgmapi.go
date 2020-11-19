@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,31 +21,91 @@ const defaultTimeoutInSeconds = 5
 
 const commandRestart = "restart node v2"
 
-type mgmclient struct {
+const CFG_SYS_CONFIG_GENERATION = 2
+
+const InvalidTypeId = 0
+const IntTypeId = 1
+const StringTypeId = 2
+const SectionTypeId = 3
+const Int64TypeId = 4
+
+type Mgmclient struct {
 	connection net.Conn
 }
 
-func (api *mgmclient) disconnect() {
+type ConfigValueType interface{}
+type ConfigSection map[uint32]ConfigValueType
+
+func (api *Mgmclient) Disconnect() {
 	if api.connection != nil {
 		api.connection.Close()
+		klog.Infof("Management server disconnected.")
 	}
 }
 
-func (api *mgmclient) connect() error {
+func (api *Mgmclient) Connect() error {
 
 	// connect to server
 	var err error
 	api.connection, err = net.Dial("tcp", "127.0.0.1:1186")
 	if err != nil {
-		log.Println("Connecting to management server failed:", err)
-		// do something else, for example create new conn
+		api.connection = nil
 		return err
+	}
+
+	klog.Infof("Management server connected.")
+
+	return nil
+}
+
+func (api *Mgmclient) ConnectToNodeId(wantedNodeId int) error {
+	// as for external testing we are going through load balancer we
+	// circle here until we got the right node
+	var connectError error
+	connected := false
+
+	for retries := 0; retries < 10; retries++ {
+
+		connectError = nil
+		err := api.Connect()
+		if err != nil {
+			// TODO: if we do not have contact then this could be a permanent issue
+			//   like a config error (bug in operator)
+
+			// but in most cases this is rather due to e.g. pod starting or being created
+			klog.Errorf("No contact to management server at the moment")
+
+			// so we retry
+			connectError = err
+			continue
+		}
+
+		nodeid, err := api.GetOwnNodeId()
+		if err != nil {
+			api.Disconnect()
+			connectError = err
+			continue
+		}
+
+		if nodeid == wantedNodeId {
+			connected = true
+			break
+		}
+		api.Disconnect()
+	}
+
+	if !connected {
+		if connectError != nil {
+			return connectError
+		}
+		s := fmt.Sprintf("Failed to connect to correct management server with node id %d", wantedNodeId)
+		return errors.New(s)
 	}
 
 	return nil
 }
 
-func (api *mgmclient) restart() error {
+func (api *Mgmclient) restart() error {
 
 	conn := api.connection
 
@@ -71,7 +133,86 @@ func (api *mgmclient) restart() error {
 	return nil
 }
 
-func (api *mgmclient) showConfig() error {
+func (api *Mgmclient) StopNodes(nodeIds *[]int) (bool, error) {
+
+	conn := api.connection
+
+	nodeListStr := ""
+	sep := ""
+
+	for node := 0; node < len(*nodeIds); node++ {
+		nodeListStr += fmt.Sprintf("%s%d", sep, (*nodeIds)[node])
+	}
+
+	fmt.Fprintf(conn, "%s\n", "stop v2")
+	fmt.Fprintf(conn, "node: %s\n", nodeListStr)
+	fmt.Fprintf(conn, "abort: %d\n", 0)
+	fmt.Fprintf(conn, "force: %d\n", 0)
+	fmt.Fprintf(conn, "\n")
+
+	buf, err := api.getReplySlowCommand()
+	if err != nil {
+		return false, err
+	}
+
+	// [1]  stop reply
+	// [2]  result: Ok
+	// [3]  stopped: 1
+	// [4]  disconnect: 0
+	// [5]
+
+	lineno := 1
+	disconnect := 0
+
+	scanner := bufio.NewScanner(strings.NewReader(string(buf)))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if len(line) < 1 {
+			lineno++
+			continue
+		}
+
+		if lineno == 1 {
+			if line != "stop reply" {
+				s := fmt.Sprintf("Format error in line %d: %s", lineno, line)
+				return false, errors.New(s)
+			}
+			lineno++
+			continue
+		}
+
+		s := strings.SplitN(line, ":", 2)
+		if len(s) != 2 {
+			return false, errors.New("Format error (missing result)" + string(lineno) + " " + line)
+		}
+		key := s[0]
+		val := strings.TrimSpace(s[1])
+
+		switch key {
+		case "result":
+			if val != "Ok" {
+				s := fmt.Sprintf("Stopping node failed: %s", val)
+				return false, errors.New(s)
+			}
+			break
+		case "disconnect":
+			disc, err := strconv.Atoi(val)
+			if err != nil {
+				// we ignore error here
+			} else {
+				disconnect = disc
+			}
+			break
+		}
+
+		//fmt.Printf("[%d]  %s\n", lineno, line)
+		lineno++
+	}
+
+	return disconnect == 1, nil
+}
+
+func (api *Mgmclient) showConfig() error {
 
 	conn := api.connection
 
@@ -86,14 +227,113 @@ func (api *mgmclient) showConfig() error {
 	lineno := 1
 	scanner := bufio.NewScanner(strings.NewReader(string(buf)))
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		fmt.Printf("[%d]  %s\n", lineno, line)
+		//line := strings.TrimSpace(scanner.Text())
+		//fmt.Printf("[%d]  %s\n", lineno, line)
 		lineno++
 	}
 	return nil
 }
 
-func (api *mgmclient) getStatus() error {
+func (api *Mgmclient) GetOwnNodeId() (int, error) {
+
+	// get mgmd nodeid
+
+	// get mgmd nodeid reply
+	// nodeid:%u
+
+	conn := api.connection
+
+	fmt.Fprintf(conn, "get mgmd nodeid\n")
+	fmt.Fprintf(conn, "\n")
+
+	buf, err := api.getReply()
+	if err != nil {
+		return 0, err
+	}
+
+	ownNodeId := 0
+
+	lineno := 1
+	scanner := bufio.NewScanner(strings.NewReader(string(buf)))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if len(line) < 1 {
+			continue
+		}
+
+		if lineno == 1 {
+			if line != "get mgmd nodeid reply" {
+				return 0, fmt.Errorf("Format error in management server reply in line %d: %s", lineno, line)
+			}
+		} else {
+			s := strings.SplitN(line, ":", 2)
+			if len(s) != 2 {
+				return 0, errors.New("Format error " + string(lineno) + " " + line)
+			}
+			key := s[0]
+			val := strings.TrimSpace(s[1])
+
+			if key != "nodeid" {
+				return 0, fmt.Errorf("Format error in management server reply in line %d: %s", lineno, line)
+			}
+
+			ownNodeId, err = strconv.Atoi(val)
+			if err != nil {
+				return 0, errors.New("Format error (unable to extract node count) " + string(lineno) + " " + line)
+			}
+		}
+		lineno++
+	}
+
+	return ownNodeId, nil
+}
+
+func (api *Mgmclient) ShowVariables() (*map[string]string, error) {
+
+	conn := api.connection
+
+	fmt.Fprintf(conn, "show variables\n")
+	fmt.Fprintf(conn, "\n")
+
+	buf, err := api.getReply()
+	if err != nil {
+		return nil, err
+	}
+
+	variables := make(map[string]string)
+
+	lineno := 1
+	scanner := bufio.NewScanner(strings.NewReader(string(buf)))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if len(line) < 1 {
+			continue
+		}
+		//fmt.Printf("[%d] %s\n", lineno, line)
+
+		if lineno == 1 {
+			if line != "show variables reply" {
+				s := fmt.Sprintf("Format error in show variables reply (wrong header \"%s\" in line %d)", line, lineno)
+				return nil, errors.New(s)
+			}
+			lineno++
+			continue
+		}
+
+		s := strings.SplitN(line, ":", 2)
+		if len(s) != 2 {
+			return nil, errors.New("Format error " + string(lineno) + " " + line)
+		}
+		key := s[0]
+		val := strings.TrimSpace(s[1])
+
+		variables[key] = val
+	}
+
+	return &variables, nil
+}
+
+func (api *Mgmclient) GetStatus() (*ClusterStatus, error) {
 
 	conn := api.connection
 
@@ -102,24 +342,116 @@ func (api *mgmclient) getStatus() error {
 
 	buf, err := api.getReply()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	// a reply usually looks like this:
+	// [1]  node status
+	// [2]  nodes: 8
+	// [3]  node.3.type: NDB
+
+	var nss *ClusterStatus
 	lineno := 1
 	scanner := bufio.NewScanner(strings.NewReader(string(buf)))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		fmt.Printf("[%d]  %s\n", lineno, line)
+		if len(line) < 1 {
+			continue
+		}
+		//fmt.Printf("[%d]  %s\n", lineno, line)
+
+		// first line is just text "node status"
+		if lineno == 1 {
+			if line == "node status" {
+				lineno++
+				continue
+			}
+			return nil, errors.New("Format error (missing \"node status\" header " + string(lineno) + " " + line)
+		}
+
+		s := strings.SplitN(line, ":", 2)
+		if len(s) != 2 {
+			return nil, errors.New("Format error " + string(lineno) + " " + line)
+		}
+		nodeStr := s[0]
+		val := strings.TrimSpace(s[1])
+
+		// read node of nodes entry and create map
+		if lineno == 2 {
+			if nodeStr != "nodes" {
+				return nil, errors.New("Format error (missing keyword nodes) " + string(lineno) + " " + line)
+			}
+			nodeCount, err := strconv.Atoi(val)
+			if err != nil {
+				return nil, errors.New("Format error (unable to extract node count) " + string(lineno) + " " + line)
+			}
+			nss = NewClusterStatus(nodeCount)
+			lineno++
+			continue
+		}
+
+		// now split a status line like
+		// "node.3.version: 524310"
+
+		s2 := strings.SplitN(nodeStr, ".", 3)
+		if len(s2) != 3 {
+			return nil, errors.New("Format error (can't parse node status string) " + string(lineno) + " " + line)
+		}
+
+		// node id
+		nodeId, err := strconv.Atoi(s2[1])
+		// "node.*3*.version: 524310"
+		if err != nil {
+			return nil, errors.New("Format error (can't extract node id)" + string(lineno) + " " + line)
+		}
+
+		// type of the status value (e.g. softare version, connection status)
+		// "node.3.*version*: 524310"
+		valType := s2[2]
+
+		nodeStatus := nss.EnsureNode(nodeId)
+
+		// based on the type of value store status away
+		switch valType {
+		case "type":
+			err = nss.SetNodeTypeFromTLA(nodeId, val)
+			if err != nil {
+				return nil, errors.New("Format error (can't extract node type)" + string(lineno) + " " + line)
+			}
+			break
+
+		case "status":
+			// status NDB == STARTED or MGM == CONNECTED
+			nodeStatus.IsConnected = false
+			if nodeStatus.NodeType == MgmNodeTypeId && val == "CONNECTED" {
+				nodeStatus.IsConnected = true
+			}
+			if nodeStatus.NodeType == DataNodeTypeId && val == "STARTED" {
+				nodeStatus.IsConnected = true
+			}
+			break
+		case "version":
+			valint, err := strconv.Atoi(val)
+			if err != nil {
+				return nil, errors.New("Format error (can't extract software version) " + string(lineno) + " " + line)
+			}
+
+			if valint == 0 {
+				nodeStatus.SoftwareVersion = ""
+			} else {
+				major := (valint >> 16) & 0xFF
+				minor := (valint >> 8) & 0xFF
+				build := (valint >> 0) & 0xFF
+				nodeStatus.SoftwareVersion = fmt.Sprintf("%d.%d.%d", major, minor, build)
+			}
+
+			break
+		}
+
 		lineno++
 	}
-	return nil
+	return nss, nil
 }
-
-const InvalidTypeId = 0
-const IntTypeId = 1
-const StringTypeId = 2
-const SectionTypeId = 3
-const Int64TypeId = 4
 
 const V2_TYPE_SHIFT = 28
 const V2_TYPE_MASK = 15
@@ -140,7 +472,7 @@ func readString(data []byte, offset *int) string {
 	return s
 }
 
-func (api *mgmclient) readEntry(data []byte, offset *int) error {
+func (api *Mgmclient) readEntry(data []byte, offset *int) (uint32, interface{}, error) {
 
 	key := readUint32(data, offset)
 
@@ -152,48 +484,58 @@ func (api *mgmclient) readEntry(data []byte, offset *int) error {
 	case IntTypeId:
 		{
 			val := readUint32(data, offset)
-			fmt.Printf("key: %d = %d\n", key, val)
-			break
+			//fmt.Printf("key: %d = %d\n", key, val)
+			return key, val, nil
 		}
 	case Int64TypeId:
 		{
 			high := readUint32(data, offset)
 			low := readUint32(data, offset)
 			val := (uint64(high) << 32) + uint64(low)
-			fmt.Printf("key: %d = %d\n", key, val)
-			break
+			//fmt.Printf("key: %d = %d\n", key, val)
+			return key, val, nil
 		}
 	case StringTypeId:
 		{
 			val := readString(data, offset)
-			fmt.Printf("key: %d = %s\n", key, val)
-			break
+			//fmt.Printf("key: %d = %s\n", key, val)
+			return key, val, nil
 		}
 	default:
-		{
-			return nil
-		}
 	}
 
-	return nil
+	return key, nil, nil
 }
 
-func (api *mgmclient) getConfig() error {
+func (api *Mgmclient) GetConfig() (*ConfigSection, error) {
+	return api.GetConfigFromNode(0)
+}
 
+func (api *Mgmclient) GetConfigFromNode(fromNodeId int) (*ConfigSection, error) {
 	conn := api.connection
 	// send to server
 	//		fmt.Fprintln(conn, "get status")
 	//		fmt.Fprintln(conn, "")
 
 	fmt.Fprintf(conn, "get config_v2\n")
+
+	// TODO: add real version here
 	fmt.Fprintf(conn, "%s: %d\n", "version", 524311)
+
+	// TODO: clarify use of nodetype
 	fmt.Fprintf(conn, "%s: %d\n", "nodetype", -1)
+
+	// TODO: which node is this?
 	fmt.Fprintf(conn, "%s: %d\n", "node", 1)
+
+	if fromNodeId > 0 {
+		fmt.Fprintf(conn, "%s: %d\n", "from_node", fromNodeId)
+	}
 	fmt.Fprintf(conn, "\n")
 
 	buf, err := api.getReply()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	reply := []string{
@@ -216,17 +558,17 @@ func (api *mgmclient) getConfig() error {
 		} else {
 			base64str += line
 		}
-		fmt.Printf("[%d] %s\n", lineno, line)
+		//fmt.Printf("[%d] %s\n", lineno, line)
 		lineno++
 	}
 
 	data, err := base64.StdEncoding.DecodeString(base64str)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	fmt.Printf("%q\n", data)
+	//fmt.Printf("%q\n", data)
 
-	magic := string(data[0:8])
+	//magic := string(data[0:8])
 	/*
 	* Header section (7 words)
 	*  1. Total length in words of configuration binary
@@ -245,20 +587,20 @@ func (api *mgmclient) getConfig() error {
 	 */
 	header := data[8 : 8+4*7]
 
-	fmt.Printf("magic: %s\n", magic)
-	fmt.Printf("header len: %d\n", len(header))
+	//fmt.Printf("magic: %s\n", magic)
+	//fmt.Printf("header len: %d\n", len(header))
 
 	offset := int(0)
-	totalLen := readUint32(header, &offset)
-	version := readUint32(header, &offset)
+	readUint32(header, &offset) //totalLen := readUint32(header, &offset)
+	readUint32(header, &offset) //version := readUint32(header, &offset)
 	noOfDefaults := int(binary.BigEndian.Uint32(header[8:12]))
 	noOfDN := binary.BigEndian.Uint32(header[12:16])
 	noOfAPI := binary.BigEndian.Uint32(header[16:20])
 	noOfMGM := binary.BigEndian.Uint32(header[20:24])
 	noOfTCP := binary.BigEndian.Uint32(header[24:28])
 
-	fmt.Printf("length: %d, version: %d, default sections: %d, DN: %d, API: %d, MGM: %d, TCP: %d\n",
-		totalLen, version, noOfDefaults, noOfDN, noOfAPI, noOfMGM, noOfTCP)
+	//fmt.Printf("length: %d, version: %d, default sections: %d, DN: %d, API: %d, MGM: %d, TCP: %d\n",
+	//	totalLen, version, noOfDefaults, noOfDN, noOfAPI, noOfMGM, noOfTCP)
 
 	offset = 8 + 28
 
@@ -267,7 +609,7 @@ func (api *mgmclient) getConfig() error {
 	}
 
 	// system
-	api.readSection(data, &offset)
+	s := api.readSection(data, &offset)
 
 	// nodes
 	for n := 0; n < int(noOfDN+noOfMGM+noOfAPI); n++ {
@@ -279,33 +621,54 @@ func (api *mgmclient) getConfig() error {
 		api.readSection(data, &offset)
 	}
 
-	return nil
+	return s, nil
 }
 
-func (api *mgmclient) readSection(data []byte, offset *int) {
+func (api *Mgmclient) GetConfigVersion() int {
+	cs, err := api.GetConfig()
+	if err != nil {
+		return -1
+	}
+	if val, ok := (*cs)[uint32(CFG_SYS_CONFIG_GENERATION)]; ok {
+		if v, ok := val.(uint32); ok {
+			return int(v)
+		}
+		if v, ok := val.(uint64); ok {
+			return int(v)
+		}
+	}
+	return -1
+}
+
+func (api *Mgmclient) readSection(data []byte, offset *int) *ConfigSection {
 
 	// section header data nodes
-	len := readUint32(data, offset)
+	readUint32(data, offset) //len := readUint32(data, offset)
 	noEntries := int(readUint32(data, offset))
-	nodeType := readUint32(data, offset)
+	readUint32(data, offset) //nodeType := readUint32(data, offset)
 
-	fmt.Printf("len: %d, no entries: %d, type: %d\n", len, noEntries, nodeType)
+	cs := make(ConfigSection, noEntries)
+
+	//fmt.Printf("len: %d, no entries: %d, type: %d\n", len, noEntries, nodeType)
 
 	for e := 0; e < noEntries; e++ {
-		api.readEntry(data, offset)
+		key, val, _ := api.readEntry(data, offset)
+		cs[key] = val
 	}
-	fmt.Printf("offset: %d\n", *offset)
+	//fmt.Printf("offset: %d\n", *offset)
+
+	return &cs
 }
 
-func (api *mgmclient) getReply() ([]byte, error) {
+func (api *Mgmclient) getReply() ([]byte, error) {
 	return api.getReplyWithTimeout(defaultTimeoutInSeconds)
 }
 
-func (api *mgmclient) getReplySlowCommand() ([]byte, error) {
+func (api *Mgmclient) getReplySlowCommand() ([]byte, error) {
 	return api.getReplyWithTimeout(5 * 60)
 }
 
-func (api *mgmclient) getReplyWithTimeout(timoutInSeconds time.Duration) ([]byte, error) {
+func (api *Mgmclient) getReplyWithTimeout(timoutInSeconds time.Duration) ([]byte, error) {
 	// wait for reply
 	var tmp []byte
 	var buf []byte
