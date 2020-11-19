@@ -1,9 +1,9 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: ndbs.ndbcontroller.mysql.com
+  name: ndbs.mysql.oracle.com
 spec:
-  group: ndbcontroller.mysql.com
+  group: mysql.oracle.com
   names:
     kind: Ndb
     plural: ndbs

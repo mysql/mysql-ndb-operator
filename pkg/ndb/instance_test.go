@@ -19,7 +19,7 @@ func TestGetParentNameAndOrdinal(t *testing.T) {
 			name:     "host",
 			ordinal:  99,
 		}, {
-			hostname: "host-with-dashes-99.ndbcontroller.mysql.com",
+			hostname: "host-with-dashes-99.mysql.oracle.com",
 			name:     "host-with-dashes",
 			ordinal:  99,
 		}, {

@@ -1,4 +1,4 @@
-apiVersion: ndbcontroller.mysql.com/v1alpha1
+apiVersion: mysql.oracle.com/v1alpha1
 kind: Ndb
 metadata:
   name: example-ndb

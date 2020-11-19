@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-// Create a PodDisruptionBudget
+// Create a PodDisruptionBudget allowing maximum 1 data node to be unavailable
 func NewPodDisruptionBudget(ndb *v1alpha1.Ndb) *policyv1beta1.PodDisruptionBudget {
 
 	minAvailable := intstr.FromInt(int(*ndb.Spec.NodeCount - 1))
