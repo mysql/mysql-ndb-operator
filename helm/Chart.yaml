@@ -1,0 +1,7 @@
+apiVersion: v1alpha1
+name: ndb-operator
+version: 0.0.1
+description: A Helm chart for deploying the Oracle MySQL NDB Cluster Operator
+maintainers:
+  - name: Bernd Ocklin
+    email: bernd.ocklin@oracle.com

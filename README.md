@@ -43,12 +43,16 @@ and generate a typed client, informers, listers and deep-copy functions.
 
 ## Building
 
+You may have to set the `OS` variable to your operating system in the Makefile.
+
 ```sh
 # Build ndb-operator 
 make build
 ```
 
-## Image building
+## Docker image building
+
+You can build your own ndb cluster images but you don't have to. Currently public image 8.0.22 is used.
 
 **Prerequisite**: You have a build directory available that is build for OL8. 
 You can use a OL8 build-container in docker/ol8 for that or download a readily compiled OL8 build.
@@ -70,15 +74,24 @@ make build-docker
 
 **Prerequisite**: operator built, docker images built and made available in kubernetes 
 
+Create custom resource definitions and the roles:
+
 ```sh
 NAMESPACE=default
 kubectl -n ${NAMESPACE} apply -f artifacts/manifests/crd.yaml
 sed -e "s/<NAMESPACE>/${NAMESPACE}/g" artifacts/manifests/rbac.yaml | kubectl -n ${NAMESPACE} apply -f -
+```
 
+or use helm
+
+```sh
+helm install ndb-operator helm
+```
+
+the proceed with starting the operator - currently outside of the k8 cluster:
+
+```sh
 ./ndb-operator -kubeconfig=$HOME/.kube/config
-
-# create configmap in case example uses it
-kubectl apply -f artifacts/examples/configmap.yaml
 
 # create a custom resource of type Ndb
 kubectl apply -f artifacts/examples/example-ndb.yaml

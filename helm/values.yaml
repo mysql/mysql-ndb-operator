@@ -1,0 +1,10 @@
+rbac:
+  enabled: true
+operator:
+  namespace: default
+  global: true
+  register_crd: true
+#image:
+#  registry: iad.ocir.io/oracle
+#  tag: 0.3.0
+#  pullPolicy: Always
