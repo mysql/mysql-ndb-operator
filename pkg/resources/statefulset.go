@@ -53,18 +53,17 @@ func NewNdbdStatefulSet(cluster *v1alpha1.Ndb) *baseStatefulSet {
 func volumeMounts(cluster *v1alpha1.Ndb) []v1.VolumeMount {
 	var mounts []v1.VolumeMount
 
+	// volume mount for the data directory
 	mounts = append(mounts, v1.VolumeMount{
 		Name:      mgmdVolumeName,
 		MountPath: constants.DataDir,
 	})
 
-	// A user may explicitly define a config file for ndb via config map
-	if cluster.Spec.Config != nil {
-		mounts = append(mounts, v1.VolumeMount{
-			Name:      "config-volume",
-			MountPath: constants.DataDir + "/config",
-		})
-	}
+	// volume mount for the config map holding the cluster configuration
+	mounts = append(mounts, v1.VolumeMount{
+		Name:      "config-volume",
+		MountPath: constants.DataDir + "/config",
+	})
 
 	return mounts
 }

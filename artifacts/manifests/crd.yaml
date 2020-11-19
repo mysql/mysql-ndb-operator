@@ -23,13 +23,6 @@ spec:
             spec:
               type: object
               properties:
-                deploymentName:
-                  type: string
-                config:
-                  type: object
-                  properties:
-                    name:
-                      type: string
                 ndbd:
                   type: object
                   properties:

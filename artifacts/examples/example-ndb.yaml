@@ -3,9 +3,6 @@ kind: Ndb
 metadata:
   name: example-ndb
 spec:
-  deploymentName: ndb-cluster
-  config:
-    name: config-ini
   ndbd:
     name: ndbd
     nodecount: 2

@@ -11,7 +11,6 @@ import (
 	"io"
 
 	"github.com/ocklin/ndb-operator/pkg/constants"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -46,14 +45,9 @@ type NdbMysqldSpec struct {
 
 // NdbSpec is the spec for a Ndb resource
 type NdbSpec struct {
-	DeploymentName string        `json:"deploymentname"`
-	Mgmd           NdbMgmdSpec   `json:"mgmd"`
-	Ndbd           NdbNdbdSpec   `json:"ndbd"`
-	Mysqld         NdbMysqldSpec `json:"mysqld"`
-
-	// Config allows a user to specify a custom configuration file for MySQL.
-	// +optional
-	Config *corev1.LocalObjectReference `json:"config,omitempty"`
+	Mgmd   NdbMgmdSpec   `json:"mgmd"`
+	Ndbd   NdbNdbdSpec   `json:"ndbd"`
+	Mysqld NdbMysqldSpec `json:"mysqld"`
 }
 
 // NdbStatus is the status for a Ndb resource
