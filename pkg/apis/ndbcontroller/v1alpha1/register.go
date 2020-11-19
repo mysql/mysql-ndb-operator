@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	ndbcontroller "github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller"
+	ndbcontroller "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller"
 )
 
 // SchemeGroupVersion is group version used to register these objects

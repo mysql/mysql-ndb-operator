@@ -16,10 +16,10 @@ import (
 	// Uncomment the following line to load the gcp plugin (only required to authenticate against GKE clusters).
 	// _ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 
-	"github.com/ocklin/ndb-operator/pkg/controllers"
-	clientset "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned"
-	informers "github.com/ocklin/ndb-operator/pkg/generated/informers/externalversions"
-	"github.com/ocklin/ndb-operator/pkg/signals"
+	"github.com/mysql/ndb-operator/pkg/controllers"
+	clientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
+	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
+	"github.com/mysql/ndb-operator/pkg/signals"
 )
 
 var (

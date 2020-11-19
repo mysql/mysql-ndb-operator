@@ -36,14 +36,14 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
-	"github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/ocklin/ndb-operator/pkg/constants"
-	clientset "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned"
-	samplescheme "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned/scheme"
-	informers "github.com/ocklin/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
-	listers "github.com/ocklin/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
-	"github.com/ocklin/ndb-operator/pkg/ndb"
-	"github.com/ocklin/ndb-operator/pkg/resources"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/constants"
+	clientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
+	samplescheme "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/scheme"
+	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
+	listers "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/ndb"
+	"github.com/mysql/ndb-operator/pkg/resources"
 )
 
 const controllerAgentName = "ndb-controller"

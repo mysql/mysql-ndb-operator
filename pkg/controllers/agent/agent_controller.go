@@ -7,11 +7,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/ocklin/ndb-operator/pkg/constants"
-	clientset "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned"
-	ndbinformers "github.com/ocklin/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
-	ndblisters "github.com/ocklin/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
-	"github.com/ocklin/ndb-operator/pkg/ndb"
+	"github.com/mysql/ndb-operator/pkg/constants"
+	clientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
+	ndbinformers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
+	ndblisters "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/ndb"
 	"github.com/pkg/errors"
 
 	coreinformers "k8s.io/client-go/informers/core/v1"

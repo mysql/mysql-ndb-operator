@@ -7,7 +7,7 @@
 package fake
 
 import (
-	v1alpha1 "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned/typed/ndbcontroller/v1alpha1"
+	v1alpha1 "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/typed/ndbcontroller/v1alpha1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

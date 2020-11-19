@@ -7,7 +7,7 @@
 package v1alpha1
 
 import (
-	internalinterfaces "github.com/ocklin/ndb-operator/pkg/generated/informers/externalversions/internalinterfaces"
+	internalinterfaces "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

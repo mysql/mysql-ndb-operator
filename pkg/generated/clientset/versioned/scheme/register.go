@@ -7,7 +7,7 @@
 package scheme
 
 import (
-	ndbcontrollerv1alpha1 "github.com/ocklin/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	ndbcontrollerv1alpha1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

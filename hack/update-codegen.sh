@@ -25,7 +25,7 @@ OUTPUT_BASE="$(dirname "${BASH_SOURCE[0]}")/.."
 # mind the missing slash 
 # - listers and informers are not generated 
 #   without 100% clean paths (e.g. // in path)
-PROJECT_MODULE="github.com/ocklin/ndb-operator"
+PROJECT_MODULE="github.com/mysql/ndb-operator"
 #PROJECT_MODULE=""
 
 

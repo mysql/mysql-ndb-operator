@@ -9,7 +9,7 @@ package versioned
 import (
 	"fmt"
 
-	ndbcontrollerv1alpha1 "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned/typed/ndbcontroller/v1alpha1"
+	ndbcontrollerv1alpha1 "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/typed/ndbcontroller/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

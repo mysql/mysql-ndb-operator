@@ -11,9 +11,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned"
-	internalinterfaces "github.com/ocklin/ndb-operator/pkg/generated/informers/externalversions/internalinterfaces"
-	ndbcontroller "github.com/ocklin/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller"
+	versioned "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
+	internalinterfaces "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/internalinterfaces"
+	ndbcontroller "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
