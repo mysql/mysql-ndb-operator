@@ -42,6 +42,7 @@ import (
 	samplescheme "github.com/ocklin/ndb-operator/pkg/generated/clientset/versioned/scheme"
 	informers "github.com/ocklin/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
 	listers "github.com/ocklin/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
+	"github.com/ocklin/ndb-operator/pkg/ndb"
 	"github.com/ocklin/ndb-operator/pkg/resources"
 )
 
@@ -146,7 +147,10 @@ func NewController(
 			newNdb := new.(*v1alpha1.Ndb)
 
 			if oldNdb.ResourceVersion == newNdb.ResourceVersion {
-				return
+				// we don't do anything here - just log
+				// this can happen e.g. if the timer kicks in - desireable to check state once in the while
+			} else {
+				klog.Infof("Resource version: %s -> %s", oldNdb.ResourceVersion, newNdb.ResourceVersion)
 			}
 
 			klog.Infof("Generation: %d -> %d", oldNdb.ObjectMeta.Generation, newNdb.ObjectMeta.Generation)
@@ -365,6 +369,10 @@ func (c *Controller) ensureServices(ndb *v1alpha1.Ndb) error {
 	if err != nil {
 		return err
 	}
+	err = c.ensureService(ndb, true, true, ndb.GetManagementServiceName()+"-ext")
+	if err != nil {
+		return err
+	}
 	err = c.ensureService(ndb, false, false, ndb.GetDataNodeServiceName())
 	return err
 }
@@ -384,11 +392,69 @@ func (c *Controller) ensurePodDisruptionBudget(ndb *v1alpha1.Ndb) error {
 	return err
 }
 
-func (c *Controller) rollingRestart(ndb *v1alpha1.Ndb) error {
+func (c *Controller) ensureManagementServerConfigVersion(ndbobj *v1alpha1.Ndb, wantedGeneration int) error {
+
+	klog.Infof("Ensuring Management Server has correct config version")
+
+	api := &ndb.Mgmclient{}
+
+	// management server have the first nodeids
+	for nodeId := 1; nodeId <= (int)(*ndbobj.Spec.Mgmd.NodeCount); nodeId++ {
+
+		// TODO : we use this function so far during test operator from outside cluster
+		// we try connecting via load balancer until we connect to correct wanted node
+		err := api.ConnectToNodeId(nodeId)
+		if err != nil {
+			klog.Errorf("No contact to management server to desired management server with node id %d established", nodeId)
+			return err
+		}
+
+		defer api.Disconnect()
+
+		version := api.GetConfigVersion()
+		if version == wantedGeneration {
+			klog.Infof("Management server with node id %d has desired version %d",
+				nodeId, version)
+
+			// process next node
+			continue
+		} else {
+			klog.Infof("Management server with node id %d has different version %d than desired %d",
+				nodeId, version, wantedGeneration)
+		}
+
+		// check if management nodes report a degraded cluster state
+		cs, err := api.GetStatus()
+		if err != nil {
+			klog.Errorf("Error getting cluster status from mangement server: %s", err)
+		}
+
+		if !cs.IsClusterDegraded() {
+
+			klog.Infof("Cluster is reported to be fully running: attempting node stop of node %d", nodeId)
+
+			// we are not degraded in state
+			// management server with nodeId was so nice to reveal all information
+			// now we kill it - pod should terminate and restarted with updated config map and management server
+			nodeIds := []int{nodeId}
+			_, err = api.StopNodes(&nodeIds)
+
+			// we do one at a time -
+			return nil
+		} else {
+			klog.Infof("Cluster is reported to be in degraded state: no restart attempted")
+			return nil
+		}
+	}
+
+	return nil
+}
+
+func (c *Controller) rollingRestart(ndbobj *v1alpha1.Ndb) error {
 
 	klog.Infof("Rolling restart")
 
-	sel4ndb := labels.SelectorFromSet(ndb.GetLabels())
+	sel4ndb := labels.SelectorFromSet(ndbobj.GetLabels())
 	pods, err := c.podLister.List(sel4ndb)
 	if err != nil {
 		return apierrors.NewNotFound(v1alpha1.Resource("Pod"), sel4ndb.String())
@@ -454,13 +520,17 @@ func (c *Controller) syncHandler(key string) error {
 	// make all changes to the copy only and patch the original in the end
 	ndb := ndbOrg.DeepCopy()
 
+	// TODO - not sure if we need a cluster level label on the CRD
+	//      causes an update event looping us in here again
+	c.ensureClusterLabel(ndb)
+
 	// first get a hash of the new config to see if anything changed
 	configHash, equalConfig, err := ndb.IsConfigHashEqual()
 	if err != nil {
 		return err
 	}
 
-	// obviously there is nothing to do in this loop, should never end up here
+	//
 	if equalConfig {
 		klog.Infof("No update to configuration detected in %s based on hash %s",
 			nsName, configHash)
@@ -473,10 +543,6 @@ func (c *Controller) syncHandler(key string) error {
 		klog.Infof("new: %x", configHash)
 	}
 
-	// TODO - not sure if we need a cluster level label on the CRD
-	//      causes an update event looping us in here again
-	c.ensureClusterLabel(ndb)
-
 	if err := c.ensureServices(ndb); err != nil {
 		// re-queue if something went wrong
 		return err
@@ -486,35 +552,10 @@ func (c *Controller) syncHandler(key string) error {
 		return err
 	}
 
+	// create config map if not exist
 	cm, err := c.configMapController.EnsureConfigMap(ndb)
 	if err != nil {
 		return err
-	}
-
-	configString, err := c.configMapController.ExtractConfig(cm)
-	if err != nil {
-		return err
-	}
-
-	klog.Infof("Config string %s\n", configString)
-
-	hash, generation, err := resources.GetConfigHashAndGenerationFromConfig(configString)
-
-	if err != nil {
-		klog.Errorf("Extracting hash or config generation from configuration failed. hash= %s, gen= %d",
-			hash, generation)
-		return err
-	}
-	klog.Infof("Extracting hash or config generation from configuration: hash= %s, gen= %d",
-		hash, generation)
-
-	if hash != configHash {
-		klog.Infof("Config received is different from config map config. config map: \"%s\", new: \"%s\"",
-			hash, configHash)
-	}
-	if ndb.Status.ProcessedGeneration != ndb.ObjectMeta.Generation {
-		klog.Infof("Config generation received different from config map generation. config map: %d, new: %d",
-			generation, ndb.ObjectMeta.Generation)
 	}
 
 	// create the management stateful set if it doesn't exist
@@ -555,6 +596,41 @@ func (c *Controller) syncHandler(key string) error {
 		c.recorder.Event(ndb, corev1.EventTypeWarning, ErrResourceExists, msg)
 		return fmt.Errorf(msg)
 	}
+
+	// if the config map exists then check if its up-to-date
+
+	// get config string
+	configString, err := c.configMapController.ExtractConfig(cm)
+	if err != nil {
+		return err
+	}
+	//klog.Infof("Config string %s\n", configString)
+
+	hash, generation, err := resources.GetConfigHashAndGenerationFromConfig(configString)
+	if err != nil {
+		klog.Errorf("Extracting hash or config generation from configuration failed. hash= %s, gen= %d",
+			hash, generation)
+		return err
+	}
+	klog.Infof("Extracting hash or config generation from configuration: hash= %s, gen= %d",
+		hash, generation)
+
+	if hash != configHash {
+		klog.Infof("Config received is different from config map config. config map: \"%s\", new: \"%s\"",
+			hash, configHash)
+
+		_, err := c.configMapController.PatchConfigMap(ndb)
+		if err != nil {
+			klog.Infof("Failed to patch config map")
+			return err
+		}
+	}
+	if ndb.Status.ProcessedGeneration != ndb.ObjectMeta.Generation {
+		klog.Infof("Config generation received different from config map generation. config map: %d, new: %d",
+			generation, ndb.ObjectMeta.Generation)
+	}
+
+	c.ensureManagementServerConfigVersion(ndb, int(generation))
 
 	// If this number of the members on the Cluster does not equal the
 	// current desired replicas on the StatefulSet, we should update the
