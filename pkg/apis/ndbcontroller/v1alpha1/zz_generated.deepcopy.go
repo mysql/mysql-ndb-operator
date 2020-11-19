@@ -9,7 +9,6 @@
 package v1alpha1
 
 import (
-	v1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -148,11 +147,6 @@ func (in *NdbSpec) DeepCopyInto(out *NdbSpec) {
 	in.Mgmd.DeepCopyInto(&out.Mgmd)
 	in.Ndbd.DeepCopyInto(&out.Ndbd)
 	in.Mysqld.DeepCopyInto(&out.Mysqld)
-	if in.Config != nil {
-		in, out := &in.Config, &out.Config
-		*out = new(v1.LocalObjectReference)
-		**out = **in
-	}
 	return
 }
 
