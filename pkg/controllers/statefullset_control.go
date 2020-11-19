@@ -88,8 +88,8 @@ func (rssc *realStatefulSetControl) Patch(ndb *v1alpha1.Ndb, old *apps.StatefulS
 	klog.Infof("Patch stateful set %s/%s Replicas: %d, DataNodes: %d",
 		ndb.Namespace,
 		rssc.statefulSetType.GetName(),
-		*ndb.Spec.Ndbd.NoOfReplicas,
-		*ndb.Spec.Ndbd.NodeCount)
+		ndb.GetRedundancyLevel(),
+		*ndb.Spec.NodeCount)
 
 	sfset := rssc.statefulSetType.NewStatefulSet(ndb)
 
@@ -106,8 +106,8 @@ func (rssc *realStatefulSetControl) EnsureStatefulSet(ndb *v1alpha1.Ndb) (*apps.
 		klog.Infof("Creating stateful set %s/%s Replicas: %d, DataNodes: %d",
 			ndb.Namespace,
 			rssc.statefulSetType.GetName(),
-			*ndb.Spec.Ndbd.NoOfReplicas,
-			*ndb.Spec.Ndbd.NodeCount)
+			ndb.GetRedundancyLevel(),
+			*ndb.Spec.NodeCount)
 		sfset = rssc.statefulSetType.NewStatefulSet(ndb)
 		_, err = rssc.client.AppsV1().StatefulSets(ndb.Namespace).Create(sfset)
 	}
@@ -116,7 +116,7 @@ func (rssc *realStatefulSetControl) EnsureStatefulSet(ndb *v1alpha1.Ndb) (*apps.
 		// re-queue if something went wrong
 		klog.Errorf("Failed to create stateful set %s/%s replicas: %d with error: %s",
 			ndb.Namespace, rssc.statefulSetType.GetName(),
-			*ndb.Spec.Ndbd.NodeCount, err)
+			*ndb.Spec.NodeCount, err)
 	}
 
 	return sfset, err

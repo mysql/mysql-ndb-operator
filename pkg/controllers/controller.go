@@ -155,7 +155,7 @@ func NewController(
 
 			klog.Infof("Generation: %d -> %d", oldNdb.ObjectMeta.Generation, newNdb.ObjectMeta.Generation)
 			if !equality.Semantic.DeepEqual(oldNdb.Spec, newNdb.Spec) {
-				klog.Infof("Difference in spec: %d : %d", *oldNdb.Spec.Ndbd.NodeCount, *newNdb.Spec.Ndbd.NodeCount)
+				klog.Infof("Difference in spec: %d : %d", *oldNdb.Spec.NodeCount, *newNdb.Spec.NodeCount)
 			} else if !equality.Semantic.DeepEqual(oldNdb.Status, newNdb.Status) {
 				klog.Infof("Difference in status")
 			} else {
@@ -399,7 +399,7 @@ func (c *Controller) ensureManagementServerConfigVersion(ndbobj *v1alpha1.Ndb, w
 	api := &ndb.Mgmclient{}
 
 	// management server have the first nodeids
-	for nodeId := 1; nodeId <= (int)(*ndbobj.Spec.Mgmd.NodeCount); nodeId++ {
+	for nodeId := 1; nodeId <= (int)(ndbobj.GetManagementNodeCount()); nodeId++ {
 
 		// TODO : we use this function so far during test operator from outside cluster
 		// we try connecting via load balancer until we connect to correct wanted node
@@ -635,9 +635,9 @@ func (c *Controller) syncHandler(key string) error {
 	// If this number of the members on the Cluster does not equal the
 	// current desired replicas on the StatefulSet, we should update the
 	// StatefulSet resource.
-	if *ndb.Spec.Ndbd.NodeCount != *sfset.Spec.Replicas {
+	if *ndb.Spec.NodeCount != *sfset.Spec.Replicas {
 		klog.Infof("Updating %q: DataNodes=%d statefulSetReplicas=%d",
-			nsName, *ndb.Spec.Ndbd.NodeCount, *sfset.Spec.Replicas)
+			nsName, *ndb.Spec.NodeCount, *sfset.Spec.Replicas)
 		if sfset, err = c.ndbdController.Patch(ndb, sfset); err != nil {
 			// Requeue the item so we can attempt processing again later.
 			// This could have been caused by a temporary network failure etc.

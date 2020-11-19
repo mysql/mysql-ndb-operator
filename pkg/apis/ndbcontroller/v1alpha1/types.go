@@ -27,26 +27,16 @@ type Ndb struct {
 	Status NdbStatus `json:"status"`
 }
 
-type NdbNdbdSpec struct {
-	NoOfReplicas *int32 `json:"noofreplicas"`
-	NodeCount    *int32 `json:"nodecount"`
-	Name         string `json:"deploymentName"`
-}
-
-type NdbMgmdSpec struct {
-	NodeCount *int32 `json:"nodecount"`
-	Name      string `json:"name"`
-}
-
 type NdbMysqldSpec struct {
 	NodeCount *int32 `json:"nodecount"`
-	Name      string `json:"name"`
 }
 
 // NdbSpec is the spec for a Ndb resource
 type NdbSpec struct {
-	Mgmd   NdbMgmdSpec   `json:"mgmd"`
-	Ndbd   NdbNdbdSpec   `json:"ndbd"`
+	RedundancyLevel *int32 `json:"redundancyLevel"`
+	NodeCount       *int32 `json:"nodecount"`
+	ContainerImage  string `json:"containerImage"`
+
 	Mysqld NdbMysqldSpec `json:"mysqld"`
 }
 
@@ -144,4 +134,18 @@ func (ndb *Ndb) IsConfigHashEqual() (string, bool, error) {
 		return configHash, false, nil
 	}
 	return configHash, true, nil
+}
+
+func (ndb *Ndb) GetRedundancyLevel() int {
+	if ndb.Spec.RedundancyLevel == nil {
+		return 2
+	}
+	return int(*ndb.Spec.RedundancyLevel)
+}
+
+func (ndb *Ndb) GetManagementNodeCount() int {
+	if ndb.GetRedundancyLevel() == 1 {
+		return 1
+	}
+	return 2
 }

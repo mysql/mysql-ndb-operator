@@ -11,6 +11,7 @@ import (
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
+	"github.com/mysql/ndb-operator/pkg/helpers"
 	"github.com/mysql/ndb-operator/pkg/version"
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -113,7 +114,7 @@ func (bss *baseStatefulSet) getMgmdHostname(ndb *v1alpha1.Ndb) string {
 	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
 
 	mgmHostnames := ""
-	for i := 0; i < (int)(*ndb.Spec.Mgmd.NodeCount); i++ {
+	for i := 0; i < (int)(ndb.GetManagementNodeCount()); i++ {
 		if i > 0 {
 			mgmHostnames += ","
 		}
@@ -128,7 +129,7 @@ func (bss *baseStatefulSet) getConnectstring(ndb *v1alpha1.Ndb) string {
 	port := "1186"
 
 	mgmHostnames := ""
-	for i := 0; i < (int)(*ndb.Spec.Mgmd.NodeCount); i++ {
+	for i := 0; i < (int)(ndb.GetManagementNodeCount()); i++ {
 		if i > 0 {
 			mgmHostnames += ","
 		}
@@ -146,7 +147,7 @@ func (bss *baseStatefulSet) getNdbdHostnames(ndb *v1alpha1.Ndb) string {
 	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
 
 	ndbHostnames := ""
-	for i := 0; i < (int)(*ndb.Spec.Ndbd.NodeCount); i++ {
+	for i := 0; i < (int)(*ndb.Spec.NodeCount); i++ {
 		if i > 0 {
 			ndbHostnames += ","
 		}
@@ -177,7 +178,7 @@ func (bss *baseStatefulSet) mgmdContainer(ndb *v1alpha1.Ndb) v1.Container {
 		environment = []v1.EnvVar{
 			{
 				Name:  "NDB_REPLICAS",
-				Value: fmt.Sprintf("%d", *ndb.Spec.Ndbd.NoOfReplicas),
+				Value: fmt.Sprintf("%d", ndb.GetRedundancyLevel()),
 			},
 			{
 				Name:  "NDB_MGMD_HOSTS",
@@ -286,6 +287,7 @@ func (bss *baseStatefulSet) NewStatefulSet(ndb *v1alpha1.Ndb) *apps.StatefulSet 
 	serviceaccount := ""
 	var podLabels map[string]string
 	replicas := func(i int32) *int32 { return &i }((0))
+
 	svcName := ""
 
 	if bss.typeName == "mgmd" {
@@ -294,7 +296,7 @@ func (bss *baseStatefulSet) NewStatefulSet(ndb *v1alpha1.Ndb) *apps.StatefulSet 
 			//agentContainer(ndb, ndbAgentImage),
 		}
 		serviceaccount = "ndb-agent"
-		replicas = ndb.Spec.Mgmd.NodeCount
+		replicas = helpers.IntToInt32Ptr(ndb.GetManagementNodeCount())
 		podLabels = ndb.GetManagementNodeLabels()
 		svcName = ndb.GetManagementServiceName()
 
@@ -304,7 +306,7 @@ func (bss *baseStatefulSet) NewStatefulSet(ndb *v1alpha1.Ndb) *apps.StatefulSet 
 			//agentContainer(ndb, ndbAgentImage),
 		}
 		serviceaccount = "ndb-agent"
-		replicas = ndb.Spec.Ndbd.NodeCount
+		replicas = ndb.Spec.NodeCount
 		podLabels = ndb.GetDataNodeLabels()
 		svcName = ndb.GetDataNodeServiceName()
 	}

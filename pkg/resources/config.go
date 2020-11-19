@@ -96,8 +96,7 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 	configString += syss + "\n"
 
 	// ndbd default
-	noofrepl := fmt.Sprintf("%d", *ndb.Spec.Ndbd.NoOfReplicas)
-	//noofrepl := strconv.Itoa(*ndb.Spec.Ndbd.NoOfReplicas)
+	noofrepl := fmt.Sprintf("%d", ndb.GetRedundancyLevel())
 	configString += strings.ReplaceAll(defaultSections, "{{$noofreplicas}}", noofrepl)
 	configString += "\n"
 
@@ -105,7 +104,7 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 		TODO - how about hostname/nodeid stability when patching existing config?
 	*/
 	nodeId := int(1)
-	for i := 0; i < int(*ndb.Spec.Mgmd.NodeCount); i++ {
+	for i := 0; i < int(ndb.GetManagementNodeCount()); i++ {
 
 		ms := mgmdSection
 		ms = strings.ReplaceAll(ms, "{{$nodeId}}", strconv.Itoa(nodeId))
@@ -118,7 +117,7 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 	}
 
 	// data node sections
-	for i := 0; i < int(*ndb.Spec.Ndbd.NodeCount); i++ {
+	for i := 0; i < int(*ndb.Spec.NodeCount); i++ {
 
 		ns := ndbdSection
 		ns = strings.ReplaceAll(ns, "{{$nodeId}}", strconv.Itoa(nodeId))
