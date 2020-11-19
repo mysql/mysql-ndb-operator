@@ -4,8 +4,10 @@
 
 package constants
 
+import "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller"
+
 // ClusterLabel is applied to all components of a Ndb cluster
-const ClusterLabel = "ndbcontroller.mysql.com/v1alpha1"
-const ClusterNodeTypeLabel = "ndbcontroller.mysql.com/nodetype"
+const ClusterLabel = ndbcontroller.GroupName + "/v1alpha1"
+const ClusterNodeTypeLabel = ndbcontroller.GroupName + "/nodetype"
 
 const DataDir = "/var/lib/ndb"

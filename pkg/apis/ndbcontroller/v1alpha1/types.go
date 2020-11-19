@@ -16,8 +16,9 @@ import (
 )
 
 // +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:subresource:status
+// +resourceName=ndb
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // Ndb is a specification for a Ndb resource
 type Ndb struct {
 	metav1.TypeMeta   `json:",inline"`

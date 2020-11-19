@@ -40,7 +40,7 @@ rules:
       - update
       - watch
 
-    - apiGroups: ["ndbcontroller.mysql.com"]
+    - apiGroups: ["mysql.oracle.com"]
       resources:
       - ndbs
       verbs:

@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	clientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	ndbinformers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
@@ -29,7 +30,7 @@ import (
 	"k8s.io/klog"
 )
 
-const ClusterLabel = "ndbcontroller.mysql.com/v1alpha1"
+const ClusterLabel = ndbcontroller.GroupName + "/v1alpha1"
 
 func looper() {
 
