@@ -10,7 +10,7 @@ import (
 // Create a PodDisruptionBudget
 func NewPodDisruptionBudget(ndb *v1alpha1.Ndb) *policyv1beta1.PodDisruptionBudget {
 
-	minAvailable := intstr.FromInt(int(*ndb.Spec.Ndbd.NodeCount - 1))
+	minAvailable := intstr.FromInt(int(*ndb.Spec.NodeCount - 1))
 	labels := ndb.GetLabels()
 	selectorLabels := ndb.GetDataNodeLabels()
 	pdb := &policyv1beta1.PodDisruptionBudget{
