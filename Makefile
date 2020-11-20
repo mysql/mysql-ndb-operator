@@ -4,9 +4,8 @@
 
 VERSION ?= 1.0.0
 
-ARCH     ?= amd64
-OS       ?= darwin
-#OS       ?= linux
+ARCH     ?= $(shell go env GOARCH)
+OS       ?= $(shell go env GOOS)
 UNAME_S  := $(shell uname -s)
 PKG      := github.com/mysql/ndb-operator/
 CMD_DIRECTORIES := $(sort $(dir $(wildcard ./cmd/*/)))
@@ -39,6 +38,17 @@ else
 	$(error "Unsupported OS: $(UNAME_S)")
 endif
 endif
+
+# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
+ifeq (,$(shell go env GOBIN))
+GOBIN=$(shell go env GOPATH)/bin
+else
+GOBIN=$(shell go env GOBIN)
+endif
+
+# Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
+CRD_OPTIONS ?= "crd:trivialVersions=true"
+CRD_GENERATED_PATH := "helm/crds"
 
 .PHONY: all
 all: build
@@ -120,4 +130,37 @@ run-agent:
 	MY_POD_NAMESPACE=default \
 	MY_NDB_NAME=example-ndb \
 	MY_POD_SERVERPORT=1186 \
-	bin/$(OS)_$(ARCH)/ndb-agent --kubeconfig=$(HOME)/.kube/config 
+	bin/$(OS)_$(ARCH)/ndb-agent --kubeconfig=$(HOME)/.kube/config
+
+# Generate manifests (i.e.) CRD.
+# creationTimestamp in the CRD is always generated as null
+# https://github.com/kubernetes-sigs/controller-tools/issues/402
+# remove it as a workaround
+# TODO: Generate RBAC from here as well
+manifests: controller-gen
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) paths="./..." output:crd:artifacts:config=$(CRD_GENERATED_PATH)
+	sed -i "/\ \ creationTimestamp\:\ null/d" $(CRD_GENERATED_PATH)/*
+
+# check if there is a controller-gen available in
+# the PATH or $GOBIN or else download
+# and install one in $GOBIN
+controller-gen:
+ifneq (, $(wildcard $(GOBIN)/controller-gen))
+	@echo "Found controller-gen in $(GOBIN)"
+CONTROLLER_GEN=$(GOBIN)/controller-gen
+else ifneq (, $(shell which controller-gen))
+	@echo "Found controller-gen in path"
+CONTROLLER_GEN=$(shell which controller-gen)
+else
+	@echo "Downloading and installing controller-gen..."
+	@{ \
+	set -e ;\
+	CONTROLLER_GEN_TMP_DIR=$$(mktemp -d) ;\
+	cd $$CONTROLLER_GEN_TMP_DIR ;\
+	go mod init tmp ;\
+	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.4.1 ;\
+	rm -rf $$CONTROLLER_GEN_TMP_DIR ;\
+	}
+CONTROLLER_GEN=$(GOBIN)/controller-gen
+endif
+

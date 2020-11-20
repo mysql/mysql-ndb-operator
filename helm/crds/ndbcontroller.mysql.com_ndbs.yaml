@@ -1,0 +1,112 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.4.1
+  name: ndbs.ndbcontroller.mysql.com
+spec:
+  group: ndbcontroller.mysql.com
+  names:
+    kind: Ndb
+    listKind: NdbList
+    plural: ndbs
+    singular: ndb
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.redundancyLevel
+      name: Redundancy Level
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Ndb is the Schema for the Ndb CRD API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: NdbSpec defines the desired state of MySQL Ndb Cluster
+            properties:
+              containerImage:
+                description: The name of the MySQL Ndb Cluster image to be used. If
+                  not specified, "mysql-cluster:latest" will be used. Lowest supported
+                  version is 8.0.22.
+                pattern: mysql-cluster:8.0.2[2-3]
+                type: string
+              mysqld:
+                description: Specification of MySQL Servers to be run as an SQL Frontend
+                properties:
+                  nodecount:
+                    description: NodeCount is the number of MySQL Servers running
+                      in MySQL Cluster
+                    format: int32
+                    type: integer
+                required:
+                - nodecount
+                type: object
+              nodecount:
+                description: The total number of data nodes in cluster. The node count
+                  needs to be a multiple of the redundancyLevel. Currently the maximum
+                  is 144 data nodes.
+                format: int32
+                maximum: 144
+                minimum: 1
+                type: integer
+              redundancyLevel:
+                description: The number of data replicas or copies of data stored
+                  in Ndb Cluster. Supported and allowed values are 1, 2, 3, and 4.
+                  A redundancy level of 1 creates a sharded cluster providing NO fault
+                  tolerance in case of node failure. With a redundancy level of 2
+                  or higher cluster will continue serving client requests even in
+                  case of failures. 2 is the normal and most common value and the
+                  default. A redundancy level of 3 provides additional protection.
+                  For a redundancy level of 1 one management server will be created.
+                  For 2 or higher two management servers will be used. Once a cluster
+                  has been created, this number can NOT be easily changed.
+                format: int32
+                maximum: 4
+                minimum: 1
+                type: integer
+            required:
+            - nodecount
+            - redundancyLevel
+            type: object
+          status:
+            description: NdbStatus is the status for a Ndb resource
+            properties:
+              lastUpdate:
+                format: date-time
+                type: string
+              processedGeneration:
+                format: int64
+                type: integer
+              receivedConfigHash:
+                description: The config hash of every new generation of a spec received
+                  and acknowledged
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
