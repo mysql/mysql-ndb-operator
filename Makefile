@@ -139,7 +139,7 @@ run-agent:
 # TODO: Generate RBAC from here as well
 manifests: controller-gen
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) paths="./..." output:crd:artifacts:config=$(CRD_GENERATED_PATH)
-	sed -i "/\ \ creationTimestamp\:\ null/d" $(CRD_GENERATED_PATH)/*
+	sed -i.crd.bak "/\ \ creationTimestamp\:\ null/d" $(CRD_GENERATED_PATH)/* && rm $(CRD_GENERATED_PATH)/*.crd.bak
 
 # check if there is a controller-gen available in
 # the PATH or $GOBIN or else download
