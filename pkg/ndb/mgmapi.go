@@ -142,6 +142,7 @@ func (api *Mgmclient) StopNodes(nodeIds *[]int) (bool, error) {
 
 	for node := 0; node < len(*nodeIds); node++ {
 		nodeListStr += fmt.Sprintf("%s%d", sep, (*nodeIds)[node])
+		sep = " "
 	}
 
 	fmt.Fprintf(conn, "%s\n", "stop v2")
@@ -191,8 +192,7 @@ func (api *Mgmclient) StopNodes(nodeIds *[]int) (bool, error) {
 		switch key {
 		case "result":
 			if val != "Ok" {
-				s := fmt.Sprintf("Stopping node failed: %s", val)
-				return false, errors.New(s)
+				return false, errors.New(val)
 			}
 			break
 		case "disconnect":
@@ -423,10 +423,10 @@ func (api *Mgmclient) GetStatus() (*ClusterStatus, error) {
 		case "status":
 			// status NDB == STARTED or MGM == CONNECTED
 			nodeStatus.IsConnected = false
-			if nodeStatus.NodeType == MgmNodeTypeId && val == "CONNECTED" {
+			if nodeStatus.NodeType == MgmNodeTypeID && val == "CONNECTED" {
 				nodeStatus.IsConnected = true
 			}
-			if nodeStatus.NodeType == DataNodeTypeId && val == "STARTED" {
+			if nodeStatus.NodeType == DataNodeTypeID && val == "STARTED" {
 				nodeStatus.IsConnected = true
 			}
 			break
@@ -465,7 +465,7 @@ func (api *Mgmclient) GetStatus() (*ClusterStatus, error) {
 
 		// if node is not started then we don't really know its node group reliably
 		ng := -1
-		if ns.NodeType == DataNodeTypeId && ns.IsConnected {
+		if ns.NodeType == DataNodeTypeID && ns.IsConnected {
 			ng = ns.NodeGroup
 		}
 		ns.NodeGroup = ng
