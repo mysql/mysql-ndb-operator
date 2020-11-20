@@ -17,26 +17,54 @@ import (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// Ndb is a specification for a Ndb resource
+// +kubebuilder:printcolumn:name="Redundancy Level",type=string,JSONPath=`.spec.redundancyLevel`
+
+// Ndb is the Schema for the Ndb CRD API
 type Ndb struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   NdbSpec   `json:"spec"`
-	Status NdbStatus `json:"status"`
+	Status NdbStatus `json:"status,omitempty"`
 }
 
+// Specification of MySQL Servers to be run as an SQL Frontend
 type NdbMysqldSpec struct {
+	// NodeCount is the number of MySQL Servers running in MySQL Cluster
 	NodeCount *int32 `json:"nodecount"`
 }
 
-// NdbSpec is the spec for a Ndb resource
+// NdbSpec defines the desired state of MySQL Ndb Cluster
 type NdbSpec struct {
+	// The number of data replicas or copies of data stored in Ndb Cluster.
+	// Supported and allowed values are 1, 2, 3, and 4.
+	// A redundancy level of 1 creates a sharded cluster providing
+	// NO fault tolerance in case of node failure.
+	// With a redundancy level of 2 or higher cluster will continue
+	// serving client requests even in case of failures.
+	// 2 is the normal and most common value and the default.
+	// A redundancy level of 3 provides additional protection.
+	// For a redundancy level of 1 one management server will be created.
+	// For 2 or higher two management servers will be used.
+	// Once a cluster has been created, this number can NOT be easily changed.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=4
 	RedundancyLevel *int32 `json:"redundancyLevel"`
+	// The total number of data nodes in cluster.
+	// The node count needs to be a multiple of the redundancyLevel.
+	// Currently the maximum is 144 data nodes.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=144
 	NodeCount       *int32 `json:"nodecount"`
+	// The name of the MySQL Ndb Cluster image to be used.
+	// If not specified, "mysql-cluster:latest" will be used.
+	// Lowest supported version is 8.0.22.
+	// +kubebuilder:validation:Pattern="mysql-cluster:8.0.2[2-3]"
+	// +optional
 	ContainerImage  string `json:"containerImage"`
-
+	// +optional
 	Mysqld NdbMysqldSpec `json:"mysqld"`
 }
 
@@ -44,15 +72,14 @@ type NdbSpec struct {
 type NdbStatus struct {
 	ProcessedGeneration int64       `json:"processedGeneration,omitempty"`
 	LastUpdate          metav1.Time `json:"lastUpdate,omitempty"`
-
-	/* here we store the config hash of every
-	   new generation of a spec that we received and thus acknowledged */
+	// The config hash of every new generation of a spec received and acknowledged
 	ReceivedConfigHash string `json:"receivedConfigHash,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// NdbList is a list of Ndb resources
+// +kubebuilder:object:root=true
+// NdbList contains a list of Ndb resources
 type NdbList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
