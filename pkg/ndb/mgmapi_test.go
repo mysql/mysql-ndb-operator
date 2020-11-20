@@ -57,15 +57,15 @@ func TestStopNodes(t *testing.T) {
 
 	err := api.Connect()
 	if err != nil {
-		t.Errorf("Connection failed: %s", err)
+		t.Errorf("Connection failed: %s\n", err)
 		return
 	}
 	defer api.Disconnect()
 
-	nodeIds := []int{2}
+	nodeIds := []int{3, 4}
 	disconnect, err := api.StopNodes(&nodeIds)
 	if err != nil {
-		t.Errorf("stop failed : %s", err)
+		t.Errorf("stop failed : %s\n", err)
 		return
 	}
 
