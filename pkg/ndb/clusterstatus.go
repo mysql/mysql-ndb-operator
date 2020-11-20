@@ -17,8 +17,10 @@ type NodeStatus struct {
 	NodeType        int
 	NodeId          int
 	IsConnected     bool
-	SoftwareVersion string `json:"softwareVersion"`
+	NodeGroup       int
+	SoftwareVersion string
 }
+
 type ClusterStatus map[int]*NodeStatus
 
 func (ns *NodeStatus) isDataNode() bool {
