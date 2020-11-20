@@ -446,10 +446,31 @@ func (api *Mgmclient) GetStatus() (*ClusterStatus, error) {
 			}
 
 			break
+
+		case "node_group":
+			valint, err := strconv.Atoi(val)
+			if err != nil {
+				return nil, errors.New("Format error (can't extract software version) " + fmt.Sprint(lineno) + " " + line)
+			}
+			nodeStatus.NodeGroup = valint
+
+			break
 		}
 
 		lineno++
 	}
+
+	// correct some data based on other data in respective node status
+	for _, ns := range *nss {
+
+		// if node is not started then we don't really know its node group reliably
+		ng := -1
+		if ns.NodeType == DataNodeTypeId && ns.IsConnected {
+			ng = ns.NodeGroup
+		}
+		ns.NodeGroup = ng
+	}
+
 	return nss, nil
 }
 

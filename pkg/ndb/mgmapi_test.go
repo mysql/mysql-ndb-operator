@@ -5,6 +5,7 @@
 package ndb
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 )
@@ -19,14 +20,15 @@ func TestGetStatus(t *testing.T) {
 	}
 	defer api.Disconnect()
 
-	nodeStatus, err := api.GetStatus()
+	clusterStatus, err := api.GetStatus()
 	if err != nil {
 		t.Errorf("get status failed: %s", err)
 		return
 	}
 
-	for s, v := range *nodeStatus {
-		fmt.Println(s, v)
+	for s, v := range *clusterStatus {
+		vs, _ := json.MarshalIndent(v, "", " ")
+		fmt.Printf("[%d] %s ", s, vs)
 	}
 }
 
