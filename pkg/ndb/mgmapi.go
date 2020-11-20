@@ -183,7 +183,7 @@ func (api *Mgmclient) StopNodes(nodeIds *[]int) (bool, error) {
 
 		s := strings.SplitN(line, ":", 2)
 		if len(s) != 2 {
-			return false, errors.New("Format error (missing result)" + string(lineno) + " " + line)
+			return false, errors.New("Format error (missing result)" + fmt.Sprint(lineno) + " " + line)
 		}
 		key := s[0]
 		val := strings.TrimSpace(s[1])
@@ -268,7 +268,7 @@ func (api *Mgmclient) GetOwnNodeId() (int, error) {
 		} else {
 			s := strings.SplitN(line, ":", 2)
 			if len(s) != 2 {
-				return 0, errors.New("Format error " + string(lineno) + " " + line)
+				return 0, errors.New("Format error " + fmt.Sprint(lineno) + " " + line)
 			}
 			key := s[0]
 			val := strings.TrimSpace(s[1])
@@ -279,7 +279,7 @@ func (api *Mgmclient) GetOwnNodeId() (int, error) {
 
 			ownNodeId, err = strconv.Atoi(val)
 			if err != nil {
-				return 0, errors.New("Format error (unable to extract node count) " + string(lineno) + " " + line)
+				return 0, errors.New("Format error (unable to extract node count) " + fmt.Sprint(lineno) + " " + line)
 			}
 		}
 		lineno++
@@ -322,7 +322,7 @@ func (api *Mgmclient) ShowVariables() (*map[string]string, error) {
 
 		s := strings.SplitN(line, ":", 2)
 		if len(s) != 2 {
-			return nil, errors.New("Format error " + string(lineno) + " " + line)
+			return nil, errors.New("Format error " + fmt.Sprint(lineno) + " " + line)
 		}
 		key := s[0]
 		val := strings.TrimSpace(s[1])
@@ -366,12 +366,12 @@ func (api *Mgmclient) GetStatus() (*ClusterStatus, error) {
 				lineno++
 				continue
 			}
-			return nil, errors.New("Format error (missing \"node status\" header " + string(lineno) + " " + line)
+			return nil, errors.New("Format error (missing \"node status\" header " + fmt.Sprint(lineno) + " " + line)
 		}
 
 		s := strings.SplitN(line, ":", 2)
 		if len(s) != 2 {
-			return nil, errors.New("Format error " + string(lineno) + " " + line)
+			return nil, errors.New("Format error " + fmt.Sprint(lineno) + " " + line)
 		}
 		nodeStr := s[0]
 		val := strings.TrimSpace(s[1])
@@ -379,11 +379,11 @@ func (api *Mgmclient) GetStatus() (*ClusterStatus, error) {
 		// read node of nodes entry and create map
 		if lineno == 2 {
 			if nodeStr != "nodes" {
-				return nil, errors.New("Format error (missing keyword nodes) " + string(lineno) + " " + line)
+				return nil, errors.New("Format error (missing keyword nodes) " + fmt.Sprint(lineno) + " " + line)
 			}
 			nodeCount, err := strconv.Atoi(val)
 			if err != nil {
-				return nil, errors.New("Format error (unable to extract node count) " + string(lineno) + " " + line)
+				return nil, errors.New("Format error (unable to extract node count) " + fmt.Sprint(lineno) + " " + line)
 			}
 			nss = NewClusterStatus(nodeCount)
 			lineno++
@@ -395,14 +395,14 @@ func (api *Mgmclient) GetStatus() (*ClusterStatus, error) {
 
 		s2 := strings.SplitN(nodeStr, ".", 3)
 		if len(s2) != 3 {
-			return nil, errors.New("Format error (can't parse node status string) " + string(lineno) + " " + line)
+			return nil, errors.New("Format error (can't parse node status string) " + fmt.Sprint(lineno) + " " + line)
 		}
 
 		// node id
 		nodeId, err := strconv.Atoi(s2[1])
 		// "node.*3*.version: 524310"
 		if err != nil {
-			return nil, errors.New("Format error (can't extract node id)" + string(lineno) + " " + line)
+			return nil, errors.New("Format error (can't extract node id)" + fmt.Sprint(lineno) + " " + line)
 		}
 
 		// type of the status value (e.g. softare version, connection status)
@@ -416,7 +416,7 @@ func (api *Mgmclient) GetStatus() (*ClusterStatus, error) {
 		case "type":
 			err = nss.SetNodeTypeFromTLA(nodeId, val)
 			if err != nil {
-				return nil, errors.New("Format error (can't extract node type)" + string(lineno) + " " + line)
+				return nil, errors.New("Format error (can't extract node type)" + fmt.Sprint(lineno) + " " + line)
 			}
 			break
 
@@ -433,7 +433,7 @@ func (api *Mgmclient) GetStatus() (*ClusterStatus, error) {
 		case "version":
 			valint, err := strconv.Atoi(val)
 			if err != nil {
-				return nil, errors.New("Format error (can't extract software version) " + string(lineno) + " " + line)
+				return nil, errors.New("Format error (can't extract software version) " + fmt.Sprint(lineno) + " " + line)
 			}
 
 			if valint == 0 {
