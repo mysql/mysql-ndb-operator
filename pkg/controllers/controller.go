@@ -399,13 +399,16 @@ func (c *Controller) ensureManagementServerConfigVersion(ndbobj *v1alpha1.Ndb, w
 	api := &ndb.Mgmclient{}
 
 	// management server have the first nodeids
-	for nodeId := 1; nodeId <= (int)(ndbobj.GetManagementNodeCount()); nodeId++ {
+	// TODO: when we'll ever scale the number of management servers then this
+	// needs to be changed to actually currently configured management servers
+	// ndbobj has "desired" number of management servers
+	for nodeID := 1; nodeID <= (int)(ndbobj.GetManagementNodeCount()); nodeID++ {
 
 		// TODO : we use this function so far during test operator from outside cluster
 		// we try connecting via load balancer until we connect to correct wanted node
-		err := api.ConnectToNodeId(nodeId)
+		err := api.ConnectToNodeId(nodeID)
 		if err != nil {
-			klog.Errorf("No contact to management server to desired management server with node id %d established", nodeId)
+			klog.Errorf("No contact to management server to desired management server with node id %d established", nodeID)
 			return err
 		}
 
@@ -414,14 +417,14 @@ func (c *Controller) ensureManagementServerConfigVersion(ndbobj *v1alpha1.Ndb, w
 		version := api.GetConfigVersion()
 		if version == wantedGeneration {
 			klog.Infof("Management server with node id %d has desired version %d",
-				nodeId, version)
+				nodeID, version)
 
-			// process next node
+			// node has right version, continue to process next node
 			continue
-		} else {
-			klog.Infof("Management server with node id %d has different version %d than desired %d",
-				nodeId, version, wantedGeneration)
 		}
+
+		klog.Infof("Management server with node id %d has different version %d than desired %d",
+			nodeID, version, wantedGeneration)
 
 		// check if management nodes report a degraded cluster state
 		cs, err := api.GetStatus()
@@ -431,20 +434,20 @@ func (c *Controller) ensureManagementServerConfigVersion(ndbobj *v1alpha1.Ndb, w
 
 		if !cs.IsClusterDegraded() {
 
-			klog.Infof("Cluster is reported to be fully running: attempting node stop of node %d", nodeId)
+			klog.Infof("Cluster is reported to be fully running: attempting node stop of node %d", nodeID)
 
-			// we are not degraded in state
+			// we are not in degraded in state
 			// management server with nodeId was so nice to reveal all information
 			// now we kill it - pod should terminate and restarted with updated config map and management server
-			nodeIds := []int{nodeId}
-			_, err = api.StopNodes(&nodeIds)
+			nodeIDs := []int{nodeID}
+			_, err = api.StopNodes(&nodeIDs)
 
-			// we do one at a time -
-			return nil
-		} else {
-			klog.Infof("Cluster is reported to be in degraded state: no restart attempted")
+			// we do one at a time - exit here and wait for next reconcilation
 			return nil
 		}
+
+		klog.Infof("Cluster is reported to be in degraded state: no restart attempted")
+		return nil
 	}
 
 	return nil
@@ -535,7 +538,7 @@ func (c *Controller) syncHandler(key string) error {
 		klog.Infof("No update to configuration detected in %s based on hash %s",
 			nsName, configHash)
 		// just using it for fyi at the moment
-		// return nil
+		// still need to continue here as not all nodes might be on that version yet
 	} else {
 		klog.Infof("Configuration change detected in %s based on hash", nsName)
 		klog.Infof("org: %x %d %s", ndb.Status.ReceivedConfigHash, ndb.Status.ProcessedGeneration, ndb.Status.LastUpdate)
