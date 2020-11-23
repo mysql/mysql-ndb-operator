@@ -11,11 +11,18 @@ PKG      := github.com/mysql/ndb-operator/
 CMD_DIRECTORIES := $(sort $(dir $(wildcard ./cmd/*/)))
 COMMANDS := $(CMD_DIRECTORIES:./cmd/%/=%)
 
+# SRCDIR points to the current mysql ndb source
+SRCDIR=/Users/bo/prg/mysql
+
+# OS base dir is the *build* directory of your current runtime platform 
+# the one you run the operator from when running it *outside* kubernetes
+OSBASEDIR=/Users/bo/prg/mysql-bld/trunk
+
 # point BASEDIR to your mysql ndb *build* directory (not install)
-# BASEDIR=/home/bo/prg/mysql-bld/trunk
+# BASEDIR is the docker target platform build dir - i.e. and OL8 linux build
 BASEDIR=/Users/bo/Downloads/mysql-cluster-commercial-8.0.23-linux-x86_64
-#RTDIR=${BASEDIR}/runtime_output_directory
 RTDIR=${BASEDIR}/bin
+
 
 BINDIR   :=bin/
 SBINDIR  :=sbin/
@@ -54,7 +61,7 @@ CRD_GENERATED_PATH := "helm/crds"
 all: build
 
 .PHONY: build
-build: 
+build: ndbinfo-bin
 	@echo "Building: $(BINARIES)"
 	@echo "arch:     $(ARCH)"
 	@echo "os:       $(OS)"
@@ -164,3 +171,11 @@ else
 CONTROLLER_GEN=$(GOBIN)/controller-gen
 endif
 
+NDBINFO_CPP_DIR=pkg/ndb/cpp
+NDBINFO_BLD_DIR=lib/ndb/$(OS)_$(ARCH)
+
+ndbinfo-bin:
+	mkdir -p $(NDBINFO_BLD_DIR)
+	cmake -S $(NDBINFO_CPP_DIR) -B $(NDBINFO_BLD_DIR) -DNDB_SOURCE_DIR=$(SRCDIR) -DNDB_BUILD_DIR=$(OSBASEDIR)  
+	cd $(NDBINFO_BLD_DIR) ; make -f ./Makefile
+	mv $(NDBINFO_BLD_DIR)/libndbinfo_native* $(NDBINFO_CPP_DIR)

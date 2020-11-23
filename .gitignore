@@ -1,6 +1,7 @@
 # Ignore builds
 dist/
 bin/
+lib/
 vendor/
 .push-wcr*
 .container-wcr*
