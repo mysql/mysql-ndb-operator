@@ -13,12 +13,12 @@ import (
 func nodeTypeFromNodeId(mgmNodeCount, dataNodeCount, apiNodeCount, nodeId int) int {
 
 	if nodeId <= mgmNodeCount {
-		return MgmNodeTypeId
+		return MgmNodeTypeID
 	}
 	if nodeId <= mgmNodeCount+dataNodeCount {
-		return DataNodeTypeId
+		return DataNodeTypeID
 	}
-	return ApiNodeTypeId
+	return APINodeTypeID
 }
 
 func Test_AddNodesByTLA(t *testing.T) {
@@ -38,7 +38,7 @@ func Test_AddNodesByTLA(t *testing.T) {
 	mgmCnt := 0
 	apiCnt := 0
 	for _, ns := range *cs {
-		if ns.isApiNode() {
+		if ns.isAPINode() {
 			apiCnt++
 		}
 		if ns.isDataNode() {
@@ -65,19 +65,19 @@ func Test_ClusterIsDegraded(t *testing.T) {
 	cs := NewClusterStatus(8)
 
 	// (!) start at 1
-	for nodeId := 1; nodeId <= 8; nodeId++ {
+	for nodeID := 1; nodeID <= 8; nodeID++ {
 		ns := &NodeStatus{
-			NodeId:          nodeId,
-			NodeType:        nodeTypeFromNodeId(2, 4, 2, nodeId),
+			NodeID:          nodeID,
+			NodeType:        nodeTypeFromNodeId(2, 4, 2, nodeID),
 			SoftwareVersion: "8.0.22",
 			IsConnected:     true,
 		}
-		(*cs)[nodeId] = ns
+		(*cs)[nodeID] = ns
 	}
 
-	for nodeId, ns := range *cs {
+	for nodeID, ns := range *cs {
 		s, _ := json.Marshal(ns)
-		fmt.Printf("%d - %s\n", nodeId, s)
+		fmt.Printf("%d - %s\n", nodeID, s)
 	}
 
 	if cs.IsClusterDegraded() {
