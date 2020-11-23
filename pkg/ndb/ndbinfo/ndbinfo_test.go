@@ -19,6 +19,7 @@ func TestGetThreads(t *testing.T) {
 		configGeneration int
 	)
 
+	dsn := "localhost:1186"
 	ndbInfo := NewNdbConnection(dsn)
 	defer ndbInfo.Free()
 
