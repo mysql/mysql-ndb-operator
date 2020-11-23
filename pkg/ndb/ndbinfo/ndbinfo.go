@@ -6,8 +6,8 @@ package ndb
 
 import (
 	/*
-			  #cgo CFLAGS: -I ./cpp
-			  #cgo LDFLAGS: -L./cpp -lndbinfo_native
+			  #cgo CFLAGS: -I ./
+			  #cgo LDFLAGS: -L./ -lndbinfo_native
 			  #include <stdlib.h>
 			  #include <stdio.h>
 			  #include <ndbinfo_native.hpp>

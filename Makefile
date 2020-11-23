@@ -171,10 +171,11 @@ else
 CONTROLLER_GEN=$(GOBIN)/controller-gen
 endif
 
-NDBINFO_CPP_DIR=pkg/ndb/cpp
+NDBINFO_CPP_DIR=pkg/ndb/ndbinfo
 NDBINFO_BLD_DIR=lib/ndb/$(OS)_$(ARCH)
 
 ndbinfo-bin:
+	rm -rf $(NDBINFO_BLD_DIR)
 	mkdir -p $(NDBINFO_BLD_DIR)
 	cmake -S $(NDBINFO_CPP_DIR) -B $(NDBINFO_BLD_DIR) -DNDB_SOURCE_DIR=$(SRCDIR) -DNDB_BUILD_DIR=$(OSBASEDIR)  
 	cd $(NDBINFO_BLD_DIR) ; make -f ./Makefile
