@@ -426,27 +426,13 @@ func (c *Controller) ensureManagementServerConfigVersion(ndbobj *v1alpha1.Ndb, w
 		klog.Infof("Management server with node id %d has different version %d than desired %d",
 			nodeID, version, wantedGeneration)
 
-		// check if management nodes report a degraded cluster state
-		cs, err := api.GetStatus()
-		if err != nil {
-			klog.Errorf("Error getting cluster status from mangement server: %s", err)
-		}
+		// we are not in degraded in state
+		// management server with nodeId was so nice to reveal all information
+		// now we kill it - pod should terminate and restarted with updated config map and management server
+		nodeIDs := []int{nodeID}
+		_, err = api.StopNodes(&nodeIDs)
 
-		if !cs.IsClusterDegraded() {
-
-			klog.Infof("Cluster is reported to be fully running: attempting node stop of node %d", nodeID)
-
-			// we are not in degraded in state
-			// management server with nodeId was so nice to reveal all information
-			// now we kill it - pod should terminate and restarted with updated config map and management server
-			nodeIDs := []int{nodeID}
-			_, err = api.StopNodes(&nodeIDs)
-
-			// we do one at a time - exit here and wait for next reconcilation
-			return nil
-		}
-
-		klog.Infof("Cluster is reported to be in degraded state: no restart attempted")
+		// we do one at a time - exit here and wait for next reconcilation
 		return nil
 	}
 
@@ -491,6 +477,32 @@ func (c *Controller) ensureClusterLabel(ndb *v1alpha1.Ndb) {
 		klog.Infof("Setting labels on cluster %s", sel4ndb.String())
 		c.updateClusterLabels(ndb.DeepCopy(), ndb.GetLabels())
 	}
+}
+
+// checkClusterState checks the cluster state and whether its in a managable state
+// e.g. - we don't want to touch it with rolling out new versions when not all data nodes are up
+// TODO - should also check pod states here or in loop where we look out for hanging or weird states
+func (c *Controller) checkClusterState() (bool, error) {
+
+	api := &ndb.Mgmclient{}
+
+	err := api.Connect()
+
+	if err != nil {
+		klog.Errorf("No contact to management server")
+		return false, err
+	}
+
+	defer api.Disconnect()
+
+	// check if management nodes report a degraded cluster state
+	cs, err := api.GetStatus()
+	if err != nil {
+		klog.Errorf("Error getting cluster status from mangement server: %s", err)
+		return false, err
+	}
+
+	return cs.IsClusterDegraded(), nil
 }
 
 func (c *Controller) syncHandler(key string) error {
@@ -600,7 +612,21 @@ func (c *Controller) syncHandler(key string) error {
 		return fmt.Errorf(msg)
 	}
 
-	// if the config map exists then check if its up-to-date
+	//
+	// as of here actions will only be taken if cluster is in a good state
+	//
+
+	ok, err := c.checkClusterState()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		klog.Infof("Cluster is not reported to be fully running - exit sync and return here later")
+		// TODO - introduce a re-schedule event
+		return nil
+	}
+
+	// check if config is up-to-date
 
 	// get config string
 	configString, err := c.configMapController.ExtractConfig(cm)
@@ -628,6 +654,7 @@ func (c *Controller) syncHandler(key string) error {
 			return err
 		}
 	}
+
 	if ndb.Status.ProcessedGeneration != ndb.ObjectMeta.Generation {
 		klog.Infof("Config generation received different from config map generation. config map: %d, new: %d",
 			generation, ndb.ObjectMeta.Generation)
@@ -646,10 +673,6 @@ func (c *Controller) syncHandler(key string) error {
 			// This could have been caused by a temporary network failure etc.
 			return err
 		}
-	}
-
-	if ndb.Status.ProcessedGeneration != ndb.ObjectMeta.Generation {
-		c.rollingRestart(ndb)
 	}
 
 	// Finally, we update the status block of the Ndb resource to reflect the
