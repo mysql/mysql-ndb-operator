@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 func Test_regex(t *testing.T) {
@@ -55,4 +56,41 @@ func Test_regex(t *testing.T) {
 	}
 
 	t.Fail()
+}
+
+// sync result describes how to continue after a synchronization step
+type syncResult struct {
+	// finished true means that step is completed for this round and sync handler shall exit
+	finished bool
+
+	// requeue means that sync handler shall exit but report after duration seconds
+	requeue time.Duration
+
+	// error is != nil if an error occured during processing, exit sync handler and retry later
+	err error
+}
+
+var finishedResult = syncResult{finished: true, requeue: 0, err: nil}
+
+func resultReturn() syncResult {
+	return finishedResult
+}
+
+func Test_results(t *testing.T) {
+
+	res := resultReturn()
+	if resultReturn() != finishedResult {
+		t.Fail()
+	}
+
+	if !res.finished {
+		t.Fail()
+	}
+
+}
+
+func Test_array(t *testing.T) {
+
+	ar := make([]int, 0, 15)
+	ar[7] = 12
 }
