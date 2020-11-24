@@ -392,7 +392,61 @@ func (c *Controller) ensurePodDisruptionBudget(ndb *v1alpha1.Ndb) error {
 	return err
 }
 
-func (c *Controller) ensureManagementServerConfigVersion(ndbobj *v1alpha1.Ndb, wantedGeneration int) error {
+func (c *Controller) ensureDataNodeConfigVersion(ndbobj *v1alpha1.Ndb, cs *ndb.ClusterStatus, wantedGeneration int) syncResult {
+
+	// we go through all data nodes and see if they are on the latest config version
+	// we do this "ndb replica" wise, i.e. we iterate first through first nodes in each node group, then second, etc.
+	ct := ndb.CreateClusterTopologyByReplicaFromClusterStatus(cs)
+
+	if ct == nil {
+		err := fmt.Errorf("Internal error: could not extract topology from cluster status")
+		return errorWhileProcssing(err)
+	}
+
+	reduncanyLevel := ct.GetNumberOfReplicas()
+	api := &ndb.Mgmclient{}
+	err := api.Connect()
+	if err != nil {
+		return errorWhileProcssing(err)
+	}
+	defer api.Disconnect()
+
+	for replica := 0; replica < reduncanyLevel; replica++ {
+
+		restartIDs := []int{}
+
+		nodeIDs := ct.GetNodeIDsFromReplica(replica)
+		for nodeID := range *nodeIDs {
+			nodeConfigGeneration := api.GetConfigVersionFromNode(nodeID)
+
+			if wantedGeneration != nodeConfigGeneration {
+				// node is on wrong config generation
+				restartIDs = append(restartIDs, nodeID)
+			}
+		}
+
+		if len(restartIDs) > 0 {
+			s, _ := json.Marshal(restartIDs)
+			klog.Infof("Identified %d nodes with wrong version in replica %d: %s",
+				len(restartIDs), replica, s)
+
+			_, err := api.StopNodes(&restartIDs)
+			if err != nil {
+				klog.Infof("Error restarting replica %d nodes %s", replica, s)
+				return errorWhileProcssing(err)
+			}
+
+			break
+
+		} else {
+			klog.Infof("All datanodes nodes in replica %d have desired config version %d", replica, wantedGeneration)
+		}
+	}
+
+	return finishProcessing()
+}
+
+func (c *Controller) ensureManagementServerConfigVersion(ndbobj *v1alpha1.Ndb, wantedGeneration int) syncResult {
 
 	klog.Infof("Ensuring Management Server has correct config version")
 
@@ -409,7 +463,7 @@ func (c *Controller) ensureManagementServerConfigVersion(ndbobj *v1alpha1.Ndb, w
 		err := api.ConnectToNodeId(nodeID)
 		if err != nil {
 			klog.Errorf("No contact to management server to desired management server with node id %d established", nodeID)
-			return err
+			return errorWhileProcssing(err)
 		}
 
 		defer api.Disconnect()
@@ -433,10 +487,11 @@ func (c *Controller) ensureManagementServerConfigVersion(ndbobj *v1alpha1.Ndb, w
 		_, err = api.StopNodes(&nodeIDs)
 
 		// we do one at a time - exit here and wait for next reconcilation
-		return nil
+		return finishProcessing()
 	}
 
-	return nil
+	// if we end up here then both mgm servers are on latest version, continue processing other sync steps
+	return continueProcessing()
 }
 
 func (c *Controller) rollingRestart(ndbobj *v1alpha1.Ndb) error {
@@ -479,10 +534,7 @@ func (c *Controller) ensureClusterLabel(ndb *v1alpha1.Ndb) {
 	}
 }
 
-// checkClusterState checks the cluster state and whether its in a managable state
-// e.g. - we don't want to touch it with rolling out new versions when not all data nodes are up
-// TODO - should also check pod states here or in loop where we look out for hanging or weird states
-func (c *Controller) checkClusterState() (bool, error) {
+func (c *Controller) getClusterState() (*ndb.ClusterStatus, error) {
 
 	api := &ndb.Mgmclient{}
 
@@ -490,7 +542,7 @@ func (c *Controller) checkClusterState() (bool, error) {
 
 	if err != nil {
 		klog.Errorf("No contact to management server")
-		return false, err
+		return nil, err
 	}
 
 	defer api.Disconnect()
@@ -499,10 +551,22 @@ func (c *Controller) checkClusterState() (bool, error) {
 	cs, err := api.GetStatus()
 	if err != nil {
 		klog.Errorf("Error getting cluster status from mangement server: %s", err)
-		return false, err
+		return nil, err
 	}
 
-	return cs.IsClusterDegraded(), nil
+	return cs, nil
+}
+
+// checkClusterState checks the cluster state and whether its in a managable state
+// e.g. - we don't want to touch it with rolling out new versions when not all data nodes are up
+// TODO - should also check pod states here or in loop where we look out for hanging or weird states
+func (c *Controller) checkClusterState(cs *ndb.ClusterStatus) (syncResult, error) {
+
+	if cs.IsClusterDegraded() {
+		return finishProcessing(), nil
+
+	}
+	return continueProcessing(), nil
 }
 
 func (c *Controller) syncHandler(key string) error {
@@ -616,11 +680,16 @@ func (c *Controller) syncHandler(key string) error {
 	// as of here actions will only be taken if cluster is in a good state
 	//
 
-	ok, err := c.checkClusterState()
+	clusterState, err := c.getClusterState()
 	if err != nil {
 		return err
 	}
-	if !ok {
+
+	sr, err := c.checkClusterState(clusterState)
+	if err != nil {
+		return err
+	}
+	if sr.finished() {
 		klog.Infof("Cluster is not reported to be fully running - exit sync and return here later")
 		// TODO - introduce a re-schedule event
 		return nil
@@ -655,12 +724,15 @@ func (c *Controller) syncHandler(key string) error {
 		}
 	}
 
-	if ndb.Status.ProcessedGeneration != ndb.ObjectMeta.Generation {
-		klog.Infof("Config generation received different from config map generation. config map: %d, new: %d",
-			generation, ndb.ObjectMeta.Generation)
+	// make sure management server(s) have the correct config version
+	if sr = c.ensureManagementServerConfigVersion(ndb, int(generation)); sr.finished() {
+		return sr.getError()
 	}
 
-	c.ensureManagementServerConfigVersion(ndb, int(generation))
+	// make sure all data nodes have the correct config version
+	if sr = c.ensureDataNodeConfigVersion(ndb, clusterState, int(generation)); sr.finished() {
+		return sr.getError()
+	}
 
 	// If this number of the members on the Cluster does not equal the
 	// current desired replicas on the StatefulSet, we should update the
