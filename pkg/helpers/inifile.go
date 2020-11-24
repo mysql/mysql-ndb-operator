@@ -6,7 +6,7 @@ package helpers
 
 import (
 	"bufio"
-	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -165,7 +165,7 @@ func parseConfig(reader *bufio.Reader) (*ConfigIni, error) {
 				continue
 			}
 			if line[len(line)-1] != ']' {
-				return nil, errors.New("Incomplete section name in line " + string(lineno) + " " + line)
+				return nil, fmt.Errorf("Incomplete section name in line %d %s", lineno, line)
 			}
 
 			sectionName = string(line[1 : len(line)-1])
@@ -174,7 +174,7 @@ func parseConfig(reader *bufio.Reader) (*ConfigIni, error) {
 		}
 
 		if currentSection == nil {
-			return nil, errors.New("Non-empty line without section" + string(lineno) + " " + line)
+			return nil, fmt.Errorf("Non-empty line without section %d %s", lineno, line)
 		}
 
 		split := strings.SplitN(line, "=", 2)
@@ -182,7 +182,7 @@ func parseConfig(reader *bufio.Reader) (*ConfigIni, error) {
 			if isComment {
 				continue
 			}
-			return nil, errors.New("Format error " + string(lineno) + " " + line)
+			return nil, fmt.Errorf("Format error %d %s", lineno, line)
 		}
 
 		if isComment && seenHeader {
