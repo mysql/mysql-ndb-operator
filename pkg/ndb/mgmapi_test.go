@@ -30,6 +30,12 @@ func TestGetStatus(t *testing.T) {
 		vs, _ := json.MarshalIndent(v, "", " ")
 		fmt.Printf("[%d] %s ", s, vs)
 	}
+
+	ok := clusterStatus.IsClusterDegraded()
+	if ok {
+		t.Errorf("Cluster is in degraded state\n")
+	}
+
 }
 
 func TestGetOwnNodeId(t *testing.T) {
@@ -91,7 +97,7 @@ func TestGetConfig(t *testing.T) {
 		return
 	}
 
-	_, err = api.GetConfigFromNode(2)
+	_, err = api.GetConfigFromNode(3)
 	if err != nil {
 		t.Errorf("getting config failed : %s", err)
 		return

@@ -646,7 +646,11 @@ func (api *Mgmclient) GetConfigFromNode(fromNodeId int) (*ConfigSection, error) 
 }
 
 func (api *Mgmclient) GetConfigVersion() int {
-	cs, err := api.GetConfig()
+	return api.GetConfigVersionFromNode(0)
+}
+
+func (api *Mgmclient) GetConfigVersionFromNode(nodeID int) int {
+	cs, err := api.GetConfigFromNode(nodeID)
 	if err != nil {
 		return -1
 	}
