@@ -7,7 +7,6 @@
 package controllers
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -98,14 +97,8 @@ func newNdb(namespace string, name string, noofnodes int) *ndbcontroller.Ndb {
 			Namespace: namespace,
 		},
 		Spec: ndbcontroller.NdbSpec{
-			DeploymentName: fmt.Sprintf("%s-deployment", name),
-			Ndbd: ndbcontroller.NdbNdbdSpec{
-				NodeCount:    int32Ptr(int32(noofnodes)),
-				NoOfReplicas: int32Ptr(int32(2)),
-			},
-			Mgmd: ndbcontroller.NdbMgmdSpec{
-				NodeCount: int32Ptr(int32(noofnodes)),
-			},
+			NodeCount:       int32Ptr(int32(noofnodes)),
+			RedundancyLevel: int32Ptr(int32(2)),
 		},
 	}
 }
