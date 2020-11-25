@@ -5,10 +5,11 @@
 package resources
 
 import (
+	"fmt"
 	"testing"
 )
 
-func Test_GetConfigHashAndGenerationFromConfig(t *testing.T) {
+func Test_NewResourceContextFromConfiguration(t *testing.T) {
 
 	// just testing actual extraction of ConfigHash - not ini-file reading
 	testini := `
@@ -21,16 +22,45 @@ func Test_GetConfigHashAndGenerationFromConfig(t *testing.T) {
 	ConfigGenerationNumber=4711
 	`
 
-	hash, generation, err := GetConfigHashAndGenerationFromConfig(testini)
+	rc, err := NewResourceContextFromConfiguration(testini)
 
 	if err != nil {
 		t.Errorf("extracting hash or generation failed : %s", err)
 	}
 
-	if hash != "asdasdlkajhhnxh=?" {
+	if rc.ConfigHash != "asdasdlkajhhnxh=?" {
 		t.Fail()
 	}
-	if generation != 4711 {
-		t.Errorf("Wrong generation :" + string(generation))
+	if rc.ConfigGeneration != 4711 {
+		t.Errorf("Wrong generation :" + fmt.Sprint(rc.ConfigGeneration))
+	}
+}
+
+func Test_NewResourceContextFromConfiguration2(t *testing.T) {
+
+	// just testing actual extraction of ConfigHash - not ini-file reading
+	testini := `
+	[ndbd default]
+	NoOfReplicas=2
+	[ndbd]
+	[ndbd]
+	[ndb_mgmd]
+	[ndb_mgmd]
+	`
+
+	rc, err := NewResourceContextFromConfiguration(testini)
+
+	if err != nil {
+		t.Errorf("extracting hash or generation failed : %s", err)
+	}
+
+	if rc.ManagementNodeCount != 2 {
+		t.Fail()
+	}
+	if rc.ReduncancyLevel != 2 {
+		t.Fail()
+	}
+	if rc.NodeGroupCount != 1 {
+		t.Fail()
 	}
 }

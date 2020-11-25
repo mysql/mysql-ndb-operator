@@ -83,13 +83,16 @@ func TestCreateConfigMap(t *testing.T) {
 
 	f.start()
 
-	cm, err := cmc.EnsureConfigMap(ndb)
+	cm, existed, err := cmc.EnsureConfigMap(ndb)
 
 	if err != nil {
 		t.Errorf("Unexpected error EnsuringConfigMap: %v", err)
 	}
 	if cm == nil {
 		t.Errorf("Unexpected error EnsuringConfigMap: return null pointer")
+	}
+	if existed {
+		t.Errorf("Unexpected error EnsuringConfigMap: should not have existed")
 	}
 
 	f.expectCreateAction(ndb.GetNamespace(), "configmap", cm)

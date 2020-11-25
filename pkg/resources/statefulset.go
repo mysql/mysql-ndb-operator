@@ -34,7 +34,7 @@ const ndbAgentImage = "ndb-agent"
 const ndbAgentVersion = "1.0.0"
 
 type StatefulSetInterface interface {
-	NewStatefulSet(cluster *v1alpha1.Ndb) *apps.StatefulSet
+	NewStatefulSet(rc *ResourceContext, cluster *v1alpha1.Ndb) *apps.StatefulSet
 	GetName() string
 }
 
@@ -110,20 +110,6 @@ func agentContainer(ndb *v1alpha1.Ndb, ndbAgentImage string) v1.Container {
 	}
 }
 
-func (bss *baseStatefulSet) getMgmdHostname(ndb *v1alpha1.Ndb) string {
-	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
-
-	mgmHostnames := ""
-	for i := 0; i < (int)(ndb.GetManagementNodeCount()); i++ {
-		if i > 0 {
-			mgmHostnames += ","
-		}
-		mgmHostnames += fmt.Sprintf("%s-%d.%s.%s", bss.clusterName+"-mgmd", i, ndb.GetManagementServiceName(), dnsZone)
-	}
-
-	return mgmHostnames
-}
-
 func (bss *baseStatefulSet) getConnectstring(ndb *v1alpha1.Ndb) string {
 	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
 	port := "1186"
@@ -139,73 +125,26 @@ func (bss *baseStatefulSet) getConnectstring(ndb *v1alpha1.Ndb) string {
 	return mgmHostnames
 }
 
-/*
-	Creates comma seperated list of all FQ hostnames of data nodes
-*/
-func (bss *baseStatefulSet) getNdbdHostnames(ndb *v1alpha1.Ndb) string {
-
-	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
-
-	ndbHostnames := ""
-	for i := 0; i < (int)(*ndb.Spec.NodeCount); i++ {
-		if i > 0 {
-			ndbHostnames += ","
-		}
-		ndbHostnames += fmt.Sprintf("%s-%d.%s.%s", bss.clusterName+"-ndbd", i, ndb.GetDataNodeServiceName(), dnsZone)
-	}
-	return ndbHostnames
-}
-
 // Builds the Ndb operator container for a mgmd.
 func (bss *baseStatefulSet) mgmdContainer(ndb *v1alpha1.Ndb) v1.Container {
 
-	runWithEntrypoint := false
 	cmd := ""
 	environment := []v1.EnvVar{}
 
 	imageName := fmt.Sprintf("%s:%s", ndbImage, ndbVersion)
 
-	if runWithEntrypoint {
-		args := []string{
-			"ndb_mgmd",
-		}
-		cmdArgs := strings.Join(args, " ")
-		cmd = fmt.Sprintf(`/entrypoint.sh %s`, cmdArgs)
-
-		mgmdHostname := bss.getMgmdHostname(ndb)
-		ndbdHostnames := bss.getNdbdHostnames(ndb)
-
-		environment = []v1.EnvVar{
-			{
-				Name:  "NDB_REPLICAS",
-				Value: fmt.Sprintf("%d", ndb.GetRedundancyLevel()),
-			},
-			{
-				Name:  "NDB_MGMD_HOSTS",
-				Value: mgmdHostname,
-			},
-			{
-				Name:  "NDB_NDBD_HOSTS",
-				Value: ndbdHostnames,
-			},
-		}
-		klog.Infof("Creating mgmd container from image %s with hostnames mgmd: %s, ndbd: %s",
-			imageName, mgmdHostname, ndbdHostnames)
-
-	} else {
-		args := []string{
-			"-f", "/var/lib/ndb/config/config.ini",
-			"--configdir=/var/lib/ndb",
-			"--initial",
-			"--nodaemon",
-			"--config-cache=0",
-			"-v",
-		}
-		cmdArgs := strings.Join(args, " ")
-		cmd = fmt.Sprintf(`/usr/sbin/ndb_mgmd %s`, cmdArgs)
-
-		klog.Infof("Creating mgmd container from image %s", imageName)
+	args := []string{
+		"-f", "/var/lib/ndb/config/config.ini",
+		"--configdir=/var/lib/ndb",
+		"--initial",
+		"--nodaemon",
+		"--config-cache=0",
+		"-v",
 	}
+	cmdArgs := strings.Join(args, " ")
+	cmd = fmt.Sprintf(`/usr/sbin/ndb_mgmd %s`, cmdArgs)
+
+	klog.Infof("Creating mgmd container from image %s", imageName)
 
 	return v1.Container{
 		Name:  mgmdName,
@@ -256,7 +195,7 @@ func (bss *baseStatefulSet) GetName() string {
 }
 
 // NewForCluster creates a new StatefulSet for the given Cluster.
-func (bss *baseStatefulSet) NewStatefulSet(ndb *v1alpha1.Ndb) *apps.StatefulSet {
+func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Ndb) *apps.StatefulSet {
 
 	// If a PV isn't specified just use a EmptyDir volume
 	var podVolumes = []v1.Volume{}
@@ -296,7 +235,7 @@ func (bss *baseStatefulSet) NewStatefulSet(ndb *v1alpha1.Ndb) *apps.StatefulSet 
 			//agentContainer(ndb, ndbAgentImage),
 		}
 		serviceaccount = "ndb-agent"
-		replicas = helpers.IntToInt32Ptr(ndb.GetManagementNodeCount())
+		replicas = helpers.IntToInt32Ptr(int(rc.ManagementNodeCount))
 		podLabels = ndb.GetManagementNodeLabels()
 		svcName = ndb.GetManagementServiceName()
 
@@ -306,7 +245,7 @@ func (bss *baseStatefulSet) NewStatefulSet(ndb *v1alpha1.Ndb) *apps.StatefulSet 
 			//agentContainer(ndb, ndbAgentImage),
 		}
 		serviceaccount = "ndb-agent"
-		replicas = ndb.Spec.NodeCount
+		replicas = helpers.IntToInt32Ptr(int(rc.NodeGroupCount * rc.ReduncancyLevel))
 		podLabels = ndb.GetDataNodeLabels()
 		svcName = ndb.GetDataNodeServiceName()
 	}
@@ -349,6 +288,8 @@ func (bss *baseStatefulSet) NewStatefulSet(ndb *v1alpha1.Ndb) *apps.StatefulSet 
 				},
 				Spec: podspec,
 			},
+			// service must exist before the StatefulSet, and is responsible for
+			// the network identity of the set.
 			ServiceName: svcName,
 		},
 	}

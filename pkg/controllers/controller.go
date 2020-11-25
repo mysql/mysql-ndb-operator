@@ -421,7 +421,7 @@ func (c *Controller) ensureServices(ndb *v1alpha1.Ndb) (*[](*corev1.Service), bo
 //    new or existing statefulset
 //    reports true if it existed
 //    or returns an error if something went wrong
-func (c *Controller) ensureManagementServerStatefulSet(ndb *v1alpha1.Ndb) (*appsv1.StatefulSet, bool, error) {
+func (c *Controller) ensureManagementServerStatefulSet(rc *resources.ResourceContext, ndb *v1alpha1.Ndb) (*appsv1.StatefulSet, bool, error) {
 
 	// create the management stateful set if it doesn't exist
 	if c.mgmdController == nil {
@@ -433,7 +433,10 @@ func (c *Controller) ensureManagementServerStatefulSet(ndb *v1alpha1.Ndb) (*apps
 				statefulSetType:   mgmdSfSet}
 	}
 
-	sfset, existed, err := c.mgmdController.EnsureStatefulSet(ndb)
+	sfset, existed, err := c.mgmdController.EnsureStatefulSet(rc, ndb)
+	if err != nil {
+		return nil, existed, err
+	}
 
 	// If the StatefulSet is not controlled by this Ndb resource, we should log
 	// a warning to the event recorder and return error msg.
@@ -451,7 +454,7 @@ func (c *Controller) ensureManagementServerStatefulSet(ndb *v1alpha1.Ndb) (*apps
 //    new or existing statefulset
 //    reports true if it existed
 //    or returns an error if something went wrong
-func (c *Controller) ensureDataNodeStatefulSet(ndb *v1alpha1.Ndb) (*appsv1.StatefulSet, bool, error) {
+func (c *Controller) ensureDataNodeStatefulSet(rc *resources.ResourceContext, ndb *v1alpha1.Ndb) (*appsv1.StatefulSet, bool, error) {
 
 	//TODO: should probably create controller earlier
 	if c.ndbdController == nil {
@@ -463,7 +466,10 @@ func (c *Controller) ensureDataNodeStatefulSet(ndb *v1alpha1.Ndb) (*appsv1.State
 				statefulSetType:   ndbdSfSet}
 	}
 
-	sfset, existed, err := c.ndbdController.EnsureStatefulSet(ndb)
+	sfset, existed, err := c.ndbdController.EnsureStatefulSet(rc, ndb)
+	if err != nil {
+		return nil, existed, err
+	}
 
 	// If the StatefulSet is not controlled by this Ndb resource, we should log
 	// a warning to the event recorder and return error msg.
@@ -690,6 +696,95 @@ func (c *Controller) checkClusterState(cs *ndb.ClusterStatus) (syncResult, error
 	return continueProcessing(), nil
 }
 
+// allResourcesExisted returns falls if any resource map is false (resource was created)
+func (c *Controller) allResourcesExisted(resourceMap *map[string]bool) bool {
+
+	retExisted := true
+	for res, existed := range *resourceMap {
+		if existed {
+			klog.Infof("Resource %s: existed", res)
+		} else {
+			klog.Infof("Resource %s: created", res)
+			retExisted = false
+		}
+	}
+	return retExisted
+}
+
+// ensureAllResources creates all resources if they do not exist
+// the SyncContext struct will be filled with resource objects newly created or fetched
+// it returns
+//   false if any resource did not exist
+//   an error if such occurs during processing
+//
+// Resource creation as all other steps in syncHandler need to be idempotent.
+//
+// However, creation of multiple resources is obviously not one large atomic operation.
+// ndb.Status updates based on resources created can't be done atomically either.
+// The creation processes could any time be disrupted by crashes, termination or (temp) errors.
+//
+// The goal is to create a consistent setup.
+// The cluster configuration (file) in config map needs to match e.g. the no of replicas
+// the in stateful sets even though ndb.Spec could change between config map and sfset creation.
+//
+// In order to solve these issues the configuration store in the config file is considered
+// the source of the truth during the entire creation process. Only after all resources once
+// successfully created changes to the ndb.Spec will be considered by the syncHandler.
+func (c *Controller) ensureAllResources(ndbobj *v1alpha1.Ndb) (*resources.ResourceContext, bool, error) {
+
+	allExisted := make(map[string]bool)
+
+	// create labels on ndb resource
+	// TODO - not sure if we need a cluster level label on the CRD
+	//      causes an update event looping us in here again
+	var err error
+	if _, allExisted["labels"], err = c.ensureClusterLabel(ndbobj); err != nil {
+		return nil, false, err
+	}
+
+	// create services for management server and data node statefulsets
+	// with respect to idempotency and atomicy service creation is safe as it
+	// only uses the immutable CRD name
+	if _, allExisted["services"], err = c.ensureServices(ndbobj); err != nil {
+		return nil, false, err
+	}
+
+	// create pod disruption budgets
+	if _, allExisted["poddisruptionservice"], err = c.ensurePodDisruptionBudget(ndbobj); err != nil {
+		return nil, false, err
+	}
+
+	// create config map if not exist
+	var cm *corev1.ConfigMap
+	if cm, allExisted["configmap"], err = c.configMapController.EnsureConfigMap(ndbobj); err != nil {
+		return nil, false, err
+	}
+
+	// get config string from config
+	// this and following step could be avoided since we in most cases just created the config map
+	// however, resource creation (happens once) or later modification as such is probably the unlikely case
+	// much more likely in all cases is that the config map already existed
+	configString, err := c.configMapController.ExtractConfig(cm)
+	if err != nil {
+		// TODO - this would be a very serious internal error
+		return nil, false, err
+	}
+
+	resourceContext, err := resources.NewResourceContextFromConfiguration(configString)
+
+	// create the management stateful set if it doesn't exist
+	if _, allExisted["datanodestatefulset"], err = c.ensureManagementServerStatefulSet(resourceContext, ndbobj); err != nil {
+		return nil, false, err
+	}
+
+	// create the data node stateful set if it doesn't exist
+	if _, allExisted["mgmstatefulset"], err = c.ensureDataNodeStatefulSet(resourceContext, ndbobj); err != nil {
+		return nil, false, err
+	}
+
+	return resourceContext, c.allResourcesExisted(&allExisted), nil
+}
+
 func (c *Controller) syncHandler(key string) error {
 
 	klog.Infof("Sync handler: %s", key)
@@ -720,69 +815,41 @@ func (c *Controller) syncHandler(key string) error {
 	// make all changes to the copy only and patch the original in the end
 	ndb := ndbOrg.DeepCopy()
 
-	// TODO - not sure if we need a cluster level label on the CRD
-	//      causes an update event looping us in here again
-	allExisted := make(map[string]bool)
-
-	// create labels on ndb resource
-	if _, allExisted["labels"], err = c.ensureClusterLabel(ndb); err != nil {
+	// create all resources necessary to start and run cluster
+	resourceContext, existed, err := c.ensureAllResources(ndb)
+	if err != nil {
 		return err
 	}
 
+	// we do not take further action and exit here if any resources still had to be created
+	// pods will need to time to start, etc.
+	//
+	// since no error occured all resources should have been successfully created
+	// TODO: we should take note of it by updating the ndb.Status with a creationTimestamp
+	// - then we can check that later and avoid checking if all resources existed
+	// - could be also good to always check if individual resources haven't been deleted
+	//   but re-creating them could be tricky due to dependencies bringing us to chaotic state
+	// - if individual resources are missing after creation that would be a major error for now
+	if !existed {
+		return nil
+	}
+
 	// first get a hash of the new config to see if anything changed
-	configHash, equalConfig, err := ndb.IsConfigHashEqual()
+	newConfigHash, equalConfig, err := ndb.IsConfigHashEqual()
 	if err != nil {
 		return err
 	}
 
 	//
 	if equalConfig {
-		klog.Infof("No update to configuration detected in %s based on hash %s",
-			nsName, configHash)
+		klog.Infof("No update to configuration detected in %s based on hash %s", nsName, newConfigHash)
 		// just using it for fyi at the moment
 		// still need to continue here as not all nodes might be on that version yet
 	} else {
 		klog.Infof("Configuration change detected in %s based on hash", nsName)
 		klog.Infof("org: %x %d %s", ndb.Status.ReceivedConfigHash, ndb.Status.ProcessedGeneration, ndb.Status.LastUpdate)
-		ndb.Status.ReceivedConfigHash = configHash
-		klog.Infof("new: %x", configHash)
-	}
-
-	// create services for management server and data node statefulsets
-	if _, allExisted["services"], err = c.ensureServices(ndb); err != nil {
-		return err
-	}
-
-	// create pod disruption budgets
-	if _, allExisted["poddisruptionservice"], err = c.ensurePodDisruptionBudget(ndb); err != nil {
-		return err
-	}
-
-	// create config map if not exist
-	var cm *corev1.ConfigMap
-	if cm, allExisted["configmap"], err = c.configMapController.EnsureConfigMap(ndb); err != nil {
-		return err
-	}
-
-	// create the data node stateful set if it doesn't exist
-	if _, allExisted["mgmstatefulset"], err = c.ensureDataNodeStatefulSet(ndb); err != nil {
-		return err
-	}
-
-	// create the management stateful set if it doesn't exist
-	var dataNodeSfSet *appsv1.StatefulSet
-	if dataNodeSfSet, allExisted["datanodestatefulset"], err = c.ensureManagementServerStatefulSet(ndb); err != nil {
-		return err
-	}
-
-	// we do not take further action if not everything existed already
-	// pods will need to time to start, etc.
-	for res, existed := range allExisted {
-		klog.Infof("Resource %s: %d", res, existed)
-		if !existed {
-			klog.Infof("Not all resources for a cluster start existed (%s). Exiting and returning later.", res)
-			return nil
-		}
+		ndb.Status.ReceivedConfigHash = newConfigHash
+		klog.Infof("new: %x", newConfigHash)
 	}
 
 	//
@@ -806,25 +873,9 @@ func (c *Controller) syncHandler(key string) error {
 
 	// check if config is up-to-date
 
-	// get config string
-	configString, err := c.configMapController.ExtractConfig(cm)
-	if err != nil {
-		return err
-	}
-	//klog.Infof("Config string %s\n", configString)
-
-	hash, generation, err := resources.GetConfigHashAndGenerationFromConfig(configString)
-	if err != nil {
-		klog.Errorf("Extracting hash or config generation from configuration failed. hash= %s, gen= %d",
-			hash, generation)
-		return err
-	}
-	klog.Infof("Extracting hash or config generation from configuration: hash= %s, gen= %d",
-		hash, generation)
-
-	if hash != configHash {
+	if resourceContext.ConfigHash != newConfigHash {
 		klog.Infof("Config received is different from config map config. config map: \"%s\", new: \"%s\"",
-			hash, configHash)
+			resourceContext.ConfigHash, newConfigHash)
 
 		_, err := c.configMapController.PatchConfigMap(ndb)
 		if err != nil {
@@ -834,27 +885,29 @@ func (c *Controller) syncHandler(key string) error {
 	}
 
 	// make sure management server(s) have the correct config version
-	if sr = c.ensureManagementServerConfigVersion(ndb, int(generation)); sr.finished() {
+	if sr = c.ensureManagementServerConfigVersion(ndb, int(ndb.GetGeneration())); sr.finished() {
 		return sr.getError()
 	}
 
 	// make sure all data nodes have the correct config version
-	if sr = c.ensureDataNodeConfigVersion(ndb, clusterState, int(generation)); sr.finished() {
+	if sr = c.ensureDataNodeConfigVersion(ndb, clusterState, int(ndb.GetGeneration())); sr.finished() {
 		return sr.getError()
 	}
 
 	// If this number of the members on the Cluster does not equal the
 	// current desired replicas on the StatefulSet, we should update the
 	// StatefulSet resource.
-	if *ndb.Spec.NodeCount != *dataNodeSfSet.Spec.Replicas {
-		klog.Infof("Updating %q: DataNodes=%d statefulSetReplicas=%d",
-			nsName, *ndb.Spec.NodeCount, *dataNodeSfSet.Spec.Replicas)
-		if dataNodeSfSet, err = c.ndbdController.Patch(ndb, dataNodeSfSet); err != nil {
-			// Requeue the item so we can attempt processing again later.
-			// This could have been caused by a temporary network failure etc.
-			return err
+	/*
+		if *ndb.Spec.NodeCount != *slc.dataNodeSfSet.Spec.Replicas {
+			klog.Infof("Updating %q: DataNodes=%d statefulSetReplicas=%d",
+				nsName, *ndb.Spec.NodeCount, *slc.dataNodeSfSet.Spec.Replicas)
+			if slc.dataNodeSfSet, err = c.ndbdController.Patch(ndb, slc.dataNodeSfSet); err != nil {
+				// Requeue the item so we can attempt processing again later.
+				// This could have been caused by a temporary network failure etc.
+				return err
+			}
 		}
-	}
+	*/
 
 	// Finally, we update the status block of the Ndb resource to reflect the
 	// current state of the world

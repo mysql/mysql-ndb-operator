@@ -23,9 +23,8 @@ import (
    is implemented as an interface to enable testing. */
 
 type StatefulSetControlInterface interface {
-	EnsureStatefulSet(ndb *v1alpha1.Ndb) (*apps.StatefulSet, bool, error)
-	GetStatefulSet(ndb *v1alpha1.Ndb) (*apps.StatefulSet, error)
-	Patch(ndb *v1alpha1.Ndb, old *apps.StatefulSet) (*apps.StatefulSet, error)
+	EnsureStatefulSet(rc *resources.ResourceContext, ndb *v1alpha1.Ndb) (*apps.StatefulSet, bool, error)
+	Patch(rc *resources.ResourceContext, ndb *v1alpha1.Ndb, old *apps.StatefulSet) (*apps.StatefulSet, error)
 }
 
 type realStatefulSetControl struct {
@@ -38,10 +37,6 @@ type realStatefulSetControl struct {
 // StatefulSetControlInterface.
 func NewRealStatefulSetControl(client kubernetes.Interface, statefulSetLister appslisters.StatefulSetLister) StatefulSetControlInterface {
 	return &realStatefulSetControl{client: client, statefulSetLister: statefulSetLister}
-}
-
-func (rssc *realStatefulSetControl) GetStatefulSet(ndb *v1alpha1.Ndb) (*apps.StatefulSet, error) {
-	return rssc.statefulSetLister.StatefulSets(ndb.Namespace).Get(ndb.Name)
 }
 
 // PatchStatefulSet performs a direct patch update for the specified StatefulSet.
@@ -81,7 +76,7 @@ func patchStatefulSet(client kubernetes.Interface, oldData *apps.StatefulSet, ne
 	return result, nil
 }
 
-func (rssc *realStatefulSetControl) Patch(ndb *v1alpha1.Ndb, old *apps.StatefulSet) (*apps.StatefulSet, error) {
+func (rssc *realStatefulSetControl) Patch(rc *resources.ResourceContext, ndb *v1alpha1.Ndb, old *apps.StatefulSet) (*apps.StatefulSet, error) {
 
 	oldCopy := old.DeepCopy()
 
@@ -91,7 +86,7 @@ func (rssc *realStatefulSetControl) Patch(ndb *v1alpha1.Ndb, old *apps.StatefulS
 		ndb.GetRedundancyLevel(),
 		*ndb.Spec.NodeCount)
 
-	sfset := rssc.statefulSetType.NewStatefulSet(ndb)
+	sfset := rssc.statefulSetType.NewStatefulSet(rc, ndb)
 
 	return patchStatefulSet(rssc.client, oldCopy, sfset)
 }
@@ -101,7 +96,7 @@ func (rssc *realStatefulSetControl) Patch(ndb *v1alpha1.Ndb, old *apps.StatefulS
 //   the statefull set if created or already existing
 //   true if it already existed
 //   error is such occured
-func (rssc *realStatefulSetControl) EnsureStatefulSet(ndb *v1alpha1.Ndb) (*apps.StatefulSet, bool, error) {
+func (rssc *realStatefulSetControl) EnsureStatefulSet(rc *resources.ResourceContext, ndb *v1alpha1.Ndb) (*apps.StatefulSet, bool, error) {
 
 	// Get the StatefulSet with the name specified in Ndb.spec
 	sfset, err := rssc.statefulSetLister.StatefulSets(ndb.Namespace).Get(rssc.statefulSetType.GetName())
@@ -114,13 +109,15 @@ func (rssc *realStatefulSetControl) EnsureStatefulSet(ndb *v1alpha1.Ndb) (*apps.
 	}
 
 	// If the resource doesn't exist, we'll create it
-	klog.Infof("Creating stateful set %s/%s Replicas: %d, DataNodes: %d",
+
+	klog.Infof("Creating stateful set %s/%s Replicas: %d, Data Nodes: %d, Mgm Nodes: %d",
 		ndb.Namespace,
 		rssc.statefulSetType.GetName(),
-		ndb.GetRedundancyLevel(),
-		*ndb.Spec.NodeCount)
+		rc.ReduncancyLevel,
+		rc.NodeGroupCount*rc.ReduncancyLevel,
+		rc.ManagementNodeCount)
 
-	sfset = rssc.statefulSetType.NewStatefulSet(ndb)
+	sfset = rssc.statefulSetType.NewStatefulSet(rc, ndb)
 	sfset, err = rssc.client.AppsV1().StatefulSets(ndb.Namespace).Create(sfset)
 
 	if err != nil {
