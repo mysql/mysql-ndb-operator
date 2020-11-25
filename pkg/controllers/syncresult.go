@@ -42,7 +42,7 @@ func (r requeueResult) requeueIn() time.Duration {
 }
 func (r requeueResult) getError() error { return nil }
 
-func (r errorResult) finished() bool           { return false }
+func (r errorResult) finished() bool           { return true }
 func (r errorResult) requeueIn() time.Duration { return 0 }
 func (r errorResult) getError() error          { return r.err }
 
