@@ -25,7 +25,7 @@ import (
 )
 
 type ConfigMapControlInterface interface {
-	EnsureConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigMap, error)
+	EnsureConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigMap, bool, error)
 	PatchConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigMap, error)
 	ExtractConfig(cm *corev1.ConfigMap) (string, error)
 	DeleteConfigMap(ndb *v1alpha1.Ndb) error
@@ -53,27 +53,40 @@ func NewConfigMapControl(client kubernetes.Interface,
 	return configMapControl
 }
 
+// ExtractConfig extracts the configuration file string from an existing config map
 func (rcmc *ConfigMapControl) ExtractConfig(cm *corev1.ConfigMap) (string, error) {
 	return resources.GetConfigFromConfigMapObject(cm)
 }
 
-func (rcmc *ConfigMapControl) EnsureConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigMap, error) {
+// EnsureConfigMap creates a new config map if no config map for this ndb cluster exists
+// it generations the configuration file and stores it in the config map
+// EnsureConfigMap returns
+//   the config map
+//   true if it existed
+//   an error if something went wrong
+func (rcmc *ConfigMapControl) EnsureConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigMap, bool, error) {
 
 	// Get the StatefulSet with the name specified in Ndb.spec, fetching from client not cache
 	cm, err := rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Get(ndb.GetConfigMapName(), metav1.GetOptions{})
 
-	// If the resource doesn't exist, we'll create it
-	if errors.IsNotFound(err) {
-		klog.Infof("Creating ConfigMap %s/%s", ndb.Namespace, ndb.GetConfigMapName())
-
-		cm = resources.GenerateConfigMapObject(ndb)
-		cm, err = rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Create(cm)
+	if err == nil {
+		return cm, true, nil
 	}
 
-	return cm, err
+	if !errors.IsNotFound(err) {
+		return nil, false, err
+	}
+
+	// If the resource doesn't exist, we'll create it
+	klog.Infof("Creating ConfigMap %s/%s", ndb.Namespace, ndb.GetConfigMapName())
+
+	cm = resources.GenerateConfigMapObject(ndb)
+	cm, err = rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Create(cm)
+
+	return cm, false, nil
 }
 
-/* Patch existing config map with new configuration data generated from ndb CRD object */
+// PatchConfigMap patches the existing config map with new configuration data generated from ndb CRD object
 func (rcmc *ConfigMapControl) PatchConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigMap, error) {
 
 	// Get the StatefulSet with the name specified in Ndb.spec, fetching from client not cache
@@ -119,6 +132,9 @@ func (rcmc *ConfigMapControl) PatchConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigM
 	return result, updateErr
 }
 
+// DeleteConfigMap -
+// TODO make functions
 func (rcmc *ConfigMapControl) DeleteConfigMap(ndb *v1alpha1.Ndb) error {
+	panic("DeleteConfigMap not implemented yet")
 	return nil
 }

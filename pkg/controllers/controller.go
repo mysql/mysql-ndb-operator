@@ -14,6 +14,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
+	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -353,43 +354,154 @@ func (c *Controller) ensureDefaults(ndb *v1alpha1.Ndb) {
 
 }
 
-func (c *Controller) ensureService(ndb *v1alpha1.Ndb, isMgmd bool, externalIP bool, name string) error {
-	_, err := c.serviceLister.Services(ndb.Namespace).Get(name)
-	if apierrors.IsNotFound(err) {
-		klog.Infof("Creating a new Service for cluster %q",
-			types.NamespacedName{Namespace: ndb.Namespace, Name: ndb.Name})
-		svc := resources.NewService(ndb, isMgmd, externalIP, name)
-		_, err = c.kubeclientset.CoreV1().Services(ndb.Namespace).Create(svc)
+// ensureService ecreates a services if it doesn't exist
+// returns
+//    service eixsting or created
+//    true if services was created
+//    error if any such occured
+func (c *Controller) ensureService(ndb *v1alpha1.Ndb, isMgmd bool, externalIP bool, name string) (*corev1.Service, bool, error) {
+
+	svc, err := c.serviceLister.Services(ndb.Namespace).Get(name)
+
+	if err == nil {
+		return svc, true, nil
 	}
-	return err
+	if !apierrors.IsNotFound(err) {
+		return nil, false, err
+	}
+
+	klog.Infof("Creating a new Service for cluster %q",
+		types.NamespacedName{Namespace: ndb.Namespace, Name: ndb.Name})
+	svc = resources.NewService(ndb, isMgmd, externalIP, name)
+	svc, err = c.kubeclientset.CoreV1().Services(ndb.Namespace).Create(svc)
+	if err != nil {
+		return nil, false, err
+	}
+	return svc, false, err
 }
 
-func (c *Controller) ensureServices(ndb *v1alpha1.Ndb) error {
-	err := c.ensureService(ndb, true, false, ndb.GetManagementServiceName())
+// ensure services creates services if they don't exist
+// returns
+//    array with services created
+//    false if any services were created
+//    error if any such occured
+func (c *Controller) ensureServices(ndb *v1alpha1.Ndb) (*[](*corev1.Service), bool, error) {
+	svcs := []*corev1.Service{}
+
+	retExisted := true
+
+	// create a headless service for management nodes
+	svc, existed, err := c.ensureService(ndb, true, false, ndb.GetManagementServiceName())
 	if err != nil {
-		return err
+		return nil, false, err
 	}
-	err = c.ensureService(ndb, true, true, ndb.GetManagementServiceName()+"-ext")
+	retExisted = retExisted && existed
+	svcs = append(svcs, svc)
+
+	// create a loadbalancer service for management servers
+	svc, existed, err = c.ensureService(ndb, true, true, ndb.GetManagementServiceName()+"-ext")
 	if err != nil {
-		return err
+		return nil, false, err
 	}
-	err = c.ensureService(ndb, false, false, ndb.GetDataNodeServiceName())
-	return err
+
+	// create a headless service for data nodes
+	svc, existed, err = c.ensureService(ndb, false, false, ndb.GetDataNodeServiceName())
+	svcs = append(svcs, svc)
+	if err != nil {
+		return nil, false, err
+	}
+	retExisted = retExisted && existed
+	svcs = append(svcs, svc)
+
+	return &svcs, retExisted, nil
 }
 
-func (c *Controller) ensurePodDisruptionBudget(ndb *v1alpha1.Ndb) error {
+// ensureManagementServerStatefulSet creates the stateful set for management servers if it doesn't exist
+// returns
+//    new or existing statefulset
+//    reports true if it existed
+//    or returns an error if something went wrong
+func (c *Controller) ensureManagementServerStatefulSet(ndb *v1alpha1.Ndb) (*appsv1.StatefulSet, bool, error) {
+
+	// create the management stateful set if it doesn't exist
+	if c.mgmdController == nil {
+		mgmdSfSet := resources.NewMgmdStatefulSet(ndb)
+		c.mgmdController =
+			&realStatefulSetControl{
+				client:            c.kubeclientset,
+				statefulSetLister: c.statefulSetLister,
+				statefulSetType:   mgmdSfSet}
+	}
+
+	sfset, existed, err := c.mgmdController.EnsureStatefulSet(ndb)
+
+	// If the StatefulSet is not controlled by this Ndb resource, we should log
+	// a warning to the event recorder and return error msg.
+	if !metav1.IsControlledBy(sfset, ndb) {
+		msg := fmt.Sprintf(MessageResourceExists, sfset.Name)
+		c.recorder.Event(ndb, corev1.EventTypeWarning, ErrResourceExists, msg)
+		return nil, existed, fmt.Errorf(msg)
+	}
+
+	return sfset, existed, err
+}
+
+// ensureDataNodeStatefulSet creates the stateful set for data node if it doesn't exist
+// returns
+//    new or existing statefulset
+//    reports true if it existed
+//    or returns an error if something went wrong
+func (c *Controller) ensureDataNodeStatefulSet(ndb *v1alpha1.Ndb) (*appsv1.StatefulSet, bool, error) {
+
+	//TODO: should probably create controller earlier
+	if c.ndbdController == nil {
+		ndbdSfSet := resources.NewNdbdStatefulSet(ndb)
+		c.ndbdController =
+			&realStatefulSetControl{
+				client:            c.kubeclientset,
+				statefulSetLister: c.statefulSetLister,
+				statefulSetType:   ndbdSfSet}
+	}
+
+	sfset, existed, err := c.ndbdController.EnsureStatefulSet(ndb)
+
+	// If the StatefulSet is not controlled by this Ndb resource, we should log
+	// a warning to the event recorder and return error msg.
+	if !metav1.IsControlledBy(sfset, ndb) {
+		msg := fmt.Sprintf(MessageResourceExists, sfset.Name)
+		c.recorder.Event(ndb, corev1.EventTypeWarning, ErrResourceExists, msg)
+		return nil, existed, fmt.Errorf(msg)
+	}
+
+	return sfset, existed, err
+}
+
+// ensurePodDisruptionBudget creates a PDB if it doesn't exist
+// returns
+//    new or existing PDB
+//    reports true if it existed
+//    or returns an error if something went wrong
+func (c *Controller) ensurePodDisruptionBudget(ndb *v1alpha1.Ndb) (*policyv1beta1.PodDisruptionBudget, bool, error) {
+
 	pdbs := c.kubeclientset.PolicyV1beta1().PodDisruptionBudgets(ndb.Namespace)
 	pdb, err := pdbs.Get(ndb.GetPodDisruptionBudgetName(), metav1.GetOptions{})
+	if err == nil {
+		return pdb, true, nil
+	}
+	if !apierrors.IsNotFound(err) {
+		return nil, false, err
+	}
+
+	klog.Infof("Creating a new PodDisruptionBudget for Data Nodes of Cluster %q",
+		types.NamespacedName{Namespace: ndb.Namespace, Name: ndb.Name})
+	pdb = resources.NewPodDisruptionBudget(ndb)
+	pdb, err = pdbs.Create(pdb)
+
 	if err != nil {
-		klog.Errorf("error finding pdb: %s", err)
+		return nil, false, err
 	}
-	if apierrors.IsNotFound(err) {
-		klog.Infof("Creating a new PodDisruptionBudget for Data Nodes of Cluster %q",
-			types.NamespacedName{Namespace: ndb.Namespace, Name: ndb.Name})
-		pdb = resources.NewPodDisruptionBudget(ndb)
-		_, err = pdbs.Create(pdb)
-	}
-	return err
+
+	return pdb, false, err
 }
 
 func (c *Controller) ensureDataNodeConfigVersion(ndbobj *v1alpha1.Ndb, cs *ndb.ClusterStatus, wantedGeneration int) syncResult {
@@ -525,13 +637,22 @@ func (c *Controller) rollingRestart(ndbobj *v1alpha1.Ndb) error {
 	return nil
 }
 
-func (c *Controller) ensureClusterLabel(ndb *v1alpha1.Ndb) {
+func (c *Controller) ensureClusterLabel(ndb *v1alpha1.Ndb) (*labels.Set, bool, error) {
 	// Ensure that the required labels are set on the cluster.
 	sel4ndb := labels.SelectorFromSet(ndb.GetLabels())
-	if !sel4ndb.Matches(labels.Set(ndb.Labels)) {
-		klog.Infof("Setting labels on cluster %s", sel4ndb.String())
-		c.updateClusterLabels(ndb.DeepCopy(), ndb.GetLabels())
+	set := labels.Set(ndb.Labels)
+	if sel4ndb.Matches(set) {
+		return &set, true, nil
 	}
+
+	klog.Infof("Setting labels on cluster %s", sel4ndb.String())
+	err := c.updateClusterLabels(ndb.DeepCopy(), ndb.GetLabels())
+	if err != nil {
+		return nil, false, err
+	}
+
+	return &set, false, nil
+
 }
 
 func (c *Controller) getClusterState() (*ndb.ClusterStatus, error) {
@@ -601,7 +722,12 @@ func (c *Controller) syncHandler(key string) error {
 
 	// TODO - not sure if we need a cluster level label on the CRD
 	//      causes an update event looping us in here again
-	c.ensureClusterLabel(ndb)
+	allExisted := make(map[string]bool)
+
+	// create labels on ndb resource
+	if _, allExisted["labels"], err = c.ensureClusterLabel(ndb); err != nil {
+		return err
+	}
 
 	// first get a hash of the new config to see if anything changed
 	configHash, equalConfig, err := ndb.IsConfigHashEqual()
@@ -622,58 +748,41 @@ func (c *Controller) syncHandler(key string) error {
 		klog.Infof("new: %x", configHash)
 	}
 
-	if err := c.ensureServices(ndb); err != nil {
-		// re-queue if something went wrong
+	// create services for management server and data node statefulsets
+	if _, allExisted["services"], err = c.ensureServices(ndb); err != nil {
 		return err
 	}
-	if err := c.ensurePodDisruptionBudget(ndb); err != nil {
-		// re-queue if something went wrong
+
+	// create pod disruption budgets
+	if _, allExisted["poddisruptionservice"], err = c.ensurePodDisruptionBudget(ndb); err != nil {
 		return err
 	}
 
 	// create config map if not exist
-	cm, err := c.configMapController.EnsureConfigMap(ndb)
-	if err != nil {
-		return err
-	}
-
-	// create the management stateful set if it doesn't exist
-	if c.mgmdController == nil {
-		mgmdSfSet := resources.NewMgmdStatefulSet(ndb)
-		c.mgmdController =
-			&realStatefulSetControl{
-				client:            c.kubeclientset,
-				statefulSetLister: c.statefulSetLister,
-				statefulSetType:   mgmdSfSet}
-	}
-
-	sfset, err := c.mgmdController.EnsureStatefulSet(ndb)
-
-	if err != nil {
+	var cm *corev1.ConfigMap
+	if cm, allExisted["configmap"], err = c.configMapController.EnsureConfigMap(ndb); err != nil {
 		return err
 	}
 
 	// create the data node stateful set if it doesn't exist
-	if c.ndbdController == nil {
-		ndbdSfSet := resources.NewNdbdStatefulSet(ndb)
-		c.ndbdController =
-			&realStatefulSetControl{
-				client:            c.kubeclientset,
-				statefulSetLister: c.statefulSetLister,
-				statefulSetType:   ndbdSfSet}
-	}
-
-	sfset, err = c.ndbdController.EnsureStatefulSet(ndb)
-	if err != nil {
+	if _, allExisted["mgmstatefulset"], err = c.ensureDataNodeStatefulSet(ndb); err != nil {
 		return err
 	}
 
-	// If the StatefulSet is not controlled by this Ndb resource, we should log
-	// a warning to the event recorder and return error msg.
-	if !metav1.IsControlledBy(sfset, ndb) {
-		msg := fmt.Sprintf(MessageResourceExists, sfset.Name)
-		c.recorder.Event(ndb, corev1.EventTypeWarning, ErrResourceExists, msg)
-		return fmt.Errorf(msg)
+	// create the management stateful set if it doesn't exist
+	var dataNodeSfSet *appsv1.StatefulSet
+	if dataNodeSfSet, allExisted["datanodestatefulset"], err = c.ensureManagementServerStatefulSet(ndb); err != nil {
+		return err
+	}
+
+	// we do not take further action if not everything existed already
+	// pods will need to time to start, etc.
+	for res, existed := range allExisted {
+		klog.Infof("Resource %s: %d", res, existed)
+		if !existed {
+			klog.Infof("Not all resources for a cluster start existed (%s). Exiting and returning later.", res)
+			return nil
+		}
 	}
 
 	//
@@ -737,10 +846,10 @@ func (c *Controller) syncHandler(key string) error {
 	// If this number of the members on the Cluster does not equal the
 	// current desired replicas on the StatefulSet, we should update the
 	// StatefulSet resource.
-	if *ndb.Spec.NodeCount != *sfset.Spec.Replicas {
+	if *ndb.Spec.NodeCount != *dataNodeSfSet.Spec.Replicas {
 		klog.Infof("Updating %q: DataNodes=%d statefulSetReplicas=%d",
-			nsName, *ndb.Spec.NodeCount, *sfset.Spec.Replicas)
-		if sfset, err = c.ndbdController.Patch(ndb, sfset); err != nil {
+			nsName, *ndb.Spec.NodeCount, *dataNodeSfSet.Spec.Replicas)
+		if dataNodeSfSet, err = c.ndbdController.Patch(ndb, dataNodeSfSet); err != nil {
 			// Requeue the item so we can attempt processing again later.
 			// This could have been caused by a temporary network failure etc.
 			return err
