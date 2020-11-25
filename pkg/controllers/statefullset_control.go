@@ -23,7 +23,7 @@ import (
    is implemented as an interface to enable testing. */
 
 type StatefulSetControlInterface interface {
-	EnsureStatefulSet(ndb *v1alpha1.Ndb) (*apps.StatefulSet, error)
+	EnsureStatefulSet(ndb *v1alpha1.Ndb) (*apps.StatefulSet, bool, error)
 	GetStatefulSet(ndb *v1alpha1.Ndb) (*apps.StatefulSet, error)
 	Patch(ndb *v1alpha1.Ndb, old *apps.StatefulSet) (*apps.StatefulSet, error)
 }
@@ -96,28 +96,41 @@ func (rssc *realStatefulSetControl) Patch(ndb *v1alpha1.Ndb, old *apps.StatefulS
 	return patchStatefulSet(rssc.client, oldCopy, sfset)
 }
 
-func (rssc *realStatefulSetControl) EnsureStatefulSet(ndb *v1alpha1.Ndb) (*apps.StatefulSet, error) {
+// EnsureStatefulSet creates a statefulset if there is none
+// returns
+//   the statefull set if created or already existing
+//   true if it already existed
+//   error is such occured
+func (rssc *realStatefulSetControl) EnsureStatefulSet(ndb *v1alpha1.Ndb) (*apps.StatefulSet, bool, error) {
 
 	// Get the StatefulSet with the name specified in Ndb.spec
 	sfset, err := rssc.statefulSetLister.StatefulSets(ndb.Namespace).Get(rssc.statefulSetType.GetName())
+	if err == nil {
+		return sfset, true, nil
+	}
+
+	if !errors.IsNotFound(err) {
+		return nil, false, err
+	}
 
 	// If the resource doesn't exist, we'll create it
-	if errors.IsNotFound(err) {
-		klog.Infof("Creating stateful set %s/%s Replicas: %d, DataNodes: %d",
-			ndb.Namespace,
-			rssc.statefulSetType.GetName(),
-			ndb.GetRedundancyLevel(),
-			*ndb.Spec.NodeCount)
-		sfset = rssc.statefulSetType.NewStatefulSet(ndb)
-		_, err = rssc.client.AppsV1().StatefulSets(ndb.Namespace).Create(sfset)
-	}
+	klog.Infof("Creating stateful set %s/%s Replicas: %d, DataNodes: %d",
+		ndb.Namespace,
+		rssc.statefulSetType.GetName(),
+		ndb.GetRedundancyLevel(),
+		*ndb.Spec.NodeCount)
+
+	sfset = rssc.statefulSetType.NewStatefulSet(ndb)
+	sfset, err = rssc.client.AppsV1().StatefulSets(ndb.Namespace).Create(sfset)
 
 	if err != nil {
 		// re-queue if something went wrong
 		klog.Errorf("Failed to create stateful set %s/%s replicas: %d with error: %s",
 			ndb.Namespace, rssc.statefulSetType.GetName(),
 			*ndb.Spec.NodeCount, err)
+
+		return nil, false, err
 	}
 
-	return sfset, err
+	return sfset, false, err
 }
