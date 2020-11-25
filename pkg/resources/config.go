@@ -14,31 +14,50 @@ import (
 	"github.com/mysql/ndb-operator/pkg/helpers"
 )
 
-func GetConfigHashAndGenerationFromConfig(configStr string) (string, int64, error) {
+// NewResourceContextFromConfiguration extracts all relevant information from configuration
+// needed for further resource creation (SfSets) or comparison with new incoming ndb.Spec
+func NewResourceContextFromConfiguration(configStr string) (*ResourceContext, error) {
 
 	config, err := helpers.ParseString(configStr)
-
-	var generation int64
-
 	if err != nil {
-		return "", generation, err
+		return nil, err
 	}
 
-	configHash := helpers.GetValueFromSingleSectionGroup(config, "header", "ConfigHash")
+	rc := &ResourceContext{}
+
+	//TODO work with constants
+	rc.ConfigHash = helpers.GetValueFromSingleSectionGroup(config, "header", "ConfigHash")
+
 	generationStr := helpers.GetValueFromSingleSectionGroup(config, "system", "ConfigGenerationNumber")
+	rc.ConfigGeneration, _ = strconv.ParseInt(generationStr, 10, 64)
 
-	generation, _ = strconv.ParseInt(generationStr, 10, 64)
+	reduncancyLevelStr := helpers.GetValueFromSingleSectionGroup(config, "ndbd default", "NoOfReplicas")
+	rl, _ := strconv.ParseUint(reduncancyLevelStr, 10, 32)
+	rc.ReduncancyLevel = uint32(rl)
 
-	return configHash, generation, nil
+	if rl != 0 {
+		noofdatanodes := helpers.GetNumberOfSectionsInSectionGroup(config, "ndbd")
+		rc.NodeGroupCount = uint32(noofdatanodes / int(rl))
+
+		noofmgm := helpers.GetNumberOfSectionsInSectionGroup(config, "ndb_mgmd")
+		rc.ManagementNodeCount = uint32(noofmgm)
+	} else {
+		rc.NodeGroupCount = 0
+		rc.ManagementNodeCount = 0
+	}
+
+	return rc, nil
 }
 
 func getMgmdHostname(ndb *v1alpha1.Ndb, count int) string {
+	//TODO - get the real domain name
 	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
 	mgmHostname := fmt.Sprintf("%s-%d.%s.%s", ndb.Name+"-mgmd", count, ndb.GetManagementServiceName(), dnsZone)
 	return mgmHostname
 }
 
 func getNdbdHostname(ndb *v1alpha1.Ndb, count int) string {
+	//TODO - get the real domain name
 	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
 	mgmHostname := fmt.Sprintf("%s-%d.%s.%s", ndb.Name+"-ndbd", count, ndb.GetDataNodeServiceName(), dnsZone)
 	return mgmHostname
@@ -96,7 +115,7 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 
 	// system section
 	// we use the actual config generation here
-	generation := fmt.Sprintf("%d", ndb.ObjectMeta.Generation)
+	generation := fmt.Sprintf("%d", ndb.GetGeneration())
 	syss := systemSection
 	syss = strings.ReplaceAll(syss, "{{$configgeneration}}", generation)
 	syss = strings.ReplaceAll(syss, "{{$clustername}}", ndb.Name)
