@@ -44,6 +44,10 @@ func getNdbdHostname(ndb *v1alpha1.Ndb, count int) string {
 	return mgmHostname
 }
 
+// GetConfigString produces a new configuration "file" string from the current ndb.Spec
+//
+// It is important to note that GetConfigString uses the Spec
+// in its actual and consistent state and does not rely on any Status field.
 func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 
 	header := `
@@ -83,12 +87,15 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 	configString := ""
 
 	// header
-	hash := ndb.Status.ReceivedConfigHash
+	hash, err := ndb.CalculateNewConfigHash()
+	if err != nil {
+		return "", err
+	}
 	configString += strings.ReplaceAll(header, "{{$confighash}}", hash)
 	configString += "\n"
 
 	// system section
-	// TODO - this is wrong - needs to be reeived generation (as received config hash)
+	// we use the actual config generation here
 	generation := fmt.Sprintf("%d", ndb.ObjectMeta.Generation)
 	syss := systemSection
 	syss = strings.ReplaceAll(syss, "{{$configgeneration}}", generation)
