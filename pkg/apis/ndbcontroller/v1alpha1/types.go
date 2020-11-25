@@ -131,11 +131,11 @@ func (ndb *Ndb) GetPodDisruptionBudgetName() string {
 	return ndb.Name + "-pdb"
 }
 
-/* Calculate a hash of the current Spec */
+// CalculateNewConfigHash Calculate a hash of the current Spec
 /* TODO - not quite clear if its deterministic
 there is no documented guarantee that reflect used in Marshal
 has a guaranteed order of fields in the struct or if e.g. compiler could change it */
-func (ndb *Ndb) calculateNewConfigHash() (string, error) {
+func (ndb *Ndb) CalculateNewConfigHash() (string, error) {
 	jsonNdb, err := json.Marshal(ndb.Spec)
 	if err != nil {
 		return "", err
@@ -150,7 +150,7 @@ func (ndb *Ndb) calculateNewConfigHash() (string, error) {
 /* comparing the stored hash with the newly calculated hash of the Spec we see if it changed */
 func (ndb *Ndb) IsConfigHashEqual() (string, bool, error) {
 
-	configHash, err := ndb.calculateNewConfigHash()
+	configHash, err := ndb.CalculateNewConfigHash()
 	if err != nil {
 		return "", false, err
 	}
