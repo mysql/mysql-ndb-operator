@@ -97,3 +97,31 @@ func TestReadInifile(t *testing.T) {
 
 	t.Fail()
 }
+
+func Test_GetNumberOfSections(t *testing.T) {
+
+	// just testing actual extraction of ConfigHash - not ini-file reading
+	testini := `
+	[ndbd]
+	[ndbd]
+	[ndbd]
+	[ndbd]
+	[mgmd]
+	[mgmd]
+	`
+
+	config, err := ParseString(testini)
+	if err != nil {
+		t.Errorf("Parsing of config failed: %s", err)
+	}
+
+	secs := GetNumberOfSectionsInSectionGroup(config, "ndbd")
+	if secs != 4 {
+		t.Fail()
+	}
+
+	secs = GetNumberOfSectionsInSectionGroup(config, "mysqld")
+	if secs != 0 {
+		t.Fail()
+	}
+}

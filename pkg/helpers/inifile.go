@@ -33,6 +33,7 @@ func NewConfig() *ConfigIni {
 
 func GetValueFromSingleSectionGroup(c *ConfigIni, sectionName string, key string) string {
 
+	//TODO return error if multi section group is parsed here
 	if grp, ok := c.Groups[sectionName]; ok {
 		if len(grp) > 0 {
 			if value, exists := grp[0][key]; exists {
@@ -42,6 +43,15 @@ func GetValueFromSingleSectionGroup(c *ConfigIni, sectionName string, key string
 	}
 
 	return ""
+}
+
+func GetNumberOfSectionsInSectionGroup(c *ConfigIni, sectionName string) int {
+
+	if grp, ok := c.Groups[sectionName]; ok {
+		return len(grp)
+	}
+
+	return 0
 }
 
 /* ensures a new group if not exists and a new section within that group */
