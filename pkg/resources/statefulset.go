@@ -23,9 +23,6 @@ import (
 const mgmdVolumeName = "mgmdvolume"
 const mgmdName = "mgmd"
 
-const ndbImage = "mysql/mysql-cluster"
-const ndbVersion = "8.0.22"
-
 const ndbdName = "ndbd"
 
 const ndbAgentName = "ndb-agent"
@@ -115,7 +112,7 @@ func (bss *baseStatefulSet) mgmdContainer(ndb *v1alpha1.Ndb) v1.Container {
 	cmd := ""
 	environment := []v1.EnvVar{}
 
-	imageName := fmt.Sprintf("%s:%s", ndbImage, ndbVersion)
+	imageName := ndb.Spec.ContainerImage
 
 	args := []string{
 		"-f", "/var/lib/ndb/config/config.ini",
@@ -148,7 +145,7 @@ func (bss *baseStatefulSet) mgmdContainer(ndb *v1alpha1.Ndb) v1.Container {
 // Builds the Ndb operator container for a mgmd.
 func (bss *baseStatefulSet) ndbmtdContainer(ndb *v1alpha1.Ndb) v1.Container {
 
-	imageName := fmt.Sprintf("%s:%s", ndbImage, ndbVersion)
+	imageName := ndb.Spec.ContainerImage
 	connectString := ndb.GetConnectstring()
 	args := []string{
 		"-c", connectString,

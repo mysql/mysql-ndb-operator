@@ -40,10 +40,11 @@ spec:
             description: NdbSpec defines the desired state of MySQL Ndb Cluster
             properties:
               containerImage:
+                default: mysql/mysql-cluster:8.0.22
                 description: The name of the MySQL Ndb Cluster image to be used. If
                   not specified, "mysql-cluster:latest" will be used. Lowest supported
                   version is 8.0.22.
-                pattern: mysql-cluster:8.0.2[2-3]
+                pattern: mysql/mysql-cluster:8.0.2[2-3]
                 type: string
               mysqld:
                 description: Specification of MySQL Servers to be run as an SQL Frontend

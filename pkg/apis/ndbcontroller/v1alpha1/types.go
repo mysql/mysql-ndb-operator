@@ -64,11 +64,15 @@ type NdbSpec struct {
 	// The name of the MySQL Ndb Cluster image to be used.
 	// If not specified, "mysql-cluster:latest" will be used.
 	// Lowest supported version is 8.0.22.
-	// +kubebuilder:validation:Pattern="mysql-cluster:8.0.2[2-3]"
+	// +kubebuilder:default="mysql/mysql-cluster:8.0.22"
+	// +kubebuilder:validation:Pattern="mysql/mysql-cluster:8.0.2[2-3]"
 	// +optional
-	ContainerImage string `json:"containerImage"`
+	ContainerImage string `json:"containerImage,omitempty"`
+	// TODO: How to validate customer's own image? eg. customer_cluster_8.0.23_patch3
+	// Should the validation be done after the image gets pulled?
+
 	// +optional
-	Mysqld NdbMysqldSpec `json:"mysqld"`
+	Mysqld NdbMysqldSpec `json:"mysqld,omitempty"`
 }
 
 // NdbStatus is the status for a Ndb resource
