@@ -8,11 +8,14 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 
 	"github.com/mysql/ndb-operator/pkg/constants"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // +genclient
@@ -175,4 +178,30 @@ func (ndb *Ndb) GetManagementNodeCount() int {
 		return 1
 	}
 	return 2
+}
+
+// GetConnectstring returns the connect string of cluster represented by Ndb resource
+func (ndb *Ndb) GetConnectstring() string {
+	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
+	port := "1186"
+
+	connectstring := ""
+	for i := 0; i < (int)(ndb.GetManagementNodeCount()); i++ {
+		if i > 0 {
+			connectstring += ","
+		}
+		connectstring += fmt.Sprintf("%s-%d.%s.%s:%s", ndb.Name+"-mgmd", i, ndb.GetManagementServiceName(), dnsZone, port)
+	}
+
+	return connectstring
+}
+
+// GetOwnerReference returns a OwnerReference to the Ndb resource
+func (ndb *Ndb) GetOwnerReference() metav1.OwnerReference {
+	return *metav1.NewControllerRef(ndb,
+		schema.GroupVersionKind{
+			Group:   v1.SchemeGroupVersion.Group,
+			Version: v1.SchemeGroupVersion.Version,
+			Kind:    "Ndb",
+		})
 }
