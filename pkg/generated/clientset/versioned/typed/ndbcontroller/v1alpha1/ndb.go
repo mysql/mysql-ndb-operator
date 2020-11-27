@@ -44,7 +44,7 @@ type ndbs struct {
 }
 
 // newNdbs returns a Ndbs
-func newNdbs(c *NdbcontrollerV1alpha1Client, namespace string) *ndbs {
+func newNdbs(c *MysqlV1alpha1Client, namespace string) *ndbs {
 	return &ndbs{
 		client: c.RESTClient(),
 		ns:     namespace,

@@ -12,17 +12,17 @@ import (
 	testing "k8s.io/client-go/testing"
 )
 
-type FakeNdbcontrollerV1alpha1 struct {
+type FakeMysqlV1alpha1 struct {
 	*testing.Fake
 }
 
-func (c *FakeNdbcontrollerV1alpha1) Ndbs(namespace string) v1alpha1.NdbInterface {
+func (c *FakeMysqlV1alpha1) Ndbs(namespace string) v1alpha1.NdbInterface {
 	return &FakeNdbs{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FakeNdbcontrollerV1alpha1) RESTClient() rest.Interface {
+func (c *FakeMysqlV1alpha1) RESTClient() rest.Interface {
 	var ret *rest.RESTClient
 	return ret
 }

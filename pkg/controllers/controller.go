@@ -328,7 +328,7 @@ func (c *Controller) updateClusterLabels(ndb *v1alpha1.Ndb, lbls labels.Set) err
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		ndb.Labels = labels.Merge(labels.Set(ndb.Labels), lbls)
 		_, updateErr :=
-			c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Update(ndb)
+			c.ndbclientset.MysqlV1alpha1().Ndbs(ndb.Namespace).Update(ndb)
 		if updateErr == nil {
 			return nil
 		}
@@ -1010,7 +1010,7 @@ func (c *Controller) updateNdbStatus(ndb *v1alpha1.Ndb) error {
 		// which is ideal for ensuring nothing other than resource status has been updated.
 		//_, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Update(ndb)
 
-		_, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).UpdateStatus(ndb)
+		_, err = c.ndbclientset.MysqlV1alpha1().Ndbs(ndb.Namespace).UpdateStatus(ndb)
 		if err == nil {
 			return true, nil
 		}
@@ -1018,7 +1018,7 @@ func (c *Controller) updateNdbStatus(ndb *v1alpha1.Ndb) error {
 			return false, err
 		}
 
-		updated, err := c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Get(ndb.Name, metav1.GetOptions{})
+		updated, err := c.ndbclientset.MysqlV1alpha1().Ndbs(ndb.Namespace).Get(ndb.Name, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("failed to get Ndb %s/%s: %v", ndb.Namespace, ndb.Name, err)
 			return false, err
