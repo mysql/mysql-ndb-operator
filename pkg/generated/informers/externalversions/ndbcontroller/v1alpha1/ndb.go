@@ -49,13 +49,13 @@ func NewFilteredNdbInformer(client versioned.Interface, namespace string, resync
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.NdbcontrollerV1alpha1().Ndbs(namespace).List(options)
+				return client.MysqlV1alpha1().Ndbs(namespace).List(options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.NdbcontrollerV1alpha1().Ndbs(namespace).Watch(options)
+				return client.MysqlV1alpha1().Ndbs(namespace).Watch(options)
 			},
 		},
 		&ndbcontrollerv1alpha1.Ndb{},

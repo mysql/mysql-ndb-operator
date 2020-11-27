@@ -18,13 +18,13 @@ import (
 
 // FakeNdbs implements NdbInterface
 type FakeNdbs struct {
-	Fake *FakeNdbcontrollerV1alpha1
+	Fake *FakeMysqlV1alpha1
 	ns   string
 }
 
-var ndbsResource = schema.GroupVersionResource{Group: "ndbcontroller.mysql.com", Version: "v1alpha1", Resource: "ndbs"}
+var ndbsResource = schema.GroupVersionResource{Group: "mysql.oracle.com", Version: "v1alpha1", Resource: "ndbs"}
 
-var ndbsKind = schema.GroupVersionKind{Group: "ndbcontroller.mysql.com", Version: "v1alpha1", Kind: "Ndb"}
+var ndbsKind = schema.GroupVersionKind{Group: "mysql.oracle.com", Version: "v1alpha1", Kind: "Ndb"}
 
 // Get takes name of the ndb, and returns the corresponding ndb object, and an error if there is any.
 func (c *FakeNdbs) Get(name string, options v1.GetOptions) (result *v1alpha1.Ndb, err error) {

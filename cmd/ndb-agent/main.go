@@ -70,7 +70,7 @@ func agent_main() {
 
 	ag, err := agent.New(kubeClient, ndbClient,
 		k8If.Core().V1().Pods(),
-		ndbOpIf.Ndbcontroller().V1alpha1().Ndbs())
+		ndbOpIf.Mysql().V1alpha1().Ndbs())
 
 	k8If.Start(stopCh)
 	ndbOpIf.Start(stopCh)

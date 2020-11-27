@@ -12,22 +12,22 @@ import (
 	rest "k8s.io/client-go/rest"
 )
 
-type NdbcontrollerV1alpha1Interface interface {
+type MysqlV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	NdbsGetter
 }
 
-// NdbcontrollerV1alpha1Client is used to interact with features provided by the ndbcontroller.mysql.com group.
-type NdbcontrollerV1alpha1Client struct {
+// MysqlV1alpha1Client is used to interact with features provided by the mysql.oracle.com group.
+type MysqlV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *NdbcontrollerV1alpha1Client) Ndbs(namespace string) NdbInterface {
+func (c *MysqlV1alpha1Client) Ndbs(namespace string) NdbInterface {
 	return newNdbs(c, namespace)
 }
 
-// NewForConfig creates a new NdbcontrollerV1alpha1Client for the given config.
-func NewForConfig(c *rest.Config) (*NdbcontrollerV1alpha1Client, error) {
+// NewForConfig creates a new MysqlV1alpha1Client for the given config.
+func NewForConfig(c *rest.Config) (*MysqlV1alpha1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -36,12 +36,12 @@ func NewForConfig(c *rest.Config) (*NdbcontrollerV1alpha1Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &NdbcontrollerV1alpha1Client{client}, nil
+	return &MysqlV1alpha1Client{client}, nil
 }
 
-// NewForConfigOrDie creates a new NdbcontrollerV1alpha1Client for the given config and
+// NewForConfigOrDie creates a new MysqlV1alpha1Client for the given config and
 // panics if there is an error in the config.
-func NewForConfigOrDie(c *rest.Config) *NdbcontrollerV1alpha1Client {
+func NewForConfigOrDie(c *rest.Config) *MysqlV1alpha1Client {
 	client, err := NewForConfig(c)
 	if err != nil {
 		panic(err)
@@ -49,9 +49,9 @@ func NewForConfigOrDie(c *rest.Config) *NdbcontrollerV1alpha1Client {
 	return client
 }
 
-// New creates a new NdbcontrollerV1alpha1Client for the given RESTClient.
-func New(c rest.Interface) *NdbcontrollerV1alpha1Client {
-	return &NdbcontrollerV1alpha1Client{c}
+// New creates a new MysqlV1alpha1Client for the given RESTClient.
+func New(c rest.Interface) *MysqlV1alpha1Client {
+	return &MysqlV1alpha1Client{c}
 }
 
 func setConfigDefaults(config *rest.Config) error {
@@ -69,7 +69,7 @@ func setConfigDefaults(config *rest.Config) error {
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *NdbcontrollerV1alpha1Client) RESTClient() rest.Interface {
+func (c *MysqlV1alpha1Client) RESTClient() rest.Interface {
 	if c == nil {
 		return nil
 	}
