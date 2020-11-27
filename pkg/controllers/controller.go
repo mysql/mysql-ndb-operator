@@ -7,8 +7,6 @@ package controllers
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -612,35 +610,31 @@ func (c *Controller) ensureManagementServerConfigVersion(ndbobj *v1alpha1.Ndb, w
 	return continueProcessing()
 }
 
-func (c *Controller) rollingRestart(ndbobj *v1alpha1.Ndb) error {
+// checkPodStatus returns false if any container in pod is not ready
+func (c *Controller) checkPodStatus(ndbobj *v1alpha1.Ndb) (bool, error) {
 
-	klog.Infof("Rolling restart")
+	klog.Infof("check Pod status")
 
 	sel4ndb := labels.SelectorFromSet(ndbobj.GetLabels())
 	pods, err := c.podLister.List(sel4ndb)
 	if err != nil {
-		return apierrors.NewNotFound(v1alpha1.Resource("Pod"), sel4ndb.String())
+		return false, apierrors.NewNotFound(v1alpha1.Resource("Pod"), sel4ndb.String())
 	}
+
 	for _, pod := range pods {
-		//url := fmt.Sprintf("http://%s:%d/ready", pod.Status.PodIP, 8080)
-
-		// TODO for testing with external operator on minikube we start minikube tunnel and create a LoadBalancer
-		url := fmt.Sprintf("http://%s:%d/ready", "127.0.0.1", 8080)
-		resp, err := http.Get(url)
-		if err != nil {
-			klog.Errorf("error pinging pod %s %s: %s", pod.Name, pod.Status.PodIP, err)
-		} else {
-			defer resp.Body.Close()
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				klog.Infof("pinging pod %s %s: no body", pod.Name, pod.Status.PodIP)
-			} else {
-				klog.Infof("pinging pod %s %s: %s", pod.Name, pod.Status.PodIP, body)
+		status := pod.Status
+		statuses := status.ContainerStatuses
+		for _, status := range statuses {
+			if status.Name != "ndbd" && status.Name != "mgmd" {
+				continue
 			}
-
+			if !status.Ready {
+				return false, nil
+			}
 		}
 	}
-	return nil
+
+	return true, nil
 }
 
 func (c *Controller) ensureClusterLabel(ndb *v1alpha1.Ndb) (*labels.Set, bool, error) {
@@ -687,13 +681,13 @@ func (c *Controller) getClusterState() (*ndb.ClusterStatus, error) {
 // checkClusterState checks the cluster state and whether its in a managable state
 // e.g. - we don't want to touch it with rolling out new versions when not all data nodes are up
 // TODO - should also check pod states here or in loop where we look out for hanging or weird states
-func (c *Controller) checkClusterState(cs *ndb.ClusterStatus) (syncResult, error) {
+func (c *Controller) checkClusterState(cs *ndb.ClusterStatus) syncResult {
 
 	if cs.IsClusterDegraded() {
-		return finishProcessing(), nil
+		return finishProcessing()
 
 	}
-	return continueProcessing(), nil
+	return continueProcessing()
 }
 
 // allResourcesExisted returns falls if any resource map is false (resource was created)
@@ -743,8 +737,9 @@ func (c *Controller) ensureAllResources(ndbobj *v1alpha1.Ndb) (*resources.Resour
 	}
 
 	// create services for management server and data node statefulsets
-	// with respect to idempotency and atomicy service creation is safe as it
+	// with respect to idempotency and atomicy service creation is always safe as it
 	// only uses the immutable CRD name
+	// service needs to be created and present when creating stateful sets
 	if _, allExisted["services"], err = c.ensureServices(ndbobj); err != nil {
 		return nil, false, err
 	}
@@ -785,6 +780,27 @@ func (c *Controller) ensureAllResources(ndbobj *v1alpha1.Ndb) (*resources.Resour
 	return resourceContext, c.allResourcesExisted(&allExisted), nil
 }
 
+// syncHandler is the main reconcilliation function
+//   driving cluster towards desired configuration
+//
+// - synchronization happens in multiple steps
+// - not all actions are taking in one call of syncHandler
+//
+// main principle:
+// the desired state in Ndb CRD must be reflected in the Ndb configuration file
+// and the cluster state will be adopted *to that config file first*
+// before new changes from Ndb CRD are accepted
+//
+// Sync steps
+//
+// 1. ensure all resources are correctly created
+// 2. ensure cluster is fully up and running and not in a degraded state
+//    before rolling out any changes
+// 3. drive cluster components towards the configuration previously
+//    written to the configuration file
+// 4. only after complete cluster is aligned with configuration file
+//    new changes from Ndb CRD are written to a new version of the config file
+// 5. update status of the CRD
 func (c *Controller) syncHandler(key string) error {
 
 	klog.Infof("Sync handler: %s", key)
@@ -827,29 +843,21 @@ func (c *Controller) syncHandler(key string) error {
 	// since no error occured all resources should have been successfully created
 	// TODO: we should take note of it by updating the ndb.Status with a creationTimestamp
 	// - then we can check that later and avoid checking if all resources existed
-	// - could be also good to always check if individual resources haven't been deleted
-	//   but re-creating them could be tricky due to dependencies bringing us to chaotic state
+	// - could be also good to always check if individual resources were deleted
+	//   but re-creating them could be tricky due to resource dependencies bringing us to chaotic state
 	// - if individual resources are missing after creation that would be a major error for now
 	if !existed {
 		return nil
 	}
 
-	// first get a hash of the new config to see if anything changed
-	newConfigHash, equalConfig, err := ndb.IsConfigHashEqual()
-	if err != nil {
-		return err
-	}
+	// at this point all resources were created already
+	// some pods might still not be fully up and running
+	// cluster potentially not (fully) started yet
 
-	//
-	if equalConfig {
-		klog.Infof("No update to configuration detected in %s based on hash %s", nsName, newConfigHash)
-		// just using it for fyi at the moment
-		// still need to continue here as not all nodes might be on that version yet
-	} else {
-		klog.Infof("Configuration change detected in %s based on hash", nsName)
-		klog.Infof("org: %x %d %s", ndb.Status.ReceivedConfigHash, ndb.Status.ProcessedGeneration, ndb.Status.LastUpdate)
-		ndb.Status.ReceivedConfigHash = newConfigHash
-		klog.Infof("new: %x", newConfigHash)
+	if ready, _ := c.checkPodStatus(ndb); !ready {
+		// if not all pods are ready yet there is no sense in processing config changes
+		klog.Infof("Cluster has not all pods ready - exit sync and return later")
+		return nil
 	}
 
 	//
@@ -861,36 +869,26 @@ func (c *Controller) syncHandler(key string) error {
 		return err
 	}
 
-	sr, err := c.checkClusterState(clusterState)
-	if err != nil {
-		return err
-	}
-	if sr.finished() {
+	if sr := c.checkClusterState(clusterState); sr.finished() {
 		klog.Infof("Cluster is not reported to be fully running - exit sync and return here later")
 		// TODO - introduce a re-schedule event
-		return nil
+		return sr.getError() // return error if any
 	}
 
-	// check if config is up-to-date
-
-	if resourceContext.ConfigHash != newConfigHash {
-		klog.Infof("Config received is different from config map config. config map: \"%s\", new: \"%s\"",
-			resourceContext.ConfigHash, newConfigHash)
-
-		_, err := c.configMapController.PatchConfigMap(ndb)
-		if err != nil {
-			klog.Infof("Failed to patch config map")
-			return err
-		}
-	}
+	// sync handler does not accept new configurations from Ndb CRD
+	// before previous configuration changes are not completed
+	// start by aligning cluster to the configuration *in the config map* previously applied
+	// only if everything is in line with that configuration
+	// a new configuration from the Ndb CRD is accepted and written to the config map
 
 	// make sure management server(s) have the correct config version
-	if sr = c.ensureManagementServerConfigVersion(ndb, int(ndb.GetGeneration())); sr.finished() {
+	if sr := c.ensureManagementServerConfigVersion(ndb, int(resourceContext.ConfigGeneration)); sr.finished() {
 		return sr.getError()
 	}
 
 	// make sure all data nodes have the correct config version
-	if sr = c.ensureDataNodeConfigVersion(ndb, clusterState, int(ndb.GetGeneration())); sr.finished() {
+	// data nodes a restarted with respect to
+	if sr := c.ensureDataNodeConfigVersion(ndb, clusterState, int(resourceContext.ConfigGeneration)); sr.finished() {
 		return sr.getError()
 	}
 
@@ -909,6 +907,30 @@ func (c *Controller) syncHandler(key string) error {
 		}
 	*/
 
+	// at this stage all resources are ensured to be
+	// aligned with the configuration *in the config map*
+	c.recorder.Event(ndb, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
+
+	// check if configuration in config map is still the desired from the Ndb CRD
+	// if not then apply a new version
+
+	// calculated the hash of the new config to see if ndb.Spec changed against whats in the config map
+	newConfigHash, err := ndb.CalculateNewConfigHash()
+	if err != nil {
+		return err
+	}
+
+	if resourceContext.ConfigHash != newConfigHash {
+		klog.Infof("Config received is different from config map config. config map: \"%s\", new: \"%s\"",
+			resourceContext.ConfigHash, newConfigHash)
+
+		_, err := c.configMapController.PatchConfigMap(ndb)
+		if err != nil {
+			klog.Infof("Failed to patch config map")
+			return err
+		}
+	}
+
 	// Finally, we update the status block of the Ndb resource to reflect the
 	// current state of the world
 	err = c.updateNdbStatus(ndb)
@@ -917,10 +939,8 @@ func (c *Controller) syncHandler(key string) error {
 		return err
 	}
 
-	//c.podListing(ndb)
 	klog.Infof("Returning from syncHandler")
 
-	c.recorder.Event(ndb, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
 	return nil
 }
 
