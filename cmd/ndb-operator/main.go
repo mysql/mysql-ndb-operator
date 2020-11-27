@@ -56,6 +56,7 @@ func main() {
 		kubeClient,
 		ndbClient,
 		k8If.Apps().V1().StatefulSets(),
+		k8If.Apps().V1().Deployments(),
 		k8If.Core().V1().Services(),
 		k8If.Core().V1().Pods(),
 		k8If.Core().V1().ConfigMaps(),
