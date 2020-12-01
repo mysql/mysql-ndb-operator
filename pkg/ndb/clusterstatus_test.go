@@ -62,21 +62,88 @@ func Test_AddNodesByTLA(t *testing.T) {
 
 func Test_ClusterIsDegraded(t *testing.T) {
 
-	cs := NewClusterStatus(8)
+	cs := NewClusterStatus(10)
 
 	// (!) start at 1
-	for nodeID := 1; nodeID <= 8; nodeID++ {
+	for nodeID := 1; nodeID <= 10; nodeID++ {
+
+		nodeGroup := -1
+		connected := true
+		if nodeID > 2 && nodeID <= 6 {
+			nodeGroup = (nodeID - 1 - 2) / 2
+		}
+		if nodeID == 7 {
+			// mark data node like its a started node in a new group
+			nodeGroup = -256
+		}
+		if nodeID == 8 {
+			// mark data node like its an unstarted node in a new group
+			connected = false
+			nodeGroup = -1
+		}
+
 		ns := &NodeStatus{
 			NodeID:          nodeID,
-			NodeType:        nodeTypeFromNodeId(2, 4, 2, nodeID),
+			NodeType:        nodeTypeFromNodeId(2, 6, 2, nodeID),
 			SoftwareVersion: "8.0.22",
-			IsConnected:     true,
+			IsConnected:     connected,
+			NodeGroup:       nodeGroup,
 		}
 		(*cs)[nodeID] = ns
 	}
 
+	for nodeID := 1; nodeID <= 10; nodeID++ {
+		s, _ := json.Marshal((*cs)[nodeID])
+		fmt.Printf("%d - %s\n", nodeID, s)
+	}
+
+	if !cs.IsClusterDegraded() {
+		t.Errorf("Cluster should be reported degraded by simple IsDegraded function.")
+	}
+
+	cnt := cs.NumberNodegroupsFullyUp(2)
+	if cnt != 2 {
+		t.Errorf("Cluster is not degraded but reported wrong node group count %d.", cnt)
+	}
+
+	if ns, ok := (*cs)[9]; ok {
+		(*ns).IsConnected = false
+	} else {
+		t.Errorf("Defined node id 7 not found.")
+		return
+	}
+	cnt = cs.NumberNodegroupsFullyUp(2)
+	if cnt != 2 {
+		t.Errorf("Cluster is not degraded with an API node down but reported wrong node group count %d.", cnt)
+	}
+
+	if ns, ok := (*cs)[3]; ok {
+		(*ns).IsConnected = false
+	} else {
+		t.Errorf("Defined node id 3 not found.")
+		return
+	}
+
+	cnt = cs.NumberNodegroupsFullyUp(2)
+	if cnt != 1 {
+		t.Errorf("Cluster is degraded with a data node down but reported wrong node group count %d.", cnt)
+	}
+
+	// "Start" cluster
+
 	for nodeID, ns := range *cs {
-		s, _ := json.Marshal(ns)
+		nodeGroup := -1
+		if nodeID >= 2 && nodeID <= 8 {
+			nodeGroup = ((nodeID - 1 - 2) / 2)
+		}
+
+		(*ns).IsConnected = true
+		(*ns).NodeGroup = nodeGroup
+	}
+
+	fmt.Println()
+	for nodeID := 1; nodeID <= 10; nodeID++ {
+		s, _ := json.Marshal((*cs)[nodeID])
 		fmt.Printf("%d - %s\n", nodeID, s)
 	}
 
@@ -84,25 +151,19 @@ func Test_ClusterIsDegraded(t *testing.T) {
 		t.Errorf("Cluster is not degraded but reported degraded.")
 	}
 
-	if ns, ok := (*cs)[7]; ok {
-		(*ns).IsConnected = false
-	} else {
-		t.Errorf("Defined node id 1 not found.")
-		return
-	}
-	if cs.IsClusterDegraded() {
-		t.Errorf("Cluster is not degraded if 1 API Node is down but reported degraded.")
+	cnt = cs.NumberNodegroupsFullyUp(2)
+	if cnt != 3 {
+		t.Errorf("Cluster is degraded with a data node down but reported wrong node group count %d.", cnt)
 	}
 
-	if ns, ok := (*cs)[1]; ok {
+	if ns, ok := (*cs)[3]; ok {
 		(*ns).IsConnected = false
 	} else {
-		t.Errorf("Defined node id 1 not found.")
+		t.Errorf("Defined node id 3 not found.")
 		return
 	}
 
 	if !cs.IsClusterDegraded() {
-		t.Errorf("Cluster is degraded but reported not degraded.")
+		t.Errorf("Cluster is not degraded if 1 API Node is down but reported degraded.")
 	}
-
 }

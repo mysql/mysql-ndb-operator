@@ -62,14 +62,66 @@ func NewClusterStatus(nodeCount int) *ClusterStatus {
 // IsClusterDegraded returns true if any data node or mgm node is down
 func (cs *ClusterStatus) IsClusterDegraded() bool {
 
-	isDegraded := false
 	for _, ns := range *cs {
 		if ns.isDataNode() || ns.isMgmNode() {
-			isDegraded = isDegraded || !ns.IsConnected
+			if !ns.IsConnected {
+				return true
+			}
 		}
 	}
 
-	return isDegraded
+	return false
+}
+
+// NumberNodegroupsFullyUp returns number of node groups fully up
+// Its currently the only way to decide if cluster is healthy during
+// scaling where new node are configured but not started.
+// This function is a bit weird as the mgm status report contains node group 0 for any
+// node not connected (its set to -1 in mgmapi) - also during scaling
+// Some guess-work is applied with the help of noOfReplicas.
+func (cs *ClusterStatus) NumberNodegroupsFullyUp(reduncancyLevel int) int {
+
+	//TODO: function feels a bit brute force
+	// as node group numbers actually should not have gaps
+
+	//TODO: same function basically in topology, but just counting
+	nodeMap := make(map[int]int)
+	mgmCount := 0
+
+	// collect number of nodes up in each node group
+	// during scaling a started node group not created in cluster is marked -256
+	for _, ns := range *cs {
+
+		if ns.isMgmNode() && ns.IsConnected {
+			mgmCount++
+			continue
+		}
+		if !ns.isDataNode() {
+			continue
+		}
+
+		if ns.NodeGroup < 0 || ns.NodeGroup > 144 {
+			continue
+		}
+
+		_, ok := nodeMap[ns.NodeGroup]
+		if !ok {
+			nodeMap[ns.NodeGroup] = 0
+		}
+
+		if ns.IsConnected {
+			nodeMap[ns.NodeGroup]++
+		}
+	}
+
+	nodeGroupsFullyUp := 0
+	for _, nodesLiveInNodeGroup := range nodeMap {
+		if nodesLiveInNodeGroup == reduncancyLevel {
+			nodeGroupsFullyUp++
+		}
+	}
+
+	return nodeGroupsFullyUp
 }
 
 // EnsureNode makes sure there is a node entry for the given nodeID
