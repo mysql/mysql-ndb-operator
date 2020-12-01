@@ -49,8 +49,6 @@ func (cr *ClusterReplicas) GetNodeIDsFromReplica(replicaID int) *NodeIDs {
 // a ClusterTopology from a ClusterStatus report object
 func CreateClusterTopologyByReplicaFromClusterStatus(cs *ClusterStatus) *ClusterReplicas {
 
-	dataNodeCount := 0
-
 	// we use int for count of nodes
 	tmpNodeGroups := make(map[int]NodeIDs)
 
@@ -58,7 +56,6 @@ func CreateClusterTopologyByReplicaFromClusterStatus(cs *ClusterStatus) *Cluster
 		if !ns.isDataNode() {
 			continue
 		}
-		dataNodeCount++
 
 		if ns.NodeGroup < 0 || ns.NodeGroup > 144 {
 			continue
