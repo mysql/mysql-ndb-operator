@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -93,4 +94,16 @@ func Test_array(t *testing.T) {
 
 	ar := make([]int, 0, 15)
 	ar[7] = 12
+}
+
+func Test_RNIL(t *testing.T) {
+	const RNIL = 0xffffff00
+
+	i64, _ := strconv.ParseInt("-256", 10, 32)
+
+	u64 := uint32(i64)
+
+	fmt.Printf("u64 = %d\n", u64)
+
+	t.Fail()
 }
