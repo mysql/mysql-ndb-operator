@@ -103,6 +103,19 @@ func TestGetConfig(t *testing.T) {
 		return
 	}
 }
+func Test_GetConfigVersionFromNode(t *testing.T) {
+	api := &Mgmclient{}
+
+	err := api.Connect()
+	if err != nil {
+		t.Errorf("Connection failed: %s", err)
+		return
+	}
+	defer api.Disconnect()
+
+	version := api.GetConfigVersionFromNode(3)
+	fmt.Printf("getting config version: %d\n", version)
+}
 
 func TestShowConfig(t *testing.T) {
 	api := &Mgmclient{}
