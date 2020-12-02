@@ -101,20 +101,26 @@ func Test_ClusterIsDegraded(t *testing.T) {
 		t.Errorf("Cluster should be reported degraded by simple IsDegraded function.")
 	}
 
-	cnt := cs.NumberNodegroupsFullyUp(2)
+	cnt, scale := cs.NumberNodegroupsFullyUp(2)
 	if cnt != 2 {
 		t.Errorf("Cluster is not degraded but reported wrong node group count %d.", cnt)
+	}
+	if scale != 1 {
+		t.Errorf("Cluster has one scaling node node up but reported wrong node group count %d.", scale)
 	}
 
 	if ns, ok := (*cs)[9]; ok {
 		(*ns).IsConnected = false
 	} else {
-		t.Errorf("Defined node id 7 not found.")
+		t.Errorf("Defined node id 9 not found.")
 		return
 	}
-	cnt = cs.NumberNodegroupsFullyUp(2)
+	cnt, scale = cs.NumberNodegroupsFullyUp(2)
 	if cnt != 2 {
 		t.Errorf("Cluster is not degraded with an API node down but reported wrong node group count %d.", cnt)
+	}
+	if scale != 1 {
+		t.Errorf("Cluster is should have same number of scaling nodes with an API node down but reported %d.", scale)
 	}
 
 	if ns, ok := (*cs)[3]; ok {
@@ -124,9 +130,25 @@ func Test_ClusterIsDegraded(t *testing.T) {
 		return
 	}
 
-	cnt = cs.NumberNodegroupsFullyUp(2)
+	cnt, scale = cs.NumberNodegroupsFullyUp(2)
 	if cnt != 1 {
 		t.Errorf("Cluster is degraded with a data node down but reported wrong node group count %d.", cnt)
+	}
+	if scale != 1 {
+		t.Errorf("Cluster is degraded with a data node down but reported wrong scale node count %d.", scale)
+	}
+
+	// Start second scale node
+	ns, _ := (*cs)[8]
+	(*ns).IsConnected = true
+	(*ns).NodeGroup = -256
+
+	cnt, scale = cs.NumberNodegroupsFullyUp(2)
+	if cnt != 1 {
+		t.Errorf("Cluster is degraded with a data node down but reported wrong node group count %d.", cnt)
+	}
+	if scale != 2 {
+		t.Errorf("Cluster is degraded with a data node down but reported wrong scale node count %d.", scale)
 	}
 
 	// "Start" cluster
@@ -151,7 +173,7 @@ func Test_ClusterIsDegraded(t *testing.T) {
 		t.Errorf("Cluster is not degraded but reported degraded.")
 	}
 
-	cnt = cs.NumberNodegroupsFullyUp(2)
+	cnt, scale = cs.NumberNodegroupsFullyUp(2)
 	if cnt != 3 {
 		t.Errorf("Cluster is degraded with a data node down but reported wrong node group count %d.", cnt)
 	}

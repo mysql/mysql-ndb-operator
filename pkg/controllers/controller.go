@@ -538,9 +538,9 @@ func (c *Controller) ensureDataNodeConfigVersion(ndbobj *v1alpha1.Ndb, cs *ndb.C
 		restartIDs := []int{}
 
 		nodeIDs := ct.GetNodeIDsFromReplica(replica)
-		for nodeID := range *nodeIDs {
-			nodeConfigGeneration := api.GetConfigVersionFromNode(nodeID)
 
+		for _, nodeID := range *nodeIDs {
+			nodeConfigGeneration := api.GetConfigVersionFromNode(nodeID)
 			if wantedGeneration != nodeConfigGeneration {
 				// node is on wrong config generation
 				restartIDs = append(restartIDs, nodeID)
@@ -694,10 +694,14 @@ func (c *Controller) checkClusterState(sc *SyncContext, cs *ndb.ClusterStatus) s
 	// during scaling ndb CRD will have more nodes configured
 	// this will already be written to config file in a first sync step
 	// but statefulsets will adopt no of replicas as last step before node group is created
-	nodeGroupsUp := cs.NumberNodegroupsFullyUp(int(sc.resourceContext.ReduncancyLevel))
+	nodeGroupsUp, scalingNodes := cs.NumberNodegroupsFullyUp(int(sc.resourceContext.ReduncancyLevel))
 	numberOfDataNodes := nodeGroupsUp * int(sc.resourceContext.ReduncancyLevel)
 
 	if int(*sc.dataNodeSfSet.Spec.Replicas) == numberOfDataNodes {
+		// all nodes that should be up have all nodes running
+		return continueProcessing()
+	}
+	if int(*sc.dataNodeSfSet.Spec.Replicas) == numberOfDataNodes+scalingNodes {
 		// all nodes that should be up have all nodes running
 		return continueProcessing()
 	}
