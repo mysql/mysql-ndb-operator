@@ -37,12 +37,12 @@ func NewResourceContextFromConfiguration(configStr string) (*ResourceContext, er
 
 	if rl != 0 {
 		noofdatanodes := helpers.GetNumberOfSectionsInSectionGroup(config, "ndbd")
-		rc.NodeGroupCount = uint32(noofdatanodes / int(rl))
+		rc.ConfiguredNodeGroupCount = uint32(noofdatanodes / int(rl))
 
 		noofmgm := helpers.GetNumberOfSectionsInSectionGroup(config, "ndb_mgmd")
 		rc.ManagementNodeCount = uint32(noofmgm)
 	} else {
-		rc.NodeGroupCount = 0
+		rc.ConfiguredNodeGroupCount = 0
 		rc.ManagementNodeCount = 0
 	}
 
