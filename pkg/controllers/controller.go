@@ -9,10 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	apps "k8s.io/api/apps/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -67,7 +65,7 @@ const (
 type SyncContext struct {
 	resourceContext *resources.ResourceContext
 	ndb             *v1alpha1.Ndb
-	dataNodeSfSet   *apps.StatefulSet
+	dataNodeSfSet   *appsv1.StatefulSet
 }
 
 // Controller is the main controller implementation for Ndb resources
@@ -193,7 +191,7 @@ func NewController(
 
 	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			pod := obj.(*v1.Pod)
+			pod := obj.(*corev1.Pod)
 			ls := labels.Set(pod.Labels)
 			if !ls.Has(constants.ClusterLabel) {
 				return
@@ -203,13 +201,13 @@ func NewController(
 			klog.Infof("pod new %s: phase= %s, ip=%s", pod.Name, pod.Status.Phase, pod.Status.PodIP)
 		},
 		UpdateFunc: func(old, new interface{}) {
-			newPod := new.(*v1.Pod)
+			newPod := new.(*corev1.Pod)
 			ls := labels.Set(newPod.Labels)
 			if !ls.Has(constants.ClusterLabel) {
 				return
 			}
 
-			//oldPod := old.(*v1.Pod)
+			//oldPod := old.(*corev1.Pod)
 			//s, _ := json.MarshalIndent(newPod.Status, "", "  ")
 			klog.Infof("pod upd %s: phase= %s, ip=%s", newPod.Name, newPod.Status.Phase, newPod.Status.PodIP)
 		},
@@ -966,7 +964,7 @@ func (c *Controller) syncHandler(key string) error {
 	return nil
 }
 
-func updatePodForTest(pod *v1.Pod) *v1.Pod {
+func updatePodForTest(pod *corev1.Pod) *corev1.Pod {
 	t := time.Now()
 
 	ann := map[string]string{
