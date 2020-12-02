@@ -245,7 +245,7 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 			//agentContainer(ndb, ndbAgentImage),
 		}
 		serviceaccount = "ndb-agent"
-		replicas = helpers.IntToInt32Ptr(int(rc.NodeGroupCount * rc.ReduncancyLevel))
+		replicas = helpers.IntToInt32Ptr(int(rc.GetDataNodeCount()))
 		podLabels = ndb.GetDataNodeLabels()
 		svcName = ndb.GetDataNodeServiceName()
 	}

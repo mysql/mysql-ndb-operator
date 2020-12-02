@@ -60,7 +60,7 @@ func Test_NewResourceContextFromConfiguration2(t *testing.T) {
 	if rc.ReduncancyLevel != 2 {
 		t.Fail()
 	}
-	if rc.NodeGroupCount != 1 {
+	if rc.ConfiguredNodeGroupCount != 1 {
 		t.Fail()
 	}
 }

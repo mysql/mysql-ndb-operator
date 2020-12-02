@@ -14,9 +14,14 @@ type ResourceContext struct {
 	// ConfigGeneration shows the generation the configuration is based on
 	ConfigGeneration int64
 	// NodeGroupCount is the number of node groups in cluster configured in config
-	NodeGroupCount uint32
+	ConfiguredNodeGroupCount uint32
 	// ManagementNodeCount is the number of management nodes in cluster (1 or 2)
 	ManagementNodeCount uint32
 	// ReduncancyLevel is the reduncany level configured
 	ReduncancyLevel uint32
+}
+
+// GetDataNodeCount returns the number of data nodes configured
+func (rc *ResourceContext) GetDataNodeCount() uint32 {
+	return rc.ReduncancyLevel * rc.ConfiguredNodeGroupCount
 }

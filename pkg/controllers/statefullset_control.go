@@ -114,7 +114,7 @@ func (rssc *realStatefulSetControl) EnsureStatefulSet(rc *resources.ResourceCont
 		ndb.Namespace,
 		rssc.statefulSetType.GetName(),
 		rc.ReduncancyLevel,
-		rc.NodeGroupCount*rc.ReduncancyLevel,
+		rc.ConfiguredNodeGroupCount*rc.ReduncancyLevel,
 		rc.ManagementNodeCount)
 
 	sfset = rssc.statefulSetType.NewStatefulSet(rc, ndb)
