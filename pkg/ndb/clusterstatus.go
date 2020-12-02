@@ -74,12 +74,17 @@ func (cs *ClusterStatus) IsClusterDegraded() bool {
 }
 
 // NumberNodegroupsFullyUp returns number of node groups fully up
+// It returns
+//   - the number of nodegroups with a node group
+//   - and number of scaling nodes running/connected but with no node group created
+//     (which diveded by reduncanyLevel is the number of potential node groups)
+//
 // Its currently the only way to decide if cluster is healthy during
 // scaling where new node are configured but not started.
 // This function is a bit weird as the mgm status report contains node group 0 for any
 // node not connected (its set to -1 in mgmapi) - also during scaling
 // Some guess-work is applied with the help of noOfReplicas.
-func (cs *ClusterStatus) NumberNodegroupsFullyUp(reduncancyLevel int) int {
+func (cs *ClusterStatus) NumberNodegroupsFullyUp(reduncancyLevel int) (int, int) {
 
 	//TODO: function feels a bit brute force
 	// as node group numbers actually should not have gaps
@@ -87,6 +92,7 @@ func (cs *ClusterStatus) NumberNodegroupsFullyUp(reduncancyLevel int) int {
 	//TODO: same function basically in topology, but just counting
 	nodeMap := make(map[int]int)
 	mgmCount := 0
+	scaleNodes := 0
 
 	// collect number of nodes up in each node group
 	// during scaling a started node group not created in cluster is marked -256
@@ -97,6 +103,11 @@ func (cs *ClusterStatus) NumberNodegroupsFullyUp(reduncancyLevel int) int {
 			continue
 		}
 		if !ns.isDataNode() {
+			continue
+		}
+
+		if ns.NodeGroup == -256 {
+			scaleNodes++
 			continue
 		}
 
@@ -121,7 +132,7 @@ func (cs *ClusterStatus) NumberNodegroupsFullyUp(reduncancyLevel int) int {
 		}
 	}
 
-	return nodeGroupsFullyUp
+	return nodeGroupsFullyUp, scaleNodes
 }
 
 // EnsureNode makes sure there is a node entry for the given nodeID
