@@ -43,11 +43,11 @@ func (api *Mgmclient) Disconnect() {
 	}
 }
 
-func (api *Mgmclient) Connect() error {
+func (api *Mgmclient) Connect(connectstring string) error {
 
 	// connect to server
 	var err error
-	api.connection, err = net.Dial("tcp", "127.0.0.1:1186")
+	api.connection, err = net.Dial("tcp", connectstring)
 	if err != nil {
 		api.connection = nil
 		return err
@@ -58,7 +58,7 @@ func (api *Mgmclient) Connect() error {
 	return nil
 }
 
-func (api *Mgmclient) ConnectToNodeId(wantedNodeId int) error {
+func (api *Mgmclient) ConnectToNodeId(connectstring string, wantedNodeId int) error {
 	// as for external testing we are going through load balancer we
 	// circle here until we got the right node
 	var connectError error
@@ -67,7 +67,7 @@ func (api *Mgmclient) ConnectToNodeId(wantedNodeId int) error {
 	for retries := 0; retries < 10; retries++ {
 
 		connectError = nil
-		err := api.Connect()
+		err := api.Connect(connectstring)
 		if err != nil {
 			// TODO: if we do not have contact then this could be a permanent issue
 			//   like a config error (bug in operator)

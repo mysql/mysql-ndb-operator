@@ -66,6 +66,9 @@ type SyncContext struct {
 	resourceContext *resources.ResourceContext
 	ndb             *v1alpha1.Ndb
 	dataNodeSfSet   *appsv1.StatefulSet
+
+	ManagementServerPort int32
+	ManagementServerIP   string
 }
 
 // Controller is the main controller implementation for Ndb resources
@@ -399,13 +402,13 @@ func (c *Controller) ensureService(ndb *v1alpha1.Ndb, isMgmd bool, externalIP bo
 //    array with services created
 //    false if any services were created
 //    error if any such occured
-func (c *Controller) ensureServices(ndb *v1alpha1.Ndb) (*[](*corev1.Service), bool, error) {
+func (c *Controller) ensureServices(ctx *SyncContext) (*[](*corev1.Service), bool, error) {
 	svcs := []*corev1.Service{}
 
 	retExisted := true
 
 	// create a headless service for management nodes
-	svc, existed, err := c.ensureService(ndb, true, false, ndb.GetManagementServiceName())
+	svc, existed, err := c.ensureService(ctx.ndb, true, false, ctx.ndb.GetManagementServiceName())
 	if err != nil {
 		return nil, false, err
 	}
@@ -413,13 +416,24 @@ func (c *Controller) ensureServices(ndb *v1alpha1.Ndb) (*[](*corev1.Service), bo
 	svcs = append(svcs, svc)
 
 	// create a loadbalancer service for management servers
-	svc, existed, err = c.ensureService(ndb, true, true, ndb.GetManagementServiceName()+"-ext")
+	svc, existed, err = c.ensureService(ctx.ndb, true, true, ctx.ndb.GetManagementServiceName()+"-ext")
 	if err != nil {
 		return nil, false, err
 	}
 
+	if len(svc.Spec.Ports) > 0 && len(svc.Status.LoadBalancer.Ingress) > 0 {
+		ctx.ManagementServerPort = svc.Spec.Ports[0].Port
+
+		lbingress := svc.Status.LoadBalancer.Ingress[0]
+		if len(lbingress.IP) > 0 {
+			ctx.ManagementServerIP = lbingress.IP
+		} else {
+			ctx.ManagementServerIP = lbingress.Hostname
+		}
+	}
+
 	// create a headless service for data nodes
-	svc, existed, err = c.ensureService(ndb, false, false, ndb.GetDataNodeServiceName())
+	svc, existed, err = c.ensureService(ctx.ndb, false, false, ctx.ndb.GetDataNodeServiceName())
 	svcs = append(svcs, svc)
 	if err != nil {
 		return nil, false, err
@@ -556,7 +570,7 @@ func (c *Controller) ensurePodDisruptionBudget(ndb *v1alpha1.Ndb) (*policyv1beta
 	return pdb, false, err
 }
 
-func (c *Controller) ensureDataNodeConfigVersion(ndbobj *v1alpha1.Ndb, cs *ndb.ClusterStatus, wantedGeneration int) syncResult {
+func (c *Controller) ensureDataNodeConfigVersion(ctx *SyncContext, cs *ndb.ClusterStatus, wantedGeneration int) syncResult {
 
 	// we go through all data nodes and see if they are on the latest config version
 	// we do this "ndb replica" wise, i.e. we iterate first through first nodes in each node group, then second, etc.
@@ -569,7 +583,8 @@ func (c *Controller) ensureDataNodeConfigVersion(ndbobj *v1alpha1.Ndb, cs *ndb.C
 
 	reduncanyLevel := ct.GetNumberOfReplicas()
 	api := &ndb.Mgmclient{}
-	err := api.Connect()
+	connectstring := fmt.Sprintf("%s:%d", ctx.ManagementServerIP, ctx.ManagementServerPort)
+	err := api.Connect(connectstring)
 	if err != nil {
 		return errorWhileProcssing(err)
 	}
@@ -610,7 +625,7 @@ func (c *Controller) ensureDataNodeConfigVersion(ndbobj *v1alpha1.Ndb, cs *ndb.C
 	return continueProcessing()
 }
 
-func (c *Controller) ensureManagementServerConfigVersion(ndbobj *v1alpha1.Ndb, wantedGeneration int) syncResult {
+func (c *Controller) ensureManagementServerConfigVersion(ctx *SyncContext, wantedGeneration int) syncResult {
 
 	klog.Infof("Ensuring Management Server has correct config version")
 
@@ -620,11 +635,12 @@ func (c *Controller) ensureManagementServerConfigVersion(ndbobj *v1alpha1.Ndb, w
 	// TODO: when we'll ever scale the number of management servers then this
 	// needs to be changed to actually currently configured management servers
 	// ndbobj has "desired" number of management servers
-	for nodeID := 1; nodeID <= (int)(ndbobj.GetManagementNodeCount()); nodeID++ {
+	for nodeID := 1; nodeID <= (int)(ctx.ndb.GetManagementNodeCount()); nodeID++ {
 
 		// TODO : we use this function so far during test operator from outside cluster
 		// we try connecting via load balancer until we connect to correct wanted node
-		err := api.ConnectToNodeId(nodeID)
+		connectstring := fmt.Sprintf("%s:%d", ctx.ManagementServerIP, ctx.ManagementServerPort)
+		err := api.ConnectToNodeId(connectstring, nodeID)
 		if err != nil {
 			klog.Errorf("No contact to management server to desired management server with node id %d established", nodeID)
 			return errorWhileProcssing(err)
@@ -704,11 +720,12 @@ func (c *Controller) ensureClusterLabel(ndb *v1alpha1.Ndb) (*labels.Set, bool, e
 
 }
 
-func (c *Controller) getClusterState() (*ndb.ClusterStatus, error) {
+func (c *Controller) getClusterState(ctx *SyncContext) (*ndb.ClusterStatus, error) {
 
 	api := &ndb.Mgmclient{}
 
-	err := api.Connect()
+	connectstring := fmt.Sprintf("%s:%d", ctx.ManagementServerIP, ctx.ManagementServerPort)
+	err := api.Connect(connectstring)
 
 	if err != nil {
 		klog.Errorf("No contact to management server")
@@ -800,7 +817,7 @@ func (c *Controller) ensureAllResources(syncContext *SyncContext) (*resources.Re
 	// with respect to idempotency and atomicy service creation is always safe as it
 	// only uses the immutable CRD name
 	// service needs to be created and present when creating stateful sets
-	if _, allExisted["services"], err = c.ensureServices(syncContext.ndb); err != nil {
+	if _, allExisted["services"], err = c.ensureServices(syncContext); err != nil {
 		return nil, false, err
 	}
 
@@ -932,7 +949,7 @@ func (c *Controller) syncHandler(key string) error {
 	// as of here actions will only be taken if cluster is in a good state
 	//
 
-	clusterState, err := c.getClusterState()
+	clusterState, err := c.getClusterState(&syncContext)
 	if err != nil {
 		return err
 	}
@@ -950,13 +967,13 @@ func (c *Controller) syncHandler(key string) error {
 	// a new configuration from the Ndb CRD is accepted and written to the config map
 
 	// make sure management server(s) have the correct config version
-	if sr := c.ensureManagementServerConfigVersion(ndb, int(resourceContext.ConfigGeneration)); sr.finished() {
+	if sr := c.ensureManagementServerConfigVersion(&syncContext, int(resourceContext.ConfigGeneration)); sr.finished() {
 		return sr.getError()
 	}
 
 	// make sure all data nodes have the correct config version
 	// data nodes a restarted with respect to
-	if sr := c.ensureDataNodeConfigVersion(ndb, clusterState, int(resourceContext.ConfigGeneration)); sr.finished() {
+	if sr := c.ensureDataNodeConfigVersion(&syncContext, clusterState, int(resourceContext.ConfigGeneration)); sr.finished() {
 		return sr.getError()
 	}
 

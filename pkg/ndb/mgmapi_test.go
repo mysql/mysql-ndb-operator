@@ -10,10 +10,12 @@ import (
 	"testing"
 )
 
+const connectstring = "127.0.0.1:1186"
+
 func TestGetStatus(t *testing.T) {
 	api := &Mgmclient{}
 
-	err := api.Connect()
+	err := api.Connect(connectstring)
 	if err != nil {
 		t.Errorf("Connection failed: %s", err)
 		return
@@ -42,7 +44,7 @@ func TestGetOwnNodeId(t *testing.T) {
 
 	api := &Mgmclient{}
 
-	err := api.Connect()
+	err := api.Connect(connectstring)
 	if err != nil {
 		t.Errorf("Connection failed: %s", err)
 		return
@@ -61,7 +63,7 @@ func TestGetOwnNodeId(t *testing.T) {
 func TestStopNodes(t *testing.T) {
 	api := &Mgmclient{}
 
-	err := api.Connect()
+	err := api.Connect(connectstring)
 	if err != nil {
 		t.Errorf("Connection failed: %s\n", err)
 		return
@@ -84,7 +86,7 @@ func TestStopNodes(t *testing.T) {
 func TestGetConfig(t *testing.T) {
 	api := &Mgmclient{}
 
-	err := api.Connect()
+	err := api.Connect(connectstring)
 	if err != nil {
 		t.Errorf("Connection failed: %s", err)
 		return
@@ -106,7 +108,7 @@ func TestGetConfig(t *testing.T) {
 func Test_GetConfigVersionFromNode(t *testing.T) {
 	api := &Mgmclient{}
 
-	err := api.Connect()
+	err := api.Connect(connectstring)
 	if err != nil {
 		t.Errorf("Connection failed: %s", err)
 		return
@@ -120,7 +122,7 @@ func Test_GetConfigVersionFromNode(t *testing.T) {
 func TestShowConfig(t *testing.T) {
 	api := &Mgmclient{}
 
-	err := api.Connect()
+	err := api.Connect(connectstring)
 	if err != nil {
 		t.Errorf("Connection failed: %s", err)
 		return
@@ -137,7 +139,7 @@ func TestShowConfig(t *testing.T) {
 func TestShowVariables(t *testing.T) {
 	api := &Mgmclient{}
 
-	err := api.Connect()
+	err := api.Connect(connectstring)
 	if err != nil {
 		t.Errorf("Connection failed: %s", err)
 		return
@@ -159,7 +161,7 @@ func TestConnectWantedNodeId(t *testing.T) {
 	api := &Mgmclient{}
 
 	wantedNodeId := 2
-	err := api.ConnectToNodeId(wantedNodeId)
+	err := api.ConnectToNodeId(connectstring, wantedNodeId)
 	if err != nil {
 		t.Errorf("Connection failed: %s", err)
 		return
