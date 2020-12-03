@@ -837,6 +837,11 @@ func (c *Controller) ensureAllResources(syncContext *SyncContext) (*resources.Re
 		return nil, false, err
 	}
 
+	// create the mysql deployment if it doesn't exist
+	if allExisted["mysqldeployment"], err = c.ensureMySQLServerDeployment(syncContext.ndb); err != nil {
+		return nil, false, err
+	}
+
 	return resourceContext, c.allResourcesExisted(&allExisted), nil
 }
 
