@@ -14,6 +14,13 @@ import (
 	"github.com/mysql/ndb-operator/pkg/helpers"
 )
 
+const (
+	// Right now maximum of 144 data nodes are allowed in a cluster
+	// So to accommodate scaling up of those nodes, start the api node id from 145
+	// TODO: Validate the maximum number of API ids
+	apiStartNodeId = 145
+)
+
 // NewResourceContextFromConfiguration extracts all relevant information from configuration
 // needed for further resource creation (SfSets) or comparison with new incoming ndb.Spec
 func NewResourceContextFromConfiguration(configStr string) (*ResourceContext, error) {
@@ -158,14 +165,18 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 
 	// mysqld sections
 	// at least 1 must be there in order to not fail ndb_mgmd start
+	// TODO: Define more api nodes in the beginning so that the user can
+	//       scale up the MySQL Server Deployment without restarting the data/mgmd nodes
 	mysqlSections := 1
-	if ndb.Spec.Mysqld.NodeCount != nil && int(*ndb.Spec.Mysqld.NodeCount) > 1 {
+	if ndb.Spec.Mysqld.NodeCount != nil && int(*ndb.Spec.Mysqld.NodeCount) > 0 {
 		// we alloc one section more than needed for internal purposes
 		mysqlSections = int(*ndb.Spec.Mysqld.NodeCount) + 1
 	}
 
 	for i := 0; i < mysqlSections; i++ {
 		configString += "[mysqld]\n"
+		configString += fmt.Sprintf("NodeId=%d\n", apiStartNodeId + i)
+		configString += "\n"
 	}
 
 	/* pure estetics - trim whitespace from lines */

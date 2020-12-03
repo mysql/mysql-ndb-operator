@@ -40,9 +40,9 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=ndbcontroller.mysql.com, Version=v1alpha1
+	// Group=mysql.oracle.com, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("ndbs"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Ndbcontroller().V1alpha1().Ndbs().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Mysql().V1alpha1().Ndbs().Informer()}, nil
 
 	}
 

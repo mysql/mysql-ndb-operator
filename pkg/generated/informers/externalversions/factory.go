@@ -160,9 +160,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Ndbcontroller() ndbcontroller.Interface
+	Mysql() ndbcontroller.Interface
 }
 
-func (f *sharedInformerFactory) Ndbcontroller() ndbcontroller.Interface {
+func (f *sharedInformerFactory) Mysql() ndbcontroller.Interface {
 	return ndbcontroller.New(f, f.namespace, f.tweakListOptions)
 }
