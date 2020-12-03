@@ -8,11 +8,14 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 
 	"github.com/mysql/ndb-operator/pkg/constants"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // +genclient
@@ -61,11 +64,15 @@ type NdbSpec struct {
 	// The name of the MySQL Ndb Cluster image to be used.
 	// If not specified, "mysql-cluster:latest" will be used.
 	// Lowest supported version is 8.0.22.
-	// +kubebuilder:validation:Pattern="mysql-cluster:8.0.2[2-3]"
+	// +kubebuilder:default="mysql/mysql-cluster:8.0.22"
+	// +kubebuilder:validation:Pattern="mysql/mysql-cluster:8.0.2[2-3]"
 	// +optional
-	ContainerImage string `json:"containerImage"`
+	ContainerImage string `json:"containerImage,omitempty"`
+	// TODO: How to validate customer's own image? eg. customer_cluster_8.0.23_patch3
+	// Should the validation be done after the image gets pulled?
+
 	// +optional
-	Mysqld NdbMysqldSpec `json:"mysqld"`
+	Mysqld NdbMysqldSpec `json:"mysqld,omitempty"`
 }
 
 // NdbStatus is the status for a Ndb resource
@@ -175,4 +182,30 @@ func (ndb *Ndb) GetManagementNodeCount() int {
 		return 1
 	}
 	return 2
+}
+
+// GetConnectstring returns the connect string of cluster represented by Ndb resource
+func (ndb *Ndb) GetConnectstring() string {
+	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
+	port := "1186"
+
+	connectstring := ""
+	for i := 0; i < (int)(ndb.GetManagementNodeCount()); i++ {
+		if i > 0 {
+			connectstring += ","
+		}
+		connectstring += fmt.Sprintf("%s-%d.%s.%s:%s", ndb.Name+"-mgmd", i, ndb.GetManagementServiceName(), dnsZone, port)
+	}
+
+	return connectstring
+}
+
+// GetOwnerReference returns a OwnerReference to the Ndb resource
+func (ndb *Ndb) GetOwnerReference() metav1.OwnerReference {
+	return *metav1.NewControllerRef(ndb,
+		schema.GroupVersionKind{
+			Group:   v1.SchemeGroupVersion.Group,
+			Version: v1.SchemeGroupVersion.Version,
+			Kind:    "Ndb",
+		})
 }

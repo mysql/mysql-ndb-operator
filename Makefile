@@ -61,7 +61,7 @@ CRD_GENERATED_PATH := "helm/crds"
 all: build
 
 .PHONY: build
-build: ndbinfo-bin
+build: 
 	@echo "Building: $(BINARIES)"
 	@echo "arch:     $(ARCH)"
 	@echo "os:       $(OS)"
@@ -145,20 +145,20 @@ run-agent:
 # remove it as a workaround
 # TODO: Generate RBAC from here as well
 manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) paths="./..." output:crd:artifacts:config=$(CRD_GENERATED_PATH)
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) paths="./pkg/apis/..." output:crd:artifacts:config=$(CRD_GENERATED_PATH)
 	sed -i.crd.bak "/\ \ creationTimestamp\:\ null/d" $(CRD_GENERATED_PATH)/* && rm $(CRD_GENERATED_PATH)/*.crd.bak
 
 # check if there is a controller-gen available in
 # the PATH or $GOBIN or else download
 # and install one in $GOBIN
 controller-gen:
-ifneq (, $(wildcard $(GOBIN)/controller-gen))
+	ifneq (, $(wildcard $(GOBIN)/controller-gen))
 	@echo "Found controller-gen in $(GOBIN)"
-CONTROLLER_GEN=$(GOBIN)/controller-gen
-else ifneq (, $(shell which controller-gen))
+	CONTROLLER_GEN=$(GOBIN)/controller-gen
+	else ifneq (, $(shell which controller-gen))
 	@echo "Found controller-gen in path"
-CONTROLLER_GEN=$(shell which controller-gen)
-else
+	CONTROLLER_GEN=$(shell which controller-gen)
+	else
 	@echo "Downloading and installing controller-gen..."
 	@{ \
 	set -e ;\
@@ -168,8 +168,8 @@ else
 	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.4.1 ;\
 	rm -rf $$CONTROLLER_GEN_TMP_DIR ;\
 	}
-CONTROLLER_GEN=$(GOBIN)/controller-gen
-endif
+	CONTROLLER_GEN=$(GOBIN)/controller-gen
+	endif
 
 NDBINFO_CPP_DIR=pkg/ndb/ndbinfo
 NDBINFO_BLD_DIR=lib/ndb/$(OS)_$(ARCH)

@@ -107,6 +107,7 @@ func (f *fixture) newController() *Controller {
 
 	c := NewController(f.kubeclient, f.client,
 		f.k8If.Apps().V1().StatefulSets(),
+		f.k8If.Apps().V1().Deployments(),
 		f.k8If.Core().V1().Services(),
 		f.k8If.Core().V1().Pods(),
 		f.k8If.Core().V1().ConfigMaps(),

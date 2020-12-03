@@ -89,6 +89,12 @@ type Controller struct {
 	serviceLister       corelisters.ServiceLister
 	serviceListerSynced cache.InformerSynced
 
+	// deploymentLister is used to list all deployments
+	deploymentLister       appslisters.DeploymentLister
+	deploymentListerSynced cache.InformerSynced
+	// The controller for the MySQL Server deployment run by the ndb operator
+	mysqldController DeploymentControlInterface
+
 	// podLister is able to list/get Pods from a shared
 	// informer's store.
 	podLister corelisters.PodLister
@@ -112,6 +118,7 @@ func NewController(
 	kubeclientset kubernetes.Interface,
 	ndbclientset clientset.Interface,
 	statefulSetInformer appsinformers.StatefulSetInformer,
+	deploymentInformer appsinformers.DeploymentInformer,
 	serviceInformer coreinformers.ServiceInformer,
 	podInformer coreinformers.PodInformer,
 	configMapInformer coreinformers.ConfigMapInformer,
@@ -134,6 +141,8 @@ func NewController(
 		ndbsSynced:              ndbInformer.Informer().HasSynced,
 		statefulSetLister:       statefulSetInformer.Lister(),
 		statefulSetListerSynced: statefulSetInformer.Informer().HasSynced,
+		deploymentLister:        deploymentInformer.Lister(),
+		deploymentListerSynced:  deploymentInformer.Informer().HasSynced,
 		serviceLister:           serviceInformer.Lister(),
 		serviceListerSynced:     serviceInformer.Informer().HasSynced,
 		podLister:               podInformer.Lister(),
@@ -247,6 +256,7 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	if ok := cache.WaitForCacheSync(stopCh,
 		c.ndbsSynced,
 		c.statefulSetListerSynced,
+		c.deploymentListerSynced,
 		c.serviceListerSynced); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
@@ -332,7 +342,7 @@ func (c *Controller) updateClusterLabels(ndb *v1alpha1.Ndb, lbls labels.Set) err
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		ndb.Labels = labels.Merge(labels.Set(ndb.Labels), lbls)
 		_, updateErr :=
-			c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Update(ndb)
+			c.ndbclientset.MysqlV1alpha1().Ndbs(ndb.Namespace).Update(ndb)
 		if updateErr == nil {
 			return nil
 		}
@@ -484,6 +494,38 @@ func (c *Controller) ensureDataNodeStatefulSet(rc *resources.ResourceContext, nd
 	}
 
 	return sfset, existed, err
+}
+
+// ensureMySQLServerDeployment creates a deployment of MySQL Servers if doesn't exist
+// returns
+//    true if the deployment exists
+//    or returns an error if something went wrong
+func (c *Controller) ensureMySQLServerDeployment(ndb *v1alpha1.Ndb) (bool, error) {
+	if c.mysqldController == nil {
+		c.mysqldController = &mysqlDeploymentController{
+			client:                c.kubeclientset,
+			deploymentLister:      c.deploymentLister,
+			mysqlServerDeployment: resources.NewMySQLServerDeployment(ndb),
+		}
+	}
+
+	deployment, existed, err := c.mysqldController.EnsureDeployment(ndb)
+	if err != nil {
+		// Failed to ensure the deployment
+		return existed, err
+	}
+
+	// If the deployment is not controlled by Ndb resource,
+	// log a warning to the event recorder and return the error message.
+	if !metav1.IsControlledBy(deployment, ndb) {
+		msg := fmt.Sprintf(MessageResourceExists, deployment.Name)
+		c.recorder.Event(ndb, corev1.EventTypeWarning, ErrResourceExists, msg)
+		return existed, fmt.Errorf(msg)
+	}
+
+	// Save the deployment pointer for reconciling later
+	c.mysqldController.SaveDeploymentForReconcilement(deployment)
+	return existed, nil
 }
 
 // ensurePodDisruptionBudget creates a PDB if it doesn't exist
@@ -786,12 +828,12 @@ func (c *Controller) ensureAllResources(syncContext *SyncContext) (*resources.Re
 	resourceContext, err := resources.NewResourceContextFromConfiguration(configString)
 
 	// create the management stateful set if it doesn't exist
-	if _, allExisted["datanodestatefulset"], err = c.ensureManagementServerStatefulSet(resourceContext, syncContext.ndb); err != nil {
+	if _, allExisted["mgmstatefulset"], err = c.ensureManagementServerStatefulSet(resourceContext, syncContext.ndb); err != nil {
 		return nil, false, err
 	}
 
 	// create the data node stateful set if it doesn't exist
-	if syncContext.dataNodeSfSet, allExisted["mgmstatefulset"], err = c.ensureDataNodeStatefulSet(resourceContext, syncContext.ndb); err != nil {
+	if syncContext.dataNodeSfSet, allExisted["datanodestatefulset"], err = c.ensureDataNodeStatefulSet(resourceContext, syncContext.ndb); err != nil {
 		return nil, false, err
 	}
 
@@ -955,6 +997,14 @@ func (c *Controller) syncHandler(key string) error {
 		}
 	}
 
+	// Reconcile MySQL Server Deployment with the spec/config
+	// TODO: The Deployment should be scaled down and the MySQL Servers
+	//       shutdown before actually changing the Management config (or)
+	//       maybe the number of API nodes in config stays mostly static?
+	if sr := c.mysqldController.ReconcileDeployment(ndb); sr.finished() {
+		return sr.getError()
+	}
+
 	// Finally, we update the status block of the Ndb resource to reflect the
 	// current state of the world
 	err = c.updateNdbStatus(ndb)
@@ -1054,7 +1104,7 @@ func (c *Controller) updateNdbStatus(ndb *v1alpha1.Ndb) error {
 		// which is ideal for ensuring nothing other than resource status has been updated.
 		//_, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Update(ndb)
 
-		_, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).UpdateStatus(ndb)
+		_, err = c.ndbclientset.MysqlV1alpha1().Ndbs(ndb.Namespace).UpdateStatus(ndb)
 		if err == nil {
 			return true, nil
 		}
@@ -1062,7 +1112,7 @@ func (c *Controller) updateNdbStatus(ndb *v1alpha1.Ndb) error {
 			return false, err
 		}
 
-		updated, err := c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Get(ndb.Name, metav1.GetOptions{})
+		updated, err := c.ndbclientset.MysqlV1alpha1().Ndbs(ndb.Namespace).Get(ndb.Name, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("failed to get Ndb %s/%s: %v", ndb.Namespace, ndb.Name, err)
 			return false, err

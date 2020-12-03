@@ -16,16 +16,12 @@ import (
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog"
 )
 
 const mgmdVolumeName = "mgmdvolume"
 const mgmdName = "mgmd"
-
-const ndbImage = "mysql/mysql-cluster"
-const ndbVersion = "8.0.22"
 
 const ndbdName = "ndbd"
 
@@ -110,28 +106,13 @@ func agentContainer(ndb *v1alpha1.Ndb, ndbAgentImage string) v1.Container {
 	}
 }
 
-func (bss *baseStatefulSet) getConnectstring(ndb *v1alpha1.Ndb) string {
-	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
-	port := "1186"
-
-	mgmHostnames := ""
-	for i := 0; i < (int)(ndb.GetManagementNodeCount()); i++ {
-		if i > 0 {
-			mgmHostnames += ","
-		}
-		mgmHostnames += fmt.Sprintf("%s-%d.%s.%s:%s", bss.clusterName+"-mgmd", i, ndb.GetManagementServiceName(), dnsZone, port)
-	}
-
-	return mgmHostnames
-}
-
 // Builds the Ndb operator container for a mgmd.
 func (bss *baseStatefulSet) mgmdContainer(ndb *v1alpha1.Ndb) v1.Container {
 
 	cmd := ""
 	environment := []v1.EnvVar{}
 
-	imageName := fmt.Sprintf("%s:%s", ndbImage, ndbVersion)
+	imageName := ndb.Spec.ContainerImage
 
 	args := []string{
 		"-f", "/var/lib/ndb/config/config.ini",
@@ -164,8 +145,8 @@ func (bss *baseStatefulSet) mgmdContainer(ndb *v1alpha1.Ndb) v1.Container {
 // Builds the Ndb operator container for a mgmd.
 func (bss *baseStatefulSet) ndbmtdContainer(ndb *v1alpha1.Ndb) v1.Container {
 
-	imageName := fmt.Sprintf("%s:%s", ndbImage, ndbVersion)
-	connectString := bss.getConnectstring(ndb)
+	imageName := ndb.Spec.ContainerImage
+	connectString := ndb.GetConnectstring()
 	args := []string{
 		"-c", connectString,
 		"--nodaemon",
@@ -263,13 +244,7 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 			Name:   bss.GetName(),
 			Labels: podLabels, // must match templates
 			// could have a owner reference here
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(ndb, schema.GroupVersionKind{
-					Group:   v1.SchemeGroupVersion.Group,
-					Version: v1.SchemeGroupVersion.Version,
-					Kind:    "Ndb",
-				}),
-			},
+			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
 		},
 		Spec: apps.StatefulSetSpec{
 			UpdateStrategy: apps.StatefulSetUpdateStrategy{
