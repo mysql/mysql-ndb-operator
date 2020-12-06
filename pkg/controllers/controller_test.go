@@ -14,11 +14,13 @@ import (
 	"time"
 
 	apps "k8s.io/api/apps/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	coreapi "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/diff"
 	kubeinformers "k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
@@ -153,21 +155,19 @@ func (f *fixture) runController(fooName string, startInformers bool, expectError
 	k8sActions := filterInformerActions(f.kubeclient.Actions())
 
 	for i, action := range actions {
-		s, _ := json.Marshal(action)
-		fmt.Printf("[%d] %s\n", i, s)
-	}
-	for i, action := range k8sActions {
-		s, _ := json.Marshal(action)
-		fmt.Printf("[%d] %s\n", i, s)
-	}
 
-	for i, action := range actions {
 		if len(f.actions) < i+1 {
 			f.t.Errorf("%d unexpected actions: %+v", len(actions)-len(f.actions), actions[i:])
 			break
 		}
 
 		expectedAction := f.actions[i]
+
+		s, _ := json.Marshal(expectedAction)
+		fmt.Printf("[%d] %d : %s\n", i, len(f.actions), s)
+		s, _ = json.Marshal(action)
+		fmt.Printf("[%d] %d : %s\n\n", i, len(f.actions), s)
+
 		checkAction(expectedAction, action, f.t)
 	}
 
@@ -176,12 +176,17 @@ func (f *fixture) runController(fooName string, startInformers bool, expectError
 	}
 
 	for i, action := range k8sActions {
+
 		if len(f.kubeactions) < i+1 {
 			f.t.Errorf("%d unexpected actions: %+v", len(k8sActions)-len(f.kubeactions), k8sActions[i:])
 			break
 		}
 
 		expectedAction := f.kubeactions[i]
+		s, _ := json.Marshal(expectedAction)
+		fmt.Printf("[%d] %d : %s\n", i, len(f.kubeactions), s)
+		s, _ = json.Marshal(action)
+		fmt.Printf("[%d] %d : %s\n\n", i, len(f.kubeactions), s)
 		checkAction(expectedAction, action, f.t)
 	}
 
@@ -210,8 +215,10 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 		object := a.GetObject()
 
 		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expObject, object))
+			t.Errorf("Action %s %s has wrong object\n",
+				a.GetVerb(), a.GetResource().Resource)
+			//			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
+			//				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expObject, object))
 		}
 	case core.UpdateActionImpl:
 		e, _ := expected.(core.UpdateActionImpl)
@@ -219,8 +226,10 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 		object := a.GetObject()
 
 		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expObject, object))
+			t.Errorf("Action %s %s has wrong object\n",
+				a.GetVerb(), a.GetResource().Resource)
+			//				t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
+			//				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expObject, object))
 		}
 	case core.PatchActionImpl:
 		e, _ := expected.(core.PatchActionImpl)
@@ -228,8 +237,10 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 		patch := a.GetPatch()
 
 		if !reflect.DeepEqual(expPatch, patch) {
-			t.Errorf("Action %s %s has wrong patch\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expPatch, patch))
+			t.Errorf("Action %s %s has wrong patch\n",
+				a.GetVerb(), a.GetResource().Resource)
+			//				t.Errorf("Action %s %s has wrong patch\nDiff:\n %s",
+			//				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expPatch, patch))
 		}
 	default:
 		t.Errorf("Uncaptured Action %s %s, you should explicitly add a case to capture it",
@@ -288,8 +299,15 @@ func (f *fixture) expectUpdateAction(ns string, resource string, o runtime.Objec
 	f.kubeactions = append(f.kubeactions, core.NewUpdateAction(schema.GroupVersionResource{Resource: resource}, ns, o))
 }
 
-func (f *fixture) expectUpdateNdbStatusAction(ndb *ndbcontroller.Ndb) {
-	action := core.NewUpdateAction(schema.GroupVersionResource{Group: "mysql.oracle.com", Version: "v1alpha1", Resource: "ndbs"}, ndb.Namespace, ndb)
+func (f *fixture) expectUpdateNdbAction(ns string, o runtime.Object) {
+	grpVersionResource := schema.GroupVersionResource{Group: "mysql.oracle.com", Version: "v1alpha1", Resource: "ndbs"}
+	action := core.NewUpdateAction(grpVersionResource, ns, o)
+	f.actions = append(f.actions, action)
+}
+
+func (f *fixture) expectUpdateNdbStatusAction(ns string, ndb *ndbcontroller.Ndb) {
+	grpVersionResource := schema.GroupVersionResource{Group: "mysql.oracle.com", Version: "v1alpha1", Resource: "ndbs"}
+	action := core.NewUpdateAction(grpVersionResource, ns, ndb)
 	// TODO: before #38113 was merged, we can't use Subresource
 	f.actions = append(f.actions, action)
 }
@@ -309,7 +327,7 @@ func TestCreatesCluster(t *testing.T) {
 	defer f.close()
 
 	ns := metav1.NamespaceDefault
-	ndb := newNdb(ns, "test", 1)
+	ndb := newNdb(ns, "test", 2)
 
 	// we first need to set up arrays with objects ...
 	f.ndbLister = append(f.ndbLister, ndb)
@@ -320,13 +338,23 @@ func TestCreatesCluster(t *testing.T) {
 	f.init()
 
 	// update labels will happen first sync run
-	f.expectUpdateAction(ns, "ndbs", ndb)
+	f.expectUpdateNdbAction(ns, ndb)
 
 	// two services for ndbd and mgmds
-	f.expectCreateAction(ns, "services", ndb)
-	f.expectCreateAction(ns, "services", ndb)
-	f.expectCreateAction(ns, "services", ndb)
-	f.expectUpdateNdbStatusAction(ndb)
+	f.expectCreateAction(ns, "services", &corev1.Service{})
+	f.expectCreateAction(ns, "services", &corev1.Service{})
+	f.expectCreateAction(ns, "services", &corev1.Service{})
+
+	f.expectCreateAction(ns, "poddisruptionbudgets", &policyv1beta1.PodDisruptionBudget{})
+
+	f.expectCreateAction(ns, "configmaps", &corev1.ConfigMap{})
+
+	f.expectCreateAction(ns, "statefulsets", &appsv1.StatefulSet{})
+	f.expectCreateAction(ns, "statefulsets", &appsv1.StatefulSet{})
+
+	f.expectCreateAction(ns, "deployments", &appsv1.Deployment{})
+
+	//f.expectUpdateNdbStatusAction(ns, ndb)
 
 	f.run(getKey(ndb, t))
 }
