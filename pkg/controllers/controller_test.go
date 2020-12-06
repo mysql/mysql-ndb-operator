@@ -7,6 +7,8 @@
 package controllers
 
 import (
+	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -111,10 +113,10 @@ func (f *fixture) newController() *Controller {
 		f.k8If.Core().V1().Services(),
 		f.k8If.Core().V1().Pods(),
 		f.k8If.Core().V1().ConfigMaps(),
-		f.sif.Ndbcontroller().V1alpha1().Ndbs())
+		f.sif.Mysql().V1alpha1().Ndbs())
 
 	for _, n := range f.ndbLister {
-		f.sif.Ndbcontroller().V1alpha1().Ndbs().Informer().GetIndexer().Add(n)
+		f.sif.Mysql().V1alpha1().Ndbs().Informer().GetIndexer().Add(n)
 	}
 
 	for _, d := range f.configMapLister {
@@ -146,8 +148,19 @@ func (f *fixture) runController(fooName string, startInformers bool, expectError
 	}
 	klog.Infof("Successfully syncing ndb")
 
-	filterInformerActions(f.client.Actions())
+	//filterInformerActions(f.client.Actions())
 	actions := filterInformerActions(f.client.Actions())
+	k8sActions := filterInformerActions(f.kubeclient.Actions())
+
+	for i, action := range actions {
+		s, _ := json.Marshal(action)
+		fmt.Printf("[%d] %s\n", i, s)
+	}
+	for i, action := range k8sActions {
+		s, _ := json.Marshal(action)
+		fmt.Printf("[%d] %s\n", i, s)
+	}
+
 	for i, action := range actions {
 		if len(f.actions) < i+1 {
 			f.t.Errorf("%d unexpected actions: %+v", len(actions)-len(f.actions), actions[i:])
@@ -162,7 +175,6 @@ func (f *fixture) runController(fooName string, startInformers bool, expectError
 		f.t.Errorf("%d additional expected actions:%+v", len(f.actions)-len(actions), f.actions[len(actions):])
 	}
 
-	k8sActions := filterInformerActions(f.kubeclient.Actions())
 	for i, action := range k8sActions {
 		if len(f.kubeactions) < i+1 {
 			f.t.Errorf("%d unexpected actions: %+v", len(k8sActions)-len(f.kubeactions), k8sActions[i:])
@@ -232,6 +244,17 @@ func filterInformerActions(actions []core.Action) []core.Action {
 	//klog.Infof("Filtering %d actions", len(actions))
 	ret := []core.Action{}
 	for _, action := range actions {
+		if action.GetNamespace() == "default" &&
+			(action.Matches("get", "ndbs") ||
+				action.Matches("get", "pods") ||
+				action.Matches("get", "services") ||
+				action.Matches("get", "configmaps") ||
+				action.Matches("get", "poddisruptionbudgets") ||
+				action.Matches("get", "deployments") ||
+				action.Matches("get", "statefulsets")) {
+			//klog.Infof("Filtering +%v", action)
+			continue
+		}
 		if len(action.GetNamespace()) == 0 &&
 			(action.Matches("list", "ndbs") ||
 				action.Matches("watch", "ndbs") ||
@@ -241,6 +264,10 @@ func filterInformerActions(actions []core.Action) []core.Action {
 				action.Matches("watch", "services") ||
 				action.Matches("list", "configmaps") ||
 				action.Matches("watch", "configmaps") ||
+				action.Matches("list", "poddisruptionbudgets") ||
+				action.Matches("watch", "poddisruptionbudgets") ||
+				action.Matches("list", "deployments") ||
+				action.Matches("watch", "deployments") ||
 				action.Matches("list", "statefulsets") ||
 				action.Matches("watch", "statefulsets")) {
 			//klog.Infof("Filtering +%v", action)
@@ -262,9 +289,8 @@ func (f *fixture) expectUpdateAction(ns string, resource string, o runtime.Objec
 }
 
 func (f *fixture) expectUpdateNdbStatusAction(ndb *ndbcontroller.Ndb) {
-	action := core.NewUpdateAction(schema.GroupVersionResource{Resource: "ndbs"}, ndb.Namespace, ndb)
+	action := core.NewUpdateAction(schema.GroupVersionResource{Group: "mysql.oracle.com", Version: "v1alpha1", Resource: "ndbs"}, ndb.Namespace, ndb)
 	// TODO: before #38113 was merged, we can't use Subresource
-	action.Subresource = "status"
 	f.actions = append(f.actions, action)
 }
 
@@ -297,6 +323,7 @@ func TestCreatesCluster(t *testing.T) {
 	f.expectUpdateAction(ns, "ndbs", ndb)
 
 	// two services for ndbd and mgmds
+	f.expectCreateAction(ns, "services", ndb)
 	f.expectCreateAction(ns, "services", ndb)
 	f.expectCreateAction(ns, "services", ndb)
 	f.expectUpdateNdbStatusAction(ndb)

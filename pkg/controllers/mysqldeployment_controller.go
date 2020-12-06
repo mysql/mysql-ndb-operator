@@ -7,7 +7,7 @@ package controllers
 import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/resources"
-	v1 "k8s.io/api/apps/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
 	appslisters "k8s.io/client-go/listers/apps/v1"
@@ -15,16 +15,14 @@ import (
 )
 
 type DeploymentControlInterface interface {
-	EnsureDeployment(ndb *v1alpha1.Ndb) (*v1.Deployment, bool, error)
-	SaveDeploymentForReconcilement(deployment *v1.Deployment)
-	ReconcileDeployment(ndb *v1alpha1.Ndb) syncResult
+	EnsureDeployment(ndb *v1alpha1.Ndb) (*appsv1.Deployment, bool, error)
+	ReconcileDeployment(ndb *v1alpha1.Ndb, deployment *appsv1.Deployment) syncResult
 }
 
 type mysqlDeploymentController struct {
 	client                kubernetes.Interface
 	deploymentLister      appslisters.DeploymentLister
 	mysqlServerDeployment *resources.MySQLServerDeployment
-	existingDeployment    *v1.Deployment
 }
 
 func NewMySQLDeploymentController(client kubernetes.Interface, deploymentLister appslisters.DeploymentLister) *mysqlDeploymentController {
@@ -34,15 +32,9 @@ func NewMySQLDeploymentController(client kubernetes.Interface, deploymentLister 
 	}
 }
 
-// SaveDeploymentForReconcilement caches a deployment pointer in the controller that will be later reconciled
-func (mdc *mysqlDeploymentController) SaveDeploymentForReconcilement(deployment *v1.Deployment) {
-	mdc.existingDeployment = deployment
-}
-
 // ReconcileDeployment compares the MySQL Server spec defined
 // in Ndb resource and makes changes to the deployment if required
-func (mdc *mysqlDeploymentController) ReconcileDeployment(ndb *v1alpha1.Ndb) syncResult {
-	deployment := mdc.existingDeployment
+func (mdc *mysqlDeploymentController) ReconcileDeployment(ndb *v1alpha1.Ndb, deployment *appsv1.Deployment) syncResult {
 
 	// Nothing to reconcile if there is no existing deployment
 	if deployment == nil {
@@ -65,7 +57,7 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(ndb *v1alpha1.Ndb) syn
 }
 
 // Check if the MySQLServerDeployment already exists. If not, create one.
-func (mdc *mysqlDeploymentController) EnsureDeployment(ndb *v1alpha1.Ndb) (*v1.Deployment, bool, error) {
+func (mdc *mysqlDeploymentController) EnsureDeployment(ndb *v1alpha1.Ndb) (*appsv1.Deployment, bool, error) {
 
 	// Get the deployment in the namespace of Ndb resource
 	// with the name matching that of MySQLServerDeployment
