@@ -81,5 +81,5 @@ func (mdc *mysqlDeploymentController) EnsureDeployment(ndb *v1alpha1.Ndb) (*apps
 	}
 
 	// New deployment was successfully created
-	return deployment, true, nil
+	return deployment, false, nil
 }

@@ -523,12 +523,12 @@ func (sc *SyncContext) ensureDataNodeStatefulSet() (*appsv1.StatefulSet, bool, e
 // returns
 //    true if the deployment exists
 //    or returns an error if something went wrong
-func (sc *SyncContext) ensureMySQLServerDeployment() (bool, error) {
+func (sc *SyncContext) ensureMySQLServerDeployment() (*appsv1.Deployment, bool, error) {
 
 	deployment, existed, err := sc.mysqldController.EnsureDeployment(sc.ndb)
 	if err != nil {
 		// Failed to ensure the deployment
-		return existed, err
+		return deployment, existed, err
 	}
 
 	// If the deployment is not controlled by Ndb resource,
@@ -536,12 +536,10 @@ func (sc *SyncContext) ensureMySQLServerDeployment() (bool, error) {
 	if !metav1.IsControlledBy(deployment, sc.ndb) {
 		msg := fmt.Sprintf(MessageResourceExists, deployment.Name)
 		sc.recorder.Event(sc.ndb, corev1.EventTypeWarning, ErrResourceExists, msg)
-		return existed, fmt.Errorf(msg)
+		return deployment, existed, fmt.Errorf(msg)
 	}
 
-	// Save the deployment pointer for reconciling later
-	sc.mysqldDeployment = deployment
-	return existed, nil
+	return deployment, existed, nil
 }
 
 // ensurePodDisruptionBudget creates a PDB if it doesn't exist
@@ -869,7 +867,7 @@ func (sc *SyncContext) ensureAllResources() (bool, error) {
 	}
 
 	// create the mysql deployment if it doesn't exist
-	if (*sc.resourceMap)["mysqldeployment"], err = sc.ensureMySQLServerDeployment(); err != nil {
+	if sc.mysqldDeployment, (*sc.resourceMap)["mysqldeployment"], err = sc.ensureMySQLServerDeployment(); err != nil {
 		return false, err
 	}
 
