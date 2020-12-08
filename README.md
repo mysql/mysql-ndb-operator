@@ -18,32 +18,33 @@ git clone <this repo>
 cd ndb-operator
 ```
 
-## Changes to the types 
+## Changes to the types
 
 Note, if you intend to change the types then you will need to 
-[generate code](#changes-to-the-types) which only seems to 
-support old style $GOPATH. 
+generate code which only seems to support old style $GOPATH.
 
 First it depends on the vendor directory. Populate that with
 
 ```sh
 go mod vendor
 ```
+The project uses two generators :
+- [k8s.io/code-generator](https://github.com/kubernetes/code-generator) to generate a typed client, informers, listers and deep-copy functions.
+- [controller-gen](https://github.com/kubernetes-sigs/controller-tools/tree/master/cmd/controller-gen) to generate the CRDs.
 
-The [code generator script](hack/update-codegen.sh) script will generate files &
-directories:
+To generate the typed client, informers, listers and deep-copy functions run,
+```sh
+make generate
+```
 
-* `pkg/apis/ndbcontroller/v1alpha1/zz_generated.deepcopy.go`
-* `pkg/generated/`
-
-It requires some copying as described in the script.
-
-Generators are in [k8s.io/code-generator](https://github.com/kubernetes/code-generator)
-and generate a typed client, informers, listers and deep-copy functions.
+To update the CRD definitions based on the changes made to the types run,
+```sh
+make manifests
+```
 
 ## Building
 
-You may have to set the `OS` variable to your operating system in the Makefile.
+To build the ndb-operator run,
 
 ```sh
 # Build ndb-operator 
@@ -54,20 +55,19 @@ make build
 
 You can build your own ndb cluster images but you don't have to. Currently public image 8.0.22 is used.
 
-**Prerequisite**: You have a build directory available that is build for OL8. 
+**Prerequisite**: You have a build directory available that is build for OL8.
 You can use a OL8 build-container in docker/ol8 for that or download a readily compiled OL8 build.
 
 If you use minikube then set the environment to minikube first before building the image.
 
 ```sh
-# copy necessary ndb binaries 
-make install-minimal
-
 # point to minikube
 $ eval $(minikube docker-env)
 
 # build docker image
-make build-docker
+# BASEDIR is the MySQL Cluster build directory
+# IMAGE_TAG is the string to be tagged to the container image being built
+BASEDIR=<basedir> IMAGE_TAG=<build-tag> make ndb-container-image
 ```
 
 ## Running
@@ -88,10 +88,12 @@ or use helm
 helm install ndb-operator helm
 ```
 
-the proceed with starting the operator - currently outside of the k8 cluster:
+Then proceed with starting the operator - currently outside of the k8 cluster:
 
 ```sh
-./ndb-operator -kubeconfig=$HOME/.kube/config
+make run
+(or)
+./bin/<path-to-operator>/ndb-operator -kubeconfig=$HOME/.kube/config
 
 # create a custom resource of type Ndb
 kubectl apply -f artifacts/examples/example-ndb.yaml
