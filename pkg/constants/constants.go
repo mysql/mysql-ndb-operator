@@ -11,3 +11,7 @@ const ClusterLabel = ndbcontroller.GroupName + "/v1alpha1"
 const ClusterNodeTypeLabel = ndbcontroller.GroupName + "/nodetype"
 
 const DataDir = "/var/lib/ndb"
+
+// Constants used by the MySQL Deployments
+// LastAppliedConfigGeneration is the annotation key that holds the last applied config generation
+const LastAppliedConfigGeneration = ndbcontroller.GroupName + "last-applied-config-generation"

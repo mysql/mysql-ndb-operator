@@ -32,7 +32,7 @@ type Ndb struct {
 	Status NdbStatus `json:"status,omitempty"`
 }
 
-// Specification of MySQL Servers to be run as an SQL Frontend
+// NdbMysqldSpec is the specification of MySQL Servers to be run as an SQL Frontend
 type NdbMysqldSpec struct {
 	// NodeCount is the number of MySQL Servers running in MySQL Cluster
 	NodeCount *int32 `json:"nodecount"`

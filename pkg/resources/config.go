@@ -175,7 +175,7 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 
 	for i := 0; i < mysqlSections; i++ {
 		configString += "[mysqld]\n"
-		configString += fmt.Sprintf("NodeId=%d\n", apiStartNodeId + i)
+		configString += fmt.Sprintf("NodeId=%d\n", apiStartNodeId+i)
 		configString += "\n"
 	}
 
