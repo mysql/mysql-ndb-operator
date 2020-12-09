@@ -47,7 +47,8 @@ spec:
                 pattern: mysql/mysql-cluster:8.0.2[2-3]
                 type: string
               mysqld:
-                description: Specification of MySQL Servers to be run as an SQL Frontend
+                description: NdbMysqldSpec is the specification of MySQL Servers to
+                  be run as an SQL Frontend
                 properties:
                   nodecount:
                     description: NodeCount is the number of MySQL Servers running

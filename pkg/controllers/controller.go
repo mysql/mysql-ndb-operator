@@ -554,7 +554,7 @@ func (sc *SyncContext) ensureDataNodeStatefulSet() (*appsv1.StatefulSet, bool, e
 //    or returns an error if something went wrong
 func (sc *SyncContext) ensureMySQLServerDeployment() (*appsv1.Deployment, bool, error) {
 
-	deployment, existed, err := sc.mysqldController.EnsureDeployment(sc.ndb)
+	deployment, existed, err := sc.mysqldController.EnsureDeployment(sc.ndb, sc.resourceContext)
 	if err != nil {
 		// Failed to ensure the deployment
 		return deployment, existed, err
@@ -1108,7 +1108,7 @@ func (sc *SyncContext) sync() error {
 	// TODO: The Deployment should be scaled down and the MySQL Servers
 	//       shutdown before actually changing the Management config (or)
 	//       maybe the number of API nodes in config stays mostly static?
-	if sr := sc.mysqldController.ReconcileDeployment(sc.ndb, sc.mysqldDeployment); sr.finished() {
+	if sr := sc.mysqldController.ReconcileDeployment(sc.ndb, sc.mysqldDeployment, sc.resourceContext); sr.finished() {
 		return sr.getError()
 	}
 

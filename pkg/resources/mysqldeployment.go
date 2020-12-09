@@ -5,15 +5,16 @@
 package resources
 
 import (
+	"strconv"
 	"strings"
-
-	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
+
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog"
 )
 
@@ -38,6 +39,7 @@ type MySQLServerDeployment struct {
 	name string
 }
 
+// GetName returns the name of the MySQLServerDeployment
 func (msd *MySQLServerDeployment) GetName() string {
 	return msd.name
 }
@@ -90,7 +92,7 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb) v1.Containe
 }
 
 // NewDeployment creates a new MySQL Server Deployment for the given Cluster.
-func (msd *MySQLServerDeployment) NewDeployment(ndb *v1alpha1.Ndb) *apps.Deployment {
+func (msd *MySQLServerDeployment) NewDeployment(ndb *v1alpha1.Ndb, rc *ResourceContext) *apps.Deployment {
 
 	// Use a temporary empty directory volume for the pod
 	var emptyDirVolume = v1.Volume{
@@ -115,6 +117,10 @@ func (msd *MySQLServerDeployment) NewDeployment(ndb *v1alpha1.Ndb) *apps.Deploym
 	// Define the deployment
 	mysqldDeployment := &apps.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
+			// Annotate the deployment with this config generation
+			Annotations: map[string]string{
+				constants.LastAppliedConfigGeneration: strconv.FormatInt(rc.ConfigGeneration, 10),
+			},
 			// The deployment name, namespace and owner references
 			Name:            deploymentName,
 			Namespace:       ndb.Namespace,
@@ -141,7 +147,7 @@ func (msd *MySQLServerDeployment) NewDeployment(ndb *v1alpha1.Ndb) *apps.Deploym
 	return mysqldDeployment
 }
 
-// Creates a new MySQLServerDeployment
+// NewMySQLServerDeployment creates a new MySQLServerDeployment
 func NewMySQLServerDeployment(ndb *v1alpha1.Ndb) *MySQLServerDeployment {
 	return &MySQLServerDeployment{
 		name: ndb.Name + "-" + mysqldClientName,
