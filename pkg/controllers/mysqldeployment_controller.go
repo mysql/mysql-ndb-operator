@@ -34,7 +34,8 @@ func deploymentComplete(deployment *appsv1.Deployment) bool {
 
 type DeploymentControlInterface interface {
 	EnsureDeployment(ndb *v1alpha1.Ndb, rc *resources.ResourceContext) (*appsv1.Deployment, bool, error)
-	ReconcileDeployment(ndb *v1alpha1.Ndb, deployment *appsv1.Deployment, rc *resources.ResourceContext) syncResult
+	ReconcileDeployment(ndb *v1alpha1.Ndb,
+		deployment *appsv1.Deployment, rc *resources.ResourceContext, handleScaleDown bool) syncResult
 }
 
 type mysqlDeploymentController struct {
@@ -50,7 +51,8 @@ func (mdc *mysqlDeploymentController) createDeployment(deployment *appsv1.Deploy
 }
 
 // patchDeployment generates and applies the patch to the deployment
-func (mdc *mysqlDeploymentController) patchDeployment(existingDeployment *appsv1.Deployment, updatedDeployment *appsv1.Deployment) (*appsv1.Deployment, error) {
+func (mdc *mysqlDeploymentController) patchDeployment(
+	existingDeployment *appsv1.Deployment, updatedDeployment *appsv1.Deployment) (*appsv1.Deployment, error) {
 	// JSON encode both deployments
 	existingJSON, err := json.Marshal(existingDeployment)
 	if err != nil {
@@ -73,7 +75,8 @@ func (mdc *mysqlDeploymentController) patchDeployment(existingDeployment *appsv1
 	// klog.Infof("Patching deployments.\nExisting : %v\n. Modified : %v\nPatch : %v", string(existingJSON), string(updatedJSON), string(patch))
 
 	// Patch the deployment
-	deployment, err := mdc.client.AppsV1().Deployments(existingDeployment.Namespace).Patch(
+	deploymentInterface := mdc.client.AppsV1().Deployments(existingDeployment.Namespace)
+	deployment, err := deploymentInterface.Patch(
 		context.TODO(), existingDeployment.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
 	if err != nil {
 		klog.Errorf("Failed to apply the patch to the deployment '%s': %v", existingDeployment.Name, err)
@@ -87,11 +90,21 @@ func (mdc *mysqlDeploymentController) patchDeployment(existingDeployment *appsv1
 
 // ReconcileDeployment compares the MySQL Server spec defined
 // in Ndb resource and makes changes to the deployment if required
+//
+// Note : This function is called twice by the sync function.
+//        Once before the config version is ensured in the management
+//        and data nodes and once after they are ensured. During the
+//        first pass, only scale down, if any, is handled. Any other
+//        changes to the template and scaling up are handled during
+//        the second pass. This is to ensure that during a scale down,
+//        the Servers are shutdown before a possible reduction in the
+//        number of API sections in the config.
 func (mdc *mysqlDeploymentController) ReconcileDeployment(
-	ndb *v1alpha1.Ndb, deployment *appsv1.Deployment, rc *resources.ResourceContext) syncResult {
+	ndb *v1alpha1.Ndb, deployment *appsv1.Deployment, rc *resources.ResourceContext, handleScaleDown bool) syncResult {
 
 	// Nothing to reconcile if there is no existing deployment
 	if deployment == nil {
+		klog.Warningf("MySQL Server deployment does not exist")
 		return finishProcessing()
 	}
 
@@ -108,20 +121,34 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(
 		return continueProcessing()
 	}
 
-	// There is a change in config generation. Patch deployment.
-	// TODO : In case of scale down, patch the deployment before
-	//        the config gets patched (if it gets patched). So
-	//        that the mgmd doesn't end up with less number of
-	//        API sections than the number of running MySQL Servers
-	newDeployment := mdc.mysqlServerDeployment.NewDeployment(ndb, rc)
-	updatedDeployment, err := mdc.patchDeployment(deployment, newDeployment)
+	// Handle spec/config change
+	var updatedDeployment *appsv1.Deployment
+	if handleScaleDown {
+		// First pass - handle only the scale down, if any
+		if deployment.Status.Replicas <= *(ndb.Spec.Mysqld.NodeCount) {
+			// No scale down requested or it has been processed already
+			// Continue processing rest of sync loop
+			return continueProcessing()
+		}
+		// scale down requested
+		// create a new deployment with updated replica to patch the original deployment
+		// Note : the annotation 'last-applied-config-generation' will be updated only
+		//        during the second pass.
+		updatedDeployment = deployment.DeepCopy()
+		updatedDeployment.Spec.Replicas = ndb.Spec.Mysqld.NodeCount
+	} else {
+		// Second pass - patch in the any other spec changes and scale up
+		updatedDeployment = mdc.mysqlServerDeployment.NewDeployment(ndb, rc)
+	}
+
+	patchedDeployment, err := mdc.patchDeployment(deployment, updatedDeployment)
 	if err != nil {
 		klog.Errorf("Failed to patch MySQL Server deployment")
 		return errorWhileProcssing(err)
 	}
 
 	// If any change has been done to the spec of the deployment, exit and continue later
-	if !deploymentComplete(updatedDeployment) {
+	if !deploymentComplete(patchedDeployment) {
 		return requeueInSeconds(5)
 	}
 
