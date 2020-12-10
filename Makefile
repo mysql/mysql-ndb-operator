@@ -71,7 +71,7 @@ generate:
 CRD_OPTIONS=crd:trivialVersions=true
 CRD_INPUT_PATH=./pkg/apis/...
 CRD_GENERATED_PATH=helm/crds
-CONTROLLER_GEN_CMD=go run ./vendor/sigs.k8s.io/controller-tools/cmd/controller-gen/main.go
+CONTROLLER_GEN_CMD=go run sigs.k8s.io/controller-tools/cmd/controller-gen
 
 # Generate manifests (i.e.) CRD.
 # creationTimestamp in the CRD is always generated as null
