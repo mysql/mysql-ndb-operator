@@ -1080,6 +1080,14 @@ func (sc *SyncContext) sync() error {
 	// only if everything is in line with that configuration
 	// a new configuration from the Ndb CRD is accepted and written to the config map
 
+	// First pass of MySQL Server reconciliation.
+	// If any scale down was requested, it will be handled in this pass.
+	// This is done separately to ensure that the MySQL Servers are shut
+	// down before possibly reducing the number of API sections in config.
+	if sr := sc.mysqldController.ReconcileDeployment(sc.ndb, sc.mysqldDeployment, sc.resourceContext, true); sr.finished() {
+		return sr.getError()
+	}
+
 	// make sure management server(s) have the correct config version
 	if sr := sc.ensureManagementServerConfigVersion(); sr.finished() {
 		return sr.getError()
@@ -1104,11 +1112,9 @@ func (sc *SyncContext) sync() error {
 		}
 	}
 
-	// Reconcile MySQL Server Deployment with the spec/config
-	// TODO: The Deployment should be scaled down and the MySQL Servers
-	//       shutdown before actually changing the Management config (or)
-	//       maybe the number of API nodes in config stays mostly static?
-	if sr := sc.mysqldController.ReconcileDeployment(sc.ndb, sc.mysqldDeployment, sc.resourceContext); sr.finished() {
+	// Second pass of MySQL Server reconciliation
+	// Reconcile the rest of spec/config change in MySQL Server Deployment
+	if sr := sc.mysqldController.ReconcileDeployment(sc.ndb, sc.mysqldDeployment, sc.resourceContext, false); sr.finished() {
 		return sr.getError()
 	}
 
