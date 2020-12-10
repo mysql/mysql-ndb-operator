@@ -60,6 +60,8 @@ type fixture struct {
 	// Objects from here preloaded into NewSimpleFake.
 	kubeobjects []runtime.Object
 	objects     []runtime.Object
+
+	c *Controller
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -107,9 +109,9 @@ func newNdb(namespace string, name string, noofnodes int) *ndbcontroller.Ndb {
 	}
 }
 
-func (f *fixture) newController() *Controller {
+func (f *fixture) newController() {
 
-	c := NewController(f.kubeclient, f.client,
+	f.c = NewController(f.kubeclient, f.client,
 		f.k8If.Apps().V1().StatefulSets(),
 		f.k8If.Apps().V1().Deployments(),
 		f.k8If.Core().V1().Services(),
@@ -124,25 +126,29 @@ func (f *fixture) newController() *Controller {
 	for _, d := range f.configMapLister {
 		f.k8If.Core().V1().ConfigMaps().Informer().GetIndexer().Add(d)
 	}
-
-	return c
 }
 
 func (f *fixture) run(fooName string) {
-	f.runController(fooName, true, false)
+	f.setupController(fooName, true)
+	f.runController(fooName, false)
 }
 
 func (f *fixture) runExpectError(fooName string) {
-	f.runController(fooName, true, true)
+	f.setupController(fooName, true)
+	f.runController(fooName, true)
 }
 
-func (f *fixture) runController(fooName string, startInformers bool, expectError bool) {
-	c := f.newController()
+func (f *fixture) setupController(fooName string, startInformers bool) {
+	f.newController()
 	if startInformers {
 		f.start()
 	}
+}
 
-	err := c.syncHandler(fooName)
+func (f *fixture) runController(fooName string, expectError bool) {
+
+	err := f.c.syncHandler(fooName)
+
 	if !expectError && err != nil {
 		f.t.Errorf("error syncing ndb: %v", err)
 	} else if expectError && err == nil {
@@ -150,7 +156,6 @@ func (f *fixture) runController(fooName string, startInformers bool, expectError
 	}
 	klog.Infof("Successfully syncing ndb")
 
-	//filterInformerActions(f.client.Actions())
 	actions := filterInformerActions(f.client.Actions())
 	k8sActions := filterInformerActions(f.kubeclient.Actions())
 
@@ -357,6 +362,8 @@ func TestCreatesCluster(t *testing.T) {
 	//f.expectUpdateNdbStatusAction(ns, ndb)
 
 	f.run(getKey(ndb, t))
+
+	f.runController(getKey(ndb, t), false)
 }
 
 /*
