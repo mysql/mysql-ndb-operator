@@ -12,3 +12,6 @@ spec:
       - "3600"
     imagePullPolicy: IfNotPresent
   restartPolicy: Always
+
+
+# kubectl exec -i -t dnsutils -- nslookup kubernetes.default
