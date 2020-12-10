@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: envars-fieldref
+  labels: 
+    ndbcontroller.mysql.com/v1alpha1: example-ndb
+spec:
+  containers:
+    - name: test-container
+      image: k8s.gcr.io/busybox
+      command: [ "sh", "-c"]
+      args:
+      - while true; do
+          echo -en '\n';
+          printenv MY_LABELS;
+          sleep 10;
+        done;
+      env:
+        - name: MY_LABELS
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels
+        - name: MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+  restartPolicy: Never
