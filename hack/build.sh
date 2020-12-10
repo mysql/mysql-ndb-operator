@@ -28,6 +28,7 @@ export CGO_ENABLED=0
 export GOARCH="${ARCH}"
 export GOOS="${OS}"
 
+# TODO buildVersion doesn't work
 go install                                                   \
    -v                                                        \
     -installsuffix "static"                                  \
