@@ -6,6 +6,7 @@ package main
 
 import (
 	"flag"
+	"os"
 	"time"
 
 	kubeinformers "k8s.io/client-go/informers"
@@ -28,11 +29,22 @@ var (
 )
 
 func main() {
+
 	klog.InitFlags(nil)
 	flag.Parse()
 
 	// set up signals so we handle the first shutdown signal gracefully
 	stopCh := signals.SetupSignalHandler()
+
+	klog.Info("Starting ndb-operator")
+
+	klog.Info("Checking environment")
+	if k8Host := os.Getenv("KUBERNETES_SERVICE_HOST"); k8Host != "" && len(k8Host) > 0 {
+		klog.Infof("Kubernetes host: %s", k8Host)
+	}
+	if k8Port := os.Getenv("KUBERNETES_SERVICE_PORT"); k8Port != "" && len(k8Port) > 0 {
+		klog.Infof("Kubernetes port: %s", k8Port)
+	}
 
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
 	if err != nil {
