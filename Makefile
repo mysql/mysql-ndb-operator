@@ -36,23 +36,6 @@ PKG      := github.com/mysql/ndb-operator/
 CMD_DIRECTORIES := $(sort $(dir $(wildcard ./cmd/*/)))
 COMMANDS := $(CMD_DIRECTORIES:./cmd/%/=%)
 
-ifeq ($(UNAME_S),Darwin)
-ifeq ($(OS),linux)
-	# Cross-compiling from OSX to linux, go install puts the binaries in $GOPATH/bin/$GOOS_$GOARCH
-    BINARIES := $(addprefix $(GOPATH)/bin/$(OS)_$(ARCH)/,$(COMMANDS))
-else
-	# Compiling on darwin for darwin, go install puts the binaries in $GOPATH/bin
-    BINARIES := $(addprefix $(GOPATH)/bin/,$(COMMANDS))
-endif
-else
-ifeq ($(UNAME_S),Linux)
-	# Compiling on linux for linux, go install puts the binaries in $GOPATH/bin
-    BINARIES := $(addprefix $(GOPATH)/bin/,$(COMMANDS))
-else
-	$(error "Unsupported OS: $(UNAME_S)")
-endif
-endif
-
 .PHONY: build
 build: 
 	@echo "Building: $(BINARIES)"
@@ -63,8 +46,6 @@ build:
 	@echo "bin:      $(BINARIES)"
 	@touch pkg/version/version.go # Important. Work around for https://github.com/golang/go/issues/18369
 	ARCH=$(ARCH) OS=$(OS) VERSION=$(VERSION) PKG=$(PKG) ./hack/build.sh
-	mkdir -p ./bin/$(OS)_$(ARCH)/
-	cp $(BINARIES) ./bin/$(OS)_$(ARCH)/
 
 .PHONY: clean
 clean:
@@ -78,6 +59,12 @@ version:
 .PHONY: ndb-container-image
 ndb-container-image:
 	@BASEDIR=$(BASEDIR) IMAGE_TAG=$(IMAGE_TAG) ./hack/build-cluster-container-image.sh
+
+# Build a MySQL Cluster container image
+.PHONY: operator-image
+operator-image: OS=linux
+operator-image: build
+	docker build -t ndb-operator:"${VERSION}" -f docker/ndb-operator/Dockerfile .
 
 .PHONY: generate
 generate:

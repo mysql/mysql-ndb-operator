@@ -28,9 +28,19 @@ export CGO_ENABLED=0
 export GOARCH="${ARCH}"
 export GOOS="${OS}"
 
+PKG=${PKG%/}
+
+LDFLAGS=""
+LDFLAGS="${LDFLAGS} -X '${PKG}/pkg/version.buildVersion=${VERSION}'"
+LDFLAGS="${LDFLAGS} -X '${PKG}/pkg/version.buildTime=$(date)'"
+
+BINARIES="./bin/${OS}_${ARCH}"
+mkdir -p BINARIES
+
 # TODO buildVersion doesn't work
-go install                                                   \
-   -v                                                        \
-    -installsuffix "static"                                  \
-    -ldflags "-X ${PKG}/pkg/version.buildVersion=${VERSION}" \
+go build                     \
+   -v                        \
+   -o ${BINARIES}            \
+    -installsuffix "static"  \
+    -ldflags  "${LDFLAGS}"   \
     ./...

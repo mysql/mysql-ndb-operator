@@ -21,6 +21,7 @@ import (
 	clientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
 	"github.com/mysql/ndb-operator/pkg/signals"
+	"github.com/mysql/ndb-operator/pkg/version"
 )
 
 var (
@@ -36,7 +37,9 @@ func main() {
 	// set up signals so we handle the first shutdown signal gracefully
 	stopCh := signals.SetupSignalHandler()
 
-	klog.Info("Starting ndb-operator")
+	klog.Infof("Starting ndb-operator build version %s build time %s",
+		version.GetBuildVersion(),
+		version.GetBuildTime())
 
 	klog.Info("Checking environment")
 	if k8Host := os.Getenv("KUBERNETES_SERVICE_HOST"); k8Host != "" && len(k8Host) > 0 {

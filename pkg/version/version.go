@@ -4,9 +4,15 @@
 
 package version
 
-var buildVersion = "1.0.0"
+var buildVersion = "0.0.0"
+var buildTime = ""
 
-// GetBuildVersion returns the MySQL Operator build version
+// GetBuildVersion returns the NDB Operator build version
 func GetBuildVersion() string {
 	return buildVersion
+}
+
+// GetBuildTime returns the Ndb operator build time
+func GetBuildTime() string {
+	return buildTime
 }
