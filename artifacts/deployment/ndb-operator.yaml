@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ndb-operator
+  labels:
+    release: 0.0.1
+    app: ndb-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ndb-operator
+  template:
+    metadata:
+      labels:
+        app: ndb-operator
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      serviceAccountName: ndb-operator
+      containers:
+      - name: ndb-operator-controller
+        imagePullPolicy: Never
+        image: ndb-operator:1.0.0
+        ports:
+        - containerPort: 1186
