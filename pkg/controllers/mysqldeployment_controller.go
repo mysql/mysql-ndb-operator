@@ -44,6 +44,29 @@ type mysqlDeploymentController struct {
 	mysqlServerDeployment *resources.MySQLServerDeployment
 }
 
+func (mdc *mysqlDeploymentController) ensureRootPasswordSecret(ndb *v1alpha1.Ndb) (err error) {
+	secretName := mdc.mysqlServerDeployment.GetRootPasswordSecretName()
+	secretInterface := mdc.client.CoreV1().Secrets(ndb.Namespace)
+	if _, err = secretInterface.Get(context.TODO(), secretName, metav1.GetOptions{}); err == nil {
+		// Secret exists
+		return nil
+	}
+
+	if !errors.IsNotFound(err) {
+		// Error retrieving the secret
+		klog.Errorf("Failed to ensure secret %s : %v", secretName, err)
+		return err
+	}
+
+	// Create secret
+	secret := mdc.mysqlServerDeployment.NewMySQLRootPasswordSecret(ndb)
+	if _, err = secretInterface.Create(context.TODO(), secret, metav1.CreateOptions{}); err != nil {
+		klog.Errorf("Failed to create secret %s : %v", secretName, err)
+	}
+
+	return err
+}
+
 // createDeployment takes the representation of a deployment and creates it
 func (mdc *mysqlDeploymentController) createDeployment(deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
 	return mdc.client.AppsV1().Deployments(deployment.Namespace).Create(
@@ -171,7 +194,13 @@ func (mdc *mysqlDeploymentController) EnsureDeployment(
 		return deployment, err == nil, err
 	}
 
-	// Deployment doesn't exist - create it
+	// Deployment doesn't exist
+	// First ensure that a root password secret exists
+	if err = mdc.ensureRootPasswordSecret(ndb); err != nil {
+		return nil, false, err
+	}
+
+	// Create deployment
 	numberOfMySQLServers := *ndb.Spec.Mysqld.NodeCount
 	klog.Infof("Creating a deployment of '%d' MySQL Servers", numberOfMySQLServers)
 	deployment = mdc.mysqlServerDeployment.NewDeployment(ndb, rc)

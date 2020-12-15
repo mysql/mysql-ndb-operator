@@ -10,6 +10,7 @@ import (
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
+	"github.com/mysql/ndb-operator/pkg/helpers"
 
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -19,20 +20,11 @@ import (
 )
 
 const (
-	mysqldClientName = "mysqld"
-	mysqldVolumeName = "mysqld-volume"
-	mysqldDataDir    = constants.DataDir + "/mysql"
+	mysqldClientName             = "mysqld"
+	mysqldVolumeName             = mysqldClientName + "-volume"
+	mysqldRootPasswordSecretName = mysqldClientName + "-root-password"
+	mysqldDataDir                = constants.DataDir + "/mysql"
 )
-
-// getMysqlVolumeMounts returns pod volumes to be mounted
-func getMysqlVolumeMounts() []v1.VolumeMount {
-	return []v1.VolumeMount{
-		{
-			Name:      mysqldVolumeName,
-			MountPath: mysqldDataDir,
-		},
-	}
-}
 
 // MySQLServerDeployment is a deployment of MySQL Servers running as clients to the NDB
 type MySQLServerDeployment struct {
@@ -50,6 +42,73 @@ func (msd *MySQLServerDeployment) getLabels(ndb *v1alpha1.Ndb) map[string]string
 		constants.ClusterNodeTypeLabel: mysqldClientName,
 	}
 	return labels.Merge(l, ndb.GetLabels())
+}
+
+// GetRootPasswordSecretName returns the name of the root password secret
+func (msd *MySQLServerDeployment) GetRootPasswordSecretName() string {
+	return msd.name + "-" + mysqldRootPasswordSecretName
+}
+
+// NewMySQLRootPasswordSecret creates and returns a new root password secret
+func (msd *MySQLServerDeployment) NewMySQLRootPasswordSecret(ndb *v1alpha1.Ndb) *v1.Secret {
+	// Generate a random password of length 16
+	rootPassword := helpers.GenerateRandomPassword(16)
+	// build Secret and return
+	return &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels:          ndb.GetLabels(),
+			Name:            msd.GetRootPasswordSecretName(),
+			Namespace:       ndb.GetNamespace(),
+			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
+		},
+		Data: map[string][]byte{v1.BasicAuthPasswordKey: []byte(rootPassword)},
+		Type: v1.SecretTypeBasicAuth,
+	}
+}
+
+// getPodVolumes returns the volumes to be used by the pod
+func (msd *MySQLServerDeployment) getPodVolumes() *[]v1.Volume {
+	onlyOwnerCanReadMode := int32(400)
+	return &[]v1.Volume{
+		// Use a temporary empty directory volume for the pod
+		{
+			Name: mysqldVolumeName,
+			VolumeSource: v1.VolumeSource{
+				EmptyDir: &v1.EmptyDirVolumeSource{},
+			},
+		},
+		// Use the root password secret as a volume
+		{
+			Name: mysqldRootPasswordSecretName,
+			VolumeSource: v1.VolumeSource{
+				Secret: &v1.SecretVolumeSource{
+					SecretName: msd.GetRootPasswordSecretName(),
+					// Project the password to a file name "root-password"
+					Items: []v1.KeyToPath{{
+						Key:  v1.BasicAuthPasswordKey,
+						Path: "root-password",
+					}},
+					DefaultMode: &onlyOwnerCanReadMode,
+				},
+			},
+		},
+	}
+}
+
+// getMysqlVolumeMounts returns pod volumes to be mounted into the container
+func (msd *MySQLServerDeployment) getMysqlVolumeMounts() *[]v1.VolumeMount {
+	return &[]v1.VolumeMount{
+		// Mount the empty dir volume as data directory
+		{
+			Name:      mysqldVolumeName,
+			MountPath: mysqldDataDir,
+		},
+		// Mount the secret volume at /etc/auth
+		{
+			Name:      mysqldRootPasswordSecretName,
+			MountPath: "/etc/auth",
+		},
+	}
 }
 
 // createContainer creates the MySQL Server container to be run as a client
@@ -85,7 +144,7 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb) v1.Containe
 				ContainerPort: 3306,
 			},
 		},
-		VolumeMounts:    getMysqlVolumeMounts(),
+		VolumeMounts:    *msd.getMysqlVolumeMounts(),
 		Command:         []string{"/bin/bash", "-ecx", cmd},
 		ImagePullPolicy: v1.PullIfNotPresent,
 	}
@@ -94,17 +153,9 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb) v1.Containe
 // NewDeployment creates a new MySQL Server Deployment for the given Cluster.
 func (msd *MySQLServerDeployment) NewDeployment(ndb *v1alpha1.Ndb, rc *ResourceContext) *apps.Deployment {
 
-	// Use a temporary empty directory volume for the pod
-	var emptyDirVolume = v1.Volume{
-		Name: mysqldVolumeName,
-		VolumeSource: v1.VolumeSource{
-			EmptyDir: &v1.EmptyDirVolumeSource{},
-		},
-	}
-
 	podSpec := v1.PodSpec{
 		Containers:         []v1.Container{msd.createContainer(ndb)},
-		Volumes:            []v1.Volume{emptyDirVolume},
+		Volumes:            *msd.getPodVolumes(),
 		ServiceAccountName: "ndb-agent",
 	}
 
