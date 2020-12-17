@@ -35,7 +35,7 @@ LDFLAGS="${LDFLAGS} -X '${PKG}/pkg/version.buildVersion=${VERSION}'"
 LDFLAGS="${LDFLAGS} -X '${PKG}/pkg/version.buildTime=$(date)'"
 
 BINARIES="./bin/${OS}_${ARCH}"
-mkdir -p BINARIES
+mkdir -p ${BINARIES}
 
 # TODO buildVersion doesn't work
 go build                     \
