@@ -2,13 +2,41 @@
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-package ndb
+package status
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/mysql/ndb-operator/pkg/ndb/mgm"
 	"testing"
 )
+
+const connectstring = "127.0.0.1:1186"
+
+func TestGetStatus(t *testing.T) {
+	api := new(mgm.Client)
+
+	err := api.Connect(connectstring)
+	if err != nil {
+		t.Errorf("Connection failed: %s", err)
+		return
+	}
+	defer api.Disconnect()
+
+	hmap := make(map[string]string, 1)
+	var cnt int
+	cnt, err = api.GetStatus(&hmap)
+	if err != nil {
+		t.Errorf("get status failed: %s", err)
+		return
+	}
+
+	clusterStatus, err := GetClusterStatusFromMap(cnt, hmap)
+	if err != nil {
+		t.Fail()
+	}
+	fmt.Printf("%v\n", clusterStatus)
+}
 
 func nodeTypeFromNodeId(mgmNodeCount, dataNodeCount, apiNodeCount, nodeId int) int {
 

@@ -1,8 +1,16 @@
-package ndb
+package status
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 )
+
+const InvalidTypeId = 0
+const IntTypeId = 1
+const StringTypeId = 2
+const SectionTypeId = 3
+const Int64TypeId = 4
 
 // node types used in NodeStatus object
 // there are more types defined in c-code, but they are not used here
@@ -18,6 +26,20 @@ const APINodeTypeID = 2
 
 // MgmNodeTypeID is the management server node type
 const MgmNodeTypeID = 3
+
+type NodeType int
+
+func (t NodeType) String() string {
+	switch t {
+	case DataNodeTypeID:
+		return "Data Node"
+	case APINodeTypeID:
+		return "API Node"
+	case MgmNodeTypeID:
+		return "MGM Node"
+	}
+	return "**INVALID NODE TYPE**"
+}
 
 // NodeStatus describes the state of a node of any node type in cluster
 type NodeStatus struct {
@@ -35,6 +57,16 @@ type NodeStatus struct {
 
 	// mysql version number as string in format x.y.z
 	SoftwareVersion string
+}
+
+func (s NodeStatus) String() string {
+	r := NodeType(s.NodeType).String()
+	r += " ID " + strconv.Itoa(s.NodeID)
+	r += " " + s.SoftwareVersion
+	if s.IsConnected {
+		r += " connected"
+	}
+	return r
 }
 
 // ClusterStatus describes the state of all nodes in the cluster
@@ -182,4 +214,80 @@ func (cs *ClusterStatus) SetNodeTypeFromTLA(nodeID int, tla string) error {
 	ns.NodeType = nodeType
 
 	return nil
+}
+
+// sz is number of nodes. map is returned from MGMAPI GetStatus()
+// map is iterated in random order
+func GetClusterStatusFromMap(sz int, cf map[string]string) (*ClusterStatus, error) {
+	nss := NewClusterStatus(sz)
+
+	for key, val := range cf {
+		s2 := strings.SplitN(key, ".", 3)
+		if len(s2) != 3 {
+			err := fmt.Errorf("Format error in map key: %s", key)
+			return nil, err
+		}
+
+		// node id
+		nodeId, err := strconv.Atoi(s2[1])
+		if err != nil {
+			return nil, err
+		}
+		nodeStatus := nss.EnsureNode(nodeId)
+
+		// type of the status value (e.g. softare version, connection status)
+		valType := s2[2]
+
+		// based on the type of value store status away
+		switch valType {
+		case "type":
+			err = nss.SetNodeTypeFromTLA(nodeId, val)
+			if err != nil {
+				return nil, err
+			}
+
+		case "status":
+			nodeStatus.IsConnected = false
+			// CONNECTED or STARTED depends on node type, which may be unknown
+			if val == "CONNECTED" || val == "STARTED" {
+				nodeStatus.IsConnected = true
+			}
+
+		case "version":
+			valint, err := strconv.Atoi(val)
+			if err != nil {
+				return nil, fmt.Errorf("Format error (can't extract software version)")
+			}
+
+			if valint == 0 {
+				nodeStatus.SoftwareVersion = ""
+			} else {
+				major := (valint >> 16) & 0xFF
+				minor := (valint >> 8) & 0xFF
+				build := (valint >> 0) & 0xFF
+				nodeStatus.SoftwareVersion = fmt.Sprintf("%d.%d.%d", major, minor, build)
+			}
+
+		case "node_group":
+			valint, err := strconv.Atoi(val)
+			if err != nil {
+				return nil, fmt.Errorf("Format error (can't extract node group) ")
+			}
+			nodeStatus.NodeGroup = valint
+
+		}
+	}
+
+	// correct some data based on other data in respective node status
+	for _, ns := range *nss {
+
+		// if node is not started then we don't really know its node group reliably
+		ng := -1
+		if ns.NodeType == DataNodeTypeID && ns.IsConnected {
+			ng = ns.NodeGroup
+		}
+		ns.NodeGroup = ng
+	}
+
+	return nss, nil
 }

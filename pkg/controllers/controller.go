@@ -40,7 +40,8 @@ import (
 	samplescheme "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/scheme"
 	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
 	listers "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
-	"github.com/mysql/ndb-operator/pkg/ndb"
+	"github.com/mysql/ndb-operator/pkg/ndb/mgm"
+	"github.com/mysql/ndb-operator/pkg/ndb/status"
 	"github.com/mysql/ndb-operator/pkg/resources"
 )
 
@@ -71,7 +72,7 @@ type SyncContext struct {
 	ManagementServerPort int32
 	ManagementServerIP   string
 
-	clusterState *ndb.ClusterStatus
+	clusterState *status.ClusterStatus
 
 	ndb    *v1alpha1.Ndb
 	nsName string
@@ -576,7 +577,7 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 
 	// we go through all data nodes and see if they are on the latest config version
 	// we do this "ndb replica" wise, i.e. we iterate first through first nodes in each node group, then second, etc.
-	ct := ndb.CreateClusterTopologyByReplicaFromClusterStatus(sc.clusterState)
+	ct := status.CreateClusterTopologyByReplicaFromClusterStatus(sc.clusterState)
 
 	if ct == nil {
 		err := fmt.Errorf("Internal error: could not extract topology from cluster status")
@@ -584,7 +585,7 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 	}
 
 	reduncanyLevel := ct.GetNumberOfReplicas()
-	api := &ndb.Mgmclient{}
+	api := &mgm.Client{}
 	connectstring := fmt.Sprintf("%s:%d", sc.ManagementServerIP, sc.ManagementServerPort)
 	err := api.Connect(connectstring)
 	if err != nil {
@@ -599,7 +600,7 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 		nodeIDs := ct.GetNodeIDsFromReplica(replica)
 
 		for _, nodeID := range *nodeIDs {
-			nodeConfigGeneration := api.GetConfigVersionFromNode(nodeID)
+			nodeConfigGeneration, _ := api.GetConfigVersionFromNode(nodeID)
 			if wantedGeneration != nodeConfigGeneration {
 				// node is on wrong config generation
 				restartIDs = append(restartIDs, nodeID)
@@ -633,26 +634,25 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 
 	klog.Infof("Ensuring Management Server has correct config version %d", wantedGeneration)
 
-	api := &ndb.Mgmclient{}
-
 	// management server have the first nodeids
 	// TODO: when we'll ever scale the number of management servers then this
 	// needs to be changed to actually currently configured management servers
 	// ndbobj has "desired" number of management servers
 	for nodeID := 1; nodeID <= (int)(sc.ndb.GetManagementNodeCount()); nodeID++ {
+		api := &mgm.Client{}
 
 		// TODO : we use this function so far during test operator from outside cluster
 		// we try connecting via load balancer until we connect to correct wanted node
 		connectstring := fmt.Sprintf("%s:%d", sc.ManagementServerIP, sc.ManagementServerPort)
 		err := api.ConnectToNodeId(connectstring, nodeID)
 		if err != nil {
-			klog.Errorf("No contact to management server to desired management server with node id %d established", nodeID)
+			klog.Errorf("No contact to desired management node id %d", nodeID)
 			return errorWhileProcssing(err)
 		}
 
 		defer api.Disconnect()
 
-		version := api.GetConfigVersion()
+		version, err := api.GetConfigVersion()
 		if version == wantedGeneration {
 			klog.Infof("Management server with node id %d has desired version %d",
 				nodeID, version)
@@ -729,7 +729,7 @@ func (sc *SyncContext) ensureClusterLabel() (*labels.Set, bool, error) {
 
 func (sc *SyncContext) getClusterState() error {
 
-	api := &ndb.Mgmclient{}
+	api := &mgm.Client{}
 
 	connectstring := fmt.Sprintf("%s:%d", sc.ManagementServerIP, sc.ManagementServerPort)
 	err := api.Connect(connectstring)
@@ -742,15 +742,15 @@ func (sc *SyncContext) getClusterState() error {
 	defer api.Disconnect()
 
 	// check if management nodes report a degraded cluster state
-	cs, err := api.GetStatus()
+	statusMap := make(map[string]string, 1)
+	nNodes, err := api.GetStatus(&statusMap)
 	if err != nil {
 		klog.Errorf("Error getting cluster status from mangement server: %s", err)
 		return err
 	}
+	sc.clusterState, err = status.GetClusterStatusFromMap(nNodes, statusMap)
 
-	sc.clusterState = cs
-
-	return nil
+	return err
 }
 
 // checkClusterState checks the cluster state and whether its in a managable state
