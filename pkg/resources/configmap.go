@@ -6,6 +6,7 @@ package resources
 
 import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/constants"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -60,11 +61,16 @@ func GenerateConfigMapObject(ndb *v1alpha1.Ndb) *corev1.ConfigMap {
 				....
 	*/
 
+	// Labels for the configmap
+	cmLabels := ndb.GetCompleteLabels(map[string]string{
+		constants.ClusterResourceTypeLabel: "ndb-configmap",
+	})
+
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            ndb.GetConfigMapName(),
 			Namespace:       ndb.Namespace,
-			Labels:          ndb.GetLabels(),
+			Labels:          cmLabels,
 			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
 		},
 		Data: nil,

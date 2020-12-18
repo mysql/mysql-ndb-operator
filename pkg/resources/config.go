@@ -59,15 +59,19 @@ func NewResourceContextFromConfiguration(configStr string) (*ResourceContext, er
 func getMgmdHostname(ndb *v1alpha1.Ndb, count int) string {
 	//TODO - get the real domain name
 	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
-	mgmHostname := fmt.Sprintf("%s-%d.%s.%s", ndb.Name+"-mgmd", count, ndb.GetManagementServiceName(), dnsZone)
+	mgmdPodNamePrefix := ndb.Name + "-mgmd"
+	mgmdServiceName := ndb.GetServiceName("mgmd")
+	mgmHostname := fmt.Sprintf("%s-%d.%s.%s", mgmdPodNamePrefix, count, mgmdServiceName, dnsZone)
 	return mgmHostname
 }
 
 func getNdbdHostname(ndb *v1alpha1.Ndb, count int) string {
 	//TODO - get the real domain name
 	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
-	mgmHostname := fmt.Sprintf("%s-%d.%s.%s", ndb.Name+"-ndbd", count, ndb.GetDataNodeServiceName(), dnsZone)
-	return mgmHostname
+	ndbdPodNamePrefix := ndb.Name + "-ndbd"
+	ndbdServiceName := ndb.GetServiceName("ndbd")
+	ndbdHostName := fmt.Sprintf("%s-%d.%s.%s", ndbdPodNamePrefix, count, ndbdServiceName, dnsZone)
+	return ndbdHostName
 }
 
 // GetConfigString produces a new configuration "file" string from the current ndb.Spec

@@ -101,40 +101,24 @@ func (ndb *Ndb) GetLabels() map[string]string {
 	return l
 }
 
-// Ndb data node label ...
-func (ndb *Ndb) GetDataNodeLabels() map[string]string {
-	l := map[string]string{
-		constants.ClusterNodeTypeLabel: "ndbd",
-	}
-	return labels.Merge(l, ndb.GetLabels())
+// GetCompleteLabels returns a complete list of labels by merging
+// the given map of resourceLabels with the Ndb labels
+func (ndb *Ndb) GetCompleteLabels(resourceLabels map[string]string) map[string]string {
+	return labels.Merge(ndb.GetLabels(), resourceLabels)
 }
 
-// Ndb management server label ...
-func (ndb *Ndb) GetManagementNodeLabels() map[string]string {
-	l := map[string]string{
-		constants.ClusterNodeTypeLabel: "mgmd",
-	}
-	return labels.Merge(l, ndb.GetLabels())
-}
-
-//func (ndb *Ndb) GetServiceName() string {
-//	return ndb.Name
-//}
-
-func (ndb *Ndb) GetManagementServiceName() string {
-	return ndb.Name + "-mgmd"
-}
-
-func (ndb *Ndb) GetDataNodeServiceName() string {
-	return ndb.Name + "-ndbd"
+// GetServiceName returns the Service name of a given resource
+func (ndb *Ndb) GetServiceName(resource string) string {
+	return fmt.Sprintf("%s-%s", ndb.Name, resource)
 }
 
 func (ndb *Ndb) GetConfigMapName() string {
 	return ndb.Name + "-config"
 }
 
-func (ndb *Ndb) GetPodDisruptionBudgetName() string {
-	return ndb.Name + "-pdb"
+// GetPodDisruptionBudgetName returns the PDB name of a given resource
+func (ndb *Ndb) GetPodDisruptionBudgetName(resource string) string {
+	return fmt.Sprintf("%s-pdb-%s", ndb.Name, resource)
 }
 
 // CalculateNewConfigHash Calculate a hash of the current Spec
@@ -189,11 +173,14 @@ func (ndb *Ndb) GetConnectstring() string {
 	port := "1186"
 
 	connectstring := ""
+	mgmdPodNamePrefix := ndb.Name + "-mgmd"
+	mgmdServiceName := ndb.GetServiceName("mgmd")
 	for i := 0; i < (int)(ndb.GetManagementNodeCount()); i++ {
 		if i > 0 {
 			connectstring += ","
 		}
-		connectstring += fmt.Sprintf("%s-%d.%s.%s:%s", ndb.Name+"-mgmd", i, ndb.GetManagementServiceName(), dnsZone, port)
+		connectstring += fmt.Sprintf(
+			"%s-%d.%s.%s:%s", mgmdPodNamePrefix, i, mgmdServiceName, dnsZone, port)
 	}
 
 	return connectstring

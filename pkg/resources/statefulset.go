@@ -30,6 +30,7 @@ const ndbAgentImage = "ndb-agent"
 const ndbAgentVersion = "1.0.0"
 
 type StatefulSetInterface interface {
+	GetTypeName() string
 	NewStatefulSet(rc *ResourceContext, cluster *v1alpha1.Ndb) *apps.StatefulSet
 	GetName() string
 }
@@ -104,6 +105,25 @@ func agentContainer(ndb *v1alpha1.Ndb, ndbAgentImage string) v1.Container {
 			},
 		},
 	}
+}
+
+// GetTypeName returns the type name of baseStatefulSet
+func (bss *baseStatefulSet) GetTypeName() string {
+	return bss.typeName
+}
+
+// getStatefulSetLabels returns the labels of the statefulset
+func (bss *baseStatefulSet) getStatefulSetLabels(ndb *v1alpha1.Ndb) map[string]string {
+	return ndb.GetCompleteLabels(map[string]string{
+		constants.ClusterResourceTypeLabel: bss.typeName + "-statefulset",
+	})
+}
+
+// getPodLabels generates the labels of the pods controlled by the statefulsets
+func (bss *baseStatefulSet) getPodLabels(ndb *v1alpha1.Ndb) map[string]string {
+	return ndb.GetCompleteLabels(map[string]string{
+		constants.ClusterNodeTypeLabel: bss.typeName,
+	})
 }
 
 // Builds the Ndb operator container for a mgmd.
@@ -205,10 +225,8 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 
 	containers := []v1.Container{}
 	serviceaccount := ""
-	var podLabels map[string]string
 	replicas := func(i int32) *int32 { return &i }((0))
-
-	svcName := ""
+	podLabels := bss.getPodLabels(ndb)
 
 	if bss.typeName == "mgmd" {
 		containers = []v1.Container{
@@ -217,8 +235,6 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 		}
 		serviceaccount = "ndb-agent"
 		replicas = helpers.IntToInt32Ptr(int(rc.ManagementNodeCount))
-		podLabels = ndb.GetManagementNodeLabels()
-		svcName = ndb.GetManagementServiceName()
 
 	} else {
 		containers = []v1.Container{
@@ -227,8 +243,6 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 		}
 		serviceaccount = "ndb-agent"
 		replicas = helpers.IntToInt32Ptr(int(rc.GetDataNodeCount()))
-		podLabels = ndb.GetDataNodeLabels()
-		svcName = ndb.GetDataNodeServiceName()
 	}
 
 	podspec := v1.PodSpec{
@@ -242,8 +256,8 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 	ss := &apps.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   bss.GetName(),
-			Labels: podLabels, // must match templates
-			// could have a owner reference here
+			Labels: bss.getStatefulSetLabels(ndb),
+			// Owner reference pointing to the Ndb resource
 			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
 		},
 		Spec: apps.StatefulSetSpec{
@@ -252,6 +266,7 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 				Type: apps.OnDeleteStatefulSetStrategyType,
 			},
 			Selector: &metav1.LabelSelector{
+				// must match templates labels
 				MatchLabels: podLabels,
 			},
 			Replicas: replicas,
@@ -265,7 +280,7 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 			},
 			// service must exist before the StatefulSet, and is responsible for
 			// the network identity of the set.
-			ServiceName: svcName,
+			ServiceName: ndb.GetServiceName(bss.typeName),
 		},
 	}
 	return ss

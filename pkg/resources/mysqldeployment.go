@@ -15,7 +15,6 @@ import (
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog"
 )
 
@@ -36,12 +35,18 @@ func (msd *MySQLServerDeployment) GetName() string {
 	return msd.name
 }
 
-// Generate labels for the MySQL Server pods
-func (msd *MySQLServerDeployment) getLabels(ndb *v1alpha1.Ndb) map[string]string {
-	l := map[string]string{
+// getDeploymentLabels returns the labels of the deployment
+func (msd *MySQLServerDeployment) getDeploymentLabels(ndb *v1alpha1.Ndb) map[string]string {
+	return ndb.GetCompleteLabels(map[string]string{
+		constants.ClusterResourceTypeLabel: mysqldClientName + "-deployment",
+	})
+}
+
+// getPodLabels generates the labels for the MySQL Server pods controlled by the deployment
+func (msd *MySQLServerDeployment) getPodLabels(ndb *v1alpha1.Ndb) map[string]string {
+	return ndb.GetCompleteLabels(map[string]string{
 		constants.ClusterNodeTypeLabel: mysqldClientName,
-	}
-	return labels.Merge(l, ndb.GetLabels())
+	})
 }
 
 // GetRootPasswordSecretName returns the name of the root password secret
@@ -53,10 +58,14 @@ func (msd *MySQLServerDeployment) GetRootPasswordSecretName() string {
 func (msd *MySQLServerDeployment) NewMySQLRootPasswordSecret(ndb *v1alpha1.Ndb) *v1.Secret {
 	// Generate a random password of length 16
 	rootPassword := helpers.GenerateRandomPassword(16)
+	// Labels to be applied to the secret
+	secretLabels := ndb.GetCompleteLabels(map[string]string{
+		constants.ClusterResourceTypeLabel: mysqldRootPasswordSecretName + "-secret",
+	})
 	// build Secret and return
 	return &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels:          ndb.GetLabels(),
+			Labels:          secretLabels,
 			Name:            msd.GetRootPasswordSecretName(),
 			Namespace:       ndb.GetNamespace(),
 			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
@@ -163,25 +172,27 @@ func (msd *MySQLServerDeployment) NewDeployment(ndb *v1alpha1.Ndb, rc *ResourceC
 	deploymentName := ndb.Name + "-" + mysqldClientName
 
 	mysqldSpec := ndb.Spec.Mysqld
-	podLabels := msd.getLabels(ndb)
+	podLabels := msd.getPodLabels(ndb)
 
 	// Define the deployment
 	mysqldDeployment := &apps.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
+			// The deployment name, namespace and labels
+			Name:      deploymentName,
+			Namespace: ndb.Namespace,
+			Labels:    msd.getDeploymentLabels(ndb),
 			// Annotate the deployment with this config generation
 			Annotations: map[string]string{
 				constants.LastAppliedConfigGeneration: strconv.FormatInt(rc.ConfigGeneration, 10),
 			},
-			// The deployment name, namespace and owner references
-			Name:            deploymentName,
-			Namespace:       ndb.Namespace,
-			Labels:          ndb.GetLabels(),
+			// Owner reference pointing to the Ndb resource
 			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
 		},
 		Spec: apps.DeploymentSpec{
 			// The desired spec of the deployment
 			Replicas: mysqldSpec.NodeCount,
 			Selector: &metav1.LabelSelector{
+				// must match templates labels
 				MatchLabels: podLabels,
 			},
 			Template: v1.PodTemplateSpec{

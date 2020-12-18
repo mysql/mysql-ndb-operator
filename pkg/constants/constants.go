@@ -10,6 +10,9 @@ import "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller"
 const ClusterLabel = ndbcontroller.GroupName + "/v1alpha1"
 const ClusterNodeTypeLabel = ndbcontroller.GroupName + "/nodetype"
 
+// ClusterResourceTypeLabel is applied to all k8s resources managed by Ndb
+const ClusterResourceTypeLabel = ndbcontroller.GroupName + "/resourcetype"
+
 const DataDir = "/var/lib/ndb"
 
 // Constants used by the MySQL Deployments

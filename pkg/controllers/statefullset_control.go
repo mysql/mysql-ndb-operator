@@ -25,6 +25,7 @@ import (
    is implemented as an interface to enable testing. */
 
 type StatefulSetControlInterface interface {
+	GetTypeName() string
 	EnsureStatefulSet(rc *resources.ResourceContext, ndb *v1alpha1.Ndb) (*apps.StatefulSet, bool, error)
 	Patch(rc *resources.ResourceContext, ndb *v1alpha1.Ndb, old *apps.StatefulSet) (*apps.StatefulSet, error)
 }
@@ -39,6 +40,12 @@ type realStatefulSetControl struct {
 // StatefulSetControlInterface.
 func NewRealStatefulSetControl(client kubernetes.Interface, statefulSetLister appslisters.StatefulSetLister) StatefulSetControlInterface {
 	return &realStatefulSetControl{client: client, statefulSetLister: statefulSetLister}
+}
+
+// GetTypeName returns the type of the statefulSetInterface
+// being controlled by the StatefulSetControlInterface
+func (rssc *realStatefulSetControl) GetTypeName() string {
+	return rssc.statefulSetType.GetTypeName()
 }
 
 // PatchStatefulSet performs a direct patch update for the specified StatefulSet.
