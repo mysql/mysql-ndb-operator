@@ -25,6 +25,9 @@ SRCDIR ?=
 # the one you run the operator from when running it *outside* kubernetes
 OSBASEDIR ?=
 
+# Put the binaries in bin/$OS_$ARCH
+BINARIES := bin/$(OS)_$(ARCH)
+
 # End of configurable variables
 
 .PHONY: all
@@ -46,6 +49,11 @@ build:
 	@echo "bin:      $(BINARIES)"
 	@touch pkg/version/version.go # Important. Work around for https://github.com/golang/go/issues/18369
 	ARCH=$(ARCH) OS=$(OS) VERSION=$(VERSION) PKG=$(PKG) ./hack/build.sh
+
+nohack:
+	mkdir -p $(BINARIES)
+	go build -o $(BINARIES)/ndb-operator cmd/ndb-operator/main.go
+
 
 .PHONY: clean
 clean:

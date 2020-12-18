@@ -2,18 +2,18 @@
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-package ndb
+package mgm
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 )
 
 const connectstring = "127.0.0.1:1186"
 
-func TestGetStatus(t *testing.T) {
-	api := &Mgmclient{}
+func TestGetMgmNodeId(t *testing.T) {
+
+	api := new(Client)
 
 	err := api.Connect(connectstring)
 	if err != nil {
@@ -22,36 +22,7 @@ func TestGetStatus(t *testing.T) {
 	}
 	defer api.Disconnect()
 
-	clusterStatus, err := api.GetStatus()
-	if err != nil {
-		t.Errorf("get status failed: %s", err)
-		return
-	}
-
-	for s, v := range *clusterStatus {
-		vs, _ := json.MarshalIndent(v, "", " ")
-		fmt.Printf("[%d] %s ", s, vs)
-	}
-
-	ok := clusterStatus.IsClusterDegraded()
-	if ok {
-		t.Errorf("Cluster is in degraded state\n")
-	}
-
-}
-
-func TestGetOwnNodeId(t *testing.T) {
-
-	api := &Mgmclient{}
-
-	err := api.Connect(connectstring)
-	if err != nil {
-		t.Errorf("Connection failed: %s", err)
-		return
-	}
-	defer api.Disconnect()
-
-	nodeid, err := api.GetOwnNodeId()
+	nodeid, err := api.GetMgmNodeId()
 	if err != nil {
 		t.Errorf("get status failed: %s", err)
 		return
@@ -60,8 +31,10 @@ func TestGetOwnNodeId(t *testing.T) {
 	fmt.Printf("Own nodeid: %d\n", nodeid)
 }
 
+// This test depends on Nodes 3 and 4 being data nodes
+// Fixme: first fetch the config, then stop a known data node from the config
 func TestStopNodes(t *testing.T) {
-	api := &Mgmclient{}
+	api := new(Client)
 
 	err := api.Connect(connectstring)
 	if err != nil {
@@ -84,7 +57,7 @@ func TestStopNodes(t *testing.T) {
 }
 
 func TestGetConfig(t *testing.T) {
-	api := &Mgmclient{}
+	api := new(Client)
 
 	err := api.Connect(connectstring)
 	if err != nil {
@@ -93,20 +66,26 @@ func TestGetConfig(t *testing.T) {
 	}
 	defer api.Disconnect()
 
-	_, err = api.GetConfig()
+	verId, err := api.GetVersion(nil)
+	if err != nil {
+		t.Errorf("getting version")
+	}
+
+	_, err = api.GetConfig(0, verId)
 	if err != nil {
 		t.Errorf("getting config failed : %s", err)
 		return
 	}
 
-	_, err = api.GetConfigFromNode(3)
-	if err != nil {
-		t.Errorf("getting config failed : %s", err)
-		return
-	}
+	// _, err = api.GetConfig(3, verId)
+	// if err != nil {
+	//   t.Errorf("getting config failed : %s", err)
+	//   return
+	// }
 }
-func Test_GetConfigVersionFromNode(t *testing.T) {
-	api := &Mgmclient{}
+
+func Test_GetConfigVersion(t *testing.T) {
+	api := new(Client)
 
 	err := api.Connect(connectstring)
 	if err != nil {
@@ -115,29 +94,12 @@ func Test_GetConfigVersionFromNode(t *testing.T) {
 	}
 	defer api.Disconnect()
 
-	version := api.GetConfigVersionFromNode(3)
+	version, err := api.GetConfigVersion()
 	fmt.Printf("getting config version: %d\n", version)
 }
 
-func TestShowConfig(t *testing.T) {
-	api := &Mgmclient{}
-
-	err := api.Connect(connectstring)
-	if err != nil {
-		t.Errorf("Connection failed: %s", err)
-		return
-	}
-	defer api.Disconnect()
-
-	err = api.showConfig()
-	if err != nil {
-		t.Errorf("getting config failed : %s", err)
-		return
-	}
-}
-
 func TestShowVariables(t *testing.T) {
-	api := &Mgmclient{}
+	api := new(Client)
 
 	err := api.Connect(connectstring)
 	if err != nil {
@@ -146,7 +108,7 @@ func TestShowVariables(t *testing.T) {
 	}
 	defer api.Disconnect()
 
-	nodeid, err := api.GetOwnNodeId()
+	nodeid, err := api.GetMgmNodeId()
 	if err != nil {
 		t.Errorf("show variables failed: %s", err)
 		return
@@ -157,18 +119,19 @@ func TestShowVariables(t *testing.T) {
 	}
 }
 
+// FIXME This test dependes on a particular config
+// Fetch a configuration first, then compare the results to it
 func TestConnectWantedNodeId(t *testing.T) {
-	api := &Mgmclient{}
+	api := new(Client)
 
 	wantedNodeId := 2
 	err := api.ConnectToNodeId(connectstring, wantedNodeId)
 	if err != nil {
-		t.Errorf("Connection failed: %s", err)
-		return
+		t.Error(err)
 	}
 	defer api.Disconnect()
 
-	nodeid, err := api.GetOwnNodeId()
+	nodeid, err := api.GetMgmNodeId()
 	if err != nil {
 		t.Errorf("show variables failed: %s", err)
 		return
