@@ -5,32 +5,44 @@
 package resources
 
 import (
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/constants"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 )
 
-// NewForCluster will return a new headless Kubernetes service for a MySQL cluster
-func NewService(ndb *v1alpha1.Ndb, mgmd bool, externalIP bool, svcName string) *corev1.Service {
+// NewService builds and returns a new Service resource
+func NewService(ndb *v1alpha1.Ndb, nodeTypeSelector string, externalIP bool) *corev1.Service {
 
-	selector := ndb.GetDataNodeLabels()
+	// default service details
+	serviceName := ndb.GetServiceName(nodeTypeSelector)
 	svcType := corev1.ServiceTypeClusterIP
 	clusterIP := corev1.ClusterIPNone
+	serviceResourceLabel := nodeTypeSelector + "-service"
 
-	if mgmd {
-		selector = ndb.GetManagementNodeLabels()
-	}
-
+	// if externalIP is true, create an external load balancer service
 	if externalIP {
+		serviceName += "-ext"
 		svcType = corev1.ServiceTypeLoadBalancer
 		clusterIP = ""
+		serviceResourceLabel += "-ext"
 	}
 
+	// Label for the Service Resource
+	serviceLabel := ndb.GetCompleteLabels(map[string]string{
+		constants.ClusterResourceTypeLabel: serviceResourceLabel,
+	})
+
+	// Label Selector for the pods
+	selectorLabel := ndb.GetCompleteLabels(map[string]string{
+		constants.ClusterNodeTypeLabel: nodeTypeSelector,
+	})
+
+	// build a Service
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels:          ndb.GetLabels(),
-			Name:            svcName,
+			Labels:          serviceLabel,
+			Name:            serviceName,
 			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
 		},
 		Spec: corev1.ServiceSpec{
@@ -40,7 +52,7 @@ func NewService(ndb *v1alpha1.Ndb, mgmd bool, externalIP bool, svcName string) *
 				//corev1.ServicePort{Port: 8080, Name: "agent", Protocol: "TCP"},
 				corev1.ServicePort{Port: 1186, Name: "ndb-node", Protocol: "TCP"},
 			},
-			Selector:  selector,
+			Selector:  selectorLabel,
 			ClusterIP: clusterIP,
 			Type:      svcType,
 		},

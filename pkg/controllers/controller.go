@@ -428,15 +428,20 @@ func (c *Controller) ensureDefaults(ndb *v1alpha1.Ndb) {
 
 }
 
-// ensureService ecreates a services if it doesn't exist
+// ensureService creates a services if it doesn't exist
 // returns
-//    service eixsting or created
+//    service existing or created
 //    true if services was created
-//    error if any such occured
-func (sc *SyncContext) ensureService(isMgmd bool, externalIP bool, name string) (*corev1.Service, bool, error) {
+//    error if any such occurred
+func (sc *SyncContext) ensureService(selector string, externalIP bool) (*corev1.Service, bool, error) {
+
+	serviceName := sc.ndb.GetServiceName(selector)
+	if externalIP {
+		serviceName += "-ext"
+	}
 
 	// TODO: check which get options are supposed to be used, fetch from cache sufficient?
-	svc, err := sc.kubeclientset().CoreV1().Services(sc.ndb.Namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	svc, err := sc.kubeclientset().CoreV1().Services(sc.ndb.Namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
 
 	if err == nil {
 		return svc, true, nil
@@ -445,9 +450,10 @@ func (sc *SyncContext) ensureService(isMgmd bool, externalIP bool, name string) 
 		return nil, false, err
 	}
 
+	// Service not found - create it
 	klog.Infof("Creating a new Service for cluster %q",
 		types.NamespacedName{Namespace: sc.ndb.Namespace, Name: sc.ndb.Name})
-	svc = resources.NewService(sc.ndb, isMgmd, externalIP, name)
+	svc = resources.NewService(sc.ndb, selector, externalIP)
 	svc, err = sc.kubeclientset().CoreV1().Services(sc.ndb.Namespace).Create(context.TODO(), svc, metav1.CreateOptions{})
 	if err != nil {
 		return nil, false, err
@@ -459,14 +465,14 @@ func (sc *SyncContext) ensureService(isMgmd bool, externalIP bool, name string) 
 // returns
 //    array with services created
 //    false if any services were created
-//    error if any such occured
-func (sc *SyncContext) ensureServices() (*[](*corev1.Service), bool, error) {
-	svcs := []*corev1.Service{}
+//    error if any such occurred
+func (sc *SyncContext) ensureServices() (*[]*corev1.Service, bool, error) {
+	var svcs []*corev1.Service
 
 	retExisted := true
 
 	// create a headless service for management nodes
-	svc, existed, err := sc.ensureService(true, false, sc.ndb.GetManagementServiceName())
+	svc, existed, err := sc.ensureService(sc.mgmdController.GetTypeName(), false)
 	if err != nil {
 		return nil, false, err
 	}
@@ -474,7 +480,7 @@ func (sc *SyncContext) ensureServices() (*[](*corev1.Service), bool, error) {
 	svcs = append(svcs, svc)
 
 	// create a loadbalancer service for management servers
-	svc, existed, err = sc.ensureService(true, true, sc.ndb.GetManagementServiceName()+"-ext")
+	svc, existed, err = sc.ensureService(sc.mgmdController.GetTypeName(), true)
 	if err != nil {
 		return nil, false, err
 	}
@@ -491,7 +497,7 @@ func (sc *SyncContext) ensureServices() (*[](*corev1.Service), bool, error) {
 	}
 
 	// create a headless service for data nodes
-	svc, existed, err = sc.ensureService(false, false, sc.ndb.GetDataNodeServiceName())
+	svc, existed, err = sc.ensureService(sc.ndbdController.GetTypeName(), false)
 	svcs = append(svcs, svc)
 	if err != nil {
 		return nil, false, err
@@ -578,8 +584,10 @@ func (sc *SyncContext) ensureMySQLServerDeployment() (*appsv1.Deployment, bool, 
 //    or returns an error if something went wrong
 func (sc *SyncContext) ensurePodDisruptionBudget() (*policyv1beta1.PodDisruptionBudget, bool, error) {
 
+	// Check if ndbd pod disruption budget is present
+	nodeType := sc.ndbdController.GetTypeName()
 	pdbs := sc.kubeclientset().PolicyV1beta1().PodDisruptionBudgets(sc.ndb.Namespace)
-	pdb, err := pdbs.Get(context.TODO(), sc.ndb.GetPodDisruptionBudgetName(), metav1.GetOptions{})
+	pdb, err := pdbs.Get(context.TODO(), sc.ndb.GetPodDisruptionBudgetName(nodeType), metav1.GetOptions{})
 	if err == nil {
 		return pdb, true, nil
 	}
@@ -589,7 +597,7 @@ func (sc *SyncContext) ensurePodDisruptionBudget() (*policyv1beta1.PodDisruption
 
 	klog.Infof("Creating a new PodDisruptionBudget for Data Nodes of Cluster %q",
 		types.NamespacedName{Namespace: sc.ndb.Namespace, Name: sc.ndb.Name})
-	pdb = resources.NewPodDisruptionBudget(sc.ndb)
+	pdb = resources.NewPodDisruptionBudget(sc.ndb, nodeType)
 	pdb, err = pdbs.Create(context.TODO(), pdb, metav1.CreateOptions{})
 
 	if err != nil {
@@ -670,7 +678,7 @@ func (sc *SyncContext) enstablishManagementConnection(api *ndb.Mgmclient, nodeID
 		// maybe use a mix for parallel consistency check
 		// now we simply use the pod ip
 
-		podName := fmt.Sprintf("%s-%d", sc.ndb.GetManagementServiceName(), nodeID-1)
+		podName := fmt.Sprintf("%s-%d", sc.ndb.GetServiceName("mgmd"), nodeID-1)
 		pod, err := sc.kubeclientset().CoreV1().Pods(sc.ndb.Namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("No pod %s/%s for management server with node id %d found", sc.ndb.Namespace, podName, nodeID)
