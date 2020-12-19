@@ -44,8 +44,9 @@ type mysqlDeploymentController struct {
 	mysqlServerDeployment *resources.MySQLServerDeployment
 }
 
+// ensureRootPasswordSecret ensures the existence of a root-password-secret by creating one if it doesn't exist
 func (mdc *mysqlDeploymentController) ensureRootPasswordSecret(ndb *v1alpha1.Ndb) (err error) {
-	secretName := mdc.mysqlServerDeployment.GetRootPasswordSecretName()
+	secretName := mdc.mysqlServerDeployment.GetRootPasswordSecretName(ndb)
 	secretInterface := mdc.client.CoreV1().Secrets(ndb.Namespace)
 	if _, err = secretInterface.Get(context.TODO(), secretName, metav1.GetOptions{}); err == nil {
 		// Secret exists
