@@ -19,10 +19,18 @@ import (
 )
 
 const (
-	mysqldClientName             = "mysqld"
-	mysqldVolumeName             = mysqldClientName + "-volume"
+	mysqldClientName = "mysqld"
+	// MySQL Server runtime directory
+	mysqldDir = constants.DataDir + "/mysqld"
+	// Data directory volume and mount path
+	mysqldDataDirVolName = mysqldClientName + "-vol"
+	mysqldDataDir        = mysqldDir + "/datadir"
+	// MySQL root password secret name, volume and mount path
 	mysqldRootPasswordSecretName = mysqldClientName + "-root-password"
-	mysqldDataDir                = constants.DataDir + "/mysql"
+	mysqldRootPasswordVolName    = mysqldClientName + "-root-password-vol"
+	mysqldRootPasswordMountPath  = mysqldDir + "/auth"
+	mysqldRootPasswordFileName   = ".root-password"
+	// TODO: Allow users to specify their own secret
 )
 
 // MySQLServerDeployment is a deployment of MySQL Servers running as clients to the NDB
@@ -50,8 +58,8 @@ func (msd *MySQLServerDeployment) getPodLabels(ndb *v1alpha1.Ndb) map[string]str
 }
 
 // GetRootPasswordSecretName returns the name of the root password secret
-func (msd *MySQLServerDeployment) GetRootPasswordSecretName() string {
-	return msd.name + "-" + mysqldRootPasswordSecretName
+func (msd *MySQLServerDeployment) GetRootPasswordSecretName(ndb *v1alpha1.Ndb) string {
+	return ndb.Name + "-" + mysqldRootPasswordSecretName
 }
 
 // NewMySQLRootPasswordSecret creates and returns a new root password secret
@@ -66,7 +74,7 @@ func (msd *MySQLServerDeployment) NewMySQLRootPasswordSecret(ndb *v1alpha1.Ndb) 
 	return &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:          secretLabels,
-			Name:            msd.GetRootPasswordSecretName(),
+			Name:            msd.GetRootPasswordSecretName(ndb),
 			Namespace:       ndb.GetNamespace(),
 			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
 		},
@@ -76,28 +84,28 @@ func (msd *MySQLServerDeployment) NewMySQLRootPasswordSecret(ndb *v1alpha1.Ndb) 
 }
 
 // getPodVolumes returns the volumes to be used by the pod
-func (msd *MySQLServerDeployment) getPodVolumes() *[]v1.Volume {
-	onlyOwnerCanReadMode := int32(400)
+func (msd *MySQLServerDeployment) getPodVolumes(ndb *v1alpha1.Ndb) *[]v1.Volume {
+	allowOnlyOwnerToReadMode := int32(0400)
 	return &[]v1.Volume{
 		// Use a temporary empty directory volume for the pod
 		{
-			Name: mysqldVolumeName,
+			Name: mysqldDataDirVolName,
 			VolumeSource: v1.VolumeSource{
 				EmptyDir: &v1.EmptyDirVolumeSource{},
 			},
 		},
 		// Use the root password secret as a volume
 		{
-			Name: mysqldRootPasswordSecretName,
+			Name: mysqldRootPasswordVolName,
 			VolumeSource: v1.VolumeSource{
 				Secret: &v1.SecretVolumeSource{
-					SecretName: msd.GetRootPasswordSecretName(),
+					SecretName: msd.GetRootPasswordSecretName(ndb),
 					// Project the password to a file name "root-password"
 					Items: []v1.KeyToPath{{
 						Key:  v1.BasicAuthPasswordKey,
-						Path: "root-password",
+						Path: mysqldRootPasswordFileName,
 					}},
-					DefaultMode: &onlyOwnerCanReadMode,
+					DefaultMode: &allowOnlyOwnerToReadMode,
 				},
 			},
 		},
@@ -109,13 +117,13 @@ func (msd *MySQLServerDeployment) getMysqlVolumeMounts() *[]v1.VolumeMount {
 	return &[]v1.VolumeMount{
 		// Mount the empty dir volume as data directory
 		{
-			Name:      mysqldVolumeName,
+			Name:      mysqldDataDirVolName,
 			MountPath: mysqldDataDir,
 		},
-		// Mount the secret volume at /etc/auth
+		// Mount the secret volume
 		{
-			Name:      mysqldRootPasswordSecretName,
-			MountPath: "/etc/auth",
+			Name:      mysqldRootPasswordVolName,
+			MountPath: mysqldRootPasswordMountPath,
 		},
 	}
 }
@@ -156,6 +164,14 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb) v1.Containe
 		VolumeMounts:    *msd.getMysqlVolumeMounts(),
 		Command:         []string{"/bin/bash", "-ecx", cmd},
 		ImagePullPolicy: v1.PullIfNotPresent,
+		// Pass arguments to the entrypoint script via environment variables
+		Env: []v1.EnvVar{
+			{
+				// Path to the file that has the password of the root user
+				Name:  "MYSQL_ROOT_PASSWORD",
+				Value: mysqldRootPasswordMountPath + "/" + mysqldRootPasswordFileName,
+			},
+		},
 	}
 }
 
@@ -164,7 +180,7 @@ func (msd *MySQLServerDeployment) NewDeployment(ndb *v1alpha1.Ndb, rc *ResourceC
 
 	podSpec := v1.PodSpec{
 		Containers:         []v1.Container{msd.createContainer(ndb)},
-		Volumes:            *msd.getPodVolumes(),
+		Volumes:            *msd.getPodVolumes(ndb),
 		ServiceAccountName: "ndb-agent",
 	}
 

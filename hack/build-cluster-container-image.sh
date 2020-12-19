@@ -27,7 +27,7 @@ fi
 
 # Executable files to be copied inside the Docker image
 exes_to_sbin=("ndbmtd" "ndb_mgmd" "mysqld" "mysqladmin")
-exes_to_bin=("ndb_mgm" "mysql")
+exes_to_bin=("ndb_mgm" "mysql" "mysql_tzinfo_to_sql")
 
 # copy all the required binaries to docker context
 DOCKER_CTX_FILES="cluster-docker-files"
