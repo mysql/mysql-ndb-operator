@@ -58,7 +58,7 @@ version:
 ndb-container-image:
 	@BASEDIR=$(BASEDIR) IMAGE_TAG=$(IMAGE_TAG) ./hack/build-cluster-container-image.sh
 
-# Build a MySQL Cluster container image
+# Build a ndb operator image in docker
 .PHONY: operator-image
 operator-image: build
 	OS=linux docker build -t ndb-operator:"${VERSION}" -f docker/ndb-operator/Dockerfile .
@@ -84,7 +84,7 @@ manifests:
 
 .PHONY: run
 run:
-	bin/$(OS)_$(ARCH)/ndb-operator --kubeconfig=$(HOME)/.kube/config
+	bin/$(OS)_$(ARCH)/ndb-operator --kubeconfig=$(HOME)/.kube/config --scripts_dir=pkg/helpers/scripts
 
 NDBINFO_CPP_DIR=pkg/ndb/ndbinfo
 NDBINFO_BLD_DIR=lib/ndb/$(OS)_$(ARCH)

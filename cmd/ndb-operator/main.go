@@ -17,6 +17,7 @@ import (
 	// Uncomment the following line to load the gcp plugin (only required to authenticate against GKE clusters).
 	// _ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 
+	"github.com/mysql/ndb-operator/pkg/config"
 	"github.com/mysql/ndb-operator/pkg/controllers"
 	clientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
@@ -104,4 +105,6 @@ func main() {
 func init() {
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
 	flag.StringVar(&masterURL, "master", "", "The address of the Kubernetes API server. Overrides any value in kubeconfig. Only required if out-of-cluster.")
+	flag.StringVar(&config.ScriptsDir, "scripts_dir", config.DefaultScriptsDir,
+		"The location of scripts to be deployed by the operator in the pods. Only required if out-of-cluster.")
 }
