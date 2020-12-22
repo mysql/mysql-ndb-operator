@@ -162,7 +162,7 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(
 		updatedDeployment.Spec.Replicas = ndb.Spec.Mysqld.NodeCount
 	} else {
 		// Second pass - patch in the any other spec changes and scale up
-		updatedDeployment = mdc.mysqlServerDeployment.NewDeployment(ndb, rc)
+		updatedDeployment = mdc.mysqlServerDeployment.NewDeployment(ndb, rc, deployment)
 	}
 
 	patchedDeployment, err := mdc.patchDeployment(deployment, updatedDeployment)
@@ -204,7 +204,7 @@ func (mdc *mysqlDeploymentController) EnsureDeployment(
 	// Create deployment
 	numberOfMySQLServers := *ndb.Spec.Mysqld.NodeCount
 	klog.Infof("Creating a deployment of '%d' MySQL Servers", numberOfMySQLServers)
-	deployment = mdc.mysqlServerDeployment.NewDeployment(ndb, rc)
+	deployment = mdc.mysqlServerDeployment.NewDeployment(ndb, rc, nil)
 	if _, err = mdc.createDeployment(deployment); err != nil {
 		// Creating deployment failed
 		klog.Errorf("Failed to create deployment of '%d' MySQL Servers with error: %s",

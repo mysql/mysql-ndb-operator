@@ -16,5 +16,9 @@ const ClusterResourceTypeLabel = ndbcontroller.GroupName + "/resourcetype"
 const DataDir = "/var/lib/ndb"
 
 // Constants used by the MySQL Deployments
-// LastAppliedConfigGeneration is the annotation key that holds the last applied config generation
-const LastAppliedConfigGeneration = ndbcontroller.GroupName + "last-applied-config-generation"
+const (
+	// LastAppliedConfigGeneration is the annotation key that holds the last applied config generation
+	LastAppliedConfigGeneration = ndbcontroller.GroupName + "last-applied-config-generation"
+	// NdbClusterInitScript is the name of the ndbcluster initialisation script
+	NdbClusterInitScript = "ndbcluster-init-script.sh"
+)
