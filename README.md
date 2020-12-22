@@ -108,6 +108,44 @@ kubectl get pods -w
 kubectl exec -ti pod/example-ndb-mgmd-0 -- /bin/bash
 ```
 
+The operator creates loadbalancer services to allow access to the Management server and the MySQL Servers running inside the K8s cluster.
+The load balancer service names will be of the following format :
+ * Management Server load balancer : "\<ndb-cluster-name\>-mgmd-ext"
+ * MySQL Server loadbalancer : "\<ndb-cluster-name\>-mysqld-ext"
+
+```
+# Retrieve the Management load balancer service IP address using the service name
+kubectl get service "example-ndb-mgmd-ext" \
+  -o jsonpath={.status.loadBalancer.ingress[0].ip}
+
+# (or) retrieve it using the service label
+kubectl get service \
+  -l "mysql.oracle.com/resourcetype=mgmd-service-ext" \
+  -o jsonpath={.items[0].status.loadBalancer.ingress[0].ip}
+
+# Retrieve the MySQL Server load balancer service IP address using the service name
+kubectl get service "example-ndb-mysqld-ext" \
+  -o jsonpath={.status.loadBalancer.ingress[0].ip}
+
+# (or) retrieve it using the service label
+kubectl get service \
+  -l "mysql.oracle.com/resourcetype=mysqld-service-ext" \
+  -o jsonpath={.items[0].status.loadBalancer.ingress[0].ip}
+
+```
+
+The MySQL Servers are also set up with a root account and a random password.
+The password is stored in the k8s secret whose name will be of the format "\<ndb-cluster-name\>-mysqld-root-password".
+It can be retrieved as follows :
+
+```
+# The password will be base64 encoded
+# Retrieve it from the secret and decode it
+base64 -d <<< \
+  $(kubectl get secret example-ndb-mysqld-root-password \
+     -o jsonpath={.data.password})
+```
+
 You can delete the cluster installation again with
 
 
@@ -148,5 +186,6 @@ TBD
 You can clean up the created CustomResourceDefinition with:
 
     kubectl delete crd ndbs.ndbcontroller.k8s.io
+
 
 

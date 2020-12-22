@@ -12,7 +12,7 @@ import (
 )
 
 // NewService builds and returns a new Service resource
-func NewService(ndb *v1alpha1.Ndb, nodeTypeSelector string, externalIP bool) *corev1.Service {
+func NewService(ndb *v1alpha1.Ndb, port int32, nodeTypeSelector string, externalIP bool) *corev1.Service {
 
 	// default service details
 	serviceName := ndb.GetServiceName(nodeTypeSelector)
@@ -50,7 +50,7 @@ func NewService(ndb *v1alpha1.Ndb, nodeTypeSelector string, externalIP bool) *co
 			Ports: []corev1.ServicePort{
 				// TODO: two ports in array didn't work, at least not exposing via minikube tunnel
 				//corev1.ServicePort{Port: 8080, Name: "agent", Protocol: "TCP"},
-				corev1.ServicePort{Port: 1186, Name: "ndb-node", Protocol: "TCP"},
+				corev1.ServicePort{Port: port, Name: serviceResourceLabel + "-port", Protocol: "TCP"},
 			},
 			Selector:  selectorLabel,
 			ClusterIP: clusterIP,

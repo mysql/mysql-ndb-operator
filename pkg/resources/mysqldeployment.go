@@ -54,6 +54,12 @@ func (msd *MySQLServerDeployment) GetName() string {
 	return msd.name
 }
 
+// GetTypeName returns the constants.ClusterNodeTypeLabel
+// value of the resource that can be used as a pod selector.
+func (msd *MySQLServerDeployment) GetTypeName() string {
+	return mysqldClientName
+}
+
 // getDeploymentLabels returns the labels of the deployment
 func (msd *MySQLServerDeployment) getDeploymentLabels(ndb *v1alpha1.Ndb) map[string]string {
 	return ndb.GetCompleteLabels(map[string]string{
