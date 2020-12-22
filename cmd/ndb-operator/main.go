@@ -42,11 +42,24 @@ func main() {
 		version.GetBuildTime())
 
 	klog.Info("Checking environment")
-	if k8Host := os.Getenv("KUBERNETES_SERVICE_HOST"); k8Host != "" && len(k8Host) > 0 {
+	var k8Host, k8Port string
+	if k8Host = os.Getenv("KUBERNETES_SERVICE_HOST"); k8Host != "" && len(k8Host) > 0 {
 		klog.Infof("Kubernetes host: %s", k8Host)
 	}
-	if k8Port := os.Getenv("KUBERNETES_SERVICE_PORT"); k8Port != "" && len(k8Port) > 0 {
+	if k8Port = os.Getenv("KUBERNETES_SERVICE_PORT"); k8Port != "" && len(k8Port) > 0 {
 		klog.Infof("Kubernetes port: %s", k8Port)
+	}
+
+	runInCluster := true
+	if k8Host == "" || k8Port == "" {
+		if kubeconfig == "" {
+			klog.Fatalf("No kubeconfig or environment given. Exit.")
+			return
+		}
+		runInCluster = false
+		klog.Infof("Running ndb-operator out of kubernetes cluster")
+	} else {
+		klog.Infof("Running ndb-operator inside kubernetes cluster")
 	}
 
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
@@ -67,9 +80,10 @@ func main() {
 	k8If := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	ndbOpIf := informers.NewSharedInformerFactory(ndbClient, time.Second*30)
 
+	ctx := controllers.NewControllerContext(kubeClient, ndbClient, runInCluster)
+
 	controller := controllers.NewController(
-		kubeClient,
-		ndbClient,
+		ctx,
 		k8If.Apps().V1().StatefulSets(),
 		k8If.Apps().V1().Deployments(),
 		k8If.Core().V1().Services(),
