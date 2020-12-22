@@ -48,7 +48,8 @@ func NewNdbdStatefulSet(cluster *v1alpha1.Ndb) *baseStatefulSet {
 	return &baseStatefulSet{typeName: "ndbd", clusterName: cluster.Name}
 }
 
-func volumeMounts(cluster *v1alpha1.Ndb) []v1.VolumeMount {
+// volumeMounts returns the volumes to be mounted to the container
+func (bss *baseStatefulSet) volumeMounts() []v1.VolumeMount {
 	var mounts []v1.VolumeMount
 
 	// volume mount for the data directory
@@ -57,16 +58,19 @@ func volumeMounts(cluster *v1alpha1.Ndb) []v1.VolumeMount {
 		MountPath: constants.DataDir,
 	})
 
-	// volume mount for the config map holding the cluster configuration
-	mounts = append(mounts, v1.VolumeMount{
-		Name:      "config-volume",
-		MountPath: constants.DataDir + "/config",
-	})
+	if bss.typeName == "mgmd" {
+		// Mount the config map volume holding the
+		// cluster configuration into the management container
+		mounts = append(mounts, v1.VolumeMount{
+			Name:      "config-volume",
+			MountPath: constants.DataDir + "/config",
+		})
+	}
 
 	return mounts
 }
 
-func agentContainer(ndb *v1alpha1.Ndb, ndbAgentImage string) v1.Container {
+func (bss *baseStatefulSet) agentContainer(ndb *v1alpha1.Ndb, ndbAgentImage string) v1.Container {
 
 	agentVersion := version.GetBuildVersion()
 
@@ -86,7 +90,7 @@ func agentContainer(ndb *v1alpha1.Ndb, ndbAgentImage string) v1.Container {
 			},
 		},
 		// agent requires access to ndbd and mgmd volumes
-		VolumeMounts: volumeMounts(ndb),
+		VolumeMounts: bss.volumeMounts(),
 		Env:          []v1.EnvVar{},
 		LivenessProbe: &v1.Probe{
 			Handler: v1.Handler{
@@ -155,7 +159,7 @@ func (bss *baseStatefulSet) mgmdContainer(ndb *v1alpha1.Ndb) v1.Container {
 				ContainerPort: 1186,
 			},
 		},
-		VolumeMounts:    volumeMounts(ndb),
+		VolumeMounts:    bss.volumeMounts(),
 		Command:         []string{"/bin/bash", "-ecx", cmd},
 		ImagePullPolicy: v1.PullIfNotPresent, //v1.PullNever,
 		Env:             environment,
@@ -185,7 +189,7 @@ func (bss *baseStatefulSet) ndbmtdContainer(ndb *v1alpha1.Ndb) v1.Container {
 				ContainerPort: 1186,
 			},
 		},
-		VolumeMounts:    volumeMounts(ndb),
+		VolumeMounts:    bss.volumeMounts(),
 		Command:         []string{"/bin/bash", "-ecx", cmd},
 		ImagePullPolicy: v1.PullIfNotPresent, //v1.PullNever,
 	}
@@ -210,26 +214,27 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 			},
 		},
 	)
-	// add the configmap generated with config.ini
-	// TODO: check if this is needed for ndbd pods
-	//       if not, mount only for mgmd pods
-	podVolumes = append(podVolumes, v1.Volume{
-		Name: "config-volume",
-		VolumeSource: v1.VolumeSource{
-			ConfigMap: &v1.ConfigMapVolumeSource{
-				LocalObjectReference: v1.LocalObjectReference{
-					Name: ndb.GetConfigMapName(),
-				},
-				// Load only the config.ini key
-				Items: []v1.KeyToPath{
-					{
-						Key:  configIniKey,
-						Path: configIniKey,
+
+	if bss.typeName == "mgmd" {
+		// Add the configmap's config.ini as a volume to the Management pods
+		podVolumes = append(podVolumes, v1.Volume{
+			Name: "config-volume",
+			VolumeSource: v1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: ndb.GetConfigMapName(),
+					},
+					// Load only the config.ini key
+					Items: []v1.KeyToPath{
+						{
+							Key:  configIniKey,
+							Path: configIniKey,
+						},
 					},
 				},
 			},
-		},
-	})
+		})
+	}
 
 	var containers []v1.Container
 	var serviceaccount string
