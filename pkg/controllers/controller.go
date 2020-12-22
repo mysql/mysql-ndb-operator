@@ -634,14 +634,12 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 
 	klog.Infof("Ensuring Management Server has correct config version %d", wantedGeneration)
 
-	api := &mgm.Client{}
-
 	// management server have the first nodeids
 	// TODO: when we'll ever scale the number of management servers then this
 	// needs to be changed to actually currently configured management servers
 	// ndbobj has "desired" number of management servers
 	for nodeID := 1; nodeID <= (int)(sc.ndb.GetManagementNodeCount()); nodeID++ {
-		api.Disconnect()
+		api := &mgm.Client{}
 
 		// TODO : we use this function so far during test operator from outside cluster
 		// we try connecting via load balancer until we connect to correct wanted node
