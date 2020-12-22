@@ -6,8 +6,12 @@ package resources
 
 import (
 	"errors"
+	"io/ioutil"
+
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/config"
 	"github.com/mysql/ndb-operator/pkg/constants"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
@@ -42,6 +46,24 @@ func updateManagementConfig(ndb *v1alpha1.Ndb, data map[string]string) error {
 
 	// add/update that to the data map
 	data[configIniKey] = configString
+	return nil
+}
+
+// updateMySQLConfig updates the Data map with the
+// configs/files required for the MySQL Server
+func updateMySQLConfig(data map[string]string) error {
+	// Put the MySQL Server initializer file as a config
+	mysqlServerInitScriptPath := config.ScriptsDir + "/" + constants.NdbClusterInitScript
+
+	fileBytes, err := ioutil.ReadFile(mysqlServerInitScriptPath)
+	if err != nil {
+		klog.Errorf("Failed to read MySQL Server init script at %s : %v",
+			mysqlServerInitScriptPath, err)
+		return err
+	}
+
+	// add it to the data map
+	data[constants.NdbClusterInitScript] = string(fileBytes)
 	return nil
 }
 
@@ -83,6 +105,11 @@ func GenerateConfigMapObject(ndb *v1alpha1.Ndb) *corev1.ConfigMap {
 
 	// Add the config ini value
 	if updateManagementConfig(ndb, data) != nil {
+		return nil
+	}
+
+	// Add the MySQL Configs
+	if updateMySQLConfig(data) != nil {
 		return nil
 	}
 

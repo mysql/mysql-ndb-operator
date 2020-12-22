@@ -31,7 +31,18 @@ const (
 	mysqldRootPasswordMountPath  = mysqldDir + "/auth"
 	mysqldRootPasswordFileName   = ".root-password"
 	// TODO: Allow users to specify their own secret
+	mysqldInitScriptsVolName   = mysqldClientName + "-init-scripts"
+	mysqldInitScriptsMountPath = "/docker-entrypoint-initdb.d/"
 )
+
+func getContainerFromDeployment(containerName string, deployment *apps.Deployment) *v1.Container {
+	for _, container := range deployment.Spec.Template.Spec.Containers {
+		if container.Name == containerName {
+			return &container
+		}
+	}
+	return nil
+}
 
 // MySQLServerDeployment is a deployment of MySQL Servers running as clients to the NDB
 type MySQLServerDeployment struct {
@@ -109,6 +120,24 @@ func (msd *MySQLServerDeployment) getPodVolumes(ndb *v1alpha1.Ndb) *[]v1.Volume 
 				},
 			},
 		},
+		// Use the init script as a volume
+		{
+			Name: mysqldInitScriptsVolName,
+			VolumeSource: v1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: ndb.GetConfigMapName(),
+					},
+					// Load only the MySQL Server init scripts
+					Items: []v1.KeyToPath{
+						{
+							Key:  constants.NdbClusterInitScript,
+							Path: constants.NdbClusterInitScript,
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -125,11 +154,16 @@ func (msd *MySQLServerDeployment) getMysqlVolumeMounts() *[]v1.VolumeMount {
 			Name:      mysqldRootPasswordVolName,
 			MountPath: mysqldRootPasswordMountPath,
 		},
+		// Mount the init script volume
+		{
+			Name:      mysqldInitScriptsVolName,
+			MountPath: mysqldInitScriptsMountPath,
+		},
 	}
 }
 
 // createContainer creates the MySQL Server container to be run as a client
-func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb) v1.Container {
+func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb, oldContainer *v1.Container) *v1.Container {
 
 	// MySQL Server arguments to run with NDB Cluster
 	// TODO: Make these arguments configurable via CRD
@@ -153,7 +187,7 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb) v1.Containe
 	imageName := ndb.Spec.ContainerImage
 	klog.Infof("Creating MySQL container from image %s", imageName)
 
-	return v1.Container{
+	container := &v1.Container{
 		Name:  mysqldClientName,
 		Image: imageName,
 		Ports: []v1.ContainerPort{
@@ -164,22 +198,59 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb) v1.Containe
 		VolumeMounts:    *msd.getMysqlVolumeMounts(),
 		Command:         []string{"/bin/bash", "-ecx", cmd},
 		ImagePullPolicy: v1.PullIfNotPresent,
-		// Pass arguments to the entrypoint script via environment variables
-		Env: []v1.EnvVar{
+	}
+
+	if oldContainer == nil {
+		// Deployment being created for first time
+		// Set the environment variables for the init scripts
+		container.Env = []v1.EnvVar{
 			{
 				// Path to the file that has the password of the root user
 				Name:  "MYSQL_ROOT_PASSWORD",
 				Value: mysqldRootPasswordMountPath + "/" + mysqldRootPasswordFileName,
 			},
-		},
+			// MYSQL_CLUSTER_ROOT_HOST and MYSQL_CLUSTER_EXPECTED_REPLICAS
+			// are consumed exactly once during the Deployment creation.
+			// There are neither updated nor consumed during further deployment updates
+			{
+				// Host from which the root user can be accessed
+				// TODO: This should be configurable during the initial start
+				Name:  "MYSQL_CLUSTER_ROOT_HOST",
+				Value: "%",
+			},
+			{
+				// Expected replicas during initial setup
+				Name:  "MYSQL_CLUSTER_EXPECTED_REPLICAS",
+				Value: strconv.Itoa(int(*ndb.Spec.Mysqld.NodeCount)),
+			},
+		}
+	} else {
+		// This is an Update to Deployment. Copy env variables from oldContainer
+		// Although MYSQL_CLUSTER_ROOT_HOST and MYSQL_CLUSTER_EXPECTED_REPLICAS values
+		// won't be consumed hereafter, we retain the values so as not to trigger a
+		// template.spec update in the Deployments
+		if oldContainer.Env != nil {
+			in, out := &oldContainer.Env, &container.Env
+			*out = make([]v1.EnvVar, len(*in))
+			for i := range *in {
+				(*in)[i].DeepCopyInto(&(*out)[i])
+			}
+		}
 	}
+	return container
 }
 
 // NewDeployment creates a new MySQL Server Deployment for the given Cluster.
-func (msd *MySQLServerDeployment) NewDeployment(ndb *v1alpha1.Ndb, rc *ResourceContext) *apps.Deployment {
+func (msd *MySQLServerDeployment) NewDeployment(
+	ndb *v1alpha1.Ndb, rc *ResourceContext, oldDeployment *apps.Deployment) *apps.Deployment {
+
+	var oldContainer *v1.Container
+	if oldDeployment != nil {
+		oldContainer = getContainerFromDeployment(mysqldClientName, oldDeployment)
+	}
 
 	podSpec := v1.PodSpec{
-		Containers:         []v1.Container{msd.createContainer(ndb)},
+		Containers:         []v1.Container{*msd.createContainer(ndb, oldContainer)},
 		Volumes:            *msd.getPodVolumes(ndb),
 		ServiceAccountName: "ndb-agent",
 	}
