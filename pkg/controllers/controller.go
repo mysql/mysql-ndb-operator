@@ -433,7 +433,7 @@ func (c *Controller) ensureDefaults(ndb *v1alpha1.Ndb) {
 //    service existing or created
 //    true if services was created
 //    error if any such occurred
-func (sc *SyncContext) ensureService(selector string, externalIP bool) (*corev1.Service, bool, error) {
+func (sc *SyncContext) ensureService(port int32, selector string, externalIP bool) (*corev1.Service, bool, error) {
 
 	serviceName := sc.ndb.GetServiceName(selector)
 	if externalIP {
@@ -453,7 +453,7 @@ func (sc *SyncContext) ensureService(selector string, externalIP bool) (*corev1.
 	// Service not found - create it
 	klog.Infof("Creating a new Service for cluster %q",
 		types.NamespacedName{Namespace: sc.ndb.Namespace, Name: sc.ndb.Name})
-	svc = resources.NewService(sc.ndb, selector, externalIP)
+	svc = resources.NewService(sc.ndb, port, selector, externalIP)
 	svc, err = sc.kubeclientset().CoreV1().Services(sc.ndb.Namespace).Create(context.TODO(), svc, metav1.CreateOptions{})
 	if err != nil {
 		return nil, false, err
@@ -467,12 +467,12 @@ func (sc *SyncContext) ensureService(selector string, externalIP bool) (*corev1.
 //    false if any services were created
 //    error if any such occurred
 func (sc *SyncContext) ensureServices() (*[]*corev1.Service, bool, error) {
-	var svcs []*corev1.Service
 
+	var svcs []*corev1.Service
 	retExisted := true
 
 	// create a headless service for management nodes
-	svc, existed, err := sc.ensureService(sc.mgmdController.GetTypeName(), false)
+	svc, existed, err := sc.ensureService(1186, sc.mgmdController.GetTypeName(), false)
 	if err != nil {
 		return nil, false, err
 	}
@@ -480,7 +480,7 @@ func (sc *SyncContext) ensureServices() (*[]*corev1.Service, bool, error) {
 	svcs = append(svcs, svc)
 
 	// create a loadbalancer service for management servers
-	svc, existed, err = sc.ensureService(sc.mgmdController.GetTypeName(), true)
+	svc, existed, err = sc.ensureService(1186, sc.mgmdController.GetTypeName(), true)
 	if err != nil {
 		return nil, false, err
 	}
@@ -495,10 +495,19 @@ func (sc *SyncContext) ensureServices() (*[]*corev1.Service, bool, error) {
 			sc.ManagementServerIP = lbingress.Hostname
 		}
 	}
+	retExisted = retExisted && existed
+	svcs = append(svcs, svc)
 
 	// create a headless service for data nodes
-	svc, existed, err = sc.ensureService(sc.ndbdController.GetTypeName(), false)
+	svc, existed, err = sc.ensureService(1186, sc.ndbdController.GetTypeName(), false)
+	if err != nil {
+		return nil, false, err
+	}
+	retExisted = retExisted && existed
 	svcs = append(svcs, svc)
+
+	// create a loadbalancer for MySQL Servers in the deployment
+	svc, existed, err = sc.ensureService(3306, sc.mysqldController.GetTypeName(), true)
 	if err != nil {
 		return nil, false, err
 	}

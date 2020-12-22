@@ -33,6 +33,7 @@ func deploymentComplete(deployment *appsv1.Deployment) bool {
 }
 
 type DeploymentControlInterface interface {
+	GetTypeName() string
 	EnsureDeployment(ndb *v1alpha1.Ndb, rc *resources.ResourceContext) (*appsv1.Deployment, bool, error)
 	ReconcileDeployment(ndb *v1alpha1.Ndb,
 		deployment *appsv1.Deployment, rc *resources.ResourceContext, handleScaleDown bool) syncResult
@@ -42,6 +43,12 @@ type mysqlDeploymentController struct {
 	client                kubernetes.Interface
 	deploymentLister      appslisters.DeploymentLister
 	mysqlServerDeployment *resources.MySQLServerDeployment
+}
+
+// GetTypeName returns the type of the resource being
+// controlled by the DeploymentControlInterface
+func (mdc *mysqlDeploymentController) GetTypeName() string {
+	return mdc.mysqlServerDeployment.GetTypeName()
 }
 
 // ensureRootPasswordSecret ensures the existence of a root-password-secret by creating one if it doesn't exist
