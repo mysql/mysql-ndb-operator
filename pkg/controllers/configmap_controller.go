@@ -97,8 +97,8 @@ func (rcmc *ConfigMapControl) PatchConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigM
 	if errors.IsNotFound(err) {
 	}
 
-	cmChg := cmOrg.DeepCopy()
-	cmChg = resources.InjectUpdateToConfigMapObject(ndb, cmChg)
+	// Get an updated config map copy
+	cmChg := resources.GetUpdatedConfigMap(ndb, cmOrg)
 
 	j, err := json.Marshal(cmOrg)
 	if err != nil {

@@ -199,7 +199,7 @@ func (bss *baseStatefulSet) GetName() string {
 func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Ndb) *apps.StatefulSet {
 
 	// If a PV isn't specified just use a EmptyDir volume
-	var podVolumes = []v1.Volume{}
+	var podVolumes []v1.Volume
 	podVolumes = append(podVolumes,
 		v1.Volume{
 			Name: mgmdVolumeName,
@@ -211,6 +211,8 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 		},
 	)
 	// add the configmap generated with config.ini
+	// TODO: check if this is needed for ndbd pods
+	//       if not, mount only for mgmd pods
 	podVolumes = append(podVolumes, v1.Volume{
 		Name: "config-volume",
 		VolumeSource: v1.VolumeSource{
@@ -218,13 +220,19 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 				LocalObjectReference: v1.LocalObjectReference{
 					Name: ndb.GetConfigMapName(),
 				},
+				// Load only the config.ini key
+				Items: []v1.KeyToPath{
+					{
+						Key:  configIniKey,
+						Path: configIniKey,
+					},
+				},
 			},
 		},
 	})
-	//}
 
-	containers := []v1.Container{}
-	serviceaccount := ""
+	var containers []v1.Container
+	var serviceaccount string
 	replicas := func(i int32) *int32 { return &i }((0))
 	podLabels := bss.getPodLabels(ndb)
 

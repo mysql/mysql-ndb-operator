@@ -5,46 +5,58 @@
 package resources
 
 import (
+	"errors"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog"
 )
 
+const (
+	configIniKey = "config.ini"
+)
+
+// GetConfigFromConfigMapObject returns the config string from the config map
 func GetConfigFromConfigMapObject(cm *corev1.ConfigMap) (string, error) {
 
-	configStr := ""
 	if cm != nil && cm.Data != nil {
 		if len(cm.Data) > 0 {
-			if val, ok := cm.Data["config.ini"]; ok {
-				configStr = val
+			if val, ok := cm.Data[configIniKey]; ok {
+				return val, nil
 			}
 		}
 	}
 
-	return configStr, nil
+	return "", errors.New(configIniKey + " key not found in configmap")
 }
 
-/*
-  injects a newly generated config map into an existing config map object
-	returns a pointer to the changed original
-*/
-func InjectUpdateToConfigMapObject(ndb *v1alpha1.Ndb, dest *corev1.ConfigMap) *corev1.ConfigMap {
-
-	// get an updated config string ...
-	configStr, err := GetConfigString(ndb)
+// updateManagementConfig updates the Data map with latest config.ini
+func updateManagementConfig(ndb *v1alpha1.Ndb, data map[string]string) error {
+	// get the updated config string
+	configString, err := GetConfigString(ndb)
 	if err != nil {
+		klog.Errorf("Failed to get the config string : %v", err)
+		return err
+	}
+
+	// add/update that to the data map
+	data[configIniKey] = configString
+	return nil
+}
+
+// GetUpdatedConfigMap creates and returns a new config map with updated config.ini value
+func GetUpdatedConfigMap(ndb *v1alpha1.Ndb, cm *corev1.ConfigMap) *corev1.ConfigMap {
+	// create a deep copy of the original ConfigMap
+	updatedCm := cm.DeepCopy()
+
+	// Update the config.ini
+	if err := updateManagementConfig(ndb, updatedCm.Data); err != nil {
+		klog.Errorf("Failed to update the config map : %v", err)
 		return nil
 	}
 
-	data := map[string]string{
-		"config.ini": configStr,
-	}
-
-	// ... and copy it to the config map object
-	dest.Data = data
-
-	return dest
+	return updatedCm
 }
 
 func GenerateConfigMapObject(ndb *v1alpha1.Ndb) *corev1.ConfigMap {
@@ -66,15 +78,21 @@ func GenerateConfigMapObject(ndb *v1alpha1.Ndb) *corev1.ConfigMap {
 		constants.ClusterResourceTypeLabel: "ndb-configmap",
 	})
 
-	cm := &corev1.ConfigMap{
+	// Data for the config map
+	data := make(map[string]string)
+
+	// Add the config ini value
+	if updateManagementConfig(ndb, data) != nil {
+		return nil
+	}
+
+	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            ndb.GetConfigMapName(),
 			Namespace:       ndb.Namespace,
 			Labels:          cmLabels,
 			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
 		},
-		Data: nil,
+		Data: data,
 	}
-
-	return InjectUpdateToConfigMapObject(ndb, cm)
 }
