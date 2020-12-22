@@ -2,18 +2,18 @@
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-package mgm
+package ndb
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 )
 
 const connectstring = "127.0.0.1:1186"
 
-func TestGetMgmNodeId(t *testing.T) {
-
-	api := new(Client)
+func TestGetStatus(t *testing.T) {
+	api := &Mgmclient{}
 
 	err := api.Connect(connectstring)
 	if err != nil {
@@ -22,7 +22,36 @@ func TestGetMgmNodeId(t *testing.T) {
 	}
 	defer api.Disconnect()
 
-	nodeid, err := api.GetMgmNodeId()
+	clusterStatus, err := api.GetStatus()
+	if err != nil {
+		t.Errorf("get status failed: %s", err)
+		return
+	}
+
+	for s, v := range *clusterStatus {
+		vs, _ := json.MarshalIndent(v, "", " ")
+		fmt.Printf("[%d] %s ", s, vs)
+	}
+
+	ok := clusterStatus.IsClusterDegraded()
+	if ok {
+		t.Errorf("Cluster is in degraded state\n")
+	}
+
+}
+
+func TestGetOwnNodeId(t *testing.T) {
+
+	api := &Mgmclient{}
+
+	err := api.Connect(connectstring)
+	if err != nil {
+		t.Errorf("Connection failed: %s", err)
+		return
+	}
+	defer api.Disconnect()
+
+	nodeid, err := api.GetOwnNodeId()
 	if err != nil {
 		t.Errorf("get status failed: %s", err)
 		return
@@ -31,10 +60,8 @@ func TestGetMgmNodeId(t *testing.T) {
 	fmt.Printf("Own nodeid: %d\n", nodeid)
 }
 
-// This test depends on Nodes 3 and 4 being data nodes
-// Fixme: first fetch the config, then stop a known data node from the config
 func TestStopNodes(t *testing.T) {
-	api := new(Client)
+	api := &Mgmclient{}
 
 	err := api.Connect(connectstring)
 	if err != nil {
@@ -57,7 +84,7 @@ func TestStopNodes(t *testing.T) {
 }
 
 func TestGetConfig(t *testing.T) {
-	api := new(Client)
+	api := &Mgmclient{}
 
 	err := api.Connect(connectstring)
 	if err != nil {
@@ -66,26 +93,20 @@ func TestGetConfig(t *testing.T) {
 	}
 	defer api.Disconnect()
 
-	verId, err := api.GetVersion(nil)
-	if err != nil {
-		t.Errorf("getting version")
-	}
-
-	_, err = api.GetConfig(0, verId)
+	_, err = api.GetConfig()
 	if err != nil {
 		t.Errorf("getting config failed : %s", err)
 		return
 	}
 
-	// _, err = api.GetConfig(3, verId)
-	// if err != nil {
-	//   t.Errorf("getting config failed : %s", err)
-	//   return
-	// }
+	_, err = api.GetConfigFromNode(3)
+	if err != nil {
+		t.Errorf("getting config failed : %s", err)
+		return
+	}
 }
-
-func Test_GetConfigVersion(t *testing.T) {
-	api := new(Client)
+func Test_GetConfigVersionFromNode(t *testing.T) {
+	api := &Mgmclient{}
 
 	err := api.Connect(connectstring)
 	if err != nil {
@@ -94,12 +115,12 @@ func Test_GetConfigVersion(t *testing.T) {
 	}
 	defer api.Disconnect()
 
-	version, err := api.GetConfigVersion()
+	version := api.GetConfigVersionFromNode(3)
 	fmt.Printf("getting config version: %d\n", version)
 }
 
-func TestShowVariables(t *testing.T) {
-	api := new(Client)
+func TestShowConfig(t *testing.T) {
+	api := &Mgmclient{}
 
 	err := api.Connect(connectstring)
 	if err != nil {
@@ -108,7 +129,24 @@ func TestShowVariables(t *testing.T) {
 	}
 	defer api.Disconnect()
 
-	nodeid, err := api.GetMgmNodeId()
+	err = api.showConfig()
+	if err != nil {
+		t.Errorf("getting config failed : %s", err)
+		return
+	}
+}
+
+func TestShowVariables(t *testing.T) {
+	api := &Mgmclient{}
+
+	err := api.Connect(connectstring)
+	if err != nil {
+		t.Errorf("Connection failed: %s", err)
+		return
+	}
+	defer api.Disconnect()
+
+	nodeid, err := api.GetOwnNodeId()
 	if err != nil {
 		t.Errorf("show variables failed: %s", err)
 		return
@@ -119,19 +157,18 @@ func TestShowVariables(t *testing.T) {
 	}
 }
 
-// FIXME This test dependes on a particular config
-// Fetch a configuration first, then compare the results to it
 func TestConnectWantedNodeId(t *testing.T) {
-	api := new(Client)
+	api := &Mgmclient{}
 
 	wantedNodeId := 2
 	err := api.ConnectToNodeId(connectstring, wantedNodeId)
 	if err != nil {
-		t.Error(err)
+		t.Errorf("Connection failed: %s", err)
+		return
 	}
 	defer api.Disconnect()
 
-	nodeid, err := api.GetMgmNodeId()
+	nodeid, err := api.GetOwnNodeId()
 	if err != nil {
 		t.Errorf("show variables failed: %s", err)
 		return
