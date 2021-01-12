@@ -695,14 +695,13 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 			return errorWhileProcssing(err)
 		}
 
-		defer api.Disconnect()
-
 		version := api.GetConfigVersion()
 		if version == wantedGeneration {
 			klog.Infof("Management server with node id %d has desired version %d",
 				nodeID, version)
 
 			// node has right version, continue to process next node
+			api.Disconnect()
 			continue
 		}
 
@@ -717,6 +716,7 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 		if err != nil {
 			klog.Errorf("Error stopping management node %v", err)
 		}
+		api.Disconnect()
 
 		// we do one at a time - exit here and wait for next reconcilation
 		return finishProcessing()
