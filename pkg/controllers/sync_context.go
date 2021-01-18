@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -7,8 +7,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"time"
-
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	"github.com/mysql/ndb-operator/pkg/helpers"
 	appsv1 "k8s.io/api/apps/v1"
@@ -52,6 +50,9 @@ type SyncContext struct {
 	ndbsLister        ndblisters.NdbClusterLister
 	podLister         listerscorev1.PodLister
 	serviceLister     listerscorev1.ServiceLister
+
+	// bool flag to control the NdbCluster status processedGeneration value
+	syncSuccess bool
 
 	// recorder is an event recorder for recording Event resources to the Kubernetes API.
 	recorder events.EventRecorder
@@ -444,6 +445,15 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 		klog.Infof("Reconciliation will continue after all the management nodes are ready.")
 		return finishProcessing()
 	}
+	initialSystemRestart := sc.ndb.Status.ProcessedGeneration == 0
+	if initialSystemRestart && !statefulsetReady(sc.mgmdNodeSfset) {
+		// Management nodes are starting for the first time, and
+		// one of them is not ready yet which implies that this
+		// reconciliation was triggered only to update the
+		// NdbCluster status. No need to start data nodes and
+		// MySQL Servers yet.
+		return finishProcessing()
+	}
 
 	// create the data node stateful set if it doesn't exist
 	if sc.dataNodeSfSet, resourceExists, err = sc.ensureDataNodeStatefulSet(ctx); err != nil {
@@ -457,11 +467,24 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 		klog.Infof("Reconciliation will continue after all the data nodes are ready.")
 		return finishProcessing()
 	}
+	if initialSystemRestart && !statefulsetReady(sc.dataNodeSfSet) {
+		// Data nodes are starting for the first time, and some of
+		// them are not ready yet which implies that this
+		// reconciliation was triggered only to update the NdbCluster
+		// status. No need to proceed further.
+		return finishProcessing()
+	}
 
 	// MySQL Server deployment will be created only if required.
 	// For now, just verify that if it exists, it is indeed owned by the NdbCluster resource.
 	if sc.mysqldDeployment, err = sc.validateMySQLServerDeployment(); err != nil {
 		return errorWhileProcessing(err)
+	}
+	if sc.mysqldDeployment != nil && !deploymentComplete(sc.mysqldDeployment) {
+		// MySQL Server deployment exists, but it is not complete yet
+		// which implies that this reconciliation was triggered only
+		// to update the NdbCluster status. No need to proceed further.
+		return finishProcessing()
 	}
 
 	// The StatefulSets already existed before this sync loop.
@@ -503,9 +526,6 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 	// Multiple resources are required to start
 	// and run the MySQL Cluster in K8s. Create
 	// them if they do not exist yet.
-	// TODO: Update ndb.Status with a creationTimestamp?
-	//       All subsequent sync loop could just check that and skip ensuring resources
-	//       Handle individual resources getting deleted.
 	if sr := sc.ensureAllResources(ctx); sr.stopSync() {
 		if err := sr.getError(); err != nil {
 			klog.Errorf("Failed to ensure that all the required resources exist. Error : %v", err)
@@ -571,159 +591,63 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 	}
 
 	// Check if configuration in config map is still the desired from the Ndb CRD
-	hasPendingConfigChanges := sc.resourceContext.ConfigHash != newConfigHash
-	if hasPendingConfigChanges {
+	if sc.resourceContext.ConfigHash != newConfigHash {
 		// The Ndb object spec has changed - patch the config map
 		klog.Info("Config in NdbCluster spec is different from existing config in config map")
-		_, err = sc.configMapController.PatchConfigMap(ctx, sc)
-		if err != nil {
+		if _, err = sc.configMapController.PatchConfigMap(ctx, sc); err != nil {
 			return errorWhileProcessing(err)
 		}
-	}
-
-	err = sc.updateNdbClusterGeneratedRootPasswordSecretName(ctx)
-	if err != nil {
-		klog.Errorf("Updating status failed: %v", err)
-		return errorWhileProcessing(err)
-	}
-
-	// Update the status of the Ndb resource to reflect the state of any changes applied
-	err = sc.updateNdbClusterProcessedGeneration(ctx, hasPendingConfigChanges)
-	if err != nil {
-		klog.Errorf("Updating status failed: %v", err)
-		return errorWhileProcessing(err)
-	}
-
-	if hasPendingConfigChanges {
 		// Only the config map was updated during this loop.
 		// The config changes still need to be applied to the MySQL Cluster.
 		return requeueInSeconds(0)
 	}
 
+	// MySQL Cluster in sync with the NdbCluster spec
+	sc.syncSuccess = true
 	return finishProcessing()
 }
 
-// updateNdbClusterProcessedGeneration updates the .status.processedGeneration
-// of the NdbCluster object and sends out an event if the object is already
-// in sync with the MySQL Cluster
-func (sc *SyncContext) updateNdbClusterProcessedGeneration(ctx context.Context, hasPendingConfigChanges bool) error {
+// updateNdbClusterStatus updates the status of the SyncContext's NdbCluster resource in the K8s API Server
+func (sc *SyncContext) updateNdbClusterStatus(ctx context.Context) error {
 
-	ndb := sc.ndb
-
-	var processedGeneration int64
-	if hasPendingConfigChanges {
-		// The loop received a new config change that has to be applied yet
-		if ndb.Status.ProcessedGeneration+1 == ndb.ObjectMeta.Generation {
-			// All the previous generations have been handled already
-			// and the status has been updated.
-			// Do not update status yet for the current change.
-			return nil
-		} else {
-			// All the config changes except the one received in this
-			// loop has been handled but the status is not updated yet.
-			// Bump up the ProcessedGeneration to reflect this.
-			processedGeneration = ndb.ObjectMeta.Generation - 1
-		}
-	} else {
-		// No pending changes
-		if ndb.Status.ProcessedGeneration == ndb.ObjectMeta.Generation {
-			// Nothing happened in this loop. Skip updating status.
-			// Record an InSync event and return
-			sc.recorder.Eventf(sc.ndb, nil,
-				corev1.EventTypeNormal, ReasonInSync, ActionNone, MessageInSync)
-			return nil
-		} else {
-			// The last change was successfully applied.
-			// Update status to reflect this
-			processedGeneration = ndb.ObjectMeta.Generation
-		}
+	// Use the DeepCopied NdbCluster resource to make the update
+	nc := sc.ndb
+	// Generate status with recent state of various resources
+	status := sc.calculateNdbClusterStatus()
+	// Check if the status has changed, if not the K8s update can be skipped
+	if statusEqual(&nc.Status, status) {
+		// No change to status
+		return nil
 	}
-
-	// The status needs to be updated
-	klog.Infof("Updating the NdbCluster resource %q processed generation from %d to %d",
-		getNamespacedName(sc.ndb), ndb.Status.ProcessedGeneration, ndb.ObjectMeta.Generation-1)
-	if err := sc.updateNdbClusterStatus(ctx, func(status *v1alpha1.NdbClusterStatus) {
-		status.ProcessedGeneration = processedGeneration
-	}); err != nil {
-		return err
-	}
-
-	// Record an SyncSuccess event as the MySQL Cluster specification has been
-	// successfully synced with the spec of Ndb object and the status has been updated.
-	sc.recorder.Eventf(ndb, nil,
-		corev1.EventTypeNormal, ReasonSyncSuccess, ActionSynced, MessageSyncSuccess)
-
-	return nil
-}
-
-// updateNdbClusterGeneratedRootPasswordSecretName updates the .status.GeneratedRootPasswordSecretName
-// of the NdbCluster object when the MySQL root password secret is generated by operator.
-func (sc *SyncContext) updateNdbClusterGeneratedRootPasswordSecretName(ctx context.Context) error {
-
-	ndb := sc.ndb
-	// Check if mysqld field is valid
-	if ndb.Spec.Mysqld != nil {
-		GeneratedRootPwdSecretName, customSecret := resources.GetMySQLRootPasswordSecretName(ndb)
-		// Update status only when the root password secret is auto generated
-		if customSecret {
-			return nil
-		}
-
-		if ndb.Status.GeneratedRootPasswordSecretName == GeneratedRootPwdSecretName {
-			// Changes updated already
-			return nil
-		} else {
-			// The status needs to be updated
-			klog.Infof("Updating the generatedRootPasswordSecretName for NdbCluster resource %q ",
-				getNamespacedName(sc.ndb))
-			if err := sc.updateNdbClusterStatus(ctx, func(status *v1alpha1.NdbClusterStatus) {
-				status.GeneratedRootPasswordSecretName = GeneratedRootPwdSecretName
-			}); err != nil {
-				return err
-			}
-		}
-	} else {
-		if ndb.Status.GeneratedRootPasswordSecretName != "" {
-			// MySQL Server spec is not defined in new NdbCluster resource. Delete the
-			// GeneratedRootPasswordSecretName from status.
-			klog.Infof("Removing GeneratedRootPasswordSecretName from status")
-			if err := sc.updateNdbClusterStatus(ctx, func(status *v1alpha1.NdbClusterStatus) {
-				status.GeneratedRootPasswordSecretName = ""
-			}); err != nil {
-				return err
-			}
-		}
-
-	}
-	return nil
-}
-
-// updateNdbClusterStatus updates the status of the given NdbCluster resource in the K8s API Server
-func (sc *SyncContext) updateNdbClusterStatus(
-	ctx context.Context, statusUpdater func(status *v1alpha1.NdbClusterStatus)) error {
-	ndbClusterInterface := sc.ndbClientset().MysqlV1alpha1().NdbClusters(sc.ndb.Namespace)
 
 	// Update the status. Use RetryOnConflict to automatically handle
 	// conflicts that can occur if the spec changes between the time
 	// the controller gets the NdbCluster object and updates it.
+	ndbClusterInterface := sc.ndbClientset().MysqlV1alpha1().NdbClusters(sc.ndb.Namespace)
 	updateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		// Get the latest NdbCluster object from the API Server
-		nc, err := ndbClusterInterface.Get(ctx, sc.ndb.Name, metav1.GetOptions{})
+		// Update the status of NdbCluster
+		status.DeepCopyInto(&nc.Status)
+		// Send the update to K8s server
+		klog.Infof("Updating the NdbCluster resource %q status", getNamespacedName(sc.ndb))
+		_, updateErr := ndbClusterInterface.UpdateStatus(ctx, nc, metav1.UpdateOptions{})
+
+		if updateErr == nil {
+			// Status update succeeded
+			return nil
+		}
+
+		// Get the latest version of the NdbCluster object from
+		// the K8s API Server for retrying the update.
+		var err error
+		nc, err = ndbClusterInterface.Get(ctx, sc.ndb.Name, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("Failed to get NdbCluster resource during status update %q: %v",
 				getNamespacedName(sc.ndb), err)
 			return err
 		}
-
-		// Update the status
-		statusUpdater(&nc.Status)
-		// Set the time of this status update
-		nc.Status.LastUpdate = metav1.NewTime(time.Now())
-
-		// Send the update to K8s server
-		_, err = ndbClusterInterface.UpdateStatus(ctx, nc, metav1.UpdateOptions{})
-		// Return the error and let RetryOnConflict handle any conflicts.
-		return err
+		// Return the updateErr. If it is a conflict error, RetryOnConflict
+		// will retry the update with the latest version of the NdbCluster object.
+		return updateErr
 	})
 
 	if updateErr != nil {

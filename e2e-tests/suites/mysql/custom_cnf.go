@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -14,6 +14,7 @@ import (
 
 	"github.com/mysql/ndb-operator/e2e-tests/utils/mysql"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
+	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbutils"
 	secretutils "github.com/mysql/ndb-operator/e2e-tests/utils/secret"
 )
 
@@ -71,6 +72,12 @@ var _ = ndbtest.NewTestCase("MySQL Custom cnf", func(tc *ndbtest.TestContext) {
 					"querying for log_bin returned an error")
 				gomega.Expect(value).To(gomega.Or(gomega.Equal("OFF")),
 					"log_bin has an unexpected value")
+			})
+
+			ginkgo.By("verifying that NdbCluster status was updated properly", func() {
+				// expects the status.generatedRootPasswordSecretName to be empty
+				// as spec.mysqld.rootPasswordSecretName is set
+				ndbutils.ValidateNdbClusterStatus(tc.Ctx(), tc.NdbClientset(), ns, ndbName)
 			})
 		})
 	})

@@ -5,6 +5,7 @@
 package controllers
 
 import (
+	"context"
 	"reflect"
 	"strings"
 	"testing"
@@ -115,7 +116,7 @@ func (f *fixture) runController(nc *ndbcontroller.NdbCluster, expectError bool, 
 	ndbKey := getKey(nc, f.t)
 
 	// run the sync loop once
-	sr := f.c.syncHandler(ndbKey)
+	sr := f.c.syncHandler(context.TODO(), ndbKey)
 
 	// validate the output
 	err := sr.getError()
@@ -293,7 +294,7 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 			}
 		*/
 	case core.UpdateActionImpl:
-		//e, _ := expected.(core.UpdateActionImpl)
+		// Do nothing. Just verifying that there was an update is enough.
 
 	case core.PatchActionImpl:
 		e, _ := expected.(core.PatchActionImpl)
@@ -332,12 +333,15 @@ func filterInformerActions(actions []core.Action) []core.Action {
 	//klog.Infof("Filtering %d ndbActions", len(ndbActions))
 	ret := []core.Action{}
 	for _, action := range actions {
+		// Ignore all gets used by the controllers
 		if action.GetNamespace() == "default" &&
 			(action.Matches("get", "configmaps") ||
-				action.Matches("get", "secrets")) {
+				action.Matches("get", "secrets") ||
+				action.Matches("get", "ndbclusters")) {
 			//klog.Infof("Filtering +%v", action)
 			continue
 		}
+		// Ignore all list and watches mostly called by the informers
 		if len(action.GetNamespace()) == 0 &&
 			(action.Matches("list", "ndbclusters") ||
 				action.Matches("watch", "ndbclusters") ||
@@ -380,6 +384,11 @@ func (f *fixture) expectDeleteAction(ns, group, version, resource, name string) 
 	f.kubeActions = append(f.kubeActions, core.NewDeleteAction(grpVersionResource, ns, name))
 }
 
+func (f *fixture) expectNdbClusterStatusUpdateAction(ns string, group, version, resource string) {
+	grpVersionResource := schema.GroupVersionResource{Group: group, Version: version, Resource: resource}
+	f.ndbActions = append(f.ndbActions, core.NewUpdateSubresourceAction(grpVersionResource, "status", ns, nil))
+}
+
 func getKey(nc *ndbcontroller.NdbCluster, t *testing.T) string {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(nc)
 	if err != nil {
@@ -389,7 +398,7 @@ func getKey(nc *ndbcontroller.NdbCluster, t *testing.T) string {
 	return key
 }
 
-func getObjectMetadata(name string, ndb *ndbcontroller.NdbCluster, t *testing.T) *metav1.ObjectMeta {
+func getObjectMetadata(name string, ndb *ndbcontroller.NdbCluster) *metav1.ObjectMeta {
 
 	gvk := schema.GroupVersionKind{
 		Group:   ndbcontroller.SchemeGroupVersion.Group,
@@ -417,7 +426,7 @@ func TestCreatesCluster(t *testing.T) {
 	f.newController()
 
 	// 2 services for mgmd
-	omd := getObjectMetadata("test-mgmd", ndb, t)
+	omd := getObjectMetadata("test-mgmd", ndb)
 	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
 	omd.Name = "test-mgmd-ext"
@@ -444,13 +453,9 @@ func TestCreatesCluster(t *testing.T) {
 	omd.Name = "test-mgmd"
 	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
 
-	// The reconciliation loop ends here. It continues after the management nodes are ready.
-	f.runController(ndb, false, nil)
+	// Expect an update on ndbcluster/status
+	f.expectNdbClusterStatusUpdateAction(ns, "mysql.oracle.com", "v1alpha1", "ndbclusters")
 
-	// In the next loop, StatefulSet for data nodes is created
-	omd.Name = "test-ndbd"
-	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
-
-	// Note : this might fail sometimes due to issues with the fakeclient + k8s cache
+	// The reconciliation loop ends here. It continues only after the management nodes are ready.
 	f.runController(ndb, false, nil)
 }

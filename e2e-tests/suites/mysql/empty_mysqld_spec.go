@@ -1,14 +1,17 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
 package e2e
 
 import (
+	"context"
+
 	"github.com/mysql/ndb-operator/e2e-tests/utils/deployment"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
-
+	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbutils"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 
 	"github.com/onsi/ginkgo"
@@ -16,14 +19,18 @@ import (
 )
 
 var _ = ndbtest.NewTestCase("Setting/Resetting MySQL Spec to nil", func(tc *ndbtest.TestContext) {
+	var ctx context.Context
 	var ns, ndbName string
 	var c clientset.Interface
+	var ndbClient ndbclientset.Interface
 	var testNdb *v1alpha1.NdbCluster
 
 	ginkgo.BeforeEach(func() {
 		ginkgo.By("extracting values from TestContext")
+		ctx = tc.Ctx()
 		ns = tc.Namespace()
 		c = tc.K8sClientset()
+		ndbClient = tc.NdbClientset()
 	})
 
 	ginkgo.AfterEach(func() {
@@ -51,10 +58,13 @@ var _ = ndbtest.NewTestCase("Setting/Resetting MySQL Spec to nil", func(tc *ndbt
 
 			ginkgo.By("starting a MySQL Cluster with 0 MySQL Servers", func() {
 				// create the Ndb resource
-				ndbName = "ndb-mysqld-test"
+				ndbName = "mysqld-empty-spec-test"
 				testNdb = testutils.NewTestNdb(ns, ndbName, 2)
 				testNdb.Spec.Mysqld = nil
-				ndbtest.KubectlApplyNdbObj(c, testNdb)
+				ndbtest.KubectlApplyNdbObjNoWait(testNdb)
+				// validate the status updates made by the operator during the sync
+				ndbutils.ValidateNdbClusterStatusUpdatesDuringSync(
+					ctx, ndbClient, ns, ndbName, true)
 			})
 
 			ginkgo.By("verifying that deployment doesn't exist", func() {
@@ -63,7 +73,10 @@ var _ = ndbtest.NewTestCase("Setting/Resetting MySQL Spec to nil", func(tc *ndbt
 
 			ginkgo.By("changing a non MySQL Server spec", func() {
 				testNdb.Spec.DataMemory = "150M"
-				ndbtest.KubectlApplyNdbObj(c, testNdb)
+				ndbtest.KubectlApplyNdbObjNoWait(testNdb)
+				// validate the status updates made by the operator during the sync
+				ndbutils.ValidateNdbClusterStatusUpdatesDuringSync(
+					ctx, ndbClient, ns, ndbName, false)
 			})
 
 			ginkgo.By("verifying that the deployment still doesn't exist", func() {
@@ -74,7 +87,10 @@ var _ = ndbtest.NewTestCase("Setting/Resetting MySQL Spec to nil", func(tc *ndbt
 				testNdb.Spec.Mysqld = &v1alpha1.NdbMysqldSpec{
 					NodeCount: 2,
 				}
-				ndbtest.KubectlApplyNdbObj(c, testNdb)
+				ndbtest.KubectlApplyNdbObjNoWait(testNdb)
+				// validate the status updates made by the operator during the sync
+				ndbutils.ValidateNdbClusterStatusUpdatesDuringSync(
+					ctx, ndbClient, ns, ndbName, false)
 			})
 
 			ginkgo.By("verifying the number of MySQL Servers running after scale up", func() {
@@ -83,7 +99,10 @@ var _ = ndbtest.NewTestCase("Setting/Resetting MySQL Spec to nil", func(tc *ndbt
 
 			ginkgo.By("scaling down the MySQL Servers to 0", func() {
 				testNdb.Spec.Mysqld = nil
-				ndbtest.KubectlApplyNdbObj(c, testNdb)
+				ndbtest.KubectlApplyNdbObjNoWait(testNdb)
+				// validate the status updates made by the operator during the sync
+				ndbutils.ValidateNdbClusterStatusUpdatesDuringSync(
+					ctx, ndbClient, ns, ndbName, false)
 			})
 
 			ginkgo.By("verifying that deployment doesn't exist", func() {
@@ -94,7 +113,10 @@ var _ = ndbtest.NewTestCase("Setting/Resetting MySQL Spec to nil", func(tc *ndbt
 				testNdb.Spec.Mysqld = &v1alpha1.NdbMysqldSpec{
 					NodeCount: 3,
 				}
-				ndbtest.KubectlApplyNdbObj(c, testNdb)
+				ndbtest.KubectlApplyNdbObjNoWait(testNdb)
+				// validate the status updates made by the operator during the sync
+				ndbutils.ValidateNdbClusterStatusUpdatesDuringSync(
+					ctx, ndbClient, ns, ndbName, false)
 			})
 
 			ginkgo.By("verifying expected number of MySQL Servers are running", func() {

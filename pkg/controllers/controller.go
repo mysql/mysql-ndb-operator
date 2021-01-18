@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -158,10 +159,10 @@ func NewController(
 				klog.Infof("NdbCluster resource %q is added to the queue for reconciliation", ndbKey)
 			} else if oldNdb.ResourceVersion != newNdb.ResourceVersion {
 				// Spec was not updated but the ResourceVersion changed => Status update
-				klog.Infof("Status of the NdbCluster resource '%s' was updated", ndbKey)
-				klog.Infof("Resource version updated from %s -> %s",
+				klog.V(2).Infof("Status of the NdbCluster resource '%s' was updated", ndbKey)
+				klog.V(2).Infof("Resource version updated from %s -> %s",
 					oldNdb.ResourceVersion, newNdb.ResourceVersion)
-				klog.Info("Nothing to do as only the status was updated.")
+				klog.V(2).Info("Nothing to do as only the status was updated.")
 				return
 			} else {
 				// NdbCluster resource was not updated and this is a resync/requeue.
@@ -203,14 +204,20 @@ func NewController(
 
 			Handler: cache.ResourceEventHandlerFuncs{
 				// When a deployment owned by a NdbCluster resource
-				// is complete, add the NdbCluster resource to the
-				// workqueue to start the next reconciliation loop.
+				// is updated, either
+				//  a) it is complete, in which case, start the
+				//     next reconciliation loop (or)
+				//  b) one or more pods status have become ready/unready,
+				//     in which case the status of the NdbCluster resource
+				//     needs to be updated, which also happens through a
+				//     reconciliation loop.
+				//  So, add the NdbCluster item to the workqueue for both cases.
 				UpdateFunc: func(oldObj, newObj interface{}) {
 					deployment := newObj.(*appsv1.Deployment)
 					if deploymentComplete(deployment) {
 						klog.Infof("Deployment %q is complete", getNamespacedName(deployment))
-						controller.extractAndEnqueueNdbCluster(deployment)
 					}
+					controller.extractAndEnqueueNdbCluster(deployment)
 				},
 
 				// When a deployment owned by a NdbCluster resource
@@ -244,14 +251,20 @@ func NewController(
 
 			Handler: cache.ResourceEventHandlerFuncs{
 				// When a StatefulSet owned by a NdbCluster resource
-				// is ready, add the NdbCluster resource to the
-				// workqueue to start the next reconciliation loop.
+				// is updated, either
+				//  a) it is ready, in which case, start the next
+				//     reconciliation loop (or)
+				//  b) one or more pods status have become ready/unready,
+				//     in which case the status of the NdbCluster resource
+				//     needs to be updated, which also happens through a
+				//     reconciliation loop.
+				//  So, add the NdbCluster item to the workqueue for both cases.
 				UpdateFunc: func(oldObj, newObj interface{}) {
 					statefulset := newObj.(*appsv1.StatefulSet)
 					if statefulsetReady(statefulset) {
 						klog.Infof("StatefulSet %q is ready", getNamespacedName(statefulset))
-						controller.extractAndEnqueueNdbCluster(statefulset)
 					}
+					controller.extractAndEnqueueNdbCluster(statefulset)
 				},
 			},
 		},
@@ -335,7 +348,7 @@ func (c *Controller) processNextWorkItem() (continueProcessing bool) {
 
 	// Run the syncHandler for the extracted key.
 	klog.Infof("Starting a reconciliation cycle for NdbCluster resource %q", key)
-	sr := c.syncHandler(key)
+	sr := c.syncHandler(context.TODO(), key)
 	klog.Infof("Completed a reconciliation cycle for NdbCluster resource %q", key)
 
 	if err := sr.getError(); err != nil {
@@ -395,7 +408,7 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
 // 4. only after complete cluster is aligned with configuration file
 //    new changes from Ndb CRD are written to a new version of the config file
 // 5. update status of the CRD
-func (c *Controller) syncHandler(key string) syncResult {
+func (c *Controller) syncHandler(ctx context.Context, key string) (result syncResult) {
 
 	klog.Infof("Sync handler: %s", key)
 
@@ -420,11 +433,42 @@ func (c *Controller) syncHandler(key string) syncResult {
 		return errorWhileProcessing(err)
 	}
 
-	// take a copy and process that for the update at the end
-	// make all changes to the copy only and patch the original in the end
-	ndb := ndbOrg.DeepCopy()
+	// Create a syncContext with a DeepCopied NdbCluster resource
+	// to prevent the sync method from accidentally mutating the
+	// cache object.
+	nc := ndbOrg.DeepCopy()
+	syncContext := c.newSyncContext(nc)
 
-	syncContext := c.newSyncContext(ndb)
+	// Run sync.
+	if result = syncContext.sync(ctx); result.getError() != nil {
+		// The sync step returned an error - no need to update status yet
+		return result
+	}
 
-	return syncContext.sync(context.TODO())
+	// Update the status of the NdbCluster resource
+	err = syncContext.updateNdbClusterStatus(ctx)
+	if err != nil {
+		// Status needs to be updated, but it failed.
+		// Do not send out signals yet.
+		// TODO: Ensure that the sync doesn't get stuck
+		return result
+	}
+
+	// Update success. Check status and send out events if necessary
+	if ndbOrg.Status.ProcessedGeneration != nc.Status.ProcessedGeneration {
+		// The status update succeeded and the ProcessedGeneration got updated during
+		// this loop implying that the MySQL Cluster config has been successfully
+		// synced with the spec of NdbCluster object. Record a SyncSuccess event to
+		// notify the same.
+		syncContext.recorder.Eventf(nc, nil,
+			corev1.EventTypeNormal, ReasonSyncSuccess, ActionSynced, MessageSyncSuccess)
+	} else if ndbOrg.Generation == ndbOrg.Status.ProcessedGeneration {
+		// NdbCluster was already in sync when the loop started.
+		// Record an InSync event
+		syncContext.recorder.Eventf(nc, nil,
+			corev1.EventTypeNormal, ReasonInSync, ActionNone, MessageInSync)
+
+	}
+
+	return result
 }

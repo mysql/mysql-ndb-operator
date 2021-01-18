@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -6,25 +6,29 @@ package e2e
 
 import (
 	"context"
+	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 
 	crd_utils "github.com/mysql/ndb-operator/e2e-tests/utils/crd"
 	deployment_utils "github.com/mysql/ndb-operator/e2e-tests/utils/deployment"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
+	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbutils"
 	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
-	"github.com/onsi/ginkgo"
 )
 
 var _ = ndbtest.NewTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 	var ns string
 	var c clientset.Interface
+	var ndbName string
 
 	ginkgo.BeforeEach(func() {
 		ginkgo.By("extracting values from TestContext")
+		ndbName = "example-ndb"
 		ns = tc.Namespace()
 		c = tc.K8sClientset()
 	})
@@ -40,11 +44,11 @@ var _ = ndbtest.NewTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 	ginkgo.When("the example-ndb yaml is applied", func() {
 
 		ginkgo.BeforeEach(func() {
-			ndbtest.KubectlApplyNdbYaml(c, ns, "docs/examples", "example-ndb")
+			ndbtest.KubectlApplyNdbYaml(c, ns, "docs/examples", ndbName)
 		})
 
 		ginkgo.AfterEach(func() {
-			ndbtest.KubectlDeleteNdbYaml(c, ns, "example-ndb", "docs/examples", "example-ndb")
+			ndbtest.KubectlDeleteNdbYaml(c, ns, ndbName, "docs/examples", ndbName)
 		})
 
 		ginkgo.It("should deploy MySQL cluster in K8s", func() {
@@ -58,6 +62,20 @@ var _ = ndbtest.NewTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 			sfset_utils.ExpectHasLabel(c, ns, "example-ndb-ndbd", constants.ClusterLabel, "example-ndb")
 			sfset_utils.ExpectHasLabel(c, ns, "example-ndb-mgmd", constants.ClusterLabel, "example-ndb")
 			deployment_utils.ExpectHasLabel(c, ns, "example-ndb-mysqld", constants.ClusterLabel, "example-ndb")
+
+			ginkgo.By("updating the NdbCluster resource status", func() {
+				ndbutils.ValidateNdbClusterStatus(tc.Ctx(), tc.NdbClientset(), ns, ndbName)
+			})
+
+			ginkgo.By("verifying that 'kubectl get ndb' reports the status of ndbcluster resource", func() {
+				// Expected Output
+				// NAME          REPLICA   MANAGEMENT NODES   DATA NODES   MYSQL SERVERS   AGE   UP-TO-DATE
+				// example-ndb   2         Ready:2/2          Ready:2/2    Ready:2/2       81s   True
+				response := ndbtest.KubectlGet(ns, "ndb", ndbName)
+				gomega.Expect(response).To(
+					gomega.MatchRegexp(
+						".*\nexample-ndb[ ]+2[ ]+Ready:2/2[ ]+Ready:2/2[ ]+Ready:2/2.*True"))
+			})
 		})
 	})
 

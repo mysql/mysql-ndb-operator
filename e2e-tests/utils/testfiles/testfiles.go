@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -22,7 +22,7 @@ func init() {
 	var _, filename, _, _ = runtime.Caller(0)
 	// This file is at project-root/e2e-tests/utils/testfiles
 	root = filepath.Join(filepath.Dir(filename), "../../..")
-	klog.Infof("Project root directory at %q", root)
+	klog.V(4).Infof("Project root directory at %q", root)
 }
 
 // GetAbsPath returns the absolute path of the given
