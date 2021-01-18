@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -16,6 +16,7 @@ const (
 	CreateCmd = "create"
 	DeleteCmd = "delete"
 	ApplyCmd  = "apply"
+	GetCmd    = "get"
 )
 
 // buildKubectlCmd creates a Cmd for the kubectl command with given arguments
@@ -40,21 +41,36 @@ func buildKubectlCmd(namespace, subCommand, data string, extraArgs ...string) *c
 	kubectlArgs = append(kubectlArgs, extraArgs...)
 
 	// Append "-f -" arg if any input data is being passed
-	kubectlArgs = append(kubectlArgs, "-f", "-")
+	if data != "" {
+		kubectlArgs = append(kubectlArgs, "-f", "-")
+	}
 
 	return newCmdWithTimeout(ndbTestSuite.kubectlPath, data, 1*time.Minute, kubectlArgs...)
 }
 
 // RunKubectl is a wrapper around framework.RunKubectlInput that additionally expects no error
-func RunKubectl(command, namespace, yamlContent string) string {
-	if command != CreateCmd && command != DeleteCmd && command != ApplyCmd {
+func RunKubectl(command, namespace, yamlContent string, extraArgs ...string) string {
+	if command != CreateCmd &&
+		command != DeleteCmd &&
+		command != ApplyCmd &&
+		command != GetCmd {
 		panic("Unsupported command in getKubectlArgs")
 	}
 
 	// Build and run the command
-	result, _, err := buildKubectlCmd(namespace, command, yamlContent).run()
+	result, _, err := buildKubectlCmd(namespace, command, yamlContent, extraArgs...).run()
 	ExpectNoError(err, "RunKubectl failed with an error")
 	klog.V(3).Infof("kubectl executing %s : %s", command, result)
+	return result
+}
+
+// KubectlGet runs the kubectl get command and returns the result
+func KubectlGet(namespace, resourceName string, extraArgs ...string) string {
+	klog.V(2).Infof("Running 'kubectl get %s' in namespace %q", resourceName, namespace)
+	// Generate args to kubectl get command
+	args := append([]string{resourceName}, extraArgs...)
+	// Run "kubectl get resourcename <extraArgs>"
+	result := RunKubectl(GetCmd, namespace, "", args...)
 	return result
 }
 

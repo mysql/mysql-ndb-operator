@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -54,16 +54,20 @@ func KubectlDeleteNdbYaml(clientset kubernetes.Interface, namespace, ndbName, pa
 	waitForNdbDelete(clientset, namespace, ndbName)
 }
 
+// KubectlApplyNdbObjNoWait creates a Ndb K8s object from the given Ndb object
+// and returns without waiting for the MySQL Cluster to become ready
+func KubectlApplyNdbObjNoWait(ndb *v1alpha1.NdbCluster) {
+	klog.V(2).Infof("creating/updating Ndb resource from %s", ndb.Namespace)
+	yamlContent := yaml_utils.MarshalNdb(ndb)
+	ginkgo.By("creating/updating the Ndb resource")
+	RunKubectl(ApplyCmd, ndb.Namespace, string(yamlContent))
+}
+
 // KubectlApplyNdbObj creates a Ndb K8s object from the given Ndb object
 // and waits for the ndb operator to setup the MySQL Cluster
 func KubectlApplyNdbObj(clientset kubernetes.Interface, ndb *v1alpha1.NdbCluster) {
-	klog.V(2).Infof("creating/updating Ndb resource from %s", ndb.Namespace)
-
-	yamlContent := yaml_utils.MarshalNdb(ndb)
-
-	ginkgo.By("creating/updating the Ndb resource")
 	lastKnownEventResourceVersion := event_utils.GetLastKnownEventResourceVersion(clientset, ndb.Namespace)
-	RunKubectl(ApplyCmd, ndb.Namespace, string(yamlContent))
+	KubectlApplyNdbObjNoWait(ndb)
 	waitForNdbSync(clientset, ndb.Namespace, lastKnownEventResourceVersion)
 }
 

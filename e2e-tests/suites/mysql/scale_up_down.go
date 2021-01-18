@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -34,7 +34,7 @@ var _ = ndbtest.NewTestCase("MySQL Servers scaling up and down", func(tc *ndbtes
 	ginkgo.When("mysqld.nodeCount is updated", func() {
 
 		ginkgo.BeforeEach(func() {
-			ndbName = "ndb-mysqld-test"
+			ndbName = "mysqld-scale-test"
 			mysqlRootSecretName = ndbName + "-root-secret"
 			// create the secret first
 			secret_utils.CreateSecretForMySQLRootAccount(c, mysqlRootSecretName, ns)
