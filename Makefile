@@ -98,3 +98,7 @@ ndbinfo-bin:
 	cmake -S $(NDBINFO_CPP_DIR) -B $(NDBINFO_BLD_DIR) -DNDB_SOURCE_DIR=$(SRCDIR) -DNDB_BUILD_DIR=$(OSBASEDIR)  
 	cd $(NDBINFO_BLD_DIR) ; make -f ./Makefile
 	mv $(NDBINFO_BLD_DIR)/libndbinfo_native* $(NDBINFO_CPP_DIR)
+
+.PHONY: e2e
+e2e:
+	go test -v --count=1 e2e/**  --kubeconfig=/Users/bo/.kube/config
