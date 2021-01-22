@@ -5,6 +5,7 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
@@ -67,7 +68,7 @@ func (rcmc *ConfigMapControl) ExtractConfig(cm *corev1.ConfigMap) (string, error
 func (rcmc *ConfigMapControl) EnsureConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigMap, bool, error) {
 
 	// Get the StatefulSet with the name specified in Ndb.spec, fetching from client not cache
-	cm, err := rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Get(ndb.GetConfigMapName(), metav1.GetOptions{})
+	cm, err := rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Get(context.TODO(), ndb.GetConfigMapName(), metav1.GetOptions{})
 
 	if err == nil {
 		return cm, true, nil
@@ -81,7 +82,7 @@ func (rcmc *ConfigMapControl) EnsureConfigMap(ndb *v1alpha1.Ndb) (*corev1.Config
 	klog.Infof("Creating ConfigMap %s/%s", ndb.Namespace, ndb.GetConfigMapName())
 
 	cm = resources.GenerateConfigMapObject(ndb)
-	cm, err = rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Create(cm)
+	cm, err = rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Create(context.TODO(), cm, metav1.CreateOptions{})
 
 	return cm, false, nil
 }
@@ -90,7 +91,7 @@ func (rcmc *ConfigMapControl) EnsureConfigMap(ndb *v1alpha1.Ndb) (*corev1.Config
 func (rcmc *ConfigMapControl) PatchConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigMap, error) {
 
 	// Get the StatefulSet with the name specified in Ndb.spec, fetching from client not cache
-	cmOrg, err := rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Get(ndb.GetConfigMapName(), metav1.GetOptions{})
+	cmOrg, err := rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Get(context.TODO(), ndb.GetConfigMapName(), metav1.GetOptions{})
 
 	// If the resource doesn't exist
 	if errors.IsNotFound(err) {
@@ -117,9 +118,9 @@ func (rcmc *ConfigMapControl) PatchConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigM
 	var result *corev1.ConfigMap
 	updateErr := wait.ExponentialBackoff(retry.DefaultBackoff, func() (ok bool, err error) {
 
-		result, err = rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Patch(cmOrg.Name,
+		result, err = rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Patch(context.TODO(), cmOrg.Name,
 			types.StrategicMergePatchType,
-			patchBytes)
+			patchBytes, metav1.PatchOptions{})
 
 		if err != nil {
 			klog.Errorf("Failed to patch config map: %v", err)

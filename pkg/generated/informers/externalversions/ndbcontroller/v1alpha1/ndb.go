@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Oracle and/or its affiliates.
+// Copyright (c) 2021, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -7,6 +7,7 @@
 package v1alpha1
 
 import (
+	"context"
 	time "time"
 
 	ndbcontrollerv1alpha1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
@@ -49,13 +50,13 @@ func NewFilteredNdbInformer(client versioned.Interface, namespace string, resync
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.MysqlV1alpha1().Ndbs(namespace).List(options)
+				return client.MysqlV1alpha1().Ndbs(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.MysqlV1alpha1().Ndbs(namespace).Watch(options)
+				return client.MysqlV1alpha1().Ndbs(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&ndbcontrollerv1alpha1.Ndb{},

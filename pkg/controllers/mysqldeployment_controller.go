@@ -5,10 +5,12 @@
 package controllers
 
 import (
+	"context"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/resources"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/klog"
@@ -46,7 +48,7 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(ndb *v1alpha1.Ndb, dep
 	if *ndb.Spec.Mysqld.NodeCount != *deployment.Spec.Replicas {
 		klog.Infof("Scaling MySQL Server. Old : %d, New : %d", *deployment.Spec.Replicas, *ndb.Spec.Mysqld.NodeCount)
 		newDeployment := mdc.mysqlServerDeployment.NewDeployment(ndb)
-		if _, err := mdc.client.AppsV1().Deployments(ndb.Namespace).Update(newDeployment); err != nil {
+		if _, err := mdc.client.AppsV1().Deployments(ndb.Namespace).Update(context.TODO(), newDeployment, metav1.UpdateOptions{}); err != nil {
 			klog.Errorf("Failed to update MySQL Server deployment")
 			return errorWhileProcssing(err)
 		}
@@ -73,7 +75,7 @@ func (mdc *mysqlDeploymentController) EnsureDeployment(ndb *v1alpha1.Ndb) (*apps
 	numberOfMySQLServers := ndb.Spec.Mysqld.NodeCount
 	klog.Infof("Creating a deployment of '%d' MySQL Servers", numberOfMySQLServers)
 	deployment = mdc.mysqlServerDeployment.NewDeployment(ndb)
-	if _, err = mdc.client.AppsV1().Deployments(ndb.Namespace).Create(deployment); err != nil {
+	if _, err = mdc.client.AppsV1().Deployments(ndb.Namespace).Create(context.TODO(), deployment, metav1.CreateOptions{}); err != nil {
 		// Creating deployment failed
 		klog.Errorf("Failed to create deployment of '%d' MySQL Servers with error: %s",
 			numberOfMySQLServers, err)

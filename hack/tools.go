@@ -9,3 +9,4 @@ package tools
 
 import _ "k8s.io/code-generator"
 import _ "sigs.k8s.io/controller-tools/cmd/controller-gen"
+import _ "k8s.io/kubernetes/test/e2e/framework"
