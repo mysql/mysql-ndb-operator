@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -279,7 +280,7 @@ func oneStyleLister(clientset kubernetes.Interface) {
 		LabelSelector: ClusterLabel,
 	}
 
-	eps, err := clientset.CoreV1().Endpoints("default").List(sel4ndb)
+	eps, err := clientset.CoreV1().Endpoints("default").List(context.TODO(), sel4ndb)
 
 	for i, ep := range eps.Items {
 		// full list is a cartesian product of addresses x ports

@@ -5,7 +5,9 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/resources"
@@ -64,9 +66,9 @@ func patchStatefulSet(client kubernetes.Interface, oldData *apps.StatefulSet, ne
 		Namespace: oldData.Namespace,
 		Name:      oldData.Name}, string(patchBytes))
 
-	result, err := client.AppsV1().StatefulSets(oldData.Namespace).Patch(oldData.Name,
+	result, err := client.AppsV1().StatefulSets(oldData.Namespace).Patch(context.TODO(), oldData.Name,
 		types.StrategicMergePatchType,
-		patchBytes)
+		patchBytes, metav1.PatchOptions{})
 
 	if err != nil {
 		klog.Errorf("Failed to patch StatefulSet: %v", err)
@@ -118,7 +120,7 @@ func (rssc *realStatefulSetControl) EnsureStatefulSet(rc *resources.ResourceCont
 		rc.ManagementNodeCount)
 
 	sfset = rssc.statefulSetType.NewStatefulSet(rc, ndb)
-	sfset, err = rssc.client.AppsV1().StatefulSets(ndb.Namespace).Create(sfset)
+	sfset, err = rssc.client.AppsV1().StatefulSets(ndb.Namespace).Create(context.TODO(), sfset, metav1.CreateOptions{})
 
 	if err != nil {
 		// re-queue if something went wrong

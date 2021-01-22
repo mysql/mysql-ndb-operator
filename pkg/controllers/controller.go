@@ -5,6 +5,7 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -373,7 +374,7 @@ func (sc *SyncContext) updateClusterLabels() error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		ndb.Labels = labels.Merge(labels.Set(ndb.Labels), lbls)
 		_, updateErr :=
-			sc.ndbclientset.MysqlV1alpha1().Ndbs(ndb.Namespace).Update(ndb)
+			sc.ndbclientset.MysqlV1alpha1().Ndbs(ndb.Namespace).Update(context.TODO(), ndb, metav1.UpdateOptions{})
 		if updateErr == nil {
 			return nil
 		}
@@ -381,7 +382,7 @@ func (sc *SyncContext) updateClusterLabels() error {
 		key := fmt.Sprintf("%s/%s", ndb.GetNamespace(), ndb.GetName())
 		klog.V(4).Infof("Conflict updating Cluster labels. Getting updated Cluster %s from cache...", key)
 
-		updated, err := sc.ndbclientset.MysqlV1alpha1().Ndbs(ndb.Namespace).Get(ndb.Name, metav1.GetOptions{})
+		updated, err := sc.ndbclientset.MysqlV1alpha1().Ndbs(ndb.Namespace).Get(context.TODO(), ndb.Name, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("Error getting updated Cluster %q: %v", key, err)
 			return err
@@ -407,7 +408,7 @@ func (c *Controller) ensureDefaults(ndb *v1alpha1.Ndb) {
 func (sc *SyncContext) ensureService(isMgmd bool, externalIP bool, name string) (*corev1.Service, bool, error) {
 
 	// TODO: check which get options are supposed to be used, fetch from cache sufficient?
-	svc, err := sc.kubeclientset.CoreV1().Services(sc.ndb.Namespace).Get(name, metav1.GetOptions{})
+	svc, err := sc.kubeclientset.CoreV1().Services(sc.ndb.Namespace).Get(context.TODO(), name, metav1.GetOptions{})
 
 	if err == nil {
 		return svc, true, nil
@@ -419,7 +420,7 @@ func (sc *SyncContext) ensureService(isMgmd bool, externalIP bool, name string) 
 	klog.Infof("Creating a new Service for cluster %q",
 		types.NamespacedName{Namespace: sc.ndb.Namespace, Name: sc.ndb.Name})
 	svc = resources.NewService(sc.ndb, isMgmd, externalIP, name)
-	svc, err = sc.kubeclientset.CoreV1().Services(sc.ndb.Namespace).Create(svc)
+	svc, err = sc.kubeclientset.CoreV1().Services(sc.ndb.Namespace).Create(context.TODO(), svc, metav1.CreateOptions{})
 	if err != nil {
 		return nil, false, err
 	}
@@ -550,7 +551,7 @@ func (sc *SyncContext) ensureMySQLServerDeployment() (*appsv1.Deployment, bool, 
 func (sc *SyncContext) ensurePodDisruptionBudget() (*policyv1beta1.PodDisruptionBudget, bool, error) {
 
 	pdbs := sc.kubeclientset.PolicyV1beta1().PodDisruptionBudgets(sc.ndb.Namespace)
-	pdb, err := pdbs.Get(sc.ndb.GetPodDisruptionBudgetName(), metav1.GetOptions{})
+	pdb, err := pdbs.Get(context.TODO(), sc.ndb.GetPodDisruptionBudgetName(), metav1.GetOptions{})
 	if err == nil {
 		return pdb, true, nil
 	}
@@ -561,7 +562,7 @@ func (sc *SyncContext) ensurePodDisruptionBudget() (*policyv1beta1.PodDisruption
 	klog.Infof("Creating a new PodDisruptionBudget for Data Nodes of Cluster %q",
 		types.NamespacedName{Namespace: sc.ndb.Namespace, Name: sc.ndb.Name})
 	pdb = resources.NewPodDisruptionBudget(sc.ndb)
-	pdb, err = pdbs.Create(pdb)
+	pdb, err = pdbs.Create(context.TODO(), pdb, metav1.CreateOptions{})
 
 	if err != nil {
 		return nil, false, err
@@ -688,7 +689,7 @@ func (sc *SyncContext) checkPodStatus() (bool, error) {
 		LabelSelector: labels.Set(sc.ndb.GetLabels()).String(),
 		Limit:         256,
 	}
-	pods, err := sc.kubeclientset.CoreV1().Pods(sc.ndb.Namespace).List(listOptions)
+	pods, err := sc.kubeclientset.CoreV1().Pods(sc.ndb.Namespace).List(context.TODO(), listOptions)
 	if err != nil {
 		return false, apierrors.NewNotFound(v1alpha1.Resource("Pod"), listOptions.LabelSelector)
 	}
@@ -1131,7 +1132,7 @@ func patchPod(kubeClient kubernetes.Interface, oldData *corev1.Pod, newData *cor
 	}
 	klog.V(4).Infof("Patching Pod %q: %s", types.NamespacedName{Namespace: oldData.Namespace, Name: oldData.Name}, string(patchBytes))
 
-	result, err := kubeClient.CoreV1().Pods(oldData.Namespace).Patch(oldData.Name, types.StrategicMergePatchType, patchBytes)
+	result, err := kubeClient.CoreV1().Pods(oldData.Namespace).Patch(context.TODO(), oldData.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return nil, apierrors.NewNotFound(v1alpha1.Resource("Pod"), "failed patching pod")
 	}
@@ -1181,7 +1182,7 @@ func (sc *SyncContext) updateNdbStatus() error {
 		// which is ideal for ensuring nothing other than resource status has been updated.
 		//_, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Update(ndb)
 
-		_, err = sc.ndbclientset.MysqlV1alpha1().Ndbs(ndb.Namespace).UpdateStatus(ndb)
+		_, err = sc.ndbclientset.MysqlV1alpha1().Ndbs(ndb.Namespace).UpdateStatus(context.TODO(), ndb, metav1.UpdateOptions{})
 		if err == nil {
 			return true, nil
 		}
@@ -1189,7 +1190,7 @@ func (sc *SyncContext) updateNdbStatus() error {
 			return false, err
 		}
 
-		updated, err := sc.ndbclientset.MysqlV1alpha1().Ndbs(ndb.Namespace).Get(ndb.Name, metav1.GetOptions{})
+		updated, err := sc.ndbclientset.MysqlV1alpha1().Ndbs(ndb.Namespace).Get(context.TODO(), ndb.Name, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("failed to get Ndb %s/%s: %v", ndb.Namespace, ndb.Name, err)
 			return false, err

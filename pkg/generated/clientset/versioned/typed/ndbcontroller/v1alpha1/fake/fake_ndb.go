@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Oracle and/or its affiliates.
+// Copyright (c) 2021, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -7,6 +7,8 @@
 package fake
 
 import (
+	"context"
+
 	v1alpha1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -27,7 +29,7 @@ var ndbsResource = schema.GroupVersionResource{Group: "mysql.oracle.com", Versio
 var ndbsKind = schema.GroupVersionKind{Group: "mysql.oracle.com", Version: "v1alpha1", Kind: "Ndb"}
 
 // Get takes name of the ndb, and returns the corresponding ndb object, and an error if there is any.
-func (c *FakeNdbs) Get(name string, options v1.GetOptions) (result *v1alpha1.Ndb, err error) {
+func (c *FakeNdbs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Ndb, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(ndbsResource, c.ns, name), &v1alpha1.Ndb{})
 
@@ -38,7 +40,7 @@ func (c *FakeNdbs) Get(name string, options v1.GetOptions) (result *v1alpha1.Ndb
 }
 
 // List takes label and field selectors, and returns the list of Ndbs that match those selectors.
-func (c *FakeNdbs) List(opts v1.ListOptions) (result *v1alpha1.NdbList, err error) {
+func (c *FakeNdbs) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.NdbList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(ndbsResource, ndbsKind, c.ns, opts), &v1alpha1.NdbList{})
 
@@ -60,14 +62,14 @@ func (c *FakeNdbs) List(opts v1.ListOptions) (result *v1alpha1.NdbList, err erro
 }
 
 // Watch returns a watch.Interface that watches the requested ndbs.
-func (c *FakeNdbs) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeNdbs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(ndbsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a ndb and creates it.  Returns the server's representation of the ndb, and an error, if there is any.
-func (c *FakeNdbs) Create(ndb *v1alpha1.Ndb) (result *v1alpha1.Ndb, err error) {
+func (c *FakeNdbs) Create(ctx context.Context, ndb *v1alpha1.Ndb, opts v1.CreateOptions) (result *v1alpha1.Ndb, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(ndbsResource, c.ns, ndb), &v1alpha1.Ndb{})
 
@@ -78,7 +80,7 @@ func (c *FakeNdbs) Create(ndb *v1alpha1.Ndb) (result *v1alpha1.Ndb, err error) {
 }
 
 // Update takes the representation of a ndb and updates it. Returns the server's representation of the ndb, and an error, if there is any.
-func (c *FakeNdbs) Update(ndb *v1alpha1.Ndb) (result *v1alpha1.Ndb, err error) {
+func (c *FakeNdbs) Update(ctx context.Context, ndb *v1alpha1.Ndb, opts v1.UpdateOptions) (result *v1alpha1.Ndb, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(ndbsResource, c.ns, ndb), &v1alpha1.Ndb{})
 
@@ -90,7 +92,7 @@ func (c *FakeNdbs) Update(ndb *v1alpha1.Ndb) (result *v1alpha1.Ndb, err error) {
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeNdbs) UpdateStatus(ndb *v1alpha1.Ndb) (*v1alpha1.Ndb, error) {
+func (c *FakeNdbs) UpdateStatus(ctx context.Context, ndb *v1alpha1.Ndb, opts v1.UpdateOptions) (*v1alpha1.Ndb, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(ndbsResource, "status", c.ns, ndb), &v1alpha1.Ndb{})
 
@@ -101,7 +103,7 @@ func (c *FakeNdbs) UpdateStatus(ndb *v1alpha1.Ndb) (*v1alpha1.Ndb, error) {
 }
 
 // Delete takes name of the ndb and deletes it. Returns an error if one occurs.
-func (c *FakeNdbs) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeNdbs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(ndbsResource, c.ns, name), &v1alpha1.Ndb{})
 
@@ -109,15 +111,15 @@ func (c *FakeNdbs) Delete(name string, options *v1.DeleteOptions) error {
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeNdbs) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(ndbsResource, c.ns, listOptions)
+func (c *FakeNdbs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(ndbsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1alpha1.NdbList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched ndb.
-func (c *FakeNdbs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.Ndb, err error) {
+func (c *FakeNdbs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.Ndb, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(ndbsResource, c.ns, name, pt, data, subresources...), &v1alpha1.Ndb{})
 
