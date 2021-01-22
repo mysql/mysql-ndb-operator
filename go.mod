@@ -5,11 +5,14 @@ module github.com/mysql/ndb-operator
 go 1.12
 
 require (
+	github.com/onsi/ginkgo v1.11.0
+	github.com/onsi/gomega v1.8.1
 	github.com/pkg/errors v0.9.1
 	k8s.io/api v0.18.2
 	k8s.io/apimachinery v0.18.3-beta.0
 	k8s.io/client-go v0.18.2
 	k8s.io/code-generator v0.18.2
+	k8s.io/component-base v0.18.2
 	k8s.io/klog v1.0.0
 	k8s.io/kubernetes v1.18.2
 	sigs.k8s.io/controller-tools v0.4.1
