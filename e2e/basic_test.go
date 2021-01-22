@@ -58,10 +58,11 @@ func TestMain(t *testing.T) {
 	framework.TestContext.Provider = "local"
 	framework.TestContext.DeleteNamespace = true
 	framework.TestContext.DeleteNamespaceOnFailure = true
+	framework.TestContext.RepoRoot = "../"
 
 	framework.AfterReadingAllFlags(&framework.TestContext)
 
-	testfiles.AddFileSource(testfiles.RootFileSource{Root: "/Users/bo/prg/ndbo"})
+	testfiles.AddFileSource(testfiles.RootFileSource{Root: framework.TestContext.RepoRoot})
 }
 
 func Test_NdbBasic(t *testing.T) {
