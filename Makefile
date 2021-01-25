@@ -102,3 +102,8 @@ ndbinfo-bin:
 .PHONY: e2e
 e2e:
 	go test -v --count=1 e2e/**  --kubeconfig=/Users/bo/.kube/config
+
+.PHONY: test
+test:
+	./e2e/run-kubetest.sh
+
