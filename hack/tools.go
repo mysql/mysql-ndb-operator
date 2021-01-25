@@ -7,6 +7,7 @@
 // This package imports things required by build scripts, to force `go mod` to see them as dependencies
 package tools
 
-import _ "k8s.io/code-generator"
-import _ "sigs.k8s.io/controller-tools/cmd/controller-gen"
-import _ "k8s.io/kubernetes/test/e2e/framework"
+import (
+  _ "k8s.io/code-generator"
+  _ "sigs.k8s.io/controller-tools/cmd/controller-gen"
+)

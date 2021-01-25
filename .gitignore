@@ -41,6 +41,7 @@ test/system/terraform/cluster/terraform.tfstate.backup
 
 # test generated file
 test/e2e/manifests/e2e-mysql-operator-controller.yaml
+e2e/artifacts/
 
 # Vim
 *.sw[op]
