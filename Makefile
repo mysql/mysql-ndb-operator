@@ -105,5 +105,9 @@ e2e:
 
 .PHONY: test
 test:
-	./e2e/run-kubetest.sh
+	go run e2e/run-kubetest.go
+
+.PHONY: test-kind
+test-kind:
+	go run e2e/run-kubetest.go --use-kind
 
