@@ -12,7 +12,6 @@ import (
 	"io"
 
 	"github.com/mysql/ndb-operator/pkg/constants"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -204,8 +203,8 @@ func (ndb *Ndb) GetConnectstring() string {
 func (ndb *Ndb) GetOwnerReference() metav1.OwnerReference {
 	return *metav1.NewControllerRef(ndb,
 		schema.GroupVersionKind{
-			Group:   v1.SchemeGroupVersion.Group,
-			Version: v1.SchemeGroupVersion.Version,
+			Group:   SchemeGroupVersion.Group,
+			Version: SchemeGroupVersion.Version,
 			Kind:    "Ndb",
 		})
 }
