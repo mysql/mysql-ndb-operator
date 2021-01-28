@@ -6,29 +6,26 @@ package resources
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers"
-	"github.com/mysql/ndb-operator/pkg/version"
+
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog"
 )
 
-const mgmdVolumeName = "mgmdvolume"
-const mgmdName = "mgmd"
+const (
+	// sfsetTypeMgmd represents the management node type
+	sfsetTypeMgmd = "mgmd"
+	// sfsetTypeNdbd represents the data node type
+	sfsetTypeNdbd = "ndbd"
+)
 
-const ndbdName = "ndbd"
-
-const ndbAgentName = "ndb-agent"
-const ndbAgentImage = "ndb-agent"
-const ndbAgentVersion = "1.0.0"
-
+// StatefulSetInterface is the interface for a statefulset of NDB management or data nodes
 type StatefulSetInterface interface {
 	GetTypeName() string
 	NewStatefulSet(rc *ResourceContext, cluster *v1alpha1.Ndb) *apps.StatefulSet
@@ -40,75 +37,88 @@ type baseStatefulSet struct {
 	clusterName string
 }
 
+// NewMgmdStatefulSet returns a new baseStatefulSet for management nodes
 func NewMgmdStatefulSet(cluster *v1alpha1.Ndb) *baseStatefulSet {
-	return &baseStatefulSet{typeName: "mgmd", clusterName: cluster.Name}
+	return &baseStatefulSet{typeName: sfsetTypeMgmd, clusterName: cluster.Name}
 }
 
+// NewNdbdStatefulSet returns a new baseStatefulSet for data nodes
 func NewNdbdStatefulSet(cluster *v1alpha1.Ndb) *baseStatefulSet {
-	return &baseStatefulSet{typeName: "ndbd", clusterName: cluster.Name}
+	return &baseStatefulSet{typeName: sfsetTypeNdbd, clusterName: cluster.Name}
 }
 
-// volumeMounts returns the volumes to be mounted to the container
-func (bss *baseStatefulSet) volumeMounts() []v1.VolumeMount {
-	var mounts []v1.VolumeMount
+// isMgmd returns if the baseStatefulSet represents a management node
+func (bss *baseStatefulSet) isMgmd() bool {
+	return bss.typeName == sfsetTypeMgmd
+}
 
+// getDataDirVolumeName returns the name of the volume to be used for the data directory
+func (bss *baseStatefulSet) getDataDirVolumeName(ndb *v1alpha1.Ndb) string {
+	return bss.typeName + "-volume"
+}
+
+// getPodVolumes returns the named volume available in the Pods
+func (bss *baseStatefulSet) getPodVolumes(ndb *v1alpha1.Ndb) []v1.Volume {
+
+	// By default all the pods use a EmptyDir volume
+	podVolumes := []v1.Volume{
+		{
+			Name: bss.getDataDirVolumeName(ndb),
+			VolumeSource: v1.VolumeSource{
+				EmptyDir: &v1.EmptyDirVolumeSource{},
+			},
+		},
+	}
+
+	if bss.isMgmd() {
+		// Add the configmap's config.ini as a volume to the Management pods
+		podVolumes = append(podVolumes, v1.Volume{
+			Name: "config-volume",
+			VolumeSource: v1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: ndb.GetConfigMapName(),
+					},
+					// Load only the config.ini key
+					Items: []v1.KeyToPath{
+						{
+							Key:  configIniKey,
+							Path: configIniKey,
+						},
+					},
+				},
+			},
+		})
+	}
+
+	return podVolumes
+}
+
+// getVolumeMounts returns the volumes to be mounted to the container
+func (bss *baseStatefulSet) getVolumeMounts(ndb *v1alpha1.Ndb) []v1.VolumeMount {
 	// volume mount for the data directory
-	mounts = append(mounts, v1.VolumeMount{
-		Name:      mgmdVolumeName,
-		MountPath: constants.DataDir,
-	})
+	volumeMounts := []v1.VolumeMount{
+		{
+			Name:      bss.getDataDirVolumeName(ndb),
+			MountPath: constants.DataDir,
+		},
+	}
 
-	if bss.typeName == "mgmd" {
+	if bss.isMgmd() {
 		// Mount the config map volume holding the
 		// cluster configuration into the management container
-		mounts = append(mounts, v1.VolumeMount{
+		volumeMounts = append(volumeMounts, v1.VolumeMount{
 			Name:      "config-volume",
 			MountPath: constants.DataDir + "/config",
 		})
 	}
 
-	return mounts
+	return volumeMounts
 }
 
-func (bss *baseStatefulSet) agentContainer(ndb *v1alpha1.Ndb, ndbAgentImage string) v1.Container {
-
-	agentVersion := version.GetBuildVersion()
-
-	if version := os.Getenv("NDB_AGENT_VERSION"); version != "" {
-		agentVersion = version
-	}
-
-	image := fmt.Sprintf("%s:%s", ndbAgentImage, agentVersion)
-	klog.Infof("Creating agent container from image %s", image)
-
-	return v1.Container{
-		Name:  ndbAgentName,
-		Image: image,
-		Ports: []v1.ContainerPort{
-			{
-				ContainerPort: 8080,
-			},
-		},
-		// agent requires access to ndbd and mgmd volumes
-		VolumeMounts: bss.volumeMounts(),
-		Env:          []v1.EnvVar{},
-		LivenessProbe: &v1.Probe{
-			Handler: v1.Handler{
-				HTTPGet: &v1.HTTPGetAction{
-					Path: "/live",
-					Port: intstr.FromInt(8080),
-				},
-			},
-		},
-		ReadinessProbe: &v1.Probe{
-			Handler: v1.Handler{
-				HTTPGet: &v1.HTTPGetAction{
-					Path: "/ready",
-					Port: intstr.FromInt(8080),
-				},
-			},
-		},
-	}
+// GetName returns the name of the baseStatefulSet
+func (bss *baseStatefulSet) GetName() string {
+	return bss.clusterName + "-" + bss.typeName
 }
 
 // GetTypeName returns the type name of baseStatefulSet
@@ -130,140 +140,70 @@ func (bss *baseStatefulSet) getPodLabels(ndb *v1alpha1.Ndb) map[string]string {
 	})
 }
 
-// Builds the Ndb operator container for a mgmd.
-func (bss *baseStatefulSet) mgmdContainer(ndb *v1alpha1.Ndb) v1.Container {
+// getContainers returns the container to run the NDB node represented by the baseStatefulSet
+func (bss *baseStatefulSet) getContainers(ndb *v1alpha1.Ndb) []v1.Container {
+	// Set type specific values
+	var cmd string
+	var args []string
+	if bss.isMgmd() {
+		// Mgmd specific details
+		cmd = "/usr/sbin/ndb_mgmd"
+		args = []string{
+			"-f", "/var/lib/ndb/config/config.ini",
+			"--configdir=/var/lib/ndb",
+			"--initial",
+			"--nodaemon",
+			"--config-cache=0",
+			"-v",
+		}
+	} else {
+		// Ndbd specific details
+		cmd = "/usr/sbin/ndbmtd"
+		args = []string{
+			"-c", ndb.GetConnectstring(),
+			"--nodaemon",
+			"-v",
+		}
+	}
 
-	cmd := ""
-	environment := []v1.EnvVar{}
+	// Build the command
+	cmdArgs := fmt.Sprintf("%s %s", cmd, strings.Join(args, " "))
 
+	// Use the image provided in spec
 	imageName := ndb.Spec.ContainerImage
+	klog.Infof("Creating %s container from image %s", bss.typeName, imageName)
 
-	args := []string{
-		"-f", "/var/lib/ndb/config/config.ini",
-		"--configdir=/var/lib/ndb",
-		"--initial",
-		"--nodaemon",
-		"--config-cache=0",
-		"-v",
-	}
-	cmdArgs := strings.Join(args, " ")
-	cmd = fmt.Sprintf(`/usr/sbin/ndb_mgmd %s`, cmdArgs)
-
-	klog.Infof("Creating mgmd container from image %s", imageName)
-
-	return v1.Container{
-		Name:  mgmdName,
-		Image: imageName,
-		Ports: []v1.ContainerPort{
-			{
-				ContainerPort: 1186,
+	return []v1.Container{
+		{
+			Name:  bss.GetTypeName() + "-container",
+			Image: imageName,
+			Ports: []v1.ContainerPort{
+				{
+					ContainerPort: 1186,
+				},
 			},
+			VolumeMounts:    bss.getVolumeMounts(ndb),
+			Command:         []string{"/bin/bash", "-ecx", cmdArgs},
+			ImagePullPolicy: v1.PullIfNotPresent,
 		},
-		VolumeMounts:    bss.volumeMounts(),
-		Command:         []string{"/bin/bash", "-ecx", cmd},
-		ImagePullPolicy: v1.PullIfNotPresent, //v1.PullNever,
-		Env:             environment,
 	}
 }
 
-// Builds the Ndb operator container for a mgmd.
-func (bss *baseStatefulSet) ndbmtdContainer(ndb *v1alpha1.Ndb) v1.Container {
-
-	imageName := ndb.Spec.ContainerImage
-	connectString := ndb.GetConnectstring()
-	args := []string{
-		"-c", connectString,
-		"--nodaemon",
-		"-v",
-	}
-	cmdArgs := strings.Join(args, " ")
-	cmd := fmt.Sprintf(`/usr/sbin/ndbmtd %s`, cmdArgs)
-
-	klog.Infof("Creating ndbmtd container from image %s", imageName)
-
-	return v1.Container{
-		Name:  ndbdName,
-		Image: imageName,
-		Ports: []v1.ContainerPort{
-			{
-				ContainerPort: 1186,
-			},
-		},
-		VolumeMounts:    bss.volumeMounts(),
-		Command:         []string{"/bin/bash", "-ecx", cmd},
-		ImagePullPolicy: v1.PullIfNotPresent, //v1.PullNever,
-	}
-}
-
-func (bss *baseStatefulSet) GetName() string {
-	return bss.clusterName + "-" + bss.typeName
-}
-
-// NewForCluster creates a new StatefulSet for the given Cluster.
+// NewStatefulSet creates a new StatefulSet for the given Cluster.
 func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Ndb) *apps.StatefulSet {
 
-	// If a PV isn't specified just use a EmptyDir volume
-	var podVolumes []v1.Volume
-	podVolumes = append(podVolumes,
-		v1.Volume{
-			Name: mgmdVolumeName,
-			VolumeSource: v1.VolumeSource{
-				EmptyDir: &v1.EmptyDirVolumeSource{
-					Medium: "",
-				},
-			},
-		},
-	)
-
-	if bss.typeName == "mgmd" {
-		// Add the configmap's config.ini as a volume to the Management pods
-		podVolumes = append(podVolumes, v1.Volume{
-			Name: "config-volume",
-			VolumeSource: v1.VolumeSource{
-				ConfigMap: &v1.ConfigMapVolumeSource{
-					LocalObjectReference: v1.LocalObjectReference{
-						Name: ndb.GetConfigMapName(),
-					},
-					// Load only the config.ini key
-					Items: []v1.KeyToPath{
-						{
-							Key:  configIniKey,
-							Path: configIniKey,
-						},
-					},
-				},
-			},
-		})
-	}
-
-	var containers []v1.Container
-	var serviceaccount string
-	replicas := func(i int32) *int32 { return &i }((0))
+	// Build the new stateful set and return
 	podLabels := bss.getPodLabels(ndb)
-
-	if bss.typeName == "mgmd" {
-		containers = []v1.Container{
-			bss.mgmdContainer(ndb),
-			//agentContainer(ndb, ndbAgentImage),
-		}
-		serviceaccount = "ndb-agent"
+	var podManagementPolicy apps.PodManagementPolicyType
+	var replicas *int32
+	if bss.isMgmd() {
 		replicas = helpers.IntToInt32Ptr(int(rc.ManagementNodeCount))
-
+		// Start Management nodes one by one
+		podManagementPolicy = apps.OrderedReadyPodManagement
 	} else {
-		containers = []v1.Container{
-			bss.ndbmtdContainer(ndb),
-			//agentContainer(ndb, ndbAgentImage),
-		}
-		serviceaccount = "ndb-agent"
 		replicas = helpers.IntToInt32Ptr(int(rc.GetDataNodeCount()))
-	}
-
-	podspec := v1.PodSpec{
-		Containers: containers,
-		Volumes:    podVolumes,
-	}
-	if serviceaccount != "" {
-		podspec.ServiceAccountName = "ndb-agent"
+		// Data nodes can be started in parallel
+		podManagementPolicy = apps.ParallelPodManagement
 	}
 
 	ss := &apps.StatefulSet{
@@ -289,11 +229,16 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 					Labels:      podLabels,
 					Annotations: map[string]string{},
 				},
-				Spec: podspec,
+				Spec: v1.PodSpec{
+					Containers:         bss.getContainers(ndb),
+					Volumes:            bss.getPodVolumes(ndb),
+					ServiceAccountName: "ndb-agent",
+				},
 			},
 			// service must exist before the StatefulSet, and is responsible for
 			// the network identity of the set.
-			ServiceName: ndb.GetServiceName(bss.typeName),
+			ServiceName:         ndb.GetServiceName(bss.typeName),
+			PodManagementPolicy: podManagementPolicy,
 		},
 	}
 	return ss
