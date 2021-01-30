@@ -102,8 +102,8 @@ func (k *kind) init(t *testRunner) {
 	assertDockerRunning(t)
 
 	// Ensure that the right version of kubetest2-kind and KinD are installed
-	t.goInstall("sigs.k8s.io/kubetest2/kubetest2-kind@" + KUBETEST2_VERSION)
-	t.goInstall("sigs.k8s.io/kind@" + KIND_VERSION)
+	//t.goInstall("sigs.k8s.io/kubetest2/kubetest2-kind@" + KUBETEST2_VERSION)
+	//t.goInstall("sigs.k8s.io/kind@" + KIND_VERSION)
 }
 
 // getKubeConfig returns the Kubeconfig to connect to the cluster
@@ -141,7 +141,7 @@ func (l *local) init(t *testRunner) {
 	// Ensure that the right version of kubetest2-kind and KinD are installed
 	// KinD is used as a dummy/skeleton provider for local - it actually
 	// doesn't do anything other than satisfying kubetest2's argument needs.
-	t.goInstall("sigs.k8s.io/kubetest2/kubetest2-kind@" + KUBETEST2_VERSION)
+	//t.goInstall("sigs.k8s.io/kubetest2/kubetest2-kind@" + KUBETEST2_VERSION)
 
 	// Validate the kubeconfig
 	if len(options.kubeconfig) > 0 {
@@ -181,8 +181,8 @@ func (t *testRunner) init() {
 	t.testDir = filepath.Dir(currentFilePath)
 
 	// Ensure that the right version of kubetest2 and the exec tester exist
-	t.goInstall("sigs.k8s.io/kubetest2@" + KUBETEST2_VERSION)
-	t.goInstall("sigs.k8s.io/kubetest2/kubetest2-tester-exec@" + KUBETEST2_VERSION)
+	//t.goInstall("sigs.k8s.io/kubetest2@" + KUBETEST2_VERSION)
+	//t.goInstall("sigs.k8s.io/kubetest2/kubetest2-tester-exec@" + KUBETEST2_VERSION)
 }
 
 // buildCommand constructs a cmd struct for the given command and arguments
