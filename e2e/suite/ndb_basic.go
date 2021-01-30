@@ -2,8 +2,6 @@ package e2e
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/onsi/ginkgo"
@@ -15,7 +13,6 @@ import (
 	"k8s.io/klog"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
-	"k8s.io/kubernetes/test/e2e/framework/testfiles"
 )
 
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
@@ -39,9 +36,9 @@ func setupSuite() {
 	}
 }
 
-var _ = framework.KubeDescribe("[Feature:Example]", func() {
+var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 
-	f := framework.NewDefaultFramework("examples")
+	f := framework.NewDefaultFramework("ndb-basic")
 
 	var ns string
 	var c clientset.Interface
@@ -51,49 +48,36 @@ var _ = framework.KubeDescribe("[Feature:Example]", func() {
 		klog.Infof("Running in namespace %s", ns)
 	})
 
-	framework.KubeDescribe("Creating something", func() {
-		ginkgo.It("should create a namespace", func() {
-
-			labels := make(map[string]string)
-			nns, err := f.CreateNamespace("ndb-4-test", labels)
-			framework.ExpectNoError(err)
-
-			klog.Infof("Created namespace: %s", nns.Name)
-
-			ginkgo.By("checking if name and namespace were passed correctly")
+	framework.KubeDescribe("Just do nothing", func() {
+		ginkgo.It("should create environment here", func() {
 		})
 	})
 
 	framework.KubeDescribe("Creating and deleting a simple pod", func() {
 		ginkgo.It("should create environment", func() {
 
-			justAnExample := yamlFile("artifacts/examples", "busybox")
+			justAnExample := YamlFile("artifacts/examples", "busybox")
+			var err error
+			justAnExample, err = ReplaceAllProperties(justAnExample, "namespace", ns)
+
+			if err != nil {
+				klog.Fatalf("Error parsing %s\n", justAnExample)
+			}
 
 			framework.RunKubectlOrDieInput(ns, justAnExample, "create", "-f", "-")
 
 			// created in default by this particular file
-			err := e2epod.WaitForPodNameRunningInNamespace(c, "busybox", "default")
+			err = e2epod.WaitForPodNameRunningInNamespace(c, "busybox", ns)
 			framework.ExpectNoError(err)
 
 			// PodClient() is only for framework namespace
 			//err = f.PodClient().Delete(context.TODO(), "busybox", *v1.NewDeleteOptions(30))
-			err = c.CoreV1().Pods("default").Delete(context.TODO(), "busybox", *metav1.NewDeleteOptions(30))
+			err = c.CoreV1().Pods(ns).Delete(context.TODO(), "busybox", *metav1.NewDeleteOptions(30))
 			framework.ExpectNoError(err)
 
-			err = e2epod.WaitForPodToDisappear(c, "busybox", "default", labels.Everything(), time.Second, wait.ForeverTestTimeout)
+			err = e2epod.WaitForPodToDisappear(c, "busybox", ns, labels.Everything(), time.Second, wait.ForeverTestTimeout)
 			framework.ExpectNoError(err)
 
 		})
 	})
 })
-
-func yamlFile(test, file string) string {
-	from := filepath.Join(test, file+".yaml")
-	data, err := testfiles.Read(from)
-	if err != nil {
-		dir, _ := os.Getwd()
-		klog.Infof("Maybe in wrong directory %s", dir)
-		framework.Fail(err.Error())
-	}
-	return string(data)
-}

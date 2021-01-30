@@ -1,0 +1,16 @@
+---
+A: v1
+metadata:
+  name: ndb-agent
+  namespace:  replace-me{{ xyz }}
+namespace:  replace{{ xyz }}-me
+---
+A: v1
+metadata:
+  C: {{ xyz }}test
+  subjects:
+  - kind: v2
+    namespace: replace-me
+  - kind: v3
+    namespace: {{ abc }}replace-me{{ abc }}
+---

@@ -58,7 +58,7 @@ func TestMain(t *testing.T) {
 	framework.TestContext.Provider = "local"
 	framework.TestContext.DeleteNamespace = true
 	framework.TestContext.DeleteNamespaceOnFailure = true
-	framework.TestContext.RepoRoot = "../"
+	framework.TestContext.RepoRoot = "../../"
 
 	framework.AfterReadingAllFlags(&framework.TestContext)
 
@@ -66,6 +66,7 @@ func TestMain(t *testing.T) {
 }
 
 func Test_NdbBasic(t *testing.T) {
+	fmt.Printf("%s\n", "Starting to test ...")
 	gomega.RegisterFailHandler(framework.Fail)
 	ginkgo.RunSpecs(t, "Ndb Suite")
 }
