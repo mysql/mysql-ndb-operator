@@ -50,20 +50,6 @@ rules:
       - watch
   
 ---
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: ndb-agent
-  namespace:  {{ if and (.Values.operator.global) (eq .Values.operator.namespace "ndb-operator") }}ndb-operator{{ else }}{{ .Values.operator.namespace}}{{ end }}
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: ndb-agent
-subjects:
-- kind: ServiceAccount
-  name: ndb-agent
-  namespace:  {{ if and (.Values.operator.global) (eq .Values.operator.namespace "ndb-operator") }}ndb-operator{{ else }}{{ .Values.operator.namespace}}{{ end }}
----
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
