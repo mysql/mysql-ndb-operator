@@ -38,12 +38,10 @@ COMMANDS := $(CMD_DIRECTORIES:./cmd/%/=%)
 
 .PHONY: build
 build: 
-	@echo "Building: $(BINARIES)"
 	@echo "arch:     $(ARCH)"
 	@echo "os:       $(OS)"
 	@echo "version:  $(VERSION)"
 	@echo "pkg:      $(PKG)"
-	@echo "bin:      $(BINARIES)"
 	@touch pkg/version/version.go # Important. Work around for https://github.com/golang/go/issues/18369
 	ARCH=$(ARCH) OS=$(OS) VERSION=$(VERSION) PKG=$(PKG) ./hack/build.sh
 
@@ -99,15 +97,15 @@ ndbinfo-bin:
 	cd $(NDBINFO_BLD_DIR) ; make -f ./Makefile
 	mv $(NDBINFO_BLD_DIR)/libndbinfo_native* $(NDBINFO_CPP_DIR)
 
-.PHONY: e2e
-e2e:
-	go test -v --count=1 e2e/suite/**  --kubeconfig=/Users/bo/.kube/config
-
 .PHONY: test
 test:
-	go run e2e/run-kubetest.go
+	go test -v --count=1 e2e/suites/**
 
-.PHONY: test-kind
-test-kind:
-	go run e2e/run-kubetest.go --use-kind
+.PHONY: e2e
+e2e:
+	go run e2e/run-e2e-test.go
+
+.PHONY: e2e-kind
+e2e-kind:
+	go run e2e/run-e2e-test.go --use-kind
 
