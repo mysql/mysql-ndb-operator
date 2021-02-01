@@ -50,6 +50,17 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 
 	framework.KubeDescribe("Just do nothing", func() {
 		ginkgo.It("should create environment here", func() {
+			deploy := []string{
+				"helm/crds/mysql.oracle.com_ndbs",
+				"helm/templates/01-rbac",
+				"artifacts/deployment/ndb-operator-rbac",
+			}
+
+			CreateFromYamls(ns, deploy)
+			CreateFromYaml(ns, "", "artifacts/deployment/ndb-operator")
+
+			// crds and our rbacs are not child of namespace
+			DeleteFromYamls(ns, deploy)
 		})
 	})
 
