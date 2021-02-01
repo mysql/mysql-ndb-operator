@@ -101,7 +101,7 @@ ndbinfo-bin:
 
 .PHONY: e2e
 e2e:
-	go test -v --count=1 e2e/suite/**  --kubeconfig=/Users/bo/.kube/config
+	go test -v --count=1 e2e-tests/suites/**  --kubeconfig=/Users/bo/.kube/config
 
 .PHONY: test
 test:

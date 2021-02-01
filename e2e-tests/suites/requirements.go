@@ -23,7 +23,7 @@ var _ = framework.KubeDescribe("[Feature:requirements]", func() {
 
 		ginkgo.It("should replace all occurences of namespace in yaml", func() {
 
-			data := YamlFile("e2e/testfiles", "prep_test_suite")
+			data := YamlFile("e2e-tests/testfiles", "prep_test_suite")
 
 			gomega.Expect(data).NotTo(gomega.HaveLen(0))
 			gomega.Ω(data).ShouldNot(gomega.HaveLen(0))
