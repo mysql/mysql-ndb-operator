@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/onsi/ginkgo"
@@ -76,7 +77,9 @@ func Test_NdbBasic(t *testing.T) {
 
 // we don't use framework.RegisterCommonFlags() framework.RegisterClusterFlags() yet
 func init() {
-	flag.StringVar(&framework.TestContext.KubeConfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
+	// use kubeconfig at $HOME/.kube/config as the default
+	defaultKubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
+	flag.StringVar(&framework.TestContext.KubeConfig, "kubeconfig", defaultKubeconfig, "Path to a kubeconfig. Only required if out-of-cluster.")
 
 	flag.StringVar(&framework.TestContext.KubectlPath, "kubectl-path", "kubectl", "The kubectl binary to use. For development, you might use 'cluster/kubectl.sh' here.")
 

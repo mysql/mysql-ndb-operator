@@ -11,7 +11,7 @@ var _ = framework.KubeDescribe("[Feature:requirements]", func() {
 
 	framework.KubeDescribe("Testing yaml file reading", func() {
 		ginkgo.It("should read a yaml file", func() {
-			justAnExample := YamlFile("artifacts/examples", "busybox")
+			justAnExample := YamlFile("e2e/_manifests", "busybox")
 
 			if !(len(justAnExample) > 0) {
 				framework.Fail("Yaml file is empty")
@@ -23,7 +23,7 @@ var _ = framework.KubeDescribe("[Feature:requirements]", func() {
 
 		ginkgo.It("should replace all occurences of namespace in yaml", func() {
 
-			data := YamlFile("e2e/testfiles", "prep_test_suite")
+			data := YamlFile("e2e/_manifests", "prep_test_suite")
 
 			gomega.Expect(data).NotTo(gomega.HaveLen(0))
 			gomega.Ω(data).ShouldNot(gomega.HaveLen(0))

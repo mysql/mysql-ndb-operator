@@ -17,6 +17,7 @@ require (
 	k8s.io/klog v1.0.0
 	k8s.io/kubernetes v1.18.2
 	sigs.k8s.io/controller-tools v0.4.1
+	sigs.k8s.io/kind v0.8.0
 )
 
 replace (
