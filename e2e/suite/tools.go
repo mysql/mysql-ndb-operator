@@ -1,19 +1,31 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v2"
+	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/test/e2e/framework"
 	"k8s.io/kubernetes/test/e2e/framework/testfiles"
+
+	deploymentutil "k8s.io/kubernetes/pkg/controller/deployment/util"
+	e2edeployment "k8s.io/kubernetes/test/e2e/framework/deployment"
 )
 
+// YamlFile reads the content of a single yamle file as string
+// Read happens from a test files path which needs to first
+// be registered with testfiles.AddFileSource()
 func YamlFile(test, file string) string {
 	from := filepath.Join(test, file+".yaml")
 	data, err := testfiles.Read(from)
@@ -51,6 +63,10 @@ func replaceAll(values *interface{}, key string, newValue string) {
 	}
 }
 
+// ReplaceAllProperties replaces all occurences of a property with a new string key/value pair
+// e.g. "<content>", "namespace", "new-namespace" will replace all
+// occurences of the property "namespace" with "new-namespace".
+// Search happens in all arrays and sub-objects as well.
 func ReplaceAllProperties(content string, key string, newValue string) (string, error) {
 
 	// remove all helm artifacts - i.e. {{ }}
@@ -130,4 +146,54 @@ func DeleteFromYamls(ns string, resourceFiles []string) {
 	for _, d := range resourceFiles {
 		DeleteFromYaml(ns, "", d)
 	}
+}
+
+// CreateDeploymentFromSpec creates a deployment.
+// copied from k8s.io/kubernetes@v1.18.2/test/e2e/framework/deployment/fixtures.go
+// but using own deployment instead
+func CreateDeploymentFromSpec(client clientset.Interface, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
+	deployment, err := client.AppsV1().Deployments(deployment.Namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("deployment %q Create API error: %v", deployment.Name, err)
+	}
+	framework.Logf("Waiting deployment %q to complete", deployment.Name)
+	err = e2edeployment.WaitForDeploymentComplete(client, deployment)
+	if err != nil {
+		return nil, fmt.Errorf("deployment %q failed to complete: %v", deployment.Name, err)
+	}
+	return deployment, nil
+}
+
+// WaitForDeploymentComplete waits for the deployment to complete.
+// copied and modified from k8s.io/kubernetes@v1.18.2/test/e2e/framework/
+func WaitForDeploymentComplete(c clientset.Interface, namespace, name string, pollInterval, pollTimeout time.Duration) error {
+	var (
+		deployment *appsv1.Deployment
+		reason     string
+	)
+
+	err := wait.PollImmediate(pollInterval, pollTimeout, func() (bool, error) {
+		var err error
+		deployment, err = c.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		// When the deployment status and its underlying resources reach the desired state, we're done
+		if deploymentutil.DeploymentComplete(deployment, &deployment.Status) {
+			return true, nil
+		}
+
+		reason = fmt.Sprintf("deployment status: %#v", deployment.Status)
+		klog.Info(reason)
+
+		return false, nil
+	})
+
+	if err == wait.ErrWaitTimeout {
+		err = fmt.Errorf("%s", reason)
+	}
+	if err != nil {
+		return fmt.Errorf("error waiting for deployment %q status to match expectation: %v", name, err)
+	}
+	return nil
 }

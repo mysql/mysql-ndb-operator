@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/onsi/ginkgo"
@@ -13,6 +14,12 @@ import (
 	"k8s.io/klog"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
+)
+
+var (
+	deploySuite = []string{
+		"helm/crds/mysql.oracle.com_ndbs",
+	}
 )
 
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
@@ -27,13 +34,20 @@ var _ = ginkgo.SynchronizedAfterSuite(func() { cleanupSuite() },
 )
 
 func doneChannelFunc() []byte { return nil }
-func cleanupSuite()           {}
+func cleanupSuite() {
+	klog.Infof("Deleting CRDs")
+	DeleteFromYamls("", deploySuite)
+}
 
 func setupSuite() {
 	_, err := framework.LoadClientset()
 	if err != nil {
 		klog.Fatal("Error loading client: ", err)
 	}
+
+	klog.Infof("Creating CRDs")
+	// at least atm all resources created as preparation are not tied
+	CreateFromYamls("", deploySuite)
 }
 
 var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
@@ -42,30 +56,59 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 
 	var ns string
 	var c clientset.Interface
+	var deploy = []string{
+		"helm/templates/01-rbac",
+		"artifacts/deployment/ndb-operator-rbac",
+	}
+
 	ginkgo.BeforeEach(func() {
 		ns = f.Namespace.Name
 		c = f.ClientSet
-		klog.Infof("Running in namespace %s", ns)
+		ginkgo.By(fmt.Sprintf("Running in namespace %s creating resources", ns))
+
+		ginkgo.By(fmt.Sprintf("Create RBACS"))
+		CreateFromYamls(ns, deploy)
+
+		ginkgo.By(fmt.Sprintf("Create operator deployment"))
+		CreateFromYaml(ns, "artifacts/deployment", "ndb-operator")
+
+		err := WaitForDeploymentComplete(c, ns, "ndb-operator", 2*time.Second, 5*time.Minute)
+		framework.ExpectNoError(err)
+	})
+
+	ginkgo.AfterEach(func() {
+
+		ginkgo.By("Cleaning up after each")
+
+		// PodClient() is only for framework namespace
+		//err := f.PodClient().Delete(context.TODO(), "ndb-operator", *v1.NewDeleteOptions(30))
+		//framework.ExpectNoError(err)
+
+		DeleteFromYaml(ns, "", "artifacts/deployment/ndb-operator")
+
+		//err := e2edeployment.GetPodsForDeployment()
+
+		//err := e2epod.WaitForPodToDisappear(c, "ndb-operator", ns, labels.Everything(), time.Second, wait.ForeverTestTimeout)
+		//framework.ExpectNoError(err)
+
+		// crds and our rbacs are not child of namespace
+		ginkgo.By(fmt.Sprintf("Deleting from yamls from namespace %s", ns))
+		DeleteFromYamls(ns, deploy)
 	})
 
 	framework.KubeDescribe("Just do nothing", func() {
-		ginkgo.It("should create environment here", func() {
-			deploy := []string{
-				"helm/crds/mysql.oracle.com_ndbs",
-				"helm/templates/01-rbac",
-				"artifacts/deployment/ndb-operator-rbac",
-			}
-
-			CreateFromYamls(ns, deploy)
-			CreateFromYaml(ns, "", "artifacts/deployment/ndb-operator")
-
-			// crds and our rbacs are not child of namespace
-			DeleteFromYamls(ns, deploy)
+		ginkgo.It("1 should create environment here", func() {
+			klog.Infof("IT: 1 should create environment here")
+		})
+		ginkgo.It("2 should create environment here", func() {
+			klog.Infof("IT: 2 should create environment here")
 		})
 	})
 
 	framework.KubeDescribe("Creating and deleting a simple pod", func() {
-		ginkgo.It("should create environment", func() {
+		ginkgo.It("busybox basic", func() {
+
+			klog.Infof("IT: busybox basic")
 
 			justAnExample := YamlFile("artifacts/examples", "busybox")
 			var err error
