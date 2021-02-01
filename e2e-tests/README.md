@@ -14,7 +14,7 @@ Right now two providers are implemented to work with the tool :
 The tool is not compiled and can be run using 'go run'. It accepts following arguments :
 
 ```
-go run e2e/run-e2e-test.go --help
+go run e2e-tests/run-e2e-test.go --help
   -kubeconfig string
     	Kubeconfig of the existing K8s cluster to run tests on.
       This will not be used if '--use-kind' is enabled.
@@ -28,9 +28,9 @@ go run e2e/run-e2e-test.go --help
 
 All the e2e tests are written using ginkgo and are available inside the suites folder.
 These tests can be run using :
-- The run-e2e-test.go tool. Eg. ```go run e2e/run-e2e-test.go``` (or)
-- The ginkgo tool. Eg ```go run github.com/onsi/ginkgo/ginkgo e2e/suites``` (or)
-- The go test command. Eg ```go test e2e/suites/**```
+- The run-e2e-test.go tool. Eg. ```go run e2e-tests/run-e2e-test.go``` (or)
+- The ginkgo tool. Eg ```go run github.com/onsi/ginkgo/ginkgo e2e-tests/suites``` (or)
+- The go test command. Eg ```go test e2e-tests/suites/**```
 
 ### The test folders
 The subdirectories inside the e2e test directory and their purpose are as follows :

@@ -99,13 +99,13 @@ ndbinfo-bin:
 
 .PHONY: test
 test:
-	go test -v --count=1 e2e/suites/**
+	go test -v --count=1 e2e-tests/suites/**
 
 .PHONY: e2e
 e2e:
-	go run e2e/run-e2e-test.go
+	go run e2e-tests/run-e2e-test.go
 
 .PHONY: e2e-kind
 e2e-kind:
-	go run e2e/run-e2e-test.go --use-kind
+	go run e2e-tests/run-e2e-test.go --use-kind
 
