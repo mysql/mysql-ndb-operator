@@ -60,6 +60,9 @@ func TestMain(t *testing.T) {
 	framework.TestContext.DeleteNamespaceOnFailure = true
 	framework.TestContext.RepoRoot = "../../"
 
+	framework.TestContext.GatherKubeSystemResourceUsageData = "none"
+	framework.TestContext.GatherMetricsAfterTest = "false"
+
 	framework.AfterReadingAllFlags(&framework.TestContext)
 
 	testfiles.AddFileSource(testfiles.RootFileSource{Root: framework.TestContext.RepoRoot})
