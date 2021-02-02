@@ -96,12 +96,21 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 		DeleteFromYamls(ns, deploy)
 	})
 
-	framework.KubeDescribe("Just do nothing", func() {
-		ginkgo.It("1 should create environment here", func() {
-			klog.Infof("IT: 1 should create environment here")
-		})
-		ginkgo.It("2 should create environment here", func() {
-			klog.Infof("IT: 2 should create environment here")
+	framework.KubeDescribe("[Feature:basic creation and teardown]", func() {
+		ginkgo.It("Create and delete a basic cluster", func() {
+			ginkgo.By(fmt.Sprintf("Creating ndb resource to test the example file"))
+			CreateFromYaml(ns, "artifacts/examples", "example-ndb")
+
+			err := WaitForStatefulSetComplete(c, ns, "example-ndb-ndbd", 2*time.Second, 5*time.Minute)
+			framework.ExpectNoError(err)
+
+			err = WaitForStatefulSetComplete(c, ns, "example-ndb-mgmd", 2*time.Second, 5*time.Minute)
+			framework.ExpectNoError(err)
+
+			err = WaitForDeploymentComplete(c, ns, "example-ndb-mysqld", 2*time.Second, 5*time.Minute)
+			framework.ExpectNoError(err)
+
+			DeleteFromYaml(ns, "artifacts/examples", "example-ndb")
 		})
 	})
 
