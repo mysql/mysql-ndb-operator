@@ -5,6 +5,7 @@ module github.com/mysql/ndb-operator
 go 1.12
 
 require (
+	github.com/docker/docker v0.7.3-0.20190327010347-be7ac8be2ae0
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.8.1
 	github.com/pkg/errors v0.9.1
