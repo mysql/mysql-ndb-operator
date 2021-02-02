@@ -173,10 +173,12 @@ func (f *fixture) runController(fooName string, expectError bool) {
 
 		expectedAction := f.actions[i]
 
-		s, _ := json.Marshal(expectedAction)
-		fmt.Printf("[%d] %d : %s\n", i, len(f.actions), s)
-		s, _ = json.Marshal(action)
-		fmt.Printf("[%d] %d : %s\n\n", i, len(f.actions), s)
+		/*
+			s, _ := json.Marshal(expectedAction)
+			fmt.Printf("[%d] %d : %s\n", i, len(f.actions), s)
+			s, _ = json.Marshal(action)
+			fmt.Printf("[%d] %d : %s\n\n", i, len(f.actions), s)
+		*/
 
 		checkAction(expectedAction, action, f.t)
 	}
@@ -386,8 +388,6 @@ func getObjectMetadata(name string, ndb *ndbcontroller.Ndb, t *testing.T) *metav
 		Version: ndbcontroller.SchemeGroupVersion.Version,
 		Kind:    "Ndb",
 	}
-
-	t.Logf("%s: %v", name, gvk)
 
 	return &metav1.ObjectMeta{
 		Labels: ndb.GetLabels(),

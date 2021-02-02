@@ -5,8 +5,9 @@
 package resources
 
 import (
-	"k8s.io/apimachinery/pkg/labels"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
@@ -117,6 +118,7 @@ func (msd *MySQLServerDeployment) NewDeployment(ndb *v1alpha1.Ndb) *apps.Deploym
 			// The deployment name, namespace and owner references
 			Name:            deploymentName,
 			Namespace:       ndb.Namespace,
+			Labels:          ndb.GetLabels(),
 			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
 		},
 		Spec: apps.DeploymentSpec{

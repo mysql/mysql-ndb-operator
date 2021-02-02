@@ -8,8 +8,6 @@ import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func GetConfigFromConfigMapObject(cm *corev1.ConfigMap) (string, error) {
@@ -64,16 +62,10 @@ func GenerateConfigMapObject(ndb *v1alpha1.Ndb) *corev1.ConfigMap {
 
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ndb.GetConfigMapName(),
-			Namespace: ndb.Namespace,
-			Labels:    ndb.GetLabels(),
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(ndb, schema.GroupVersionKind{
-					Group:   corev1.SchemeGroupVersion.Group,
-					Version: corev1.SchemeGroupVersion.Version,
-					Kind:    "Ndb",
-				}),
-			},
+			Name:            ndb.GetConfigMapName(),
+			Namespace:       ndb.Namespace,
+			Labels:          ndb.GetLabels(),
+			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
 		},
 		Data: nil,
 	}

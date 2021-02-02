@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-// Create a PodDisruptionBudget allowing maximum 1 data node to be unavailable
+// NewPodDisruptionBudget creates a PodDisruptionBudget allowing maximum 1 data node to be unavailable
 func NewPodDisruptionBudget(ndb *v1alpha1.Ndb) *policyv1beta1.PodDisruptionBudget {
 
 	minAvailable := intstr.FromInt(int(*ndb.Spec.NodeCount - 1))
@@ -15,10 +15,11 @@ func NewPodDisruptionBudget(ndb *v1alpha1.Ndb) *policyv1beta1.PodDisruptionBudge
 	selectorLabels := ndb.GetDataNodeLabels()
 	pdb := &policyv1beta1.PodDisruptionBudget{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        ndb.GetPodDisruptionBudgetName(),
-			Namespace:   ndb.Namespace,
-			Labels:      labels,
-			Annotations: map[string]string{},
+			Name:            ndb.GetPodDisruptionBudgetName(),
+			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
+			Namespace:       ndb.Namespace,
+			Labels:          labels,
+			Annotations:     map[string]string{},
 		},
 		Spec: policyv1beta1.PodDisruptionBudgetSpec{
 			Selector: &metav1.LabelSelector{
