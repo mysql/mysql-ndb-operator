@@ -26,6 +26,7 @@ import (
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
+	"k8s.io/utils/diff"
 
 	ndbcontroller "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/fake"
@@ -105,6 +106,9 @@ func newNdb(namespace string, name string, noofnodes int) *ndbcontroller.Ndb {
 		Spec: ndbcontroller.NdbSpec{
 			NodeCount:       int32Ptr(int32(noofnodes)),
 			RedundancyLevel: int32Ptr(int32(2)),
+			Mysqld: ndbcontroller.NdbMysqldSpec{
+				NodeCount: int32Ptr(int32(noofnodes)),
+			},
 		},
 	}
 }
@@ -201,6 +205,35 @@ func (f *fixture) runController(fooName string, expectError bool) {
 	}
 }
 
+func extractObjectMetaData(actual core.Action, extO, actO runtime.Object, t *testing.T) (metav1.ObjectMeta, metav1.ObjectMeta) {
+
+	var expOM, actOM metav1.ObjectMeta
+	switch actual.GetResource().Resource {
+	case "configmaps":
+		expOM = extO.(*corev1.ConfigMap).ObjectMeta
+		actOM = actO.(*corev1.ConfigMap).ObjectMeta
+	case "statefulsets":
+		expOM = extO.(*appsv1.StatefulSet).ObjectMeta
+		actOM = actO.(*appsv1.StatefulSet).ObjectMeta
+	case "poddisruptionbudgets":
+		expOM = extO.(*policyv1beta1.PodDisruptionBudget).ObjectMeta
+		actOM = actO.(*policyv1beta1.PodDisruptionBudget).ObjectMeta
+	case "services":
+		expOM = extO.(*corev1.Service).ObjectMeta
+		actOM = actO.(*corev1.Service).ObjectMeta
+	case "deployments":
+		expOM = extO.(*appsv1.Deployment).ObjectMeta
+		actOM = actO.(*appsv1.Deployment).ObjectMeta
+	case "ndbs":
+		expOM = extO.(*ndbcontroller.Ndb).ObjectMeta
+		actOM = actO.(*ndbcontroller.Ndb).ObjectMeta
+	default:
+		t.Errorf("Action has unkown type. Got: %s", actual.GetResource().Resource)
+	}
+
+	return expOM, actOM
+}
+
 // checkAction verifies that expected and actual actions are equal and both have
 // same attached resources
 func checkAction(expected, actual core.Action, t *testing.T) {
@@ -208,7 +241,6 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 		t.Errorf("Expected\n\t%#v\ngot\n\t%#v", expected, actual)
 		return
 	}
-
 	if reflect.TypeOf(actual) != reflect.TypeOf(expected) {
 		t.Errorf("Action has wrong type. Expected: %t. Got: %t", expected, actual)
 		return
@@ -217,26 +249,45 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 	switch a := actual.(type) {
 	case core.CreateActionImpl:
 		e, _ := expected.(core.CreateActionImpl)
-		expObject := e.GetObject()
-		object := a.GetObject()
 
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\n",
-				a.GetVerb(), a.GetResource().Resource)
-			//			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-			//				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expObject, object))
+		expOM, actOM := extractObjectMetaData(actual, e.GetObject(), a.GetObject(), t)
+
+		if expOM.Name != actOM.Name {
+			t.Errorf("Action %s %s has wrong name %s\n",
+				a.GetVerb(), a.GetResource().Resource, actOM.Name)
 		}
+
+		// lets only compare if expected labels are all found in actual labels
+
+		for expK, expV := range expOM.Labels {
+			if actV, ok := actOM.Labels[expK]; ok {
+				if expV != actV {
+					t.Errorf("Action %s %s has wrong label value for key %s: %s, expected: %s\n",
+						a.GetVerb(), a.GetResource().Resource, expK, actV, expV)
+				}
+			} else {
+				t.Errorf("Action %s %s misses must have label key %s\n",
+					a.GetVerb(), a.GetResource().Resource, expK)
+			}
+		}
+
+		if !reflect.DeepEqual(expOM.OwnerReferences, actOM.OwnerReferences) {
+			t.Errorf("Action %s %s has wrong owner reference %s\n",
+				a.GetVerb(), a.GetResource().Resource,
+				diff.ObjectGoPrintSideBySide(expOM.OwnerReferences, actOM.OwnerReferences))
+		}
+
+		/*
+			if !reflect.DeepEqual(expObject, object) {
+				t.Errorf("Action %s %s has wrong object\n",
+					a.GetVerb(), a.GetResource().Resource)
+				//			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
+				//				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expObject, object))
+			}
+		*/
 	case core.UpdateActionImpl:
-		e, _ := expected.(core.UpdateActionImpl)
-		expObject := e.GetObject()
-		object := a.GetObject()
+		//e, _ := expected.(core.UpdateActionImpl)
 
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\n",
-				a.GetVerb(), a.GetResource().Resource)
-			//				t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-			//				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expObject, object))
-		}
 	case core.PatchActionImpl:
 		e, _ := expected.(core.PatchActionImpl)
 		expPatch := e.GetPatch()
@@ -297,8 +348,9 @@ func filterInformerActions(actions []core.Action) []core.Action {
 	return ret
 }
 
-func (f *fixture) expectCreateAction(ns string, resource string, o runtime.Object) {
-	f.kubeactions = append(f.kubeactions, core.NewCreateAction(schema.GroupVersionResource{Resource: resource}, ns, o))
+func (f *fixture) expectCreateAction(ns string, group, version, resource string, o runtime.Object) {
+	grpVersionResource := schema.GroupVersionResource{Group: group, Version: version, Resource: resource}
+	f.kubeactions = append(f.kubeactions, core.NewCreateAction(grpVersionResource, ns, o))
 }
 
 func (f *fixture) expectUpdateAction(ns string, resource string, o runtime.Object) {
@@ -327,6 +379,25 @@ func getKey(foo *ndbcontroller.Ndb, t *testing.T) string {
 	return key
 }
 
+func getObjectMetadata(name string, ndb *ndbcontroller.Ndb, t *testing.T) *metav1.ObjectMeta {
+
+	gvk := schema.GroupVersionKind{
+		Group:   ndbcontroller.SchemeGroupVersion.Group,
+		Version: ndbcontroller.SchemeGroupVersion.Version,
+		Kind:    "Ndb",
+	}
+
+	t.Logf("%s: %v", name, gvk)
+
+	return &metav1.ObjectMeta{
+		Labels: ndb.GetLabels(),
+		Name:   name,
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(ndb, gvk),
+		},
+	}
+}
+
 func TestCreatesCluster(t *testing.T) {
 
 	f := newFixture(t)
@@ -347,18 +418,29 @@ func TestCreatesCluster(t *testing.T) {
 	f.expectUpdateNdbAction(ns, ndb)
 
 	// two services for ndbd and mgmds
-	f.expectCreateAction(ns, "services", &corev1.Service{})
-	f.expectCreateAction(ns, "services", &corev1.Service{})
-	f.expectCreateAction(ns, "services", &corev1.Service{})
+	omd := getObjectMetadata("test-mgmd", ndb, t)
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
-	f.expectCreateAction(ns, "poddisruptionbudgets", &policyv1beta1.PodDisruptionBudget{})
+	omd.Name = "test-mgmd-ext"
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
-	f.expectCreateAction(ns, "configmaps", &corev1.ConfigMap{})
+	omd.Name = "test-ndbd"
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
-	f.expectCreateAction(ns, "statefulsets", &appsv1.StatefulSet{})
-	f.expectCreateAction(ns, "statefulsets", &appsv1.StatefulSet{})
+	omd.Name = "test-pdb"
+	f.expectCreateAction(ns, "policy", "v1beta1", "poddisruptionbudgets",
+		&policyv1beta1.PodDisruptionBudget{ObjectMeta: *omd})
 
-	f.expectCreateAction(ns, "deployments", &appsv1.Deployment{})
+	omd.Name = "test-config"
+	f.expectCreateAction(ns, "", "v1", "configmaps", &corev1.ConfigMap{ObjectMeta: *omd})
+
+	omd.Name = "test-mgmd"
+	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
+	omd.Name = "test-ndbd"
+	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
+
+	omd.Name = "test-mysqld"
+	f.expectCreateAction(ns, "apps", "v1", "deployments", &appsv1.Deployment{ObjectMeta: *omd})
 
 	//f.expectUpdateNdbStatusAction(ns, ndb)
 
@@ -366,60 +448,5 @@ func TestCreatesCluster(t *testing.T) {
 
 	f.runController(getKey(ndb, t), false)
 }
-
-/*
-
-func TestDoNothing(t *testing.T) {
-	f := newFixture(t)
-	foo := newNdb("test", 1)
-
-		d := newDeployment(foo)
-
-		f.ndbLister = append(f.ndbLister, foo)
-		f.objects = append(f.objects, foo)
-		f.deploymentLister = append(f.deploymentLister, d)
-		f.kubeobjects = append(f.kubeobjects, d)
-
-		f.expectUpdateFooStatusAction(foo)
-		f.run(getKey(foo, t))
-}
-
-func TestUpdateDeployment(t *testing.T) {
-	f := newFixture(t)
-	foo := newNdb("test", 1)
-
-		d := newDeployment(foo)
-
-		// Update replicas
-		foo.Spec.NodeCount = int32Ptr(2)
-		expDeployment := newDeployment(foo)
-
-		f.ndbLister = append(f.ndbLister, foo)
-		f.objects = append(f.objects, foo)
-		f.deploymentLister = append(f.deploymentLister, d)
-		f.kubeobjects = append(f.kubeobjects, d)
-
-		f.expectUpdateFooStatusAction(foo)
-		f.expectUpdateDeploymentAction(expDeployment)
-		f.run(getKey(foo, t))
-}
-
-func TestNotControlledByUs(t *testing.T) {
-	f := newFixture(t)
-	foo := newNdb("test", 1)
-
-		d := newDeployment(foo)
-
-		d.ObjectMeta.OwnerReferences = []metav1.OwnerReference{}
-
-		f.ndbLister = append(f.ndbLister, foo)
-		f.objects = append(f.objects, foo)
-		f.deploymentLister = append(f.deploymentLister, d)
-		f.kubeobjects = append(f.kubeobjects, d)
-
-		f.runExpectError(getKey(foo, t))
-}
-
-*/
 
 func int32Ptr(i int32) *int32 { return &i }
