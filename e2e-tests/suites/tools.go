@@ -209,6 +209,38 @@ func WaitForDeploymentComplete(c clientset.Interface, namespace, name string, po
 	return nil
 }
 
+// WaitForDeploymentToDisappear waits for the deployment to go away after deletion.
+func WaitForDeploymentToDisappear(c clientset.Interface, namespace, name string, pollInterval, pollTimeout time.Duration) error {
+	var (
+		deployment *appsv1.Deployment
+		reason     string
+	)
+
+	err := wait.PollImmediate(pollInterval, pollTimeout, func() (bool, error) {
+		var err error
+		deployment, err = c.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return true, nil
+			}
+			return false, err
+		}
+
+		reason = fmt.Sprintf("deployment status: %#v", deployment.Status)
+		klog.Info(reason)
+
+		return false, nil
+	})
+
+	if err == wait.ErrWaitTimeout {
+		err = fmt.Errorf("%s", reason)
+	}
+	if err != nil {
+		return fmt.Errorf("error waiting for deployment %q status to go away: %v", name, err)
+	}
+	return nil
+}
+
 // statefulSetComplete tests if a statefulset is up and running
 func statefulSetComplete(sfset *appsv1.StatefulSet, newStatus *appsv1.StatefulSetStatus) bool {
 	return newStatus.UpdatedReplicas == *(sfset.Spec.Replicas) &&
@@ -249,7 +281,40 @@ func WaitForStatefulSetComplete(c clientset.Interface, namespace, name string, p
 		err = fmt.Errorf("%s", reason)
 	}
 	if err != nil {
-		return fmt.Errorf("error waiting for deployment %q status to match expectation: %v", name, err)
+		return fmt.Errorf("error waiting for statefulset %q status to match expectation: %v", name, err)
+	}
+	return nil
+}
+
+// WaitForStatefulSetToDisappear waits for a statefulset to go away after deletion.
+// adopted from WaitForDeploymentComplete
+func WaitForStatefulSetToDisappear(c clientset.Interface, namespace, name string, pollInterval, pollTimeout time.Duration) error {
+	var (
+		sfset  *appsv1.StatefulSet
+		reason string
+	)
+
+	err := wait.PollImmediate(pollInterval, pollTimeout, func() (bool, error) {
+		var err error
+		sfset, err = c.AppsV1().StatefulSets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return true, nil
+			}
+			return false, err
+		}
+
+		reason = fmt.Sprintf("statefulset status: %#v", sfset.Status)
+		klog.Info(reason)
+
+		return false, nil
+	})
+
+	if err == wait.ErrWaitTimeout {
+		err = fmt.Errorf("%s", reason)
+	}
+	if err != nil {
+		return fmt.Errorf("error waiting for statefulset %q status to go away: %v", name, err)
 	}
 	return nil
 }
