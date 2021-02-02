@@ -731,7 +731,7 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 // TODO - should also look out for hanging or weird states
 func (sc *SyncContext) checkPodStatus() (bool, error) {
 
-	klog.Infof("check Pod status")
+	klog.Infof("check Pod status in namespace %s", sc.ndb.Namespace)
 
 	listOptions := metav1.ListOptions{
 		LabelSelector: labels.Set(sc.ndb.GetLabels()).String(),
@@ -1185,26 +1185,6 @@ func patchPod(kubeClient kubernetes.Interface, oldData *corev1.Pod, newData *cor
 	}
 
 	return result, nil
-}
-
-func (c *Controller) podListing(ndb *v1alpha1.Ndb) error {
-
-	sel4ndb := labels.SelectorFromSet(ndb.GetLabels())
-	pods, err := c.podLister.List(sel4ndb)
-	if err != nil {
-		return apierrors.NewNotFound(v1alpha1.Resource("Pod"), sel4ndb.String())
-	}
-	for _, pod := range pods {
-		//klog.Infof("Ndb pod '%s/%s'", pod.Namespace, pod.Name)
-		newPod := updatePodForTest(pod.DeepCopy())
-		pod, err = patchPod(c.controllerContext.kubeclientset, pod, newPod)
-		if err != nil {
-			return apierrors.NewNotFound(v1alpha1.Resource("Pod"), "upgrade operator version: PatchPod failed")
-		}
-
-	}
-
-	return nil
 }
 
 func (sc *SyncContext) updateNdbStatus() error {
