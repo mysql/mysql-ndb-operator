@@ -111,7 +111,8 @@ func newNdb(namespace string, name string, noofnodes int) *ndbcontroller.Ndb {
 
 func (f *fixture) newController() {
 
-	f.c = NewController(f.kubeclient, f.client,
+	cc := NewControllerContext(f.kubeclient, f.client, false)
+	f.c = NewController(cc,
 		f.k8If.Apps().V1().StatefulSets(),
 		f.k8If.Apps().V1().Deployments(),
 		f.k8If.Core().V1().Services(),
