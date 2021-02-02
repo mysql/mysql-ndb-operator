@@ -6,9 +6,7 @@ package resources
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 )
@@ -31,15 +29,9 @@ func NewService(ndb *v1alpha1.Ndb, mgmd bool, externalIP bool, svcName string) *
 
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: ndb.GetLabels(),
-			Name:   svcName,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(ndb, schema.GroupVersionKind{
-					Group:   v1.SchemeGroupVersion.Group,
-					Version: v1.SchemeGroupVersion.Version,
-					Kind:    "Ndb",
-				}),
-			},
+			Labels:          ndb.GetLabels(),
+			Name:            svcName,
+			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
 		},
 		Spec: corev1.ServiceSpec{
 			PublishNotReadyAddresses: true,
