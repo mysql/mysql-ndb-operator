@@ -104,7 +104,18 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 			err = WaitForDeploymentComplete(c, ns, "example-ndb-mysqld", 2*time.Second, 5*time.Minute)
 			framework.ExpectNoError(err)
 
+			ginkgo.By(fmt.Sprintf("Deleting ndb resource after creation"))
+
 			DeleteFromYaml(ns, "artifacts/examples", "example-ndb")
+
+			err = WaitForStatefulSetToDisappear(c, ns, "example-ndb-ndbd", 2*time.Second, 5*time.Minute)
+			framework.ExpectNoError(err)
+
+			err = WaitForStatefulSetToDisappear(c, ns, "example-ndb-mgmd", 2*time.Second, 5*time.Minute)
+			framework.ExpectNoError(err)
+
+			err = WaitForDeploymentToDisappear(c, ns, "example-ndb-mysqld", 2*time.Second, 5*time.Minute)
+			framework.ExpectNoError(err)
 		})
 	})
 
