@@ -80,16 +80,10 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 
 		ginkgo.By("Cleaning up after each")
 
-		// PodClient() is only for framework namespace
-		//err := f.PodClient().Delete(context.TODO(), "ndb-operator", *v1.NewDeleteOptions(30))
-		//framework.ExpectNoError(err)
-
 		DeleteFromYaml(ns, "", "artifacts/deployment/ndb-operator")
 
-		//err := e2edeployment.GetPodsForDeployment()
-
-		//err := e2epod.WaitForPodToDisappear(c, "ndb-operator", ns, labels.Everything(), time.Second, wait.ForeverTestTimeout)
-		//framework.ExpectNoError(err)
+		err := e2epod.WaitForPodToDisappear(c, "ndb-operator", ns, labels.Everything(), time.Second, wait.ForeverTestTimeout)
+		framework.ExpectNoError(err)
 
 		// crds and our rbacs are not child of namespace
 		ginkgo.By(fmt.Sprintf("Deleting from yamls from namespace %s", ns))
