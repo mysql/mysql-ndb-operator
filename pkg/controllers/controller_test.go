@@ -7,8 +7,6 @@
 package controllers
 
 import (
-	"encoding/json"
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -195,11 +193,13 @@ func (f *fixture) runController(fooName string, expectError bool) {
 		}
 
 		expectedAction := f.kubeactions[i]
-		s, _ := json.Marshal(expectedAction)
-		fmt.Printf("[%d] %d : %s\n", i, len(f.kubeactions), s)
-		s, _ = json.Marshal(action)
-		fmt.Printf("[%d] %d : %s\n\n", i, len(f.kubeactions), s)
 		checkAction(expectedAction, action, f.t)
+		/*
+			s, _ := json.Marshal(expectedAction)
+			fmt.Printf("[%d] %d : %s\n", i, len(f.kubeactions), s)
+			s, _ = json.Marshal(action)
+			fmt.Printf("[%d] %d : %s\n\n", i, len(f.kubeactions), s)
+		*/
 	}
 
 	if len(f.kubeactions) > len(k8sActions) {
@@ -317,6 +317,7 @@ func filterInformerActions(actions []core.Action) []core.Action {
 		if action.GetNamespace() == "default" &&
 			(action.Matches("get", "ndbs") ||
 				action.Matches("get", "pods") ||
+				action.Matches("list", "pods") ||
 				action.Matches("get", "services") ||
 				action.Matches("get", "configmaps") ||
 				action.Matches("get", "poddisruptionbudgets") ||
@@ -446,6 +447,7 @@ func TestCreatesCluster(t *testing.T) {
 
 	f.run(getKey(ndb, t))
 
+	// run again without error
 	f.runController(getKey(ndb, t), false)
 }
 
