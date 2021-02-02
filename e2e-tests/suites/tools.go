@@ -14,16 +14,20 @@ import (
 	"github.com/docker/docker/client"
 
 	"gopkg.in/yaml.v2"
+
 	appsv1 "k8s.io/api/apps/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
+
 	"k8s.io/kubernetes/test/e2e/framework"
+	e2edeployment "k8s.io/kubernetes/test/e2e/framework/deployment"
 	"k8s.io/kubernetes/test/e2e/framework/testfiles"
 
 	deploymentutil "k8s.io/kubernetes/pkg/controller/deployment/util"
-	e2edeployment "k8s.io/kubernetes/test/e2e/framework/deployment"
 )
 
 // YamlFile reads the content of a single yamle file as string
@@ -179,8 +183,12 @@ func WaitForDeploymentComplete(c clientset.Interface, namespace, name string, po
 		var err error
 		deployment, err = c.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
 			return false, err
 		}
+
 		// When the deployment status and its underlying resources reach the desired state, we're done
 		if deploymentutil.DeploymentComplete(deployment, &deployment.Status) {
 			return true, nil
@@ -221,6 +229,9 @@ func WaitForStatefulSetComplete(c clientset.Interface, namespace, name string, p
 		var err error
 		sfset, err = c.AppsV1().StatefulSets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		// When the deployment status and its underlying resources reach the desired state, we're done
