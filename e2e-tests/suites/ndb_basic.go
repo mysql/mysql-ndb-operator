@@ -14,6 +14,10 @@ import (
 	"k8s.io/klog"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
+
+	deployment_utils "github.com/mysql/ndb-operator/e2e-tests/utils/deployment"
+	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
+	yaml_utils "github.com/mysql/ndb-operator/e2e-tests/utils/yaml"
 )
 
 var (
@@ -36,7 +40,7 @@ var _ = ginkgo.SynchronizedAfterSuite(func() { cleanupSuite() },
 func doneChannelFunc() []byte { return nil }
 func cleanupSuite() {
 	klog.Infof("Deleting CRDs")
-	DeleteFromYamls("", deploySuite)
+	yaml_utils.DeleteFromYamls("", deploySuite)
 }
 
 func setupSuite() {
@@ -47,7 +51,7 @@ func setupSuite() {
 
 	klog.Infof("Creating CRDs")
 	// at least atm all resources created as preparation are not tied
-	CreateFromYamls("", deploySuite)
+	yaml_utils.CreateFromYamls("", deploySuite)
 }
 
 var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
@@ -67,12 +71,12 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 		ginkgo.By(fmt.Sprintf("Running in namespace %s creating resources", ns))
 
 		ginkgo.By(fmt.Sprintf("Create RBACS"))
-		CreateFromYamls(ns, deploy)
+		yaml_utils.CreateFromYamls(ns, deploy)
 
 		ginkgo.By(fmt.Sprintf("Create operator deployment"))
-		CreateFromYaml(ns, "artifacts/deployment", "ndb-operator")
+		yaml_utils.CreateFromYaml(ns, "artifacts/deployment", "ndb-operator")
 
-		err := WaitForDeploymentComplete(c, ns, "ndb-operator", 2*time.Second, 5*time.Minute)
+		err := deployment_utils.WaitForDeploymentComplete(c, ns, "ndb-operator", 2*time.Second, 5*time.Minute)
 		framework.ExpectNoError(err)
 	})
 
@@ -80,41 +84,41 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 
 		ginkgo.By("Cleaning up after each")
 
-		DeleteFromYaml(ns, "", "artifacts/deployment/ndb-operator")
+		yaml_utils.DeleteFromYaml(ns, "", "artifacts/deployment/ndb-operator")
 
 		err := e2epod.WaitForPodToDisappear(c, "ndb-operator", ns, labels.Everything(), time.Second, wait.ForeverTestTimeout)
 		framework.ExpectNoError(err)
 
 		// crds and our rbacs are not child of namespace
 		ginkgo.By(fmt.Sprintf("Deleting from yamls from namespace %s", ns))
-		DeleteFromYamls(ns, deploy)
+		yaml_utils.DeleteFromYamls(ns, deploy)
 	})
 
 	framework.KubeDescribe("[Feature:basic creation and teardown]", func() {
 		ginkgo.It("Create and delete a basic cluster", func() {
 			ginkgo.By(fmt.Sprintf("Creating ndb resource to test the example file"))
-			CreateFromYaml(ns, "artifacts/examples", "example-ndb")
+			yaml_utils.CreateFromYaml(ns, "artifacts/examples", "example-ndb")
 
-			err := WaitForStatefulSetComplete(c, ns, "example-ndb-ndbd", 2*time.Second, 5*time.Minute)
+			err := sfset_utils.WaitForStatefulSetComplete(c, ns, "example-ndb-ndbd", 2*time.Second, 5*time.Minute)
 			framework.ExpectNoError(err)
 
-			err = WaitForStatefulSetComplete(c, ns, "example-ndb-mgmd", 2*time.Second, 5*time.Minute)
+			err = sfset_utils.WaitForStatefulSetComplete(c, ns, "example-ndb-mgmd", 2*time.Second, 5*time.Minute)
 			framework.ExpectNoError(err)
 
-			err = WaitForDeploymentComplete(c, ns, "example-ndb-mysqld", 2*time.Second, 5*time.Minute)
+			err = deployment_utils.WaitForDeploymentComplete(c, ns, "example-ndb-mysqld", 2*time.Second, 5*time.Minute)
 			framework.ExpectNoError(err)
 
 			ginkgo.By(fmt.Sprintf("Deleting ndb resource after creation"))
 
-			DeleteFromYaml(ns, "artifacts/examples", "example-ndb")
+			yaml_utils.DeleteFromYaml(ns, "artifacts/examples", "example-ndb")
 
-			err = WaitForStatefulSetToDisappear(c, ns, "example-ndb-ndbd", 2*time.Second, 5*time.Minute)
+			err = sfset_utils.WaitForStatefulSetToDisappear(c, ns, "example-ndb-ndbd", 2*time.Second, 5*time.Minute)
 			framework.ExpectNoError(err)
 
-			err = WaitForStatefulSetToDisappear(c, ns, "example-ndb-mgmd", 2*time.Second, 5*time.Minute)
+			err = sfset_utils.WaitForStatefulSetToDisappear(c, ns, "example-ndb-mgmd", 2*time.Second, 5*time.Minute)
 			framework.ExpectNoError(err)
 
-			err = WaitForDeploymentToDisappear(c, ns, "example-ndb-mysqld", 2*time.Second, 5*time.Minute)
+			err = deployment_utils.WaitForDeploymentToDisappear(c, ns, "example-ndb-mysqld", 2*time.Second, 5*time.Minute)
 			framework.ExpectNoError(err)
 		})
 	})
@@ -124,9 +128,9 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 
 			klog.Infof("IT: busybox basic")
 
-			justAnExample := YamlFile("e2e-tests/_manifests", "busybox")
+			justAnExample := yaml_utils.YamlFile("e2e-tests/_manifests", "busybox")
 			var err error
-			justAnExample, err = ReplaceAllProperties(justAnExample, "namespace", ns)
+			justAnExample, err = yaml_utils.ReplaceAllProperties(justAnExample, "namespace", ns)
 
 			if err != nil {
 				klog.Fatalf("Error parsing %s\n", justAnExample)

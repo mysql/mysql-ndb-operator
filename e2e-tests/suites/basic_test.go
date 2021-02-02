@@ -23,6 +23,8 @@ import (
 
 	"k8s.io/kubernetes/test/e2e/framework/testfiles"
 	"k8s.io/kubernetes/test/utils/image"
+
+	image_utils "github.com/mysql/ndb-operator/e2e-tests/utils/image"
 )
 
 var (
@@ -56,7 +58,7 @@ func TestMain(t *testing.T) {
 		os.Exit(0)
 	}
 
-	CheckOperatorImage()
+	image_utils.CheckOperatorImage()
 
 	framework.TestContext.Provider = "local"
 	framework.TestContext.DeleteNamespace = true
