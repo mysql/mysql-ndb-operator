@@ -119,7 +119,7 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 
 			klog.Infof("IT: busybox basic")
 
-			justAnExample := YamlFile("artifacts/examples", "busybox")
+			justAnExample := YamlFile("e2e-tests/_manifests", "busybox")
 			var err error
 			justAnExample, err = ReplaceAllProperties(justAnExample, "namespace", ns)
 
