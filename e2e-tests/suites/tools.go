@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
+
 	"gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -238,4 +241,34 @@ func WaitForStatefulSetComplete(c clientset.Interface, namespace, name string, p
 		return fmt.Errorf("error waiting for deployment %q status to match expectation: %v", name, err)
 	}
 	return nil
+}
+
+// CheckOperatorImage tries to find the ndb-operator image
+// simply exits the program if not found
+func CheckOperatorImage() {
+	cli, err := client.NewEnvClient()
+	if err != nil {
+		fmt.Printf("Unable to connect to docker instance: %s\n", err)
+		os.Exit(1)
+	}
+
+	images, err := cli.ImageList(context.Background(), types.ImageListOptions{})
+	if err != nil {
+		fmt.Printf("Unable to retrieve image list from docker registry: %s\n", err)
+		os.Exit(1)
+	}
+
+	findOperator := false
+	for _, image := range images {
+		for _, repoTag := range image.RepoTags {
+			if strings.HasPrefix(repoTag, "ndb-operator") {
+				findOperator = true
+			}
+		}
+	}
+
+	if !findOperator {
+		fmt.Printf("No operator image ndb-operator available\n")
+		os.Exit(1)
+	}
 }

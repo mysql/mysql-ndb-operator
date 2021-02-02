@@ -56,6 +56,8 @@ func TestMain(t *testing.T) {
 		os.Exit(0)
 	}
 
+	CheckOperatorImage()
+
 	framework.TestContext.Provider = "local"
 	framework.TestContext.DeleteNamespace = true
 	framework.TestContext.DeleteNamespaceOnFailure = true
