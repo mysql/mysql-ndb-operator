@@ -95,7 +95,7 @@ func TestCreateConfigMap(t *testing.T) {
 		t.Errorf("Unexpected error EnsuringConfigMap: should not have existed")
 	}
 
-	f.expectCreateAction(ndb.GetNamespace(), "configmap", cm)
+	f.expectCreateAction(ndb.GetNamespace(), "", "v1", "configmap", cm)
 
 	rcmc := cmc.(*ConfigMapControl)
 
