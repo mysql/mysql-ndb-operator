@@ -614,8 +614,8 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 
 	reduncanyLevel := ct.GetNumberOfReplicas()
 	api := &ndb.Mgmclient{}
-	connectstring := fmt.Sprintf("%s:%d", sc.ManagementServerIP, sc.ManagementServerPort)
-	err := api.Connect(connectstring)
+
+	err := sc.enstablishManagementConnection(api, 1)
 	if err != nil {
 		return errorWhileProcssing(err)
 	}
@@ -656,6 +656,39 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 	return continueProcessing()
 }
 
+func (sc *SyncContext) enstablishManagementConnection(api *ndb.Mgmclient, nodeID int) error {
+
+	var connectstring string
+	if !sc.controllerContext.runningInK8 {
+		// we try connecting via load balancer until we connect to correct wanted node
+		connectstring = fmt.Sprintf("%s:%d", sc.ManagementServerIP, sc.ManagementServerPort)
+
+	} else {
+
+		// we could: use pod ip, url from config file, calculated url (like ndb.GetConnectstring() and resolve via DNS)
+		// we could: list pod or use generated name
+		// maybe use a mix for parallel consistency check
+		// now we simply use the pod ip
+
+		podName := fmt.Sprintf("%s-%d", sc.ndb.GetManagementServiceName(), nodeID-1)
+		pod, err := sc.kubeclientset().CoreV1().Pods(sc.ndb.Namespace).Get(context.TODO(), podName, metav1.GetOptions{})
+		if err != nil {
+			klog.Errorf("No pod %s/%s for management server with node id %d found", sc.ndb.Namespace, podName, nodeID)
+			return err
+		}
+
+		connectstring = fmt.Sprintf("%s:%d", pod.Status.PodIP, 1186)
+		klog.Infof("Using pod %s/%s for management server with node id %d", sc.ndb.Namespace, podName, nodeID)
+	}
+
+	err := api.ConnectToNodeId(connectstring, nodeID)
+	if err != nil {
+		klog.Errorf("No contact to management server to desired management server with node id %d established", nodeID)
+	}
+
+	return err
+}
+
 func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 
 	wantedGeneration := int(sc.resourceContext.ConfigGeneration)
@@ -672,27 +705,8 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 
 		// TODO : we use this function so far during test operator from outside cluster
 
-		var connectstring string
-		if !sc.controllerContext.runningInK8 {
-			// we try connecting via load balancer until we connect to correct wanted node
-			connectstring = fmt.Sprintf("%s:%d", sc.ManagementServerIP, sc.ManagementServerPort)
-
-		} else {
-
-			// we could: use pod ip, url from config file, calculated url
-			// we could: list pod or use generated name
-			// maybe use a mix for parallel consistency check
-			podName := fmt.Sprintf("%s-%d", "example-ndb-mgmd", nodeID-1)
-			pod, err := sc.kubeclientset().CoreV1().Pods(sc.ndb.Namespace).Get(context.TODO(), podName, metav1.GetOptions{})
-			if err != nil {
-			}
-
-			connectstring = fmt.Sprintf("%s:%d", pod.Status.HostIP, 1186)
-		}
-
-		err := api.ConnectToNodeId(connectstring, nodeID)
+		err := sc.enstablishManagementConnection(api, nodeID)
 		if err != nil {
-			klog.Errorf("No contact to management server to desired management server with node id %d established", nodeID)
 			return errorWhileProcssing(err)
 		}
 
@@ -780,11 +794,8 @@ func (sc *SyncContext) getClusterState() error {
 
 	api := &ndb.Mgmclient{}
 
-	connectstring := fmt.Sprintf("%s:%d", sc.ManagementServerIP, sc.ManagementServerPort)
-	err := api.Connect(connectstring)
-
+	err := sc.enstablishManagementConnection(api, 1)
 	if err != nil {
-		klog.Errorf("No contact to management server")
 		return err
 	}
 

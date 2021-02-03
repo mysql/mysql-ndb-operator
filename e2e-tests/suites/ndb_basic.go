@@ -18,6 +18,7 @@ import (
 	deployment_utils "github.com/mysql/ndb-operator/e2e-tests/utils/deployment"
 	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
 	yaml_utils "github.com/mysql/ndb-operator/e2e-tests/utils/yaml"
+	"github.com/mysql/ndb-operator/pkg/constants"
 )
 
 var (
@@ -107,6 +108,14 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 
 			err = deployment_utils.WaitForDeploymentComplete(c, ns, "example-ndb-mysqld", 2*time.Second, 5*time.Minute)
 			framework.ExpectNoError(err)
+
+			sfset_utils.ExpectHasLabel(c, ns, "example-ndb-ndbd", constants.ClusterLabel, "example-ndb")
+			sfset_utils.ExpectHasLabel(c, ns, "example-ndb-mgmd", constants.ClusterLabel, "example-ndb")
+
+			sfset_utils.ExpectHasReplicas(c, ns, "example-ndb-mgmd", 2)
+			sfset_utils.ExpectHasReplicas(c, ns, "example-ndb-ndbd", 2)
+
+			deployment_utils.ExpectHasLabel(c, ns, "example-ndb-mysqld", constants.ClusterLabel, "example-ndb")
 
 			ginkgo.By(fmt.Sprintf("Deleting ndb resource after creation"))
 
