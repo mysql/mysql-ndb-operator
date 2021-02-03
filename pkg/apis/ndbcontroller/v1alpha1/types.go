@@ -12,6 +12,8 @@ import (
 	"io"
 
 	"github.com/mysql/ndb-operator/pkg/constants"
+
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -76,6 +78,13 @@ type NdbSpec struct {
 	ContainerImage string `json:"containerImage,omitempty"`
 	// TODO: How to validate customer's own image? eg. customer_cluster_8.0.23_patch3
 	// Should the validation be done after the image gets pulled?
+
+	// DataNodePVCSpec is the PersistentVolumeClaimSpec to be used as the
+	// VolumeClaimTemplate of the data node statefulset. A PVC will be created
+	// for each data node by the statefulset controller and will be loaded into
+	// the data node pod and the container.
+	// +optional
+	DataNodePVCSpec *v1.PersistentVolumeClaimSpec `json:"dataNodePVCSpec,omitempty"`
 
 	// +optional
 	Mysqld *NdbMysqldSpec `json:"mysqld,omitempty"`
