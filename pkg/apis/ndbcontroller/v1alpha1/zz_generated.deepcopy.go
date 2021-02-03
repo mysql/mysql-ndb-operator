@@ -9,6 +9,7 @@
 package v1alpha1
 
 import (
+	v1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -106,6 +107,11 @@ func (in *NdbSpec) DeepCopyInto(out *NdbSpec) {
 		in, out := &in.NodeCount, &out.NodeCount
 		*out = new(int32)
 		**out = **in
+	}
+	if in.DataNodePVCSpec != nil {
+		in, out := &in.DataNodePVCSpec, &out.DataNodePVCSpec
+		*out = new(v1.PersistentVolumeClaimSpec)
+		(*in).DeepCopyInto(*out)
 	}
 	if in.Mysqld != nil {
 		in, out := &in.Mysqld, &out.Mysqld

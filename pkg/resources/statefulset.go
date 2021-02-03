@@ -23,6 +23,8 @@ const (
 	sfsetTypeMgmd = "mgmd"
 	// sfsetTypeNdbd represents the data node type
 	sfsetTypeNdbd = "ndbd"
+	// statefulset generated PVC name prefix
+	volumeClaimTemplateName = "ndb-pvc"
 )
 
 // StatefulSetInterface is the interface for a statefulset of NDB management or data nodes
@@ -52,22 +54,31 @@ func (bss *baseStatefulSet) isMgmd() bool {
 	return bss.typeName == sfsetTypeMgmd
 }
 
-// getDataDirVolumeName returns the name of the volume to be used for the data directory
-func (bss *baseStatefulSet) getDataDirVolumeName(ndb *v1alpha1.Ndb) string {
-	return bss.typeName + "-volume"
+// isMgmd returns if the baseStatefulSet represents a data node
+func (bss *baseStatefulSet) isNdbd() bool {
+	return bss.typeName == sfsetTypeNdbd
+}
+
+// getEmptyDirectoryVolumeName returns the name of the empty directory volume
+func (bss *baseStatefulSet) getEmptyDirVolumeName() string {
+	return bss.clusterName + bss.typeName + "-volume"
 }
 
 // getPodVolumes returns the named volume available in the Pods
 func (bss *baseStatefulSet) getPodVolumes(ndb *v1alpha1.Ndb) []v1.Volume {
 
-	// By default all the pods use a EmptyDir volume
-	podVolumes := []v1.Volume{
-		{
-			Name: bss.getDataDirVolumeName(ndb),
+	var podVolumes []v1.Volume
+	if bss.isMgmd() || ndb.Spec.DataNodePVCSpec == nil {
+		// Use an empty directory volume if,
+		// (a) this is a mgmd pod and it will use this volume to store config (or)
+		// (b) this is a ndbd pod whose PVC Spec was not specified as a part
+		//     of Ndb spec and it will use this volume as the data directory
+		podVolumes = append(podVolumes, v1.Volume{
+			Name: bss.getEmptyDirVolumeName(),
 			VolumeSource: v1.VolumeSource{
 				EmptyDir: &v1.EmptyDirVolumeSource{},
 			},
-		},
+		})
 	}
 
 	if bss.isMgmd() {
@@ -96,10 +107,19 @@ func (bss *baseStatefulSet) getPodVolumes(ndb *v1alpha1.Ndb) []v1.Volume {
 
 // getVolumeMounts returns the volumes to be mounted to the container
 func (bss *baseStatefulSet) getVolumeMounts(ndb *v1alpha1.Ndb) []v1.VolumeMount {
-	// volume mount for the data directory
+
+	var volumeName string
+	if bss.isNdbd() && ndb.Spec.DataNodePVCSpec != nil {
+		// Use the volumeClaimTemplate name for the data node
+		volumeName = volumeClaimTemplateName
+	} else {
+		volumeName = bss.getEmptyDirVolumeName()
+	}
+
+	// volume mount for the data directory/config directory
 	volumeMounts := []v1.VolumeMount{
 		{
-			Name:      bss.getDataDirVolumeName(ndb),
+			Name:      volumeName,
 			MountPath: constants.DataDir,
 		},
 	}
@@ -150,7 +170,7 @@ func (bss *baseStatefulSet) getContainers(ndb *v1alpha1.Ndb) []v1.Container {
 		cmd = "/usr/sbin/ndb_mgmd"
 		args = []string{
 			"-f", "/var/lib/ndb/config/config.ini",
-			"--configdir=/var/lib/ndb",
+			"--configdir=" + constants.DataDir,
 			"--initial",
 			"--nodaemon",
 			"--config-cache=0",
@@ -196,6 +216,7 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 	podLabels := bss.getPodLabels(ndb)
 	var podManagementPolicy apps.PodManagementPolicyType
 	var replicas *int32
+	var volumeClaimTemplates []v1.PersistentVolumeClaim
 	if bss.isMgmd() {
 		replicas = helpers.IntToInt32Ptr(int(rc.ManagementNodeCount))
 		// Start Management nodes one by one
@@ -204,6 +225,14 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 		replicas = helpers.IntToInt32Ptr(int(rc.GetDataNodeCount()))
 		// Data nodes can be started in parallel
 		podManagementPolicy = apps.ParallelPodManagement
+		// Add VolumeClaimTemplate if data node PVC Spec exists
+		if ndb.Spec.DataNodePVCSpec != nil {
+			volumeClaimTemplates = []v1.PersistentVolumeClaim{
+				// This PVC will be used as a template and an actual PVC will be created by the
+				// statefulset controller with name "<volumeClaimTemplateName>-<ndb-name>-<pod-name>"
+				*NewPVC(ndb, volumeClaimTemplateName, ndb.Spec.DataNodePVCSpec),
+			}
+		}
 	}
 
 	ss := &apps.StatefulSet{
@@ -237,8 +266,9 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 			},
 			// service must exist before the StatefulSet, and is responsible for
 			// the network identity of the set.
-			ServiceName:         ndb.GetServiceName(bss.typeName),
-			PodManagementPolicy: podManagementPolicy,
+			ServiceName:          ndb.GetServiceName(bss.typeName),
+			PodManagementPolicy:  podManagementPolicy,
+			VolumeClaimTemplates: volumeClaimTemplates,
 		},
 	}
 	return ss
