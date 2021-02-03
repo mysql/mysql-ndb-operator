@@ -15,16 +15,21 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 
+	crd_utils "github.com/mysql/ndb-operator/e2e-tests/utils/crd"
 	deployment_utils "github.com/mysql/ndb-operator/e2e-tests/utils/deployment"
 	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
 	yaml_utils "github.com/mysql/ndb-operator/e2e-tests/utils/yaml"
+
 	"github.com/mysql/ndb-operator/pkg/constants"
+	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 )
 
 var (
 	deploySuite = []string{
 		"helm/crds/mysql.oracle.com_ndbs",
 	}
+
+	ndbclient *ndbclientset.Clientset
 )
 
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
@@ -46,6 +51,11 @@ func cleanupSuite() {
 
 func setupSuite() {
 	_, err := framework.LoadClientset()
+	if err != nil {
+		klog.Fatal("Error loading client: ", err)
+	}
+
+	ndbclient, err = crd_utils.LoadClientset()
 	if err != nil {
 		klog.Fatal("Error loading client: ", err)
 	}
@@ -132,33 +142,18 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 		})
 	})
 
-	framework.KubeDescribe("Creating and deleting a simple pod", func() {
-		ginkgo.It("busybox basic", func() {
+	framework.KubeDescribe("[Feature:basic error conditions]", func() {
+		ginkgo.It("ndb basic error conditions", func() {
 
-			klog.Infof("IT: busybox basic")
-
-			justAnExample := yaml_utils.YamlFile("e2e-tests/_manifests", "busybox")
 			var err error
-			justAnExample, err = yaml_utils.ReplaceAllProperties(justAnExample, "namespace", ns)
 
-			if err != nil {
-				klog.Fatalf("Error parsing %s\n", justAnExample)
-			}
-
-			framework.RunKubectlOrDieInput(ns, justAnExample, "create", "-f", "-")
-
-			// created in default by this particular file
-			err = e2epod.WaitForPodNameRunningInNamespace(c, "busybox", ns)
+			ndbobj := crd_utils.NewTestNdbCrd(ns, "test-ndb", 1, 2, 2)
+			ndbobj, err = ndbclient.MysqlV1alpha1().Ndbs(ns).Create(context.TODO(), ndbobj, metav1.CreateOptions{})
 			framework.ExpectNoError(err)
 
-			// PodClient() is only for framework namespace
-			//err = f.PodClient().Delete(context.TODO(), "busybox", *v1.NewDeleteOptions(30))
-			err = c.CoreV1().Pods(ns).Delete(context.TODO(), "busybox", *metav1.NewDeleteOptions(30))
+			err = ndbclient.MysqlV1alpha1().Ndbs(ns).Delete(context.TODO(), "test-ndb", metav1.DeleteOptions{})
 			framework.ExpectNoError(err)
-
-			err = e2epod.WaitForPodToDisappear(c, "busybox", ns, labels.Everything(), time.Second, wait.ForeverTestTimeout)
-			framework.ExpectNoError(err)
-
 		})
+
 	})
 })
