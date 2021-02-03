@@ -25,7 +25,7 @@ func createOrDeleteFromYaml(ns string, path string, filename string, command str
 	}
 
 	result := framework.RunKubectlOrDieInput(ns, y, command, "-n", ns, "-f", "-")
-	klog.Infof("kubectl executing %s on %s: %s", command, filename, result)
+	klog.V(3).Infof("kubectl executing %s on %s: %s", command, filename, result)
 }
 
 // CreateFromYaml creates a resource from a yaml file

@@ -13,7 +13,6 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
 
-	"k8s.io/kubernetes/test/e2e/framework"
 	e2edeployment "k8s.io/kubernetes/test/e2e/framework/deployment"
 
 	deploymentutil "k8s.io/kubernetes/pkg/controller/deployment/util"
@@ -27,7 +26,7 @@ func CreateDeploymentFromSpec(client clientset.Interface, deployment *appsv1.Dep
 	if err != nil {
 		return nil, fmt.Errorf("deployment %q Create API error: %v", deployment.Name, err)
 	}
-	framework.Logf("Waiting deployment %q to complete", deployment.Name)
+	klog.V(1).Infof("Waiting deployment %q to complete", deployment.Name)
 	err = e2edeployment.WaitForDeploymentComplete(client, deployment)
 	if err != nil {
 		return nil, fmt.Errorf("deployment %q failed to complete: %v", deployment.Name, err)
@@ -60,7 +59,7 @@ func WaitForDeploymentComplete(c clientset.Interface, namespace, name string, po
 
 		reason = fmt.Sprintf("deployment %s create status: Generation: %d, Replicas: %d\n%#v",
 			name, deployment.Generation, *(deployment.Spec.Replicas), deployment.Status)
-		klog.Info(reason)
+		klog.V(4).Infof(reason)
 
 		return false, nil
 	})
@@ -93,7 +92,7 @@ func WaitForDeploymentToDisappear(c clientset.Interface, namespace, name string,
 
 		reason = fmt.Sprintf("deployment %s disappear status: Generation: %d, Replicas: %d\n%#v",
 			name, deployment.Generation, *(deployment.Spec.Replicas), deployment.Status)
-		klog.Info(reason)
+		klog.V(4).Infof(reason)
 
 		return false, nil
 	})

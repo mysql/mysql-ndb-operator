@@ -46,7 +46,7 @@ func WaitForStatefulSetComplete(c clientset.Interface, namespace, name string, p
 
 		reason = fmt.Sprintf("statefulset %s complete status: Generation: %d, Replicas: %d\n%#v",
 			name, sfset.Generation, *(sfset.Spec.Replicas), sfset.Status)
-		klog.Info(reason)
+		klog.V(4).Infof(reason)
 
 		return false, nil
 	})
@@ -81,7 +81,7 @@ func WaitForStatefulSetToDisappear(c clientset.Interface, namespace, name string
 
 		reason = fmt.Sprintf("statefulset %s disappear status: Generation: %d, Replicas: %d\n%#v",
 			name, sfset.Generation, *(sfset.Spec.Replicas), sfset.Status)
-		klog.Info(reason)
+		klog.V(4).Infof(reason)
 
 		return false, nil
 	})

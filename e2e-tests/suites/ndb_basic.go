@@ -45,7 +45,7 @@ var _ = ginkgo.SynchronizedAfterSuite(func() { cleanupSuite() },
 
 func doneChannelFunc() []byte { return nil }
 func cleanupSuite() {
-	klog.Infof("Deleting CRDs")
+	klog.V(2).Infof("Deleting CRDs")
 	yaml_utils.DeleteFromYamls("", deploySuite)
 }
 
@@ -60,7 +60,7 @@ func setupSuite() {
 		klog.Fatal("Error loading client: ", err)
 	}
 
-	klog.Infof("Creating CRDs")
+	klog.V(2).Infof("Creating CRDs")
 	// at least atm all resources created as preparation are not tied
 	yaml_utils.CreateFromYamls("", deploySuite)
 }
