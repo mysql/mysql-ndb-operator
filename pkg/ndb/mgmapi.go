@@ -39,7 +39,7 @@ type ConfigSection map[uint32]ConfigValueType
 func (api *Mgmclient) Disconnect() {
 	if api.connection != nil {
 		api.connection.Close()
-		klog.Infof("Management server disconnected.")
+		klog.V(4).Infof("Management server disconnected.")
 	}
 }
 
@@ -53,7 +53,7 @@ func (api *Mgmclient) Connect(connectstring string) error {
 		return err
 	}
 
-	klog.Infof("Management server connected.")
+	klog.V(4).Infof("Management server connected.")
 
 	return nil
 }
