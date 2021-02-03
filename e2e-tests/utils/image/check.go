@@ -2,12 +2,12 @@ package image
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
+	"k8s.io/klog"
 )
 
 // CheckOperatorImage tries to find the ndb-operator image
@@ -15,13 +15,13 @@ import (
 func CheckOperatorImage() {
 	cli, err := client.NewEnvClient()
 	if err != nil {
-		fmt.Printf("Unable to connect to docker instance: %s\n", err)
+		klog.Fatalf("Unable to connect to docker instance: %s\n", err)
 		os.Exit(1)
 	}
 
 	images, err := cli.ImageList(context.Background(), types.ImageListOptions{})
 	if err != nil {
-		fmt.Printf("Unable to retrieve image list from docker registry: %s\n", err)
+		klog.Fatalf("Unable to retrieve image list from docker registry: %s\n", err)
 		os.Exit(1)
 	}
 
@@ -35,7 +35,7 @@ func CheckOperatorImage() {
 	}
 
 	if !findOperator {
-		fmt.Printf("No operator image ndb-operator available\n")
+		klog.Fatalf("No operator image ndb-operator available\n")
 		os.Exit(1)
 	}
 }
