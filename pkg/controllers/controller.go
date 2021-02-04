@@ -48,16 +48,17 @@ import (
 const controllerAgentName = "ndb-controller"
 
 const (
-	// SuccessSynced is used as part of the Event 'reason' when a Foo is synced
+	// SuccessSynced is used as part of the Event 'reason' when a Ndb is synced
 	SuccessSynced = "Synced"
-	// ErrResourceExists is used as part of the Event 'reason' when a Foo fails
-	// to sync due to a Deployment of the same name already existing.
-	ErrResourceExists = "ErrResourceExists"
+	// ErrResourceExists is used as part of the Event 'reason' when a Ndb fails
+	// to sync due to a resource of the same name already existing.
+	ErrResourceExists = "ResourceExists"
 
 	// MessageResourceExists is the message used for Events when a resource
-	// fails to sync due to a Deployment already existing
-	MessageResourceExists = "Resource %q already exists and is not managed by Foo"
-	// MessageResourceSynced is the message used for an Event fired when a Foo
+	// fails to sync due to a resource already existing
+	// but not having "our" Ndb resource as the owner
+	MessageResourceExists = "Resource %q already exists and is not managed by Ndb"
+	// MessageResourceSynced is the message used for an Event fired when a Ndb
 	// is synced successfully
 	MessageResourceSynced = "Ndb synced successfully"
 )
