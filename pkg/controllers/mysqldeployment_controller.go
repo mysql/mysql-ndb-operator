@@ -6,6 +6,7 @@ package controllers
 
 import (
 	"context"
+
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/resources"
 	appsv1 "k8s.io/api/apps/v1"
@@ -40,7 +41,10 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(ndb *v1alpha1.Ndb, dep
 
 	// Nothing to reconcile if there is no existing deployment
 	if deployment == nil {
-		return finishProcessing()
+		// TODO interesting case - we should not never be here
+		// if there is no deployment then it hasn't been created
+		// should it be created even if replicas == 0 in MysqldSpec?
+		return continueProcessing()
 	}
 
 	// If the number of replicas in Deployments is not equal to the spec nodecount, patch deployment
@@ -55,7 +59,7 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(ndb *v1alpha1.Ndb, dep
 	}
 
 	// success
-	return finishProcessing()
+	return continueProcessing()
 }
 
 // Check if the MySQLServerDeployment already exists. If not, create one.
