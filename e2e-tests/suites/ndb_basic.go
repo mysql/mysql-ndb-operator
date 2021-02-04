@@ -105,6 +105,15 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 		yaml_utils.DeleteFromYamls(ns, deploy)
 	})
 
+	/*
+		   Test to make sure we can create and successfully also delete the cluster in the
+			 example file.
+
+			 Its on purpose build on the example
+
+			 - examples should always work and not degrade
+			 - the example with 2 nodes of each kind is probably the most common setup
+	*/
 	framework.KubeDescribe("[Feature:basic creation and teardown]", func() {
 		ginkgo.It("Create and delete a basic cluster", func() {
 			ginkgo.By(fmt.Sprintf("Creating ndb resource to test the example file"))
@@ -142,6 +151,13 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 		})
 	})
 
+	/*
+
+		Test to see that we correctly handle most common errors
+
+		- less nodes than replicas
+
+	*/
 	framework.KubeDescribe("[Feature:basic error conditions]", func() {
 		ginkgo.It("ndb basic error conditions", func() {
 
