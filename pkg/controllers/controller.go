@@ -1120,23 +1120,23 @@ func (sc *SyncContext) sync() error {
 	// check if configuration in config map is still the desired from the Ndb CRD
 	// if not then apply a new version
 
-	klog.Infof("Config in config map config is \"%s\", new: \"%d\"",
+	klog.Infof("Config in config map config is \"%s\", generation: \"%d\"",
 		sc.resourceContext.ConfigHash, sc.resourceContext.ConfigGeneration)
 
 	// calculated the hash of the new config to see if ndb.Spec changed against whats in the config map
 	newConfigHash, err := sc.ndb.CalculateNewConfigHash()
 	if err != nil {
-		klog.Errorf("Error calculating hash.")
+		klog.Errorf("Error calculating hash of incoming Ndb resource.")
 		return err
 	}
 
 	if sc.resourceContext.ConfigHash != newConfigHash {
-		klog.Infof("Config received is different from config map config. config map: \"%s\", new: \"%s\"",
+		klog.Infof("Config received is different from existing config map config. config map: \"%s\", new: \"%s\"",
 			sc.resourceContext.ConfigHash, newConfigHash)
 
 		_, err := sc.configMapController.PatchConfigMap(sc.ndb)
 		if err != nil {
-			klog.Infof("Failed to patch config map")
+			klog.Infof("Failed to patch config map: %s", err)
 			return err
 		}
 	}
@@ -1145,11 +1145,11 @@ func (sc *SyncContext) sync() error {
 	// current state of the world
 	err = sc.updateNdbStatus()
 	if err != nil {
-		klog.Errorf("updating status failed: %v", err)
+		klog.Errorf("Updating status failed: %v", err)
 		return err
 	}
 
-	klog.Infof("Returning from syncHandler")
+	klog.V(4).Infof("Returning from syncHandler")
 
 	return nil
 }
