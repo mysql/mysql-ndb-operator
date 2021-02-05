@@ -1154,25 +1154,6 @@ func (sc *SyncContext) sync() error {
 	return nil
 }
 
-func updatePodForTest(pod *corev1.Pod) *corev1.Pod {
-	t := time.Now()
-
-	ann := map[string]string{
-		"test": t.Format(time.UnixDate),
-	}
-
-	pod.Annotations = ann
-	/*
-		for idx, container := range pod.Spec.Containers {
-			if container.Name == targetContainer {
-				pod.Spec.Containers[idx].Image = newAgentImage
-				break
-			}
-		}
-	*/
-	return pod
-}
-
 // PatchPod perform a direct patch update for the specified Pod.
 func patchPod(kubeClient kubernetes.Interface, oldData *corev1.Pod, newData *corev1.Pod) (*corev1.Pod, error) {
 	currentPodJSON, err := json.Marshal(oldData)
