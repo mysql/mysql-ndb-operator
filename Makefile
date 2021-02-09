@@ -60,9 +60,8 @@ ndb-container-image:
 
 # Build a MySQL Cluster container image
 .PHONY: operator-image
-operator-image: OS=linux
 operator-image: build
-	docker build -t ndb-operator:"${VERSION}" -f docker/ndb-operator/Dockerfile .
+	OS=linux docker build -t ndb-operator:"${VERSION}" -f docker/ndb-operator/Dockerfile .
 
 .PHONY: generate
 generate:
