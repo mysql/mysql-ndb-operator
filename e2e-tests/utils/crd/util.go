@@ -25,8 +25,8 @@ func NewTestNdbCrd(namespace string, name string, datanodes, replicas, mysqlnode
 		Spec: ndbv1alpha1.NdbSpec{
 			NodeCount:       int32Ptr(int32(datanodes)),
 			RedundancyLevel: int32Ptr(int32(replicas)),
-			Mysqld: ndbv1alpha1.NdbMysqldSpec{
-				NodeCount: int32Ptr(int32(mysqlnodes)),
+			Mysqld: &ndbv1alpha1.NdbMysqldSpec{
+				NodeCount: int32(mysqlnodes),
 			},
 		},
 	}

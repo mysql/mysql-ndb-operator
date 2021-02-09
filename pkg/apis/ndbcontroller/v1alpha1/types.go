@@ -35,7 +35,7 @@ type Ndb struct {
 // NdbMysqldSpec is the specification of MySQL Servers to be run as an SQL Frontend
 type NdbMysqldSpec struct {
 	// NodeCount is the number of MySQL Servers running in MySQL Cluster
-	NodeCount *int32 `json:"nodecount"`
+	NodeCount int32 `json:"nodecount"`
 }
 
 // NdbSpec defines the desired state of MySQL Ndb Cluster
@@ -71,7 +71,7 @@ type NdbSpec struct {
 	// Should the validation be done after the image gets pulled?
 
 	// +optional
-	Mysqld NdbMysqldSpec `json:"mysqld,omitempty"`
+	Mysqld *NdbMysqldSpec `json:"mysqld,omitempty"`
 }
 
 // NdbStatus is the status for a Ndb resource
@@ -165,6 +165,16 @@ func (ndb *Ndb) GetManagementNodeCount() int {
 		return 1
 	}
 	return 2
+}
+
+// GetMySQLServerNodeCount returns the number MySQL Servers
+// connected to the NDB Cluster as an SQL frontend
+func (ndb *Ndb) GetMySQLServerNodeCount() int32 {
+	if ndb.Spec.Mysqld == nil {
+		return 0
+	}
+
+	return ndb.Spec.Mysqld.NodeCount
 }
 
 // GetConnectstring returns the connect string of cluster represented by Ndb resource

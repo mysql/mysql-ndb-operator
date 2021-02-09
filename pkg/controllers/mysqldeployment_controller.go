@@ -154,9 +154,10 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(
 
 	// Handle spec/config change
 	var updatedDeployment *appsv1.Deployment
+	mysqldNodeCount := ndb.GetMySQLServerNodeCount()
 	if handleScaleDown {
 		// First pass - handle only the scale down, if any
-		if deployment.Status.Replicas <= *(ndb.Spec.Mysqld.NodeCount) {
+		if deployment.Status.Replicas <= mysqldNodeCount {
 			// No scale down requested or it has been processed already
 			// Continue processing rest of sync loop
 			return continueProcessing()
@@ -166,7 +167,7 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(
 		// Note : the annotation 'last-applied-config-generation' will be updated only
 		//        during the second pass.
 		updatedDeployment = deployment.DeepCopy()
-		updatedDeployment.Spec.Replicas = ndb.Spec.Mysqld.NodeCount
+		updatedDeployment.Spec.Replicas = &mysqldNodeCount
 	} else {
 		// Second pass - patch in the any other spec changes and scale up
 		updatedDeployment = mdc.mysqlServerDeployment.NewDeployment(ndb, rc, deployment)
@@ -209,7 +210,7 @@ func (mdc *mysqlDeploymentController) EnsureDeployment(
 	}
 
 	// Create deployment
-	numberOfMySQLServers := *ndb.Spec.Mysqld.NodeCount
+	numberOfMySQLServers := ndb.GetMySQLServerNodeCount()
 	klog.Infof("Creating a deployment of '%d' MySQL Servers", numberOfMySQLServers)
 	deployment = mdc.mysqlServerDeployment.NewDeployment(ndb, rc, nil)
 	if _, err = mdc.createDeployment(deployment); err != nil {

@@ -168,16 +168,15 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 	configString += "\n"
 
 	// mysqld sections
-	// at least 1 must be there in order to not fail ndb_mgmd start
 	// TODO: Define more api nodes in the beginning so that the user can
 	//       scale up the MySQL Server Deployment without restarting the data/mgmd nodes
-	mysqlSections := 1
-	if ndb.Spec.Mysqld.NodeCount != nil && int(*ndb.Spec.Mysqld.NodeCount) > 0 {
-		// we alloc one section more than needed for internal purposes
-		mysqlSections = int(*ndb.Spec.Mysqld.NodeCount) + 1
+	mysqlSections := ndb.GetMySQLServerNodeCount()
+	if mysqlSections == 0 {
+		// at least 1 must be there in order to not fail ndb_mgmd start
+		mysqlSections = 1
 	}
 
-	for i := 0; i < mysqlSections; i++ {
+	for i := int32(0); i < mysqlSections; i++ {
 		configString += "[mysqld]\n"
 		configString += fmt.Sprintf("NodeId=%d\n", apiStartNodeId+i)
 		configString += "\n"

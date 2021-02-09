@@ -227,7 +227,7 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb, oldContaine
 			{
 				// Expected replicas during initial setup
 				Name:  "MYSQL_CLUSTER_EXPECTED_REPLICAS",
-				Value: strconv.Itoa(int(*ndb.Spec.Mysqld.NodeCount)),
+				Value: strconv.Itoa(int(ndb.GetMySQLServerNodeCount())),
 			},
 		}
 	} else {
@@ -264,7 +264,7 @@ func (msd *MySQLServerDeployment) NewDeployment(
 	// The deployment name to be used
 	deploymentName := ndb.Name + "-" + mysqldClientName
 
-	mysqldSpec := ndb.Spec.Mysqld
+	mysqlNodeCount := ndb.GetMySQLServerNodeCount()
 	podLabels := msd.getPodLabels(ndb)
 
 	// Define the deployment
@@ -283,7 +283,7 @@ func (msd *MySQLServerDeployment) NewDeployment(
 		},
 		Spec: apps.DeploymentSpec{
 			// The desired spec of the deployment
-			Replicas: mysqldSpec.NodeCount,
+			Replicas: &mysqlNodeCount,
 			Selector: &metav1.LabelSelector{
 				// must match templates labels
 				MatchLabels: podLabels,
