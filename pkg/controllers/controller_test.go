@@ -29,6 +29,7 @@ import (
 	ndbcontroller "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/fake"
 	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
+	helpers "github.com/mysql/ndb-operator/pkg/helpers"
 )
 
 var (
@@ -92,23 +93,6 @@ func (f *fixture) start() {
 func (f *fixture) close() {
 	klog.Info("Closing fixture")
 	close(f.stopCh)
-}
-
-func newNdb(namespace string, name string, noofnodes int) *ndbcontroller.Ndb {
-	return &ndbcontroller.Ndb{
-		TypeMeta: metav1.TypeMeta{APIVersion: ndbcontroller.SchemeGroupVersion.String()},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: ndbcontroller.NdbSpec{
-			NodeCount:       int32Ptr(int32(noofnodes)),
-			RedundancyLevel: int32Ptr(int32(2)),
-			Mysqld: ndbcontroller.NdbMysqldSpec{
-				NodeCount: int32Ptr(int32(noofnodes)),
-			},
-		},
-	}
 }
 
 func (f *fixture) newController() {
@@ -405,7 +389,7 @@ func TestCreatesCluster(t *testing.T) {
 	defer f.close()
 
 	ns := metav1.NamespaceDefault
-	ndb := newNdb(ns, "test", 2)
+	ndb := helpers.NewTestNdb(ns, "test", 2)
 
 	// we first need to set up arrays with objects ...
 	f.ndbLister = append(f.ndbLister, ndb)
