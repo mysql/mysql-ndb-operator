@@ -14,8 +14,10 @@ import (
 )
 
 // NdbLister helps list Ndbs.
+// All objects returned here must be treated as read-only.
 type NdbLister interface {
 	// List lists all Ndbs in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.Ndb, err error)
 	// Ndbs returns an object that can list and get Ndbs.
 	Ndbs(namespace string) NdbNamespaceLister
@@ -46,10 +48,13 @@ func (s *ndbLister) Ndbs(namespace string) NdbNamespaceLister {
 }
 
 // NdbNamespaceLister helps list and get Ndbs.
+// All objects returned here must be treated as read-only.
 type NdbNamespaceLister interface {
 	// List lists all Ndbs in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.Ndb, err error)
 	// Get retrieves the Ndb from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.Ndb, error)
 	NdbNamespaceListerExpansion
 }

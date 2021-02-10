@@ -19,7 +19,7 @@ require (
 	k8s.io/kubernetes v1.20.2
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 	sigs.k8s.io/controller-tools v0.4.1
-	sigs.k8s.io/kind v0.8.0
+	sigs.k8s.io/kind v0.10.0
 )
 
 replace (

@@ -34,13 +34,13 @@ var options struct {
 // Constants for the test runner and providers
 const (
 	// K8s image used by KinD to bring up cluster
-	// The k8s 1.18.2 image built for KinD 0.8.0 is used
-	// https://github.com/kubernetes-sigs/kind/releases/tag/v0.8.0
-	kindK8sImage = "kindest/node:v1.18.2@sha256:7b27a6d0f2517ff88ba444025beae41491b016bc6af573ba467b70c5e8e0d85f"
+	// The k8s 1.20.2 image built for KinD 0.10.0 is used
+	// https://github.com/kubernetes-sigs/kind/releases/tag/v0.10.0
+	kindK8sImage = "kindest/node:v1.20.2@sha256:8f7ea6e7642c0da54f04a7ee10431549c0257315b3a634f6ef2fecaaedb19bab"
 )
 
 var (
-	kindCmd = []string{"go","run","sigs.k8s.io/kind"}
+	kindCmd = []string{"go", "run", "sigs.k8s.io/kind"}
 )
 
 // validateKubeConfig validates the config passed to --kubeconfig
@@ -132,10 +132,9 @@ func newKindProvider() *kind {
 // setupK8sCluster starts a K8s cluster using KinD
 func (k *kind) setupK8sCluster(t *testRunner) bool {
 	// Verify that docker is running
-	if ! t.execCommand([]string{"docker", "info"}, "docker info", true, false) {
-		log.Println("❌ Error accessing docker.\n"+
-			"Please ensure that docker daemon is running and accessible.")
-		return false
+	if !t.execCommand([]string{"docker", "info"}, "docker info", true, false) {
+		// Docker not running. Exit here as there is nothing to cleanup.
+		log.Fatal("⚠️  Please ensure that docker daemon is running and accessible.")
 	}
 	log.Println("🐳 Docker daemon detected and accessible!")
 
@@ -143,27 +142,43 @@ func (k *kind) setupK8sCluster(t *testRunner) bool {
 	k.kubeconfig = filepath.Join(t.testDir, "_artifacts", ".kubeconfig")
 
 	// Build KinD command and args
-	kindCmdAndArgs := append(kindCmd,
+	clusterName := "ndb-e2e-test"
+	kindCreateCluster := append(kindCmd,
 		// create cluster
 		"create", "cluster",
 		// cluster name
-		"--name=ndb-e2e-test",
+		"--name="+clusterName,
 		// kubeconfig
 		"--kubeconfig="+k.kubeconfig,
 		// k8s image to be used
 		"--image="+kindK8sImage,
 		// cluster configuration
 		"--config="+filepath.Join(t.testDir, "_config", "kind-3-node-cluster.yaml"),
-		)
+	)
 
-	// Run the command
-	if t.execCommand(kindCmdAndArgs, "kind create cluster", false, true) {
-		log.Println("✅ Successfully started a KinD cluster")
-		return true
+	// Run the command to create a cluster
+	if !t.execCommand(kindCreateCluster, "kind create cluster", false, true) {
+		log.Println("❌ Failed to create cluster using KinD")
+		return false
 	}
+	log.Println("✅ Successfully started a KinD cluster")
 
-	log.Println("❌ Failed to create cluster using KinD")
-	return false
+	// Load the operator docker image into cluster nodes
+	// kind load docker-image ndb-operator:1.0.0 --name ndb-e2e-test
+	kindLoadNdbOperatorImage := append(kindCmd,
+		// load docker-image
+		"load", "docker-image", "ndb-operator:1.0.0",
+		// cluster name
+		"--name="+clusterName,
+	)
+
+	// Run the command to load the image
+	if !t.execCommand(kindLoadNdbOperatorImage, "kind load docker-image", false, true) {
+		log.Println("❌ Failed to load the ndb operator image into KinD cluster")
+		return false
+	}
+	log.Println("✅ Successfully loaded ndb-operator image into the KinD cluster")
+	return true
 }
 
 // getKubeConfig returns the Kubeconfig to connect to the cluster
