@@ -443,7 +443,7 @@ func TestCreateInvalidCluster(t *testing.T) {
 	omd.Name = "test-mysqld-ext"
 	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
-	f.runExpectError(getKey(ndb, t))
+	f.run(getKey(ndb, t))
 
 	klog.Infof("Fixed invalid config and run again")
 
