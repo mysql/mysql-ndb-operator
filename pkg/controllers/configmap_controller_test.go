@@ -69,7 +69,7 @@ func TestCreateConfigMap(t *testing.T) {
 
 	ns := metav1.NamespaceDefault
 	ndb := newNdb(ns, "test", 1)
-	ndb.Spec.Mysqld.NodeCount = int32Ptr(7)
+	ndb.Spec.Mysqld.NodeCount = 7
 
 	// we first need to set up arrays with objects ...
 	f.ndbLister = append(f.ndbLister, ndb)
@@ -115,7 +115,7 @@ func TestCreateConfigMap(t *testing.T) {
 		t.Errorf("Unexpected error EnsuringConfigMap: didn't find created ConfigMap")
 	}
 
-	ndb.Spec.Mysqld.NodeCount = int32Ptr(12)
+	ndb.Spec.Mysqld.NodeCount = 12
 
 	cm, err = cmc.PatchConfigMap(ndb)
 

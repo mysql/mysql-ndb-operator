@@ -104,8 +104,8 @@ func newNdb(namespace string, name string, noofnodes int) *ndbcontroller.Ndb {
 		Spec: ndbcontroller.NdbSpec{
 			NodeCount:       int32Ptr(int32(noofnodes)),
 			RedundancyLevel: int32Ptr(int32(2)),
-			Mysqld: ndbcontroller.NdbMysqldSpec{
-				NodeCount: int32Ptr(int32(noofnodes)),
+			Mysqld: &ndbcontroller.NdbMysqldSpec{
+				NodeCount: int32(noofnodes),
 			},
 		},
 	}
@@ -426,6 +426,9 @@ func TestCreatesCluster(t *testing.T) {
 	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
 	omd.Name = "test-ndbd"
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
+
+	omd.Name = "test-mysqld-ext"
 	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
 	omd.Name = "test-pdb"
