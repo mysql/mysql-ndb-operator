@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"testing"
 
+	helpers "github.com/mysql/ndb-operator/pkg/helpers"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
@@ -68,7 +69,7 @@ func TestCreateConfigMap(t *testing.T) {
 	defer f.close()
 
 	ns := metav1.NamespaceDefault
-	ndb := newNdb(ns, "test", 1)
+	ndb := helpers.NewTestNdb(ns, "test", 1)
 	ndb.Spec.Mysqld.NodeCount = 7
 
 	// we first need to set up arrays with objects ...

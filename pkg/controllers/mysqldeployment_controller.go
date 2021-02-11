@@ -135,8 +135,11 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(
 
 	// Nothing to reconcile if there is no existing deployment
 	if deployment == nil {
+		// TODO interesting case - we should not never be here
+		// if there is no deployment then it hasn't been created
+		// should it be created even if replicas == 0 in MysqldSpec?
 		klog.Warningf("MySQL Server deployment does not exist")
-		return finishProcessing()
+		return continueProcessing()
 	}
 
 	if !deploymentComplete(deployment) {
