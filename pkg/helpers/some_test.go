@@ -55,8 +55,6 @@ func Test_regex(t *testing.T) {
 
 		fmt.Println(split[0] + ": " + split[1])
 	}
-
-	t.Fail()
 }
 
 // sync result describes how to continue after a synchronization step
@@ -92,7 +90,7 @@ func Test_results(t *testing.T) {
 
 func Test_array(t *testing.T) {
 
-	ar := make([]int, 0, 15)
+	ar := make([]int, 8, 15)
 	ar[7] = 12
 }
 
@@ -104,6 +102,4 @@ func Test_RNIL(t *testing.T) {
 	u64 := uint32(i64)
 
 	fmt.Printf("u64 = %d\n", u64)
-
-	t.Fail()
 }

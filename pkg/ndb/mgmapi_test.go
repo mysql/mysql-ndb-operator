@@ -7,17 +7,54 @@ package ndb
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 )
 
 const connectstring = "127.0.0.1:1186"
 
-func TestGetStatus(t *testing.T) {
+func getConnectionToMgmd(t *testing.T) *Mgmclient {
+	t.Helper()
+
+	// create a mgm client and connect to mgmd
 	api := &Mgmclient{}
 
 	err := api.Connect(connectstring)
 	if err != nil {
+		if strings.Contains(err.Error(), "connection refused") {
+			// Management server not running. Skip the test
+			t.Skipf("Skipping due to error : %v", err)
+		}
+
+		// Connection failing due to some other error
 		t.Errorf("Connection failed: %s", err)
+		return nil
+	}
+
+	return api
+}
+
+func getConnectedNodeId(t *testing.T, api *Mgmclient, nodeType int) int {
+	t.Helper()
+	status, err := api.GetStatus()
+	if err != nil {
+		t.Errorf("Failed to get cluster status : %s", err)
+		return 0
+	}
+
+	for _, node := range *status {
+		if node.IsConnected && node.NodeType == nodeType {
+			return node.NodeID
+		}
+	}
+
+	t.Errorf("Failed to get a connected data node ID : %s", err)
+	return 0
+}
+
+func TestGetStatus(t *testing.T) {
+	api := getConnectionToMgmd(t)
+	if api == nil {
 		return
 	}
 	defer api.Disconnect()
@@ -41,12 +78,8 @@ func TestGetStatus(t *testing.T) {
 }
 
 func TestGetOwnNodeId(t *testing.T) {
-
-	api := &Mgmclient{}
-
-	err := api.Connect(connectstring)
-	if err != nil {
-		t.Errorf("Connection failed: %s", err)
+	api := getConnectionToMgmd(t)
+	if api == nil {
 		return
 	}
 	defer api.Disconnect()
@@ -61,75 +94,74 @@ func TestGetOwnNodeId(t *testing.T) {
 }
 
 func TestStopNodes(t *testing.T) {
-	api := &Mgmclient{}
-
-	err := api.Connect(connectstring)
-	if err != nil {
-		t.Errorf("Connection failed: %s\n", err)
+	api := getConnectionToMgmd(t)
+	if api == nil {
 		return
 	}
 	defer api.Disconnect()
 
-	nodeIds := []int{3, 4}
-	disconnect, err := api.StopNodes(&nodeIds)
-	if err != nil {
-		t.Errorf("stop failed : %s\n", err)
+	dataNodeId := getConnectedNodeId(t, api, DataNodeTypeID)
+	if dataNodeId == 0 {
 		return
 	}
 
-	if disconnect {
-		fmt.Println("Disconnect")
+	if disconnect, err := api.StopNodes(&[]int{dataNodeId}); err != nil {
+		t.Errorf("stop failed : %s\n", err)
+		return
+	} else if disconnect {
+		t.Errorf("Data node disconnected.")
+		return
 	}
-
 }
 
 func TestGetConfig(t *testing.T) {
-	api := &Mgmclient{}
-
-	err := api.Connect(connectstring)
-	if err != nil {
-		t.Errorf("Connection failed: %s", err)
+	api := getConnectionToMgmd(t)
+	if api == nil {
 		return
 	}
 	defer api.Disconnect()
 
-	_, err = api.GetConfig()
+	_, err := api.GetConfig()
 	if err != nil {
 		t.Errorf("getting config failed : %s", err)
 		return
 	}
 
-	_, err = api.GetConfigFromNode(3)
+	dataNodeId := getConnectedNodeId(t, api, DataNodeTypeID)
+	if dataNodeId == 0 {
+		return
+	}
+
+	_, err = api.GetConfigFromNode(dataNodeId)
 	if err != nil {
 		t.Errorf("getting config failed : %s", err)
 		return
 	}
 }
 func Test_GetConfigVersionFromNode(t *testing.T) {
-	api := &Mgmclient{}
-
-	err := api.Connect(connectstring)
-	if err != nil {
-		t.Errorf("Connection failed: %s", err)
+	api := getConnectionToMgmd(t)
+	if api == nil {
 		return
 	}
 	defer api.Disconnect()
 
-	version := api.GetConfigVersionFromNode(3)
+	dataNodeId := getConnectedNodeId(t, api, DataNodeTypeID)
+	if dataNodeId == 0 {
+		return
+	}
+
+	version := api.GetConfigVersionFromNode(dataNodeId)
 	fmt.Printf("getting config version: %d\n", version)
 }
 
 func TestShowConfig(t *testing.T) {
-	api := &Mgmclient{}
-
-	err := api.Connect(connectstring)
-	if err != nil {
-		t.Errorf("Connection failed: %s", err)
+	api := getConnectionToMgmd(t)
+	if api == nil {
 		return
 	}
 	defer api.Disconnect()
 
-	err = api.showConfig()
+	err := api.showConfig()
 	if err != nil {
 		t.Errorf("getting config failed : %s", err)
 		return
@@ -137,11 +169,8 @@ func TestShowConfig(t *testing.T) {
 }
 
 func TestShowVariables(t *testing.T) {
-	api := &Mgmclient{}
-
-	err := api.Connect(connectstring)
-	if err != nil {
-		t.Errorf("Connection failed: %s", err)
+	api := getConnectionToMgmd(t)
+	if api == nil {
 		return
 	}
 	defer api.Disconnect()
@@ -158,9 +187,21 @@ func TestShowVariables(t *testing.T) {
 }
 
 func TestConnectWantedNodeId(t *testing.T) {
-	api := &Mgmclient{}
+	// Fetch a connected data node id first
+	api := getConnectionToMgmd(t)
+	if api == nil {
+		return
+	}
 
-	wantedNodeId := 2
+	wantedNodeId := getConnectedNodeId(t, api, MgmNodeTypeID)
+	if wantedNodeId == 0 {
+		return
+	}
+
+	// close this connection
+	api.Disconnect()
+
+	// Now, connect to the wantedNodeId
 	err := api.ConnectToNodeId(connectstring, wantedNodeId)
 	if err != nil {
 		t.Errorf("Connection failed: %s", err)
