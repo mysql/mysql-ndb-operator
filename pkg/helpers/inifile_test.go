@@ -10,6 +10,19 @@ import (
 	"testing"
 )
 
+// ValidateConfigIniSectionCount validates the count of a
+// given section in the configIni
+// returns true if the validation succeeds and false otherwise
+func validateConfigIniSectionCount(t *testing.T, config *ConfigIni, sectionName string, expected int) bool {
+	t.Helper()
+	if actual := GetNumberOfSectionsInSectionGroup(config, sectionName); actual != expected {
+		t.Errorf("Expected number of '%s' sections : %d. Actual : %d", sectionName, expected, actual)
+		return false
+	}
+
+	return true
+}
+
 func TestReadInifile(t *testing.T) {
 
 	f, err := os.Create("test.txt")
@@ -17,6 +30,12 @@ func TestReadInifile(t *testing.T) {
 		fmt.Println(err)
 		return
 	}
+
+	// Close and remove the file before exit
+	defer func() {
+		f.Close()
+		os.Remove("test.txt")
+	}()
 
 	testini := `
 	;
@@ -38,6 +57,7 @@ func TestReadInifile(t *testing.T) {
 	AllowUnresolvedHostnames=1
 	
 	# more comments to be ignored
+    # [api]
 
 	[ndb_mgmd]
 	NodeId=0
@@ -61,28 +81,31 @@ func TestReadInifile(t *testing.T) {
 	l, err := f.WriteString(testini)
 	if err != nil {
 		t.Error(err)
-		f.Close()
 		return
 	}
 
 	if l == 0 {
-		f.Close()
 		t.Fail()
 		return
 	}
-	f.Close()
 
 	c, err := ParseFile("test.txt")
 
 	if err != nil {
 		t.Error(err)
-		f.Close()
 		return
 	}
 
 	if c == nil {
 		t.Fail()
 		return
+	}
+
+	// Verify number of groups
+	expectedNumOfGroups := 6
+	numOfGroups := len(c.Groups)
+	if numOfGroups != expectedNumOfGroups {
+		t.Errorf("Expected %d groups but got %d groups", expectedNumOfGroups, numOfGroups)
 	}
 
 	t.Log("Iterating")
@@ -95,7 +118,29 @@ func TestReadInifile(t *testing.T) {
 		}
 	}
 
-	t.Fail()
+	// Verify that values are parsed as expected
+	// TODO: Verify more keys
+	expectedNdbdServerPort := "1186"
+	ndbdServerPort := GetValueFromSingleSectionGroup(c, "ndbd", "ServerPort")
+	if expectedNdbdServerPort != ndbdServerPort {
+		t.Errorf("Expected ndbd's ServerPort : %s but got %s", expectedNdbdServerPort, ndbdServerPort)
+	}
+
+	expectedMgmdHostname := "example-ndb-0.example-ndb.svc.default-namespace.com"
+	mgmdHostname := GetValueFromSingleSectionGroup(c, "ndb_mgmd", "Hostname")
+	if expectedMgmdHostname != mgmdHostname {
+		t.Errorf("Expected mgmd's Hostname : %s but got %s", expectedMgmdHostname, mgmdHostname)
+	}
+
+	if !validateConfigIniSectionCount(t, c, "api", 0) {
+		t.Error("The section 'api' was parsed despite being commented out")
+	}
+
+	validateConfigIniSectionCount(t, c, "ndbd", 1)
+	validateConfigIniSectionCount(t, c, "ndb_mgmd", 1)
+	validateConfigIniSectionCount(t, c, "mysqld", 2)
+	validateConfigIniSectionCount(t, c, "ndbd default", 1)
+	validateConfigIniSectionCount(t, c, "tcp default", 1)
 }
 
 func Test_GetNumberOfSections(t *testing.T) {
@@ -115,13 +160,7 @@ func Test_GetNumberOfSections(t *testing.T) {
 		t.Errorf("Parsing of config failed: %s", err)
 	}
 
-	secs := GetNumberOfSectionsInSectionGroup(config, "ndbd")
-	if secs != 4 {
-		t.Fail()
-	}
-
-	secs = GetNumberOfSectionsInSectionGroup(config, "mysqld")
-	if secs != 0 {
-		t.Fail()
-	}
+	validateConfigIniSectionCount(t, config, "ndbd", 4)
+	validateConfigIniSectionCount(t, config, "mgmd", 2)
+	validateConfigIniSectionCount(t, config, "mysqld", 0)
 }

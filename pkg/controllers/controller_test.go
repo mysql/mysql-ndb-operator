@@ -9,6 +9,7 @@ package controllers
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -142,12 +143,12 @@ func (f *fixture) newController() {
 
 func (f *fixture) run(fooName string) {
 	f.setupController(fooName, true)
-	f.runController(fooName, false)
+	f.runController(fooName, false, nil)
 }
 
 func (f *fixture) runExpectError(fooName string) {
 	f.setupController(fooName, true)
-	f.runController(fooName, true)
+	f.runController(fooName, true, nil)
 }
 
 func (f *fixture) setupController(fooName string, startInformers bool) {
@@ -157,20 +158,39 @@ func (f *fixture) setupController(fooName string, startInformers bool) {
 	}
 }
 
-func (f *fixture) runController(fooName string, expectError bool) {
+func (f *fixture) runController(fooName string, expectError bool, expectedErrors []string) {
 
 	err := f.c.syncHandler(fooName)
 
-	if !expectError && err != nil {
-		f.t.Errorf("error syncing ndb: %v", err)
-	} else if expectError {
+	if expectError {
 		if err == nil {
+			// Error expected but there is none
 			f.t.Error("expected error syncing ndb, got nil")
+		} else if expectedErrors != nil {
+			// Only the errors in expectedErrors are allowed
+			errorOk := false
+			for _, expectedErr := range expectedErrors {
+				if strings.Contains(err.Error(), expectedErr) {
+					f.t.Logf("Expected error and received one (good): %s", err)
+					errorOk = true
+					break
+				}
+			}
+			if !errorOk {
+				// Unexpected error occurred
+				f.t.Errorf("Recieved unexpected error : %s", err)
+			}
 		} else {
-			klog.Infof("Expected error and received one (good): %s", err)
+			// Any errors are accepted as expectedErrors is nil
+			f.t.Logf("Expected error and received one (good): %s", err)
 		}
 	} else {
-		klog.Infof("Successfully syncing ndb")
+		// NO error is expected
+		if err == nil {
+			f.t.Logf("Successfully syncing ndb")
+		} else {
+			f.t.Errorf("Recieved unexpected error : %s", err)
+		}
 	}
 
 	actions := filterInformerActions(f.client.Actions())
@@ -237,6 +257,9 @@ func extractObjectMetaData(actual core.Action, extO, actO runtime.Object, t *tes
 	case "services":
 		expOM = extO.(*corev1.Service).ObjectMeta
 		actOM = actO.(*corev1.Service).ObjectMeta
+	case "secrets":
+		expOM = extO.(*corev1.Secret).ObjectMeta
+		actOM = actO.(*corev1.Secret).ObjectMeta
 	case "deployments":
 		expOM = extO.(*appsv1.Deployment).ObjectMeta
 		actOM = actO.(*appsv1.Deployment).ObjectMeta
@@ -269,8 +292,8 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 		expOM, actOM := extractObjectMetaData(actual, e.GetObject(), a.GetObject(), t)
 
 		if expOM.Name != actOM.Name {
-			t.Errorf("Action %s %s has wrong name %s\n",
-				a.GetVerb(), a.GetResource().Resource, actOM.Name)
+			t.Errorf("Action %s %s has wrong name %s. Expected : %s",
+				a.GetVerb(), a.GetResource().Resource, actOM.Name, expOM.Name)
 		}
 
 		// lets only compare if expected labels are all found in actual labels
@@ -336,7 +359,8 @@ func filterInformerActions(actions []core.Action) []core.Action {
 				action.Matches("get", "configmaps") ||
 				action.Matches("get", "poddisruptionbudgets") ||
 				action.Matches("get", "deployments") ||
-				action.Matches("get", "statefulsets")) {
+				action.Matches("get", "statefulsets") ||
+				action.Matches("get", "secrets")) {
 			//klog.Infof("Filtering +%v", action)
 			continue
 		}
@@ -459,7 +483,7 @@ func TestCreateInvalidCluster(t *testing.T) {
 	f.expectUpdateNdbAction(ns, ndb)
 
 	// run again, this time without error
-	f.runController(getKey(ndb, t), false)
+	f.runController(getKey(ndb, t), false, nil)
 }
 
 func TestCreatesCluster(t *testing.T) {
@@ -486,7 +510,7 @@ func TestCreatesCluster(t *testing.T) {
 	omd.Name = "test-mysqld-ext"
 	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
-	omd.Name = "test-pdb"
+	omd.Name = "test-pdb-ndbd"
 	f.expectCreateAction(ns, "policy", "v1beta1", "poddisruptionbudgets",
 		&policyv1beta1.PodDisruptionBudget{ObjectMeta: *omd})
 
@@ -498,6 +522,9 @@ func TestCreatesCluster(t *testing.T) {
 	omd.Name = "test-ndbd"
 	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
 
+	omd.Name = "test-mysqld-root-password"
+	f.expectCreateAction(ns, "", "v1", "secrets", &corev1.Secret{ObjectMeta: *omd})
+
 	omd.Name = "test-mysqld"
 	f.expectCreateAction(ns, "apps", "v1", "deployments", &appsv1.Deployment{ObjectMeta: *omd})
 
@@ -505,8 +532,10 @@ func TestCreatesCluster(t *testing.T) {
 
 	f.run(getKey(ndb, t))
 
-	// run again without error
-	f.runController(getKey(ndb, t), false)
+	// run again;
+	// only error allowed is "connection refused" as mgmd is not running
+	expectedErrors := []string{"connection refused"}
+	f.runController(getKey(ndb, t), true, expectedErrors)
 }
 
 func int32Ptr(i int32) *int32 { return &i }

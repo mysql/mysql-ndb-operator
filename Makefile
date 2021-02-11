@@ -102,6 +102,10 @@ ndbinfo-bin:
 test:
 	go test -v --count=1 e2e-tests/suites/**
 
+.PHONY: unit-test
+unit-test:
+	go test -v --count=1 ./pkg/...
+
 .PHONY: e2e
 e2e:
 	go run e2e-tests/run-e2e-test.go

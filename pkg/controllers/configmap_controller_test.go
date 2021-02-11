@@ -8,10 +8,13 @@ package controllers
 
 import (
 	"encoding/json"
-	"fmt"
+	"path/filepath"
 	"testing"
 
-	helpers "github.com/mysql/ndb-operator/pkg/helpers"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/config"
+	"github.com/mysql/ndb-operator/pkg/helpers"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
@@ -58,15 +61,52 @@ func Test_TestThingsrelatedToConfigMaps(t *testing.T) {
 		t.Error(err)
 	}
 
-	fmt.Println(string(patchBytes))
+	var patchedCM map[string]map[string]string
+	json.Unmarshal(patchBytes, &patchedCM)
 
-	t.Fail()
+	// Verify that patching worked as expected
+	if len(patchedCM) != 1 || len(patchedCM["data"]) != 1 ||
+		patchedCM["data"]["config.ini"] != "Version 2" {
+		t.Logf("Patched cm : %s", string(patchBytes))
+		t.Error("Patching failed")
+	}
+}
+
+// ValidateConfigIniSectionCount validates the count of a
+// given section in the configIni
+func validateConfigIniSectionCount(t *testing.T, config *helpers.ConfigIni, sectionName string, expected int) {
+	t.Helper()
+	if actual := helpers.GetNumberOfSectionsInSectionGroup(config, sectionName); actual != expected {
+		t.Errorf("Expected number of '%s' sections : %d. Actual : %d", sectionName, expected, actual)
+	}
+}
+
+// validateMgmtConfig validates the config.ini key of the config map
+func validateMgmtConfig(t *testing.T, cm *corev1.ConfigMap, ndb *v1alpha1.Ndb) {
+	t.Helper()
+
+	if cm == nil {
+		t.Error("Config map is empty")
+		return
+	}
+
+	// Parse the config.ini in the ConfigMap into a ConfigIni
+	config, err := helpers.ParseString(cm.Data["config.ini"])
+	if err != nil {
+		t.Errorf("Parsing of config.ini from config map failed: %s", err)
+		return
+	}
+
+	// Validate the number of sections
+	validateConfigIniSectionCount(t, config, "ndb_mgmd", ndb.GetManagementNodeCount())
+	validateConfigIniSectionCount(t, config, "ndbd", int(*ndb.Spec.NodeCount))
+	validateConfigIniSectionCount(t, config, "mysqld", int(ndb.GetMySQLServerNodeCount()))
 }
 
 func TestCreateConfigMap(t *testing.T) {
 
 	ns := metav1.NamespaceDefault
-	ndb := helpers.NewTestNdb(ns, "test", 1)
+	ndb := helpers.NewTestNdb(ns, "test", 2)
 	ndb.Spec.Mysqld.NodeCount = 7
 
 	f := newFixture(t, ndb)
@@ -74,9 +114,10 @@ func TestCreateConfigMap(t *testing.T) {
 
 	cmc := NewConfigMapControl(f.kubeclient, f.k8If.Core().V1().ConfigMaps())
 
-	f.start()
-
+	f.setupController("ndb-operator", true)
 	sc := f.c.newSyncContext(ndb)
+
+	config.ScriptsDir = filepath.Join("..", "helpers", "scripts")
 	cm, existed, err := cmc.EnsureConfigMap(sc)
 
 	if err != nil {
@@ -89,6 +130,9 @@ func TestCreateConfigMap(t *testing.T) {
 		t.Errorf("Unexpected error EnsuringConfigMap: should not have existed")
 	}
 
+	// Validate cm
+	validateMgmtConfig(t, cm, ndb)
+
 	f.expectCreateAction(ndb.GetNamespace(), "", "v1", "configmap", cm)
 
 	rcmc := cmc.(*ConfigMapControl)
@@ -100,7 +144,7 @@ func TestCreateConfigMap(t *testing.T) {
 		return
 	}
 
-	// Get the StatefulSet with the name specified in Ndb.spec
+	// Get the config map with the name specified in Ndb.spec
 	cmget, err := rcmc.configMapLister.ConfigMaps(ndb.Namespace).Get(ndb.GetConfigMapName())
 	if err != nil {
 		t.Errorf("Unexpected error getting created ConfigMap: %v", err)
@@ -109,11 +153,13 @@ func TestCreateConfigMap(t *testing.T) {
 		t.Errorf("Unexpected error EnsuringConfigMap: didn't find created ConfigMap")
 	}
 
+	// Validate cmget
+	validateMgmtConfig(t, cmget, ndb)
+
+	// Patch cmget and verify
 	ndb.Spec.Mysqld.NodeCount = 12
+	patchedCm, err := cmc.PatchConfigMap(ndb)
 
-	cm, err = cmc.PatchConfigMap(ndb)
-
-	s, _ := json.MarshalIndent(cm, "", "  ")
-
-	t.Errorf(string(s))
+	// Validate patched cm
+	validateMgmtConfig(t, patchedCm, ndb)
 }
