@@ -73,7 +73,7 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 	var c clientset.Interface
 	var deploy = []string{
 		"helm/templates/01-rbac",
-		"artifacts/deployment/ndb-operator-rbac",
+		"helm/templates/02-ndb-operator-rbac",
 	}
 
 	ginkgo.BeforeEach(func() {
@@ -85,7 +85,7 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 		yaml_utils.CreateFromYamls(ns, deploy)
 
 		ginkgo.By(fmt.Sprintf("Create operator deployment"))
-		yaml_utils.CreateFromYaml(ns, "artifacts/deployment", "ndb-operator")
+		yaml_utils.CreateFromYaml(ns, "helm/templates", "03-ndb-operator")
 
 		err := deployment_utils.WaitForDeploymentComplete(c, ns, "ndb-operator", 2*time.Second, 5*time.Minute)
 		framework.ExpectNoError(err)
@@ -95,7 +95,7 @@ var _ = framework.KubeDescribe("[Feature:ndb_basic]", func() {
 
 		ginkgo.By("Cleaning up after each")
 
-		yaml_utils.DeleteFromYaml(ns, "", "artifacts/deployment/ndb-operator")
+		yaml_utils.DeleteFromYaml(ns, "", "helm/templates/03-ndb-operator")
 
 		err := e2epod.WaitForPodToDisappear(c, "ndb-operator", ns, labels.Everything(), time.Second, wait.ForeverTestTimeout)
 		framework.ExpectNoError(err)
