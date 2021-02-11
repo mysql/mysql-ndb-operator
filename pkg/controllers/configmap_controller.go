@@ -26,7 +26,7 @@ import (
 )
 
 type ConfigMapControlInterface interface {
-	EnsureConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigMap, bool, error)
+	EnsureConfigMap(sc *SyncContext) (*corev1.ConfigMap, bool, error)
 	PatchConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigMap, error)
 	ExtractConfig(cm *corev1.ConfigMap) (string, error)
 	DeleteConfigMap(ndb *v1alpha1.Ndb) error
@@ -65,7 +65,9 @@ func (rcmc *ConfigMapControl) ExtractConfig(cm *corev1.ConfigMap) (string, error
 //   the config map
 //   true if it existed
 //   an error if something went wrong
-func (rcmc *ConfigMapControl) EnsureConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigMap, bool, error) {
+func (rcmc *ConfigMapControl) EnsureConfigMap(sc *SyncContext) (*corev1.ConfigMap, bool, error) {
+
+	ndb := sc.ndb
 
 	// Get the StatefulSet with the name specified in Ndb.spec, fetching from client not cache
 	cm, err := rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Get(context.TODO(), ndb.GetConfigMapName(), metav1.GetOptions{})
@@ -76,6 +78,14 @@ func (rcmc *ConfigMapControl) EnsureConfigMap(ndb *v1alpha1.Ndb) (*corev1.Config
 
 	if !errors.IsNotFound(err) {
 		return nil, false, err
+	}
+
+	if !sc.resourceIsValid {
+		// If the resource doesn't exist, we'll create it
+		klog.Infof("Skip creating ConfigMap %s/%s due to invalid Ndb configuration",
+			ndb.Namespace, ndb.GetConfigMapName())
+		// TODO error code
+		return nil, false, nil
 	}
 
 	// If the resource doesn't exist, we'll create it

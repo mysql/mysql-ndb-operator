@@ -65,26 +65,19 @@ func Test_TestThingsrelatedToConfigMaps(t *testing.T) {
 
 func TestCreateConfigMap(t *testing.T) {
 
-	f := newFixture(t)
-	defer f.close()
-
 	ns := metav1.NamespaceDefault
 	ndb := helpers.NewTestNdb(ns, "test", 1)
 	ndb.Spec.Mysqld.NodeCount = 7
 
-	// we first need to set up arrays with objects ...
-	f.ndbLister = append(f.ndbLister, ndb)
-	f.objects = append(f.objects, ndb)
-
-	// ... before we init the fake clients with those objects.
-	// objects not listed in arrays at fakeclient setup will eventually be deleted
-	f.init()
+	f := newFixture(t, ndb)
+	defer f.close()
 
 	cmc := NewConfigMapControl(f.kubeclient, f.k8If.Core().V1().ConfigMaps())
 
 	f.start()
 
-	cm, existed, err := cmc.EnsureConfigMap(ndb)
+	sc := f.c.newSyncContext(ndb)
+	cm, existed, err := cmc.EnsureConfigMap(sc)
 
 	if err != nil {
 		t.Errorf("Unexpected error EnsuringConfigMap: %v", err)

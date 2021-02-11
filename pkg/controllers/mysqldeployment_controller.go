@@ -32,9 +32,10 @@ func deploymentComplete(deployment *appsv1.Deployment) bool {
 		deployment.Status.ObservedGeneration >= deployment.Generation
 }
 
+// DeploymentControlInterface is the interface for deployment controllers
 type DeploymentControlInterface interface {
 	GetTypeName() string
-	EnsureDeployment(ndb *v1alpha1.Ndb, rc *resources.ResourceContext) (*appsv1.Deployment, bool, error)
+	EnsureDeployment(sc *SyncContext) (*appsv1.Deployment, bool, error)
 	ReconcileDeployment(ndb *v1alpha1.Ndb,
 		deployment *appsv1.Deployment, rc *resources.ResourceContext, handleScaleDown bool) syncResult
 }
@@ -193,12 +194,11 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(
 
 // EnsureDeployment checks if the MySQLServerDeployment already
 // exists. If not, it creates a new deployment.
-func (mdc *mysqlDeploymentController) EnsureDeployment(
-	ndb *v1alpha1.Ndb, rc *resources.ResourceContext) (*appsv1.Deployment, bool, error) {
+func (mdc *mysqlDeploymentController) EnsureDeployment(sc *SyncContext) (*appsv1.Deployment, bool, error) {
 
 	// Get the deployment in the namespace of Ndb resource
 	// with the name matching that of MySQLServerDeployment
-	deployment, err := mdc.deploymentLister.Deployments(ndb.Namespace).Get(mdc.mysqlServerDeployment.GetName())
+	deployment, err := mdc.deploymentLister.Deployments(sc.ndb.Namespace).Get(mdc.mysqlServerDeployment.GetName())
 
 	// Return if the deployment exists already or
 	// if listing failed due to some other error than not found
@@ -206,16 +206,24 @@ func (mdc *mysqlDeploymentController) EnsureDeployment(
 		return deployment, err == nil, err
 	}
 
+	numberOfMySQLServers := sc.ndb.GetMySQLServerNodeCount()
+
+	if !sc.resourceIsValid {
+		// TODO error code?
+		klog.Infof("Creating a deployment of '%d' MySQL Servers skipped due to invalid Ndb configuration",
+			numberOfMySQLServers)
+		return nil, false, nil
+	}
+
 	// Deployment doesn't exist
 	// First ensure that a root password secret exists
-	if err = mdc.ensureRootPasswordSecret(ndb); err != nil {
+	if err = mdc.ensureRootPasswordSecret(sc.ndb); err != nil {
 		return nil, false, err
 	}
 
 	// Create deployment
-	numberOfMySQLServers := ndb.GetMySQLServerNodeCount()
 	klog.Infof("Creating a deployment of '%d' MySQL Servers", numberOfMySQLServers)
-	deployment = mdc.mysqlServerDeployment.NewDeployment(ndb, rc, nil)
+	deployment = mdc.mysqlServerDeployment.NewDeployment(sc.ndb, sc.resourceContext, nil)
 	if _, err = mdc.createDeployment(deployment); err != nil {
 		// Creating deployment failed
 		klog.Errorf("Failed to create deployment of '%d' MySQL Servers with error: %s",

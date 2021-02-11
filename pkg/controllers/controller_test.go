@@ -7,6 +7,7 @@
 package controllers
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
@@ -64,13 +65,37 @@ type fixture struct {
 	c *Controller
 }
 
-func newFixture(t *testing.T) *fixture {
+func newFixtures(t *testing.T, ndbs []*ndbcontroller.Ndb) *fixture {
+
 	f := &fixture{}
 	f.t = t
 	f.objects = []runtime.Object{}
 	f.kubeobjects = []runtime.Object{}
 
+	// we first need to set up arrays with objects ...
+	if len(f.ndbLister) > 0 {
+		t.Errorf("f.ndbLister len was %d", len(f.ndbLister))
+	}
+	if len(f.objects) > 0 {
+		t.Errorf("f.objects len was %d", len(f.objects))
+	}
+
+	for _, ndb := range ndbs {
+		f.ndbLister = append(f.ndbLister, ndb)
+		f.objects = append(f.objects, ndb)
+	}
+
+	// ... before we init the fake clients with those objects.
+	// objects not listed in arrays at fakeclient setup will eventually be deleted
+	f.init()
+
 	return f
+}
+
+func newFixture(t *testing.T, ndb *ndbcontroller.Ndb) *fixture {
+	ndbs := make([]*ndbcontroller.Ndb, 1)
+	ndbs[0] = ndb
+	return newFixtures(t, ndbs)
 }
 
 func (f *fixture) init() {
@@ -138,10 +163,15 @@ func (f *fixture) runController(fooName string, expectError bool) {
 
 	if !expectError && err != nil {
 		f.t.Errorf("error syncing ndb: %v", err)
-	} else if expectError && err == nil {
-		f.t.Error("expected error syncing ndb, got nil")
+	} else if expectError {
+		if err == nil {
+			f.t.Error("expected error syncing ndb, got nil")
+		} else {
+			klog.Infof("Expected error and received one (good): %s", err)
+		}
+	} else {
+		klog.Infof("Successfully syncing ndb")
 	}
-	klog.Infof("Successfully syncing ndb")
 
 	actions := filterInformerActions(f.client.Actions())
 	k8sActions := filterInformerActions(f.kubeclient.Actions())
@@ -383,21 +413,62 @@ func getObjectMetadata(name string, ndb *ndbcontroller.Ndb, t *testing.T) *metav
 	}
 }
 
-func TestCreatesCluster(t *testing.T) {
-
-	f := newFixture(t)
-	defer f.close()
+func TestCreateInvalidCluster(t *testing.T) {
 
 	ns := metav1.NamespaceDefault
 	ndb := helpers.NewTestNdb(ns, "test", 2)
 
-	// we first need to set up arrays with objects ...
-	f.ndbLister = append(f.ndbLister, ndb)
-	f.objects = append(f.objects, ndb)
+	// that would be an invalid config with 3 replica and 2 data nodes
+	ndb.Spec.RedundancyLevel = helpers.IntToInt32Ptr(int(3))
 
-	// ... before we init the fake clients with those objects.
-	// objects not listed in arrays at fakeclient setup will eventually be deleted
-	f.init()
+	f := newFixture(t, ndb)
+	defer f.close()
+
+	// even if config is invalid we do still expect services / labels to be created / updated
+	// but no further resources
+
+	// update labels will happen first sync run
+	f.expectUpdateNdbAction(ns, ndb)
+
+	// two services for ndbd and mgmds
+	omd := getObjectMetadata("test-mgmd", ndb, t)
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
+
+	omd.Name = "test-mgmd-ext"
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
+
+	omd.Name = "test-ndbd"
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
+
+	omd.Name = "test-mysqld-ext"
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
+
+	f.runExpectError(getKey(ndb, t))
+
+	klog.Infof("Fixed invalid config and run again")
+
+	// internally fake client maintains a copy, so we need to update the Ndb object
+	ndb.Spec.RedundancyLevel = helpers.IntToInt32Ptr(int(2))
+	_, err := f.client.MysqlV1alpha1().Ndbs(ndb.Namespace).Update(context.TODO(), ndb, metav1.UpdateOptions{})
+
+	if err != nil {
+		t.Error("Failed to update Ndb resource object")
+	}
+
+	// update from above needs to be expected
+	f.expectUpdateNdbAction(ns, ndb)
+
+	// run again, this time without error
+	f.runController(getKey(ndb, t), false)
+}
+
+func TestCreatesCluster(t *testing.T) {
+
+	ns := metav1.NamespaceDefault
+	ndb := helpers.NewTestNdb(ns, "test", 2)
+
+	f := newFixture(t, ndb)
+	defer f.close()
 
 	// update labels will happen first sync run
 	f.expectUpdateNdbAction(ns, ndb)
