@@ -536,6 +536,11 @@ func (sc *SyncContext) ensureManagementServerStatefulSet() (*appsv1.StatefulSet,
 		return nil, existed, err
 	}
 
+	if sfset == nil {
+		// didn't exist and wasn't created wither
+		return nil, existed, nil
+	}
+
 	// If the StatefulSet is not controlled by this Ndb resource, we should log
 	// a warning to the event recorder and return error msg.
 	if !metav1.IsControlledBy(sfset, sc.ndb) {
@@ -559,6 +564,11 @@ func (sc *SyncContext) ensureDataNodeStatefulSet() (*appsv1.StatefulSet, bool, e
 		return nil, existed, err
 	}
 
+	if sfset == nil {
+		// didn't exist and wasn't created wither
+		return nil, existed, nil
+	}
+
 	// If the StatefulSet is not controlled by this Ndb resource, we should log
 	// a warning to the event recorder and return error msg.
 	if !metav1.IsControlledBy(sfset, sc.ndb) {
@@ -580,6 +590,11 @@ func (sc *SyncContext) ensureMySQLServerDeployment() (*appsv1.Deployment, bool, 
 	if err != nil {
 		// Failed to ensure the deployment
 		return deployment, existed, err
+	}
+
+	if deployment == nil {
+		// didn't exist and wasn't created wither
+		return nil, existed, nil
 	}
 
 	// If the deployment is not controlled by Ndb resource,
@@ -944,13 +959,19 @@ func (sc *SyncContext) ensureAllResources() (bool, error) {
 	// this and following step could be avoided since we in most cases just created the config map
 	// however, resource creation (happens once) or later modification as such is probably the unlikely case
 	// much more likely in all cases is that the config map already existed
-	configString, err := sc.configMapController.ExtractConfig(cm)
-	if err != nil {
-		// TODO - this would be a very serious internal error
-		return false, err
+	if cm != nil {
+		// resource was created or existed
+		configString, err := sc.configMapController.ExtractConfig(cm)
+		if err != nil {
+			// TODO - this would be a very serious internal error
+			return false, err
+		}
+
+		sc.resourceContext, err = resources.NewResourceContextFromConfiguration(configString)
 	}
 
-	sc.resourceContext, err = resources.NewResourceContextFromConfiguration(configString)
+	// even if config is invalid following functions should still test if
+	// resources already exist because we can then continue
 
 	// create the management stateful set if it doesn't exist
 	if _, (*sc.resourceMap)["mgmstatefulset"], err = sc.ensureManagementServerStatefulSet(); err != nil {
