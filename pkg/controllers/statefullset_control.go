@@ -7,6 +7,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
@@ -26,7 +27,7 @@ import (
 
 type StatefulSetControlInterface interface {
 	GetTypeName() string
-	EnsureStatefulSet(rc *resources.ResourceContext, ndb *v1alpha1.Ndb) (*apps.StatefulSet, bool, error)
+	EnsureStatefulSet(sc *SyncContext) (*apps.StatefulSet, bool, error)
 	Patch(rc *resources.ResourceContext, ndb *v1alpha1.Ndb, old *apps.StatefulSet) (*apps.StatefulSet, error)
 }
 
@@ -105,10 +106,10 @@ func (rssc *realStatefulSetControl) Patch(rc *resources.ResourceContext, ndb *v1
 //   the statefull set if created or already existing
 //   true if it already existed
 //   error is such occured
-func (rssc *realStatefulSetControl) EnsureStatefulSet(rc *resources.ResourceContext, ndb *v1alpha1.Ndb) (*apps.StatefulSet, bool, error) {
+func (rssc *realStatefulSetControl) EnsureStatefulSet(sc *SyncContext) (*apps.StatefulSet, bool, error) {
 
 	// Get the StatefulSet with the name specified in Ndb.spec
-	sfset, err := rssc.statefulSetLister.StatefulSets(ndb.Namespace).Get(rssc.statefulSetType.GetName())
+	sfset, err := rssc.statefulSetLister.StatefulSets(sc.ndb.Namespace).Get(rssc.statefulSetType.GetName())
 	if err == nil {
 		return sfset, true, nil
 	}
@@ -117,23 +118,31 @@ func (rssc *realStatefulSetControl) EnsureStatefulSet(rc *resources.ResourceCont
 		return nil, false, err
 	}
 
-	// If the resource doesn't exist, we'll create it
+	rc := sc.resourceContext
 
+	if !sc.resourceIsValid {
+		klog.Infof("Creating stateful set %s/%s skipped due to invalid Ndb configuration",
+			sc.ndb.Namespace, rssc.statefulSetType.GetName())
+		// TODO error code?
+		return nil, false, nil
+	}
+
+	// If the resource doesn't exist, we'll create it
 	klog.Infof("Creating stateful set %s/%s Replicas: %d, Data Nodes: %d, Mgm Nodes: %d",
-		ndb.Namespace,
+		sc.ndb.Namespace,
 		rssc.statefulSetType.GetName(),
 		rc.ReduncancyLevel,
 		rc.ConfiguredNodeGroupCount*rc.ReduncancyLevel,
 		rc.ManagementNodeCount)
 
-	sfset = rssc.statefulSetType.NewStatefulSet(rc, ndb)
-	sfset, err = rssc.client.AppsV1().StatefulSets(ndb.Namespace).Create(context.TODO(), sfset, metav1.CreateOptions{})
+	sfset = rssc.statefulSetType.NewStatefulSet(rc, sc.ndb)
+	sfset, err = rssc.client.AppsV1().StatefulSets(sc.ndb.Namespace).Create(context.TODO(), sfset, metav1.CreateOptions{})
 
 	if err != nil {
 		// re-queue if something went wrong
 		klog.Errorf("Failed to create stateful set %s/%s replicas: %d with error: %s",
-			ndb.Namespace, rssc.statefulSetType.GetName(),
-			*ndb.Spec.NodeCount, err)
+			sc.ndb.Namespace, rssc.statefulSetType.GetName(),
+			*sc.ndb.Spec.NodeCount, err)
 
 		return nil, false, err
 	}

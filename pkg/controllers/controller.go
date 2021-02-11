@@ -41,6 +41,7 @@ import (
 	samplescheme "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/scheme"
 	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
 	listers "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/helpers"
 	"github.com/mysql/ndb-operator/pkg/ndb"
 	"github.com/mysql/ndb-operator/pkg/resources"
 )
@@ -88,8 +89,9 @@ type SyncContext struct {
 
 	clusterState *ndb.ClusterStatus
 
-	ndb    *v1alpha1.Ndb
-	nsName string
+	ndb             *v1alpha1.Ndb
+	resourceIsValid bool // the incoming Ndb resource contains a valid config
+	nsName          string
 
 	// controller handling creation and changes of resources
 	mysqldController    DeploymentControlInterface
@@ -452,7 +454,7 @@ func (sc *SyncContext) ensureService(port int32, selector string, externalIP boo
 	}
 
 	// Service not found - create it
-	klog.Infof("Creating a new Service for cluster %q",
+	klog.Infof("Creating a new Service %s for cluster %q", serviceName,
 		types.NamespacedName{Namespace: sc.ndb.Namespace, Name: sc.ndb.Name})
 	svc = resources.NewService(sc.ndb, port, selector, externalIP)
 	svc, err = sc.kubeclientset().CoreV1().Services(sc.ndb.Namespace).Create(context.TODO(), svc, metav1.CreateOptions{})
@@ -467,6 +469,10 @@ func (sc *SyncContext) ensureService(port int32, selector string, externalIP boo
 //    array with services created
 //    false if any services were created
 //    error if any such occurred
+//
+// at this stage of the functionality we can still create resources even if
+// the config is invalid as services are only based on Ndb CRD name
+// which is obviously immutable for each individual Ndb CRD
 func (sc *SyncContext) ensureServices() (*[]*corev1.Service, bool, error) {
 
 	var svcs []*corev1.Service
@@ -525,7 +531,7 @@ func (sc *SyncContext) ensureServices() (*[]*corev1.Service, bool, error) {
 //    or returns an error if something went wrong
 func (sc *SyncContext) ensureManagementServerStatefulSet() (*appsv1.StatefulSet, bool, error) {
 
-	sfset, existed, err := sc.mgmdController.EnsureStatefulSet(sc.resourceContext, sc.ndb)
+	sfset, existed, err := sc.mgmdController.EnsureStatefulSet(sc)
 	if err != nil {
 		return nil, existed, err
 	}
@@ -548,7 +554,7 @@ func (sc *SyncContext) ensureManagementServerStatefulSet() (*appsv1.StatefulSet,
 //    or returns an error if something went wrong
 func (sc *SyncContext) ensureDataNodeStatefulSet() (*appsv1.StatefulSet, bool, error) {
 
-	sfset, existed, err := sc.ndbdController.EnsureStatefulSet(sc.resourceContext, sc.ndb)
+	sfset, existed, err := sc.ndbdController.EnsureStatefulSet(sc)
 	if err != nil {
 		return nil, existed, err
 	}
@@ -570,7 +576,7 @@ func (sc *SyncContext) ensureDataNodeStatefulSet() (*appsv1.StatefulSet, bool, e
 //    or returns an error if something went wrong
 func (sc *SyncContext) ensureMySQLServerDeployment() (*appsv1.Deployment, bool, error) {
 
-	deployment, existed, err := sc.mysqldController.EnsureDeployment(sc.ndb, sc.resourceContext)
+	deployment, existed, err := sc.mysqldController.EnsureDeployment(sc)
 	if err != nil {
 		// Failed to ensure the deployment
 		return deployment, existed, err
@@ -592,6 +598,8 @@ func (sc *SyncContext) ensureMySQLServerDeployment() (*appsv1.Deployment, bool, 
 //    new or existing PDB
 //    reports true if it existed
 //    or returns an error if something went wrong
+//
+// PDB can't be created if Ndb is invalid; it depends on data node count
 func (sc *SyncContext) ensurePodDisruptionBudget() (*policyv1beta1.PodDisruptionBudget, bool, error) {
 
 	// Check if ndbd pod disruption budget is present
@@ -603,6 +611,13 @@ func (sc *SyncContext) ensurePodDisruptionBudget() (*policyv1beta1.PodDisruption
 	}
 	if !apierrors.IsNotFound(err) {
 		return nil, false, err
+	}
+
+	if !sc.resourceIsValid {
+		klog.Infof("Skip creating PodDisruptionBudget for Data Nodes of Cluster %q due to invalid configuration.",
+			types.NamespacedName{Namespace: sc.ndb.Namespace, Name: sc.ndb.Name})
+		// TODO return err or generate one?
+		return nil, false, nil
 	}
 
 	klog.Infof("Creating a new PodDisruptionBudget for Data Nodes of Cluster %q",
@@ -790,8 +805,11 @@ func (sc *SyncContext) checkPodStatus() (bool, error) {
 	return true, nil
 }
 
+// Ensure that the required labels are set on the cluster.
+//
+// Labels are placed on the ndb resource based on the name.
 func (sc *SyncContext) ensureClusterLabel() (*labels.Set, bool, error) {
-	// Ensure that the required labels are set on the cluster.
+
 	sel4ndb := labels.SelectorFromSet(sc.ndb.GetLabels())
 	set := labels.Set(sc.ndb.Labels)
 	if sel4ndb.Matches(set) {
@@ -918,7 +936,7 @@ func (sc *SyncContext) ensureAllResources() (bool, error) {
 
 	// create config map if not exist
 	var cm *corev1.ConfigMap
-	if cm, (*sc.resourceMap)["configmap"], err = sc.configMapController.EnsureConfigMap(sc.ndb); err != nil {
+	if cm, (*sc.resourceMap)["configmap"], err = sc.configMapController.EnsureConfigMap(sc); err != nil {
 		return false, err
 	}
 
@@ -988,6 +1006,7 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.Ndb) *SyncContext {
 		mysqldController:    c.mysqldController,
 		configMapController: c.configMapController,
 		ndb:                 ndb,
+		resourceIsValid:     true,
 		resourceMap:         &resourceMap,
 		controllerContext:   c.controllerContext,
 		ndbsLister:          c.ndbsLister,
@@ -1052,6 +1071,17 @@ func (c *Controller) syncHandler(key string) error {
 }
 
 func (sc *SyncContext) sync() error {
+
+	// is the incoming Ndb resource valid?
+	// if it is not valid we should still continue any ongoing
+	// reconciliation / operators on the obviously previously valid Ndb
+	// we just do not allow to create any resources
+	// and do not re-write anything based on the new/faulty Ndb
+	sc.resourceIsValid = true
+	if validConfigErr := helpers.IsValidConfig(sc.ndb); validConfigErr != nil {
+		sc.resourceIsValid = false
+		klog.Errorf("Invalid incoming resource specification. Still continuing to process potential changes from previous last healthy version. Error was: %s", validConfigErr)
+	}
 
 	// create all resources necessary to start and run cluster
 	existed, err := sc.ensureAllResources()
