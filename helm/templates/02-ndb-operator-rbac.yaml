@@ -3,12 +3,13 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
     name: ndb-operator
-
+    namespace:  {{ if and (.Values.operator.global) (eq .Values.operator.namespace "ndb-operator") }}ndb-operator{{ else }}{{ .Values.operator.namespace}}{{ end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
     name: ndb-operator
+    namespace:  {{ if and (.Values.operator.global) (eq .Values.operator.namespace "ndb-operator") }}ndb-operator{{ else }}{{ .Values.operator.namespace}}{{ end }}
 rules:
     - apiGroups: [""]
       resources: ["pods"]
@@ -66,6 +67,7 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ndb-operator
+  namespace:  {{ if and (.Values.operator.global) (eq .Values.operator.namespace "ndb-operator") }}ndb-operator{{ else }}{{ .Values.operator.namespace}}{{ end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -73,4 +75,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: ndb-operator
-  namespace: default
+  namespace:  {{ if and (.Values.operator.global) (eq .Values.operator.namespace "ndb-operator") }}ndb-operator{{ else }}{{ .Values.operator.namespace}}{{ end }}

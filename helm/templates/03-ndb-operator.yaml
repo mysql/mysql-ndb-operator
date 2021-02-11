@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ndb-operator
+  namespace:  {{ if and (.Values.operator.global) (eq .Values.operator.namespace "ndb-operator") }}ndb-operator{{ else }}{{ .Values.operator.namespace}}{{ end }}
   labels:
     release: 0.0.1
     app: ndb-operator

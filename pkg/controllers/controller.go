@@ -48,16 +48,17 @@ import (
 const controllerAgentName = "ndb-controller"
 
 const (
-	// SuccessSynced is used as part of the Event 'reason' when a Foo is synced
+	// SuccessSynced is used as part of the Event 'reason' when a Ndb is synced
 	SuccessSynced = "Synced"
-	// ErrResourceExists is used as part of the Event 'reason' when a Foo fails
-	// to sync due to a Deployment of the same name already existing.
-	ErrResourceExists = "ErrResourceExists"
+	// ErrResourceExists is used as part of the Event 'reason' when a Ndb fails
+	// to sync due to a resource of the same name already existing.
+	ErrResourceExists = "ResourceExists"
 
 	// MessageResourceExists is the message used for Events when a resource
-	// fails to sync due to a Deployment already existing
-	MessageResourceExists = "Resource %q already exists and is not managed by Foo"
-	// MessageResourceSynced is the message used for an Event fired when a Foo
+	// fails to sync due to a resource already existing
+	// but not having "our" Ndb resource as the owner
+	MessageResourceExists = "Resource %q already exists and is not managed by Ndb"
+	// MessageResourceSynced is the message used for an Event fired when a Ndb
 	// is synced successfully
 	MessageResourceSynced = "Ndb synced successfully"
 )
@@ -1142,23 +1143,23 @@ func (sc *SyncContext) sync() error {
 	// check if configuration in config map is still the desired from the Ndb CRD
 	// if not then apply a new version
 
-	klog.Infof("Config in config map config is \"%s\", new: \"%d\"",
+	klog.Infof("Config in config map config is \"%s\", generation: \"%d\"",
 		sc.resourceContext.ConfigHash, sc.resourceContext.ConfigGeneration)
 
 	// calculated the hash of the new config to see if ndb.Spec changed against whats in the config map
 	newConfigHash, err := sc.ndb.CalculateNewConfigHash()
 	if err != nil {
-		klog.Errorf("Error calculating hash.")
+		klog.Errorf("Error calculating hash of incoming Ndb resource.")
 		return err
 	}
 
 	if sc.resourceContext.ConfigHash != newConfigHash {
-		klog.Infof("Config received is different from config map config. config map: \"%s\", new: \"%s\"",
+		klog.Infof("Config received is different from existing config map config. config map: \"%s\", new: \"%s\"",
 			sc.resourceContext.ConfigHash, newConfigHash)
 
 		_, err := sc.configMapController.PatchConfigMap(sc.ndb)
 		if err != nil {
-			klog.Infof("Failed to patch config map")
+			klog.Infof("Failed to patch config map: %s", err)
 			return err
 		}
 	}
@@ -1167,32 +1168,13 @@ func (sc *SyncContext) sync() error {
 	// current state of the world
 	err = sc.updateNdbStatus()
 	if err != nil {
-		klog.Errorf("updating status failed: %v", err)
+		klog.Errorf("Updating status failed: %v", err)
 		return err
 	}
 
-	klog.Infof("Returning from syncHandler")
+	klog.V(4).Infof("Returning from syncHandler")
 
 	return nil
-}
-
-func updatePodForTest(pod *corev1.Pod) *corev1.Pod {
-	t := time.Now()
-
-	ann := map[string]string{
-		"test": t.Format(time.UnixDate),
-	}
-
-	pod.Annotations = ann
-	/*
-		for idx, container := range pod.Spec.Containers {
-			if container.Name == targetContainer {
-				pod.Spec.Containers[idx].Image = newAgentImage
-				break
-			}
-		}
-	*/
-	return pod
 }
 
 // PatchPod perform a direct patch update for the specified Pod.
@@ -1223,16 +1205,17 @@ func patchPod(kubeClient kubernetes.Interface, oldData *corev1.Pod, newData *cor
 
 func (sc *SyncContext) updateNdbStatus() error {
 
-	// NEVER modify objects from the store. It's a read-only, local cache.
-	// You can use DeepCopy() to make a deep copy of original object and modify this copy
-	// Or create a copy manually for better performance
-
-	// we already received a copy here
+	// we already received a deep copy here
 	ndb := sc.ndb
+
+	if ndb.Status.ProcessedGeneration == ndb.ObjectMeta.Generation {
+		return nil
+	}
 
 	updateErr := wait.ExponentialBackoff(retry.DefaultBackoff, func() (ok bool, err error) {
 
-		klog.Infof("Updating ndb cluster status")
+		klog.Infof("Updating ndb cluster status: from process gen %d to %d",
+			ndb.Status.ProcessedGeneration, ndb.ObjectMeta.Generation)
 
 		ndb.Status.LastUpdate = metav1.NewTime(time.Now())
 		ndb.Status.ProcessedGeneration = ndb.ObjectMeta.Generation

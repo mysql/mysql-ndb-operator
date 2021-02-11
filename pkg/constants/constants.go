@@ -22,3 +22,12 @@ const (
 	// NdbClusterInitScript is the name of the ndbcluster initialisation script
 	NdbClusterInitScript = "ndbcluster-init-script.sh"
 )
+
+// MaxNumberOfNodes is the maximum number of nodes in Ndb Cluster
+const MaxNumberOfNodes = 256
+
+// MaxNumberOfDataNodes is the maximum number of nodes in Ndb Cluster
+const MaxNumberOfDataNodes = 144
+
+// MaxNumberOfReplicas is the maximum number of replicas of Ndb (not K8)
+const MaxNumberOfReplicas = 4
