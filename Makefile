@@ -60,6 +60,8 @@ ndb-container-image:
 
 # Build a ndb operator image in docker
 .PHONY: operator-image
+# this MUST be here to cross-build for Linux on non-Linux build hosts
+operator-image: OS=linux
 operator-image: build
 	OS=linux docker build -t ndb-operator:"${VERSION}" -f docker/ndb-operator/Dockerfile .
 
