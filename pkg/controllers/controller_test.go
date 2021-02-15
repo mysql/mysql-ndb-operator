@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	kubeinformers "k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
@@ -193,6 +194,12 @@ func (f *fixture) runController(fooName string, expectError bool, expectedErrors
 		}
 	}
 
+	// validate the actions
+	f.checkActions()
+}
+
+func (f *fixture) checkActions() {
+
 	actions := filterInformerActions(f.client.Actions())
 	k8sActions := filterInformerActions(f.kubeclient.Actions())
 
@@ -329,9 +336,15 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 
 	case core.PatchActionImpl:
 		e, _ := expected.(core.PatchActionImpl)
-		expPatch := e.GetPatch()
-		patch := a.GetPatch()
 
+		expPatch := e.GetPatch()
+		if expPatch == nil {
+			// Skip comparing the patch if the expected patch is nil
+			t.Logf("Skipped comparing patches as expected patch is empty")
+			return
+		}
+
+		patch := a.GetPatch()
 		if !reflect.DeepEqual(expPatch, patch) {
 			t.Errorf("Action %s %s has wrong patch\n",
 				a.GetVerb(), a.GetResource().Resource)
@@ -396,6 +409,14 @@ func (f *fixture) expectCreateAction(ns string, group, version, resource string,
 
 func (f *fixture) expectUpdateAction(ns string, resource string, o runtime.Object) {
 	f.kubeactions = append(f.kubeactions, core.NewUpdateAction(schema.GroupVersionResource{Resource: resource}, ns, o))
+}
+
+// expectPatchAction adds an expected patch action.
+// checkAction will validate the patch action and compare sent patch with the expPatch.
+// To skip the patch comparison, pass nil for expPatch
+func (f *fixture) expectPatchAction(ns string, resource string, name string, pt types.PatchType, expPatch []byte) {
+	f.kubeactions = append(f.kubeactions,
+		core.NewPatchAction(schema.GroupVersionResource{Resource: resource}, ns, name, pt, expPatch))
 }
 
 func (f *fixture) expectUpdateNdbAction(ns string, o runtime.Object) {
