@@ -35,7 +35,7 @@ func deploymentComplete(deployment *appsv1.Deployment) bool {
 // DeploymentControlInterface is the interface for deployment controllers
 type DeploymentControlInterface interface {
 	GetTypeName() string
-	EnsureDeployment(sc *SyncContext) (*appsv1.Deployment, bool, error)
+	EnsureDeployment(ctx context.Context, sc *SyncContext) (*appsv1.Deployment, bool, error)
 	ReconcileDeployment(ndb *v1alpha1.Ndb,
 		deployment *appsv1.Deployment, rc *resources.ResourceContext, handleScaleDown bool) syncResult
 }
@@ -50,30 +50,6 @@ type mysqlDeploymentController struct {
 // controlled by the DeploymentControlInterface
 func (mdc *mysqlDeploymentController) GetTypeName() string {
 	return mdc.mysqlServerDeployment.GetTypeName()
-}
-
-// ensureRootPasswordSecret ensures the existence of a root-password-secret by creating one if it doesn't exist
-func (mdc *mysqlDeploymentController) ensureRootPasswordSecret(ndb *v1alpha1.Ndb) (err error) {
-	secretName := mdc.mysqlServerDeployment.GetRootPasswordSecretName(ndb)
-	secretInterface := mdc.client.CoreV1().Secrets(ndb.Namespace)
-	if _, err = secretInterface.Get(context.TODO(), secretName, metav1.GetOptions{}); err == nil {
-		// Secret exists
-		return nil
-	}
-
-	if !errors.IsNotFound(err) {
-		// Error retrieving the secret
-		klog.Errorf("Failed to ensure secret %s : %v", secretName, err)
-		return err
-	}
-
-	// Create secret
-	secret := mdc.mysqlServerDeployment.NewMySQLRootPasswordSecret(ndb)
-	if _, err = secretInterface.Create(context.TODO(), secret, metav1.CreateOptions{}); err != nil {
-		klog.Errorf("Failed to create secret %s : %v", secretName, err)
-	}
-
-	return err
 }
 
 // createDeployment takes the representation of a deployment and creates it
@@ -194,7 +170,8 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(
 
 // EnsureDeployment checks if the MySQLServerDeployment already
 // exists. If not, it creates a new deployment.
-func (mdc *mysqlDeploymentController) EnsureDeployment(sc *SyncContext) (*appsv1.Deployment, bool, error) {
+func (mdc *mysqlDeploymentController) EnsureDeployment(
+	ctx context.Context, sc *SyncContext) (*appsv1.Deployment, bool, error) {
 
 	// Get the deployment in the namespace of Ndb resource
 	// with the name matching that of MySQLServerDeployment
@@ -217,7 +194,8 @@ func (mdc *mysqlDeploymentController) EnsureDeployment(sc *SyncContext) (*appsv1
 
 	// Deployment doesn't exist
 	// First ensure that a root password secret exists
-	if err = mdc.ensureRootPasswordSecret(sc.ndb); err != nil {
+	sci := NewMySQLRootPasswordSecretInterface(mdc.client, sc.ndb.GetNamespace())
+	if _, err = sci.EnsureSecret(ctx, sc.ndb); err != nil {
 		return nil, false, err
 	}
 

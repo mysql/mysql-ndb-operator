@@ -6,6 +6,8 @@ import (
 
 	ndbv1alpha1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
+
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // IsValidConfig checks the Ndb resources Spec for valid values
@@ -57,6 +59,19 @@ func IsValidConfig(ndb *ndbv1alpha1.Ndb) error {
 		msg := fmt.Sprintf("Configured total number of nodes is %d (= %d data, %d management and %d mysql nodes) and exceeds the allowed maximum of %d.",
 			total, nc, msc, mc, constants.MaxNumberOfNodes)
 		return NewErrorInvalidConfiguration(msg)
+	}
+
+	// validate the MySQL Root password secret name
+	rootPasswordSecret := ndb.Spec.Mysqld.RootPasswordSecretName
+	if rootPasswordSecret != nil {
+		errs := validation.IsDNS1123Subdomain(*rootPasswordSecret)
+		if errs != nil {
+			msg := fmt.Sprintf("The RootPasswordSecretName '%s' is invalid : ", *rootPasswordSecret)
+			for _, err := range errs {
+				msg += fmt.Sprintf("%s; ", err)
+			}
+			return NewErrorInvalidConfiguration(msg)
+		}
 	}
 
 	return nil

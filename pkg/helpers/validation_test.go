@@ -29,6 +29,22 @@ func nodeNumberTests(reduncany, dnc, mysqldc int, fail bool, short string) valid
 	}
 }
 
+func mysqldRootPasswordSecretNameTests(secretName string, fail bool, short string) validationCase {
+	return validationCase{
+		spec: &v1alpha1.NdbSpec{
+			RedundancyLevel: IntToInt32Ptr(1),
+			NodeCount:       IntToInt32Ptr(1),
+			ContainerImage:  "mysql/mysql-cluster:8.0.22",
+			Mysqld: &v1alpha1.NdbMysqldSpec{
+				NodeCount:              1,
+				RootPasswordSecretName: &secretName,
+			},
+		},
+		shouldFail: fail,
+		explain:    fmt.Sprintf("RootPasswordSecretName : '%s'- %s", secretName, short),
+	}
+}
+
 func Test_InvalidValues(t *testing.T) {
 
 	ndb := NewTestNdb("ns", "test", 2)
@@ -50,6 +66,11 @@ func Test_InvalidValues(t *testing.T) {
 		nodeNumberTests(2, 2, 2, !shouldFail, "all okay"),
 		nodeNumberTests(1, 2, 2, !shouldFail, "2 dn and reduncany 1 is okay"),
 		nodeNumberTests(2, 2, 0, !shouldFail, "okay with no mysqlds"),
+
+		mysqldRootPasswordSecretNameTests("root-pass.123", !shouldFail, "valid name"),
+		mysqldRootPasswordSecretNameTests("-root-pass123", shouldFail, "should start with an alphabet"),
+		mysqldRootPasswordSecretNameTests("root-pass-", shouldFail, "should end with an alphabet"),
+		mysqldRootPasswordSecretNameTests("root-pass!", shouldFail, "has invalid character"),
 	}
 
 	for _, vc := range vcs {
@@ -61,7 +82,7 @@ func Test_InvalidValues(t *testing.T) {
 				t.Errorf("Wrong error type returned %s for:  %s", err, vc.explain)
 			}
 			if !vc.shouldFail {
-				t.Errorf("Error %s for valid case:           %s", err, vc.explain)
+				t.Errorf("Error \"%s\" for valid case: %s", err, vc.explain)
 			}
 		} else {
 			if vc.shouldFail {
