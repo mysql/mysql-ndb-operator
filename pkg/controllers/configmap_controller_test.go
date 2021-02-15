@@ -9,6 +9,7 @@ package controllers
 import (
 	"encoding/json"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
@@ -17,12 +18,11 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/klog"
 )
 
-func Test_TestThingsrelatedToConfigMaps(t *testing.T) {
+func Test_TestThingsRelatedToConfigMaps(t *testing.T) {
 
 	configString := "Version 1"
 	ns := metav1.NamespaceDefault
@@ -117,8 +117,12 @@ func TestCreateConfigMap(t *testing.T) {
 	f.setupController("ndb-operator", true)
 	sc := f.c.newSyncContext(ndb)
 
-	config.ScriptsDir = filepath.Join("..", "helpers", "scripts")
+	_, filenameWithFullPath, _, _ := runtime.Caller(0)
+	// relative path to scripts directory is ../helpers/scripts
+	config.ScriptsDir = filepath.Join(filepath.Dir(filenameWithFullPath), "..", "helpers", "scripts")
+
 	cm, existed, err := cmc.EnsureConfigMap(sc)
+	f.expectCreateAction(ndb.GetNamespace(), "", "v1", "configmaps", cm)
 
 	if err != nil {
 		t.Errorf("Unexpected error EnsuringConfigMap: %v", err)
@@ -133,33 +137,26 @@ func TestCreateConfigMap(t *testing.T) {
 	// Validate cm
 	validateMgmtConfig(t, cm, ndb)
 
-	f.expectCreateAction(ndb.GetNamespace(), "", "v1", "configmap", cm)
-
-	rcmc := cmc.(*ConfigMapControl)
-
-	// Wait for the caches to be synced before using Lister to get new config map
-	klog.Info("Waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(f.stopCh, rcmc.configMapListerSynced); !ok {
-		t.Errorf("failed to wait for caches to sync")
-		return
-	}
-
-	// Get the config map with the name specified in Ndb.spec
-	cmget, err := rcmc.configMapLister.ConfigMaps(ndb.Namespace).Get(ndb.GetConfigMapName())
+	// Verify that EnsureConfigMap returns properly when the config map exists already
+	// No Action is expected
+	cmget, existed, err := cmc.EnsureConfigMap(sc)
 	if err != nil {
-		t.Errorf("Unexpected error getting created ConfigMap: %v", err)
+		t.Errorf("Unexpected error EnsuringConfigMap: %v", err)
 	}
-	if cmget == nil {
-		t.Errorf("Unexpected error EnsuringConfigMap: didn't find created ConfigMap")
+	if !existed || cmget == nil {
+		t.Errorf("Unexpected error EnsuringConfigMap: config map didn't exist")
 	}
-
-	// Validate cmget
-	validateMgmtConfig(t, cmget, ndb)
 
 	// Patch cmget and verify
 	ndb.Spec.Mysqld.NodeCount = 12
 	patchedCm, err := cmc.PatchConfigMap(ndb)
+	// Passing nil as expected patch to skip comparing the expected and original patches
+	f.expectPatchAction(ndb.GetNamespace(), "configmaps",
+		cm.GetName(), types.StrategicMergePatchType, nil)
 
 	// Validate patched cm
 	validateMgmtConfig(t, patchedCm, ndb)
+
+	// Validate all actions
+	f.checkActions()
 }
