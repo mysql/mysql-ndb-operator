@@ -36,6 +36,13 @@ type Ndb struct {
 type NdbMysqldSpec struct {
 	// NodeCount is the number of MySQL Servers running in MySQL Cluster
 	NodeCount int32 `json:"nodecount"`
+	// The name of the Secret that holds the password to be set for the MySQL
+	// root accounts. The Secret should have a 'password' key that holds the
+	// password.
+	// If unspecified, a Secret will be created by the operator with a generated
+	// name of format "<ndb-resource-name>-mysqld-root-password"
+	// +optional
+	RootPasswordSecretName *string `json:"rootPasswordSecretName,omitempty"`
 }
 
 // NdbSpec defines the desired state of MySQL Ndb Cluster

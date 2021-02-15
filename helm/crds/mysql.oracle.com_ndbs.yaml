@@ -55,6 +55,13 @@ spec:
                       in MySQL Cluster
                     format: int32
                     type: integer
+                  rootPasswordSecretName:
+                    description: The name of the Secret that holds the password to
+                      be set for the MySQL root accounts. The Secret should have a
+                      'password' key that holds the password. If unspecified, a Secret
+                      will be created by the operator with a generated name of format
+                      "<ndb-resource-name>-mysqld-root-password"
+                    type: string
                 required:
                 - nodecount
                 type: object

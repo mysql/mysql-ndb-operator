@@ -10,8 +10,6 @@ import (
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
-	"github.com/mysql/ndb-operator/pkg/helpers"
-
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,11 +23,10 @@ const (
 	// Data directory volume and mount path
 	mysqldDataDirVolName = mysqldClientName + "-vol"
 	mysqldDataDir        = mysqldDir + "/datadir"
-	// MySQL root password secret name, volume and mount path
-	mysqldRootPasswordSecretName = mysqldClientName + "-root-password"
-	mysqldRootPasswordVolName    = mysqldClientName + "-root-password-vol"
-	mysqldRootPasswordMountPath  = mysqldDir + "/auth"
-	mysqldRootPasswordFileName   = ".root-password"
+	// MySQL root password secret volume and mount path
+	mysqldRootPasswordVolName   = mysqldClientName + "-root-password-vol"
+	mysqldRootPasswordMountPath = mysqldDir + "/auth"
+	mysqldRootPasswordFileName  = ".root-password"
 	// TODO: Allow users to specify their own secret
 	mysqldInitScriptsVolName   = mysqldClientName + "-init-scripts"
 	mysqldInitScriptsMountPath = "/docker-entrypoint-initdb.d/"
@@ -74,35 +71,10 @@ func (msd *MySQLServerDeployment) getPodLabels(ndb *v1alpha1.Ndb) map[string]str
 	})
 }
 
-// GetRootPasswordSecretName returns the name of the root password secret
-func (msd *MySQLServerDeployment) GetRootPasswordSecretName(ndb *v1alpha1.Ndb) string {
-	return ndb.Name + "-" + mysqldRootPasswordSecretName
-}
-
-// NewMySQLRootPasswordSecret creates and returns a new root password secret
-func (msd *MySQLServerDeployment) NewMySQLRootPasswordSecret(ndb *v1alpha1.Ndb) *v1.Secret {
-	// Generate a random password of length 16
-	rootPassword := helpers.GenerateRandomPassword(16)
-	// Labels to be applied to the secret
-	secretLabels := ndb.GetCompleteLabels(map[string]string{
-		constants.ClusterResourceTypeLabel: mysqldRootPasswordSecretName + "-secret",
-	})
-	// build Secret and return
-	return &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels:          secretLabels,
-			Name:            msd.GetRootPasswordSecretName(ndb),
-			Namespace:       ndb.GetNamespace(),
-			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
-		},
-		Data: map[string][]byte{v1.BasicAuthPasswordKey: []byte(rootPassword)},
-		Type: v1.SecretTypeBasicAuth,
-	}
-}
-
 // getPodVolumes returns the volumes to be used by the pod
 func (msd *MySQLServerDeployment) getPodVolumes(ndb *v1alpha1.Ndb) *[]v1.Volume {
 	allowOnlyOwnerToReadMode := int32(0400)
+	rootPasswordSecretName, _ := GetMySQLRootPasswordSecretName(ndb)
 	return &[]v1.Volume{
 		// Use a temporary empty directory volume for the pod
 		{
@@ -116,7 +88,7 @@ func (msd *MySQLServerDeployment) getPodVolumes(ndb *v1alpha1.Ndb) *[]v1.Volume 
 			Name: mysqldRootPasswordVolName,
 			VolumeSource: v1.VolumeSource{
 				Secret: &v1.SecretVolumeSource{
-					SecretName: msd.GetRootPasswordSecretName(ndb),
+					SecretName: rootPasswordSecretName,
 					// Project the password to a file name "root-password"
 					Items: []v1.KeyToPath{{
 						Key:  v1.BasicAuthPasswordKey,

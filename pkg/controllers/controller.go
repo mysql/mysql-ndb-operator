@@ -586,7 +586,7 @@ func (sc *SyncContext) ensureDataNodeStatefulSet() (*appsv1.StatefulSet, bool, e
 //    or returns an error if something went wrong
 func (sc *SyncContext) ensureMySQLServerDeployment() (*appsv1.Deployment, bool, error) {
 
-	deployment, existed, err := sc.mysqldController.EnsureDeployment(sc)
+	deployment, existed, err := sc.mysqldController.EnsureDeployment(context.TODO(), sc)
 	if err != nil {
 		// Failed to ensure the deployment
 		return deployment, existed, err
