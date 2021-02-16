@@ -34,6 +34,12 @@ rules:
       - get
       - create
 
+    - apiGroups: [""]
+      resources: ["events"]
+      verbs:
+      - create
+      - patch
+
     - apiGroups: ["apps"]
       resources: ["statefulsets", "deployments"]
       verbs:
@@ -55,6 +61,7 @@ rules:
     - apiGroups: ["mysql.oracle.com"]
       resources:
       - ndbs
+      - ndbs/status
       verbs:
       - get
       - list
