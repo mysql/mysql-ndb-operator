@@ -9,7 +9,18 @@ set -o nounset
 set -o pipefail
 
 SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
-CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator)}
+
+# get go.mod
+GOMOD=$(grep "k8s.io/code-generator => " ${SCRIPT_ROOT}/go.mod)
+
+# extract directory and version in gopath
+MODULE=$(awk '{split($0, a, " => "); print a[2]}' <<< ${GOMOD})
+MODULE="${MODULE/ /@}" 
+
+# get go module cache
+CACHE=$(go env GOMODCACHE)
+
+CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ${CACHE}/${MODULE} 2>/dev/null || echo ../code-generator)}
 #OUTPUT_BASE="$(dirname "${BASH_SOURCE[0]}")/../../.."
 OUTPUT_BASE="$(dirname "${BASH_SOURCE[0]}")/.."
 
