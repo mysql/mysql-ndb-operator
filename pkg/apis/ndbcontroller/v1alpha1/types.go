@@ -44,7 +44,7 @@ type NdbMysqldSpec struct {
 	// If unspecified, a Secret will be created by the operator with a generated
 	// name of format "<ndb-resource-name>-mysqld-root-password"
 	// +optional
-	RootPasswordSecretName *string `json:"rootPasswordSecretName,omitempty"`
+	RootPasswordSecretName string `json:"rootPasswordSecretName,omitempty"`
 }
 
 // NdbSpec defines the desired state of MySQL Ndb Cluster

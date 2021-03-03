@@ -62,11 +62,14 @@ func IsValidConfig(ndb *ndbv1alpha1.Ndb) error {
 	}
 
 	// validate the MySQL Root password secret name
-	rootPasswordSecret := ndb.Spec.Mysqld.RootPasswordSecretName
-	if rootPasswordSecret != nil {
-		errs := validation.IsDNS1123Subdomain(*rootPasswordSecret)
+	var rootPasswordSecret string
+	if ndb.Spec.Mysqld != nil {
+		rootPasswordSecret = ndb.Spec.Mysqld.RootPasswordSecretName
+	}
+	if rootPasswordSecret != "" {
+		errs := validation.IsDNS1123Subdomain(rootPasswordSecret)
 		if errs != nil {
-			msg := fmt.Sprintf("The RootPasswordSecretName '%s' is invalid : ", *rootPasswordSecret)
+			msg := fmt.Sprintf("The RootPasswordSecretName '%s' is invalid : ", rootPasswordSecret)
 			for _, err := range errs {
 				msg += fmt.Sprintf("%s; ", err)
 			}
