@@ -20,14 +20,8 @@ cd ndb-operator
 
 ## Changes to the types
 
-Note, if you intend to change the types then you will need to 
-generate code which only seems to support old style $GOPATH.
+If you intend to change the types then you will need to generate code and manifests again.
 
-First it depends on the vendor directory. Populate that with
-
-```sh
-go mod vendor
-```
 The project uses two generators :
 - [k8s.io/code-generator](https://github.com/kubernetes/code-generator) to generate a typed client, informers, listers and deep-copy functions.
 - [controller-gen](https://github.com/kubernetes-sigs/controller-tools/tree/master/cmd/controller-gen) to generate the CRDs.
