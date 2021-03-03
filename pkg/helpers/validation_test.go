@@ -37,7 +37,7 @@ func mysqldRootPasswordSecretNameTests(secretName string, fail bool, short strin
 			ContainerImage:  "mysql/mysql-cluster:8.0.22",
 			Mysqld: &v1alpha1.NdbMysqldSpec{
 				NodeCount:              1,
-				RootPasswordSecretName: &secretName,
+				RootPasswordSecretName: secretName,
 			},
 		},
 		shouldFail: fail,
