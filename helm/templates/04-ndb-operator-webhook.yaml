@@ -1,0 +1,128 @@
+{{- $webhookService := "ndbop-webhook-service" -}}
+{{- $webhookServicePort := "9443" -}}
+{{- $webhookServerPodLabel := "app: ndb-operator-webhook-server" -}}
+# Define service account, roles for webhook server
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ndb-operator-webhook
+  namespace: {{.Values.operator.namespace}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ndb-operator-webhook-role
+  namespace: {{.Values.operator.namespace}}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - validatingwebhookconfigurations
+    verbs:
+      - list
+      - patch
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ndb-operator-webhook-role-binding
+  namespace: {{.Values.operator.namespace}}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ndb-operator-webhook-role
+subjects:
+  - kind: ServiceAccount
+    name: ndb-operator-webhook
+    namespace: {{.Values.operator.namespace}}
+---
+# create a service to expose the webhook
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{$webhookService}}
+  namespace: {{.Values.operator.namespace}}
+spec:
+  ports:
+    - port: {{$webhookServicePort}}
+  selector:
+    {{$webhookServerPodLabel}}
+---
+# Deploy the webhook server
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ndb-operator-webhook-server
+  namespace: {{.Values.operator.namespace}}
+  labels:
+    release: 0.0.1
+    app: ndb-operator-webhook-deployment
+spec:
+  selector:
+    matchLabels:
+      {{$webhookServerPodLabel}}
+  template:
+    metadata:
+      labels:
+        {{$webhookServerPodLabel}}
+    spec:
+      # use the account created above to run the server
+      serviceAccountName: ndb-operator-webhook
+      containers:
+        - name: ndb-operator-webhook
+          image: ndb-operator:1.0.0
+          imagePullPolicy: Never
+          ports:
+            # expose the web server port
+            - containerPort: {{$webhookServicePort}}
+          command:
+            - ndb-operator-webhook
+          args:
+            - "-namespace={{.Values.operator.namespace}}"
+            - "-service={{$webhookService}}"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{$webhookServicePort}}
+              scheme: HTTPS
+---
+# Register the webhook service as a validating webhook
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: ndb-validating-webhook-config
+  labels:
+    # This label will be used by the webhook server to
+    # list WebhookConfigurations to inject caBundle into
+    webhook-server: {{$webhookService}}
+webhooks:
+  - clientConfig:
+      # caBundle will be filled in by the webhook server
+      service:
+        name: {{$webhookService}}
+        namespace: {{ .Values.operator.namespace }}
+        path: /validate-ndb
+        port: {{$webhookServicePort}}
+    failurePolicy: Fail
+    name: validating-webhook.ndb.mysql.oracle.com
+    rules:
+      - apiGroups:
+          - mysql.oracle.com
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - ndbs
+    admissionReviewVersions:
+      - v1
+    sideEffects: None
+---
