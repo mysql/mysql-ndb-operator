@@ -2,5 +2,5 @@
 *
 
 # except these files/folders
-!bin/linux_amd64/ndb-operator
+!bin/linux_amd64/*
 !pkg/helpers/scripts/*
