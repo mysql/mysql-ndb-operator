@@ -255,6 +255,12 @@ metadata:
   name: ndb-operator
   namespace: default
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ndb-operator-webhook
+  namespace: default
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -377,6 +383,26 @@ rules:
   - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ndb-operator-webhook-role
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - validatingwebhookconfigurations
+  verbs:
+  - list
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: ndb-agent
@@ -403,6 +429,31 @@ subjects:
 - kind: ServiceAccount
   name: ndb-operator
   namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ndb-operator-webhook-role-binding
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ndb-operator-webhook-role
+subjects:
+- kind: ServiceAccount
+  name: ndb-operator-webhook
+  namespace: default
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ndbop-webhook-service
+  namespace: default
+spec:
+  ports:
+  - port: 9443
+  selector:
+    app: ndb-operator-webhook-server
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -432,3 +483,67 @@ spec:
         ports:
         - containerPort: 1186
       serviceAccountName: ndb-operator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: ndb-operator-webhook-deployment
+    release: 0.0.1
+  name: ndb-operator-webhook-server
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: ndb-operator-webhook-server
+  template:
+    metadata:
+      labels:
+        app: ndb-operator-webhook-server
+    spec:
+      containers:
+      - args:
+        - -namespace=default
+        - -service=ndbop-webhook-service
+        command:
+        - ndb-operator-webhook
+        image: ndb-operator:1.0.0
+        imagePullPolicy: Never
+        name: ndb-operator-webhook
+        ports:
+        - containerPort: 9443
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 9443
+            scheme: HTTPS
+      serviceAccountName: ndb-operator-webhook
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  labels:
+    webhook-server: ndbop-webhook-service
+  name: ndb-validating-webhook-config
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: ndbop-webhook-service
+      namespace: default
+      path: /validate-ndb
+      port: 9443
+  failurePolicy: Fail
+  name: validating-webhook.ndb.mysql.oracle.com
+  rules:
+  - apiGroups:
+    - mysql.oracle.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - ndbs
+  sideEffects: None

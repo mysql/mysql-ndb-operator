@@ -36,7 +36,7 @@ To update the CRD definitions based on the changes made to the types run,
 make manifests
 ```
 
-## Building
+## Build ndb-operator docker image
 
 To build the ndb-operator run,
 
@@ -45,7 +45,17 @@ To build the ndb-operator run,
 make build
 ```
 
-## Docker image building
+Once the operator is built, a docker image can be built by running,
+
+```sh
+# point to minikube
+$ eval $(minikube docker-env)
+
+# build ndb-operator docker image
+make operator-image
+```
+
+## Build MySQL Cluster docker image (optional)
 
 You can build your own ndb cluster images but you don't have to. Currently public image 8.0.22 is used.
 
@@ -64,13 +74,13 @@ $ eval $(minikube docker-env)
 BASEDIR=<basedir> IMAGE_TAG=<build-tag> make ndb-container-image
 ```
 
-## Running
+## Running Operator
 
 **Prerequisite**: operator built, docker images built and made available in kubernetes 
 
 ### Install using helm
 
-Ndb operator comes with a helm chart that can install the CRDs and deploy the operator in the K8s cluster.
+Ndb operator comes with a helm chart that can install the CRDs and deploy the operator and webhooks in the K8s cluster.
 
 ```sh
 # Install the ndb operator and other resources in the default namespace
@@ -95,7 +105,7 @@ sed -r "s/([ ]*namespace\: )default/\1example-ns/" \
 
 ```
 
-Once installed, either using helm or using the yaml file, the ndb-operator will be running in the K8s server.
+Once installed, either using helm or using the yaml file, the ndb-operator and the webhook will be running in the K8s server.
 
 ## Deploy NDB Cluster in K8s Cluster
 
@@ -182,15 +192,9 @@ In the above steps, use `crd-validation.yaml` to create the CRD:
 kubectl create -f artifacts/examples/crd-validation.yaml
 ```
 
-## Subresources
-
-TBD
-
 ## Cleanup
 
 You can clean up the created CustomResourceDefinition with:
 
     kubectl delete crd ndbs.ndbcontroller.k8s.io
-
-
 
