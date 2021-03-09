@@ -68,27 +68,38 @@ BASEDIR=<basedir> IMAGE_TAG=<build-tag> make ndb-container-image
 
 **Prerequisite**: operator built, docker images built and made available in kubernetes 
 
-Create custom resource definitions and the roles:
+### Install using helm
+
+Ndb operator comes with a helm chart that can install the CRDs and deploy the operator in the K8s cluster.
 
 ```sh
-NAMESPACE=default
-kubectl -n ${NAMESPACE} apply -f artifacts/manifests/crd.yaml
-sed -e "s/<NAMESPACE>/${NAMESPACE}/g" artifacts/manifests/rbac.yaml | kubectl -n ${NAMESPACE} apply -f -
-```
-
-or use helm
-
-```sh
+# Install the ndb operator and other resources in the default namespace
 helm install ndb-operator helm
 ```
+#### Helm chart values
 
-Then proceed with starting the operator - currently outside of the k8 cluster:
+##### operator.namespace
+The namespace in which the ndb-operator and other related resources are to be installed.
+
+### Install using regular manifests
+
+Create custom resource definitions, the roles and deploy the ndb operator by applying the single YAML file - artifacts/release/ndb-operator.yaml
 
 ```sh
-make run
-(or)
-./bin/<path-to-operator>/ndb-operator -kubeconfig=$HOME/.kube/config
+# To create all the K8s resources in the default namespace
+kubectl apply -f artifacts/release/ndb-operator.yaml
 
+# To create all the K8s resources in a custom namespace, say example-ns, run
+sed -r "s/([ ]*namespace\: )default/\1example-ns/" \
+  artifacts/install/ndb-operator.yaml | kubectl apply -f -
+
+```
+
+Once installed, either using helm or using the yaml file, the ndb-operator will be running in the K8s server.
+
+## Deploy NDB Cluster in K8s Cluster
+
+```sh
 # create a custom resource of type Ndb
 kubectl apply -f artifacts/examples/example-ndb.yaml
 
@@ -107,7 +118,7 @@ The load balancer service names will be of the following format :
  * Management Server load balancer : "\<ndb-cluster-name\>-mgmd-ext"
  * MySQL Server loadbalancer : "\<ndb-cluster-name\>-mysqld-ext"
 
-```
+```sh
 # Retrieve the Management load balancer service IP address using the service name
 kubectl get service "example-ndb-mgmd-ext" \
   -o jsonpath={.status.loadBalancer.ingress[0].ip}
@@ -132,7 +143,7 @@ The MySQL Servers are also set up with a root account and a random password.
 The password is stored in the k8s secret whose name will be of the format "\<ndb-cluster-name\>-mysqld-root-password".
 It can be retrieved as follows :
 
-```
+```sh
 # The password will be base64 encoded
 # Retrieve it from the secret and decode it
 base64 -d <<< \

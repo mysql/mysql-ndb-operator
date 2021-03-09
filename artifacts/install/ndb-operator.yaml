@@ -1,0 +1,434 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.4.1
+  name: ndbs.mysql.oracle.com
+spec:
+  group: mysql.oracle.com
+  names:
+    kind: Ndb
+    listKind: NdbList
+    plural: ndbs
+    singular: ndb
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.redundancyLevel
+      name: Redundancy Level
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Ndb is the Schema for the Ndb CRD API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: NdbSpec defines the desired state of MySQL Ndb Cluster
+            properties:
+              containerImage:
+                default: mysql/mysql-cluster:8.0.22
+                description: The name of the MySQL Ndb Cluster image to be used. If
+                  not specified, "mysql-cluster:latest" will be used. Lowest supported
+                  version is 8.0.22.
+                pattern: mysql/mysql-cluster:8.0.2[2-3]
+                type: string
+              dataNodePVCSpec:
+                description: DataNodePVCSpec is the PersistentVolumeClaimSpec to be
+                  used as the VolumeClaimTemplate of the data node statefulset. A
+                  PVC will be created for each data node by the statefulset controller
+                  and will be loaded into the data node pod and the container.
+                properties:
+                  accessModes:
+                    description: 'AccessModes contains the desired access modes the
+                      volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1'
+                    items:
+                      type: string
+                    type: array
+                  dataSource:
+                    description: 'This field can be used to specify either: * An existing
+                      VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
+                      * An existing PVC (PersistentVolumeClaim) * An existing custom
+                      resource that implements data population (Alpha) In order to
+                      use custom resource types that implement data population, the
+                      AnyVolumeDataSource feature gate must be enabled. If the provisioner
+                      or an external controller can support the specified data source,
+                      it will create a new volume based on the contents of the specified
+                      data source.'
+                    properties:
+                      apiGroup:
+                        description: APIGroup is the group for the resource being
+                          referenced. If APIGroup is not specified, the specified
+                          Kind must be in the core API group. For any other third-party
+                          types, APIGroup is required.
+                        type: string
+                      kind:
+                        description: Kind is the type of resource being referenced
+                        type: string
+                      name:
+                        description: Name is the name of resource being referenced
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
+                  resources:
+                    description: 'Resources represents the minimum resources the volume
+                      should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
+                    properties:
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: 'Limits describes the maximum amount of compute
+                          resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: 'Requests describes the minimum amount of compute
+                          resources required. If Requests is omitted for a container,
+                          it defaults to Limits if that is explicitly specified, otherwise
+                          to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                        type: object
+                    type: object
+                  selector:
+                    description: A label query over volumes to consider for binding.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: A label selector requirement is a selector
+                            that contains values, a key, and an operator that relates
+                            the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: operator represents a key's relationship
+                                to a set of values. Valid operators are In, NotIn,
+                                Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: values is an array of string values. If
+                                the operator is In or NotIn, the values array must
+                                be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced
+                                during a strategic merge patch.
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: matchLabels is a map of {key,value} pairs. A
+                          single {key,value} in the matchLabels map is equivalent
+                          to an element of matchExpressions, whose key field is "key",
+                          the operator is "In", and the values array contains only
+                          "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                  storageClassName:
+                    description: 'Name of the StorageClass required by the claim.
+                      More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
+                    type: string
+                  volumeMode:
+                    description: volumeMode defines what type of volume is required
+                      by the claim. Value of Filesystem is implied when not included
+                      in claim spec.
+                    type: string
+                  volumeName:
+                    description: VolumeName is the binding reference to the PersistentVolume
+                      backing this claim.
+                    type: string
+                type: object
+              mysqld:
+                description: NdbMysqldSpec is the specification of MySQL Servers to
+                  be run as an SQL Frontend
+                properties:
+                  nodecount:
+                    description: NodeCount is the number of MySQL Servers running
+                      in MySQL Cluster
+                    format: int32
+                    type: integer
+                  rootPasswordSecretName:
+                    description: The name of the Secret that holds the password to
+                      be set for the MySQL root accounts. The Secret should have a
+                      'password' key that holds the password. If unspecified, a Secret
+                      will be created by the operator with a generated name of format
+                      "<ndb-resource-name>-mysqld-root-password"
+                    type: string
+                required:
+                - nodecount
+                type: object
+              nodecount:
+                description: The total number of data nodes in cluster. The node count
+                  needs to be a multiple of the redundancyLevel. Currently the maximum
+                  is 144 data nodes.
+                format: int32
+                maximum: 144
+                minimum: 1
+                type: integer
+              redundancyLevel:
+                description: The number of data replicas or copies of data stored
+                  in Ndb Cluster. Supported and allowed values are 1, 2, 3, and 4.
+                  A redundancy level of 1 creates a sharded cluster providing NO fault
+                  tolerance in case of node failure. With a redundancy level of 2
+                  or higher cluster will continue serving client requests even in
+                  case of failures. 2 is the normal and most common value and the
+                  default. A redundancy level of 3 provides additional protection.
+                  For a redundancy level of 1 one management server will be created.
+                  For 2 or higher two management servers will be used. Once a cluster
+                  has been created, this number can NOT be easily changed.
+                format: int32
+                maximum: 4
+                minimum: 1
+                type: integer
+            required:
+            - nodecount
+            - redundancyLevel
+            type: object
+          status:
+            description: NdbStatus is the status for a Ndb resource
+            properties:
+              lastUpdate:
+                format: date-time
+                type: string
+              processedGeneration:
+                format: int64
+                type: integer
+              receivedConfigHash:
+                description: The config hash of every new generation of a spec received
+                  and acknowledged
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ndb-agent
+  namespace: default
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ndb-operator
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ndb-agent
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - mysql.oracle.com
+  resources:
+  - ndbs
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ndb-operator
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - services
+  verbs:
+  - get
+  - list
+  - update
+  - create
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  - deployments
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - mysql.oracle.com
+  resources:
+  - ndbs
+  - ndbs/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ndb-agent
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ndb-agent
+subjects:
+- kind: ServiceAccount
+  name: ndb-agent
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ndb-operator
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ndb-operator
+subjects:
+- kind: ServiceAccount
+  name: ndb-operator
+  namespace: default
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: ndb-operator
+    release: 0.0.1
+  name: ndb-operator
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ndb-operator
+  template:
+    metadata:
+      annotations:
+        prometheus.io/port: "8080"
+        prometheus.io/scrape: "true"
+      labels:
+        app: ndb-operator
+    spec:
+      containers:
+      - image: ndb-operator:1.0.0
+        imagePullPolicy: Never
+        name: ndb-operator-controller
+        ports:
+        - containerPort: 1186
+      serviceAccountName: ndb-operator

@@ -37,7 +37,8 @@ CMD_DIRECTORIES := $(sort $(dir $(wildcard ./cmd/*/)))
 COMMANDS := $(CMD_DIRECTORIES:./cmd/%/=%)
 
 .PHONY: build
-build: 
+build: manifests
+	@echo "Building ndb operator..."
 	@echo "arch:     $(ARCH)"
 	@echo "os:       $(OS)"
 	@echo "version:  $(VERSION)"
@@ -69,20 +70,15 @@ operator-image: build
 generate:
 	./hack/update-codegen.sh
 
-# Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
-CRD_OPTIONS=crd:trivialVersions=true
-CRD_INPUT_PATH=./pkg/apis/...
-CRD_GENERATED_PATH=helm/crds
-CONTROLLER_GEN_CMD=go run sigs.k8s.io/controller-tools/cmd/controller-gen
+# If there is any change in the Ndb api definition or the helm charts,
+# generate the install artifact (and implicitly the Ndb CRD)
+INSTALL_ARTIFACT=artifacts/install/ndb-operator.yaml
+$(INSTALL_ARTIFACT): $(shell find helm) $(shell find pkg/apis/ndbcontroller)
+	./hack/generate-manifests.sh
 
-# Generate manifests (i.e.) CRD.
-# creationTimestamp in the CRD is always generated as null
-# https://github.com/kubernetes-sigs/controller-tools/issues/402
-# remove it as a workaround
+# User friendly target name for CRD and release artifact generation
 .PHONY: manifests
-manifests:
-	$(CONTROLLER_GEN_CMD) $(CRD_OPTIONS) paths=$(CRD_INPUT_PATH) output:crd:artifacts:config=$(CRD_GENERATED_PATH)
-	sed -i.crd.bak "/\ \ creationTimestamp\:\ null/d" $(CRD_GENERATED_PATH)/* && rm $(CRD_GENERATED_PATH)/*.crd.bak
+manifests: $(INSTALL_ARTIFACT)
 
 .PHONY: run
 run:
