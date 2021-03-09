@@ -3,6 +3,7 @@ package webhook
 import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/helpers"
+	"github.com/mysql/ndb-operator/pkg/helpers/ndberrors"
 
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,13 +54,7 @@ func (nv *ndbValidator) validateCreate(reqUID types.UID, obj runtime.Object) *v1
 		// ndb does not have a valid configuration
 		// get more details about the error and send it back
 		details := getStatusDetails(ndb)
-		details.Causes = []metav1.StatusCause{
-			{
-				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: err.Error(),
-				Field:   "",
-			},
-		}
+		details.Causes = ndberrors.GetFieldDetails(err)
 		return requestDenied(reqUID, failureStatus(err.Error(), metav1.StatusReasonInvalid, details))
 	}
 
