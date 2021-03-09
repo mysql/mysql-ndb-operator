@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"fmt"
+	"github.com/mysql/ndb-operator/pkg/helpers/ndberrors"
 	"testing"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
@@ -56,7 +57,6 @@ func Test_InvalidValues(t *testing.T) {
 	vcs := []validationCase{
 		nodeNumberTests(0, 0, 0, shouldFail, "all zero"),
 		nodeNumberTests(0, 2, 2, shouldFail, "reduncany zero, not matching node count"),
-		nodeNumberTests(5, 0, 0, shouldFail, "too high reduncany"),
 		nodeNumberTests(3, 2, 2, shouldFail, "reduncany not matching data node count"),
 		nodeNumberTests(2, 145, 2, shouldFail, "too many data nodes"),
 		nodeNumberTests(2, 144, 111, shouldFail, "too many nodes (including 2 mgmd nodes)"),
@@ -78,7 +78,7 @@ func Test_InvalidValues(t *testing.T) {
 		vc.spec.DeepCopyInto(&ndb.Spec)
 
 		if err := IsValidConfig(ndb); err != nil {
-			if !IsInvalidConfiguration(err) {
+			if !ndberrors.IsInvalidConfiguration(err) {
 				t.Errorf("Wrong error type returned %s for:  %s", err, vc.explain)
 			}
 			if !vc.shouldFail {

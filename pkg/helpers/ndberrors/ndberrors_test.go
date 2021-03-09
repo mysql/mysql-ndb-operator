@@ -1,4 +1,4 @@
-package helpers
+package ndberrors
 
 import (
 	"errors"
@@ -8,7 +8,7 @@ import (
 
 func Test_NdbError(t *testing.T) {
 
-	err := error(&NdbError{code: 24, details: "test error occured"})
+	err := error(&NdbError{code: 24, details: "test error occurred"})
 	ndberr := &NdbError{}
 
 	if errors.As(err, &ndberr) {
@@ -39,7 +39,6 @@ func Test_AllErrors(t *testing.T) {
 	}
 
 	// any random should give that
-
 	bogusReason := " asdasd "
 	ndbErr := &NdbError{reason: bogusReason}
 
@@ -55,9 +54,14 @@ func Test_AllErrors(t *testing.T) {
 	}
 
 	// create error functions have different signatures, test separately
-	ndbErr = NewErrorInvalidConfiguration("Test message")
-	if ndbErr.reason != ErrReasonInvalidConfiguration {
-		t.Errorf("%s wrongly created as %s", ErrReasonInvalidConfiguration, ndbErr.reason)
+	ndbErrBuilder := NewInvalidConfigNdbErrorBuilder()
+	ndbErrBuilder.AddInvalidField("invalidTestField", "", "Test message")
+	err := ndbErrBuilder.NdbError()
+	if !IsInvalidConfiguration(err) {
+		t.Errorf("%s wrongly created as %s", ErrReasonInvalidConfiguration, getReason(err))
+	}
+	if GetFieldDetails(err)[0].Field != "invalidTestField" {
+		t.Errorf("extra info wrongly set as : %s expected : invalidField", ndbErr.fieldDetails[0].Field)
 	}
 
 	ndbErr = NewErrorNoManagementServerConnection("Test message")
