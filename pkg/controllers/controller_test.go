@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	apps "k8s.io/api/apps/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	coreapi "k8s.io/api/core/v1"
@@ -273,6 +274,9 @@ func extractObjectMetaData(actual core.Action, extO, actO runtime.Object, t *tes
 	case "ndbs":
 		expOM = extO.(*ndbcontroller.Ndb).ObjectMeta
 		actOM = actO.(*ndbcontroller.Ndb).ObjectMeta
+	case "validatingwebhookconfigurations":
+		expOM = extO.(*admissionregistrationv1.ValidatingWebhookConfiguration).ObjectMeta
+		actOM = actO.(*admissionregistrationv1.ValidatingWebhookConfiguration).ObjectMeta
 	default:
 		t.Errorf("Action has unkown type. Got: %s", actual.GetResource().Resource)
 	}
@@ -391,7 +395,8 @@ func filterInformerActions(actions []core.Action) []core.Action {
 				action.Matches("list", "deployments") ||
 				action.Matches("watch", "deployments") ||
 				action.Matches("list", "statefulsets") ||
-				action.Matches("watch", "statefulsets")) {
+				action.Matches("watch", "statefulsets") ||
+				action.Matches("list", "validatingwebhookconfigurations")) {
 			//klog.Infof("Filtering +%v", action)
 			continue
 		}
