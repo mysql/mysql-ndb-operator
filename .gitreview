@@ -1,0 +1,5 @@
+[gerrit]
+host=gerrit.no.oracle.com
+port=29418
+project=ndb-operator
+defaultbranch=proto1
