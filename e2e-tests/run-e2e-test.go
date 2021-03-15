@@ -344,6 +344,8 @@ func (t *testRunner) runGinkgoTests() {
 	// The ginkgo test command
 	ginkgoTest := []string{
 		"go", "run", "github.com/onsi/ginkgo/ginkgo",
+		"-r", // recursively run all suites in the given directory
+		"-keepGoing", // keep running all test suites even if one fails
 	}
 
 	// Append the ginkgo directory to run the test on
