@@ -96,7 +96,7 @@ ndbinfo-bin:
 
 .PHONY: test
 test:
-	go test -v --count=1 e2e-tests/suites/**
+	go test -v --count=1 ./e2e-tests/suites/...
 
 .PHONY: unit-test
 unit-test:
