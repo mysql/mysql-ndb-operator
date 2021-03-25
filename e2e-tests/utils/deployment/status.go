@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
@@ -16,4 +17,13 @@ func ExpectHasLabel(c clientset.Interface, namespace, deploymentName string, lab
 	deployment, err := c.AppsV1().Deployments(namespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 	gomega.ExpectWithOffset(1, deployment.Labels[labelKey]).To(gomega.Equal(labelValue))
+}
+
+// ExpectHasReplicas expects that the deployment has the given number of replicas.
+func ExpectHasReplicas(c clientset.Interface, namespace, deploymentName string, replicas int) {
+	ginkgo.By(fmt.Sprintf("verifying the statefulset has %d number of replicas", replicas))
+	deployment, err := c.AppsV1().Deployments(namespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+
+	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
+	gomega.ExpectWithOffset(1, int(deployment.Status.Replicas)).To(gomega.Equal(replicas))
 }

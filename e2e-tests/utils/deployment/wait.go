@@ -18,6 +18,12 @@ import (
 	deploymentutil "k8s.io/kubernetes/pkg/controller/deployment/util"
 )
 
+const (
+	// constant poll interval and timeout for waits
+	pollInterval = 2 * time.Second
+	pollTimeout  = 5 * time.Minute
+)
+
 // CreateDeploymentFromSpec creates a deployment.
 // copied from k8s.io/kubernetes@v1.18.2/test/e2e/framework/deployment/fixtures.go
 // but using own deployment instead
@@ -36,7 +42,7 @@ func CreateDeploymentFromSpec(client clientset.Interface, deployment *appsv1.Dep
 
 // WaitForDeploymentComplete waits for the deployment to complete.
 // copied and modified from k8s.io/kubernetes@v1.18.2/test/e2e/framework/
-func WaitForDeploymentComplete(c clientset.Interface, namespace, name string, pollInterval, pollTimeout time.Duration) error {
+func WaitForDeploymentComplete(c clientset.Interface, namespace, name string) error {
 	var (
 		deployment *appsv1.Deployment
 		reason     string
@@ -74,7 +80,7 @@ func WaitForDeploymentComplete(c clientset.Interface, namespace, name string, po
 }
 
 // WaitForDeploymentToDisappear waits for the deployment to go away after deletion.
-func WaitForDeploymentToDisappear(c clientset.Interface, namespace, name string, pollInterval, pollTimeout time.Duration) error {
+func WaitForDeploymentToDisappear(c clientset.Interface, namespace, name string) error {
 	var (
 		deployment *appsv1.Deployment
 		reason     string

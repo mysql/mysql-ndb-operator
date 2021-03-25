@@ -14,6 +14,12 @@ import (
 	"k8s.io/klog"
 )
 
+const (
+	// constant poll interval and timeout for waits
+	pollInterval = 2 * time.Second
+	pollTimeout  = 5 * time.Minute
+)
+
 // statefulSetComplete tests if a statefulset is up and running
 func statefulSetComplete(sfset *appsv1.StatefulSet, newStatus *appsv1.StatefulSetStatus) bool {
 	return newStatus.UpdatedReplicas == *(sfset.Spec.Replicas) &&
@@ -24,7 +30,7 @@ func statefulSetComplete(sfset *appsv1.StatefulSet, newStatus *appsv1.StatefulSe
 
 // WaitForStatefulSetComplete waits for a statefulset to complete.
 // adopted from WaitForDeploymentComplete
-func WaitForStatefulSetComplete(c clientset.Interface, namespace, name string, pollInterval, pollTimeout time.Duration) error {
+func WaitForStatefulSetComplete(c clientset.Interface, namespace, name string) error {
 	var (
 		sfset  *appsv1.StatefulSet
 		reason string
@@ -62,7 +68,7 @@ func WaitForStatefulSetComplete(c clientset.Interface, namespace, name string, p
 
 // WaitForStatefulSetToDisappear waits for a statefulset to go away after deletion.
 // adopted from WaitForDeploymentComplete
-func WaitForStatefulSetToDisappear(c clientset.Interface, namespace, name string, pollInterval, pollTimeout time.Duration) error {
+func WaitForStatefulSetToDisappear(c clientset.Interface, namespace, name string) error {
 	var (
 		sfset  *appsv1.StatefulSet
 		reason string
