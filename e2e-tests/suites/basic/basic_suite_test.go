@@ -6,5 +6,5 @@ import (
 )
 
 func Test_NdbBasic(t *testing.T) {
-	ndbtest.RunGinkgoSuite(t, "Ndb operator basic")
+	ndbtest.RunGinkgoSuite(t, "ndb-basic", "Ndb operator basic", true)
 }
