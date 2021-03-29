@@ -246,10 +246,6 @@ func (msd *MySQLServerDeployment) NewDeployment(
 			Name:      deploymentName,
 			Namespace: ndb.Namespace,
 			Labels:    msd.getDeploymentLabels(ndb),
-			// Annotate the deployment with this config generation
-			Annotations: map[string]string{
-				constants.LastAppliedConfigGeneration: strconv.FormatInt(rc.ConfigGeneration, 10),
-			},
 			// Owner reference pointing to the Ndb resource
 			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
 		},
@@ -265,6 +261,13 @@ func (msd *MySQLServerDeployment) NewDeployment(
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: ndb.Namespace,
 					Labels:    podLabels,
+					// Annotate the template with the current config generation
+					// A change in the config will trigger a rolling update of the deployments
+					// TODO: Trigger a rolling update only when there is a change in Ndb
+					//       resource config that affects the MySQL Server
+					Annotations: map[string]string{
+						constants.LastAppliedConfigGeneration: strconv.FormatInt(rc.ConfigGeneration, 10),
+					},
 				},
 				Spec: podSpec,
 			},
