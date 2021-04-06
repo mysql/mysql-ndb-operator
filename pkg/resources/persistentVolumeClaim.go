@@ -24,7 +24,7 @@ func NewPVC(ndb *v1alpha1.Ndb, pvcName string, pvcSpec *v1.PersistentVolumeClaim
 			Name:            pvcName,
 			Namespace:       ndb.Namespace,
 			Labels:          pvcLabels,
-			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
+			OwnerReferences: ndb.GetOwnerReferences(),
 		},
 		Spec: *pvcSpec,
 	}
