@@ -118,7 +118,7 @@ func GenerateConfigMapObject(ndb *v1alpha1.Ndb) *corev1.ConfigMap {
 			Name:            ndb.GetConfigMapName(),
 			Namespace:       ndb.Namespace,
 			Labels:          cmLabels,
-			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
+			OwnerReferences: ndb.GetOwnerReferences(),
 		},
 		Data: data,
 	}

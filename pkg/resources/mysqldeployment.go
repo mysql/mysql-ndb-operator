@@ -247,7 +247,7 @@ func (msd *MySQLServerDeployment) NewDeployment(
 			Namespace: ndb.Namespace,
 			Labels:    msd.getDeploymentLabels(ndb),
 			// Owner reference pointing to the Ndb resource
-			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
+			OwnerReferences: ndb.GetOwnerReferences(),
 		},
 		Spec: apps.DeploymentSpec{
 			// The desired spec of the deployment

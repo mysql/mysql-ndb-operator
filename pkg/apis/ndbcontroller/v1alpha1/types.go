@@ -212,12 +212,14 @@ func (ndb *Ndb) GetConnectstring() string {
 	return connectstring
 }
 
-// GetOwnerReference returns a OwnerReference to the Ndb resource
-func (ndb *Ndb) GetOwnerReference() metav1.OwnerReference {
-	return *metav1.NewControllerRef(ndb,
-		schema.GroupVersionKind{
-			Group:   SchemeGroupVersion.Group,
-			Version: SchemeGroupVersion.Version,
-			Kind:    "Ndb",
-		})
+// GetOwnerReferences returns a slice of OwnerReferences to
+// be set to the resources owned by Ndb resource
+func (ndb *Ndb) GetOwnerReferences() []metav1.OwnerReference {
+	return []metav1.OwnerReference{
+		*metav1.NewControllerRef(ndb,
+			schema.GroupVersionKind{
+				Group:   SchemeGroupVersion.Group,
+				Version: SchemeGroupVersion.Version,
+				Kind:    "Ndb",
+			})}
 }

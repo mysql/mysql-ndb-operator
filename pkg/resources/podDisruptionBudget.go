@@ -27,7 +27,7 @@ func NewPodDisruptionBudget(ndb *v1alpha1.Ndb, nodeTypeSelector string) *policyv
 			Name:            ndb.GetPodDisruptionBudgetName(nodeTypeSelector),
 			Namespace:       ndb.Namespace,
 			Labels:          pdbLabels,
-			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
+			OwnerReferences: ndb.GetOwnerReferences(),
 		},
 		Spec: policyv1beta1.PodDisruptionBudgetSpec{
 			Selector: &metav1.LabelSelector{

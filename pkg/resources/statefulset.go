@@ -240,7 +240,7 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 			Name:   bss.GetName(),
 			Labels: bss.getStatefulSetLabels(ndb),
 			// Owner reference pointing to the Ndb resource
-			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
+			OwnerReferences: ndb.GetOwnerReferences(),
 		},
 		Spec: apps.StatefulSetSpec{
 			UpdateStrategy: apps.StatefulSetUpdateStrategy{

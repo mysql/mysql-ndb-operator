@@ -43,7 +43,7 @@ func NewService(ndb *v1alpha1.Ndb, port int32, nodeTypeSelector string, external
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:          serviceLabel,
 			Name:            serviceName,
-			OwnerReferences: []metav1.OwnerReference{ndb.GetOwnerReference()},
+			OwnerReferences: ndb.GetOwnerReferences(),
 		},
 		Spec: corev1.ServiceSpec{
 			PublishNotReadyAddresses: true,
