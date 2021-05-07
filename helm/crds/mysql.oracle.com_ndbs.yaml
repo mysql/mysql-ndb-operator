@@ -44,7 +44,7 @@ spec:
                 description: The name of the MySQL Ndb Cluster image to be used. If
                   not specified, "mysql-cluster:latest" will be used. Lowest supported
                   version is 8.0.22.
-                pattern: mysql/mysql-cluster:8.0.2[2-3]
+                pattern: mysql/mysql-cluster:8.0.2[2-5]
                 type: string
               dataNodePVCSpec:
                 description: DataNodePVCSpec is the PersistentVolumeClaimSpec to be
