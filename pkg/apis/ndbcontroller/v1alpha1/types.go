@@ -45,6 +45,9 @@ type NdbMysqldSpec struct {
 	// name of format "<ndb-resource-name>-mysqld-root-password"
 	// +optional
 	RootPasswordSecretName string `json:"rootPasswordSecretName,omitempty"`
+	// Configuration options to pass to the MySQL Server when it is started.
+	// +optional
+	MyCnf string `json:"myCnf,omitempty"`
 }
 
 // NdbSpec defines the desired state of MySQL Ndb Cluster
@@ -222,4 +225,13 @@ func (ndb *Ndb) GetOwnerReferences() []metav1.OwnerReference {
 				Version: SchemeGroupVersion.Version,
 				Kind:    "Ndb",
 			})}
+}
+
+// GetMySQLCnf returns any specified additional MySQL Server cnf
+func (ndb *Ndb) GetMySQLCnf() string {
+	if ndb.Spec.Mysqld == nil {
+		return ""
+	}
+
+	return ndb.Spec.Mysqld.MyCnf
 }

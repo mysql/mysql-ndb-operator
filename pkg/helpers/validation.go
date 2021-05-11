@@ -2,11 +2,12 @@ package helpers
 
 import (
 	"fmt"
-	"github.com/mysql/ndb-operator/pkg/helpers/ndberrors"
 	"math"
+	"strings"
 
 	ndbv1alpha1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
+	"github.com/mysql/ndb-operator/pkg/helpers/ndberrors"
 
 	"k8s.io/apimachinery/pkg/util/validation"
 )
@@ -49,6 +50,30 @@ func IsValidConfig(ndb *ndbv1alpha1.Ndb) error {
 		if errs != nil {
 			for _, err := range errs {
 				errBuilder.AddInvalidField("spec.mysqld.rootPasswordSecretName", rootPasswordSecret, err)
+			}
+		}
+	}
+
+	// validate any passed additional cnf
+	myCnfString := ndb.GetMySQLCnf()
+	if len(myCnfString) > 0 {
+		myCnf, err := ParseString(myCnfString)
+		if err != nil && strings.Contains(err.Error(), "Non-empty line without section") {
+			// section header is missing as it is optional
+			// try parsing again with [mysqld] header
+			myCnfString = "[mysqld]\n" + myCnfString
+			myCnf, err = ParseString(myCnfString)
+		}
+
+		if err != nil {
+			// error parsing the cnf
+			errBuilder.AddInvalidField("spec.mysqld.additionalCnf", myCnfString, err.Error())
+		} else {
+			// accept only one mysqld section in the cnf
+			if len(myCnf.Groups) > 1 ||
+				len(myCnf.Groups) != GetNumberOfSectionsInSectionGroup(myCnf, "mysqld") {
+				msg := "spec.mysqld.additionalCnf can have only one mysqld section"
+				errBuilder.AddInvalidField("spec.mysqld.additionalCnf", myCnfString, msg)
 			}
 		}
 	}
