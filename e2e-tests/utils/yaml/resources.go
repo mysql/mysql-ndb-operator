@@ -35,8 +35,7 @@ func createOrDeleteFromYaml(ns string, path string, filename string, command str
 // CreateFromYaml creates a resource from a yaml file
 // in a specfic namespace and with kubectl
 func CreateFromYaml(ns string, path string, filename string) {
-	res := createOrDeleteFromYaml(ns, path, filename, "create")
-	gomega.Expect(strings.Count(res, "created")).To(gomega.Equal(1))
+	createOrDeleteFromYaml(ns, path, filename, "create")
 }
 
 // CreateFromYamls creates a resources from resource paths given in an array
@@ -48,8 +47,7 @@ func CreateFromYamls(ns string, resourceFiles []string) {
 
 // DeleteFromYaml deletes resources given in a yaml file
 func DeleteFromYaml(ns string, path string, filename string) {
-	res := createOrDeleteFromYaml(ns, path, filename, "delete")
-	gomega.Expect(strings.Count(res, "deleted")).To(gomega.Equal(1))
+	createOrDeleteFromYaml(ns, path, filename, "delete")
 }
 
 // DeleteFromYamls deletes resources from resource paths given in an array
