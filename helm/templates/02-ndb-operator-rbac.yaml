@@ -20,12 +20,21 @@ rules:
       - watch
 
     - apiGroups: [""]
-      resources: ["configmaps", "services"]
+      resources: ["services"]
       verbs:
       - get
       - list
       - update
       - create
+      - watch
+
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      verbs:
+      - get
+      - list
+      - create
+      - patch
       - watch
 
     - apiGroups: [""]

@@ -91,7 +91,7 @@ func (rcmc *ConfigMapControl) EnsureConfigMap(sc *SyncContext) (*corev1.ConfigMa
 	// If the resource doesn't exist, we'll create it
 	klog.Infof("Creating ConfigMap %s/%s", ndb.Namespace, ndb.GetConfigMapName())
 
-	cm = resources.GenerateConfigMapObject(ndb)
+	cm = resources.CreateConfigMap(ndb)
 	cm, err = rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Create(context.TODO(), cm, metav1.CreateOptions{})
 
 	return cm, false, nil

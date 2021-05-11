@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ndbop-mysql-secret
+type: Opaque
+stringData:
+  password: ndbpass
+---
+apiVersion: mysql.oracle.com/v1alpha1
+kind: Ndb
+metadata:
+  name: example-ndb
+spec:
+  containerImage: mysql/mysql-cluster:8.0.22
+  nodecount: 2
+  redundancyLevel: 2
+  mysqld:
+    nodecount: 2
+    rootPasswordSecretName: ndbop-mysql-secret
+    myCnf: |
+      [mysqld]
+      max-user-connections=42
+      ndb-extra-logging=10

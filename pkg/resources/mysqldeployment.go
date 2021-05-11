@@ -27,9 +27,11 @@ const (
 	mysqldRootPasswordVolName   = mysqldClientName + "-root-password-vol"
 	mysqldRootPasswordMountPath = mysqldDir + "/auth"
 	mysqldRootPasswordFileName  = ".root-password"
-	// TODO: Allow users to specify their own secret
-	mysqldInitScriptsVolName   = mysqldClientName + "-init-scripts"
-	mysqldInitScriptsMountPath = "/docker-entrypoint-initdb.d/"
+	mysqldInitScriptsVolName    = mysqldClientName + "-init-scripts"
+	mysqldInitScriptsMountPath  = "/docker-entrypoint-initdb.d/"
+	// my.cnf volume and mount path
+	mysqldCnfVolName   = mysqldClientName + "-cnf-vol"
+	mysqldCnfMountPath = mysqldDir + "/cnf"
 )
 
 func getContainerFromDeployment(containerName string, deployment *apps.Deployment) *v1.Container {
@@ -72,10 +74,10 @@ func (msd *MySQLServerDeployment) getPodLabels(ndb *v1alpha1.Ndb) map[string]str
 }
 
 // getPodVolumes returns the volumes to be used by the pod
-func (msd *MySQLServerDeployment) getPodVolumes(ndb *v1alpha1.Ndb) *[]v1.Volume {
+func (msd *MySQLServerDeployment) getPodVolumes(ndb *v1alpha1.Ndb) []v1.Volume {
 	allowOnlyOwnerToReadMode := int32(0400)
 	rootPasswordSecretName, _ := GetMySQLRootPasswordSecretName(ndb)
-	return &[]v1.Volume{
+	podVolumes := []v1.Volume{
 		// Use a temporary empty directory volume for the pod
 		{
 			Name: mysqldDataDirVolName,
@@ -117,11 +119,33 @@ func (msd *MySQLServerDeployment) getPodVolumes(ndb *v1alpha1.Ndb) *[]v1.Volume 
 			},
 		},
 	}
+
+	if len(ndb.GetMySQLCnf()) > 0 {
+		// Load the cnf configmap key as a volume
+		podVolumes = append(podVolumes, v1.Volume{
+			Name: mysqldCnfVolName,
+			VolumeSource: v1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: ndb.GetConfigMapName(),
+					},
+					Items: []v1.KeyToPath{
+						{
+							Key:  MyCnfKey,
+							Path: MyCnfKey,
+						},
+					},
+				},
+			},
+		})
+	}
+
+	return podVolumes
 }
 
 // getMysqlVolumeMounts returns pod volumes to be mounted into the container
-func (msd *MySQLServerDeployment) getMysqlVolumeMounts() *[]v1.VolumeMount {
-	return &[]v1.VolumeMount{
+func (msd *MySQLServerDeployment) getMysqlVolumeMounts(ndb *v1alpha1.Ndb) []v1.VolumeMount {
+	volumeMounts := []v1.VolumeMount{
 		// Mount the empty dir volume as data directory
 		{
 			Name:      mysqldDataDirVolName,
@@ -138,25 +162,42 @@ func (msd *MySQLServerDeployment) getMysqlVolumeMounts() *[]v1.VolumeMount {
 			MountPath: mysqldInitScriptsMountPath,
 		},
 	}
+
+	if len(ndb.GetMySQLCnf()) > 0 {
+		// Mount the cnf volume
+		volumeMounts = append(volumeMounts, v1.VolumeMount{
+			Name:      mysqldCnfVolName,
+			MountPath: mysqldCnfMountPath,
+		})
+	}
+
+	return volumeMounts
 }
 
 // createContainer creates the MySQL Server container to be run as a client
 func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb, oldContainer *v1.Container) *v1.Container {
 
-	// MySQL Server arguments to run with NDB Cluster
-	// TODO: Make these arguments configurable via CRD
-	args := []string{
+	// Build the arguments to MySQL Server
+	var args []string
+	// first, pass any provided cnf options via defaults-file
+	if len(ndb.GetMySQLCnf()) > 0 {
+		args = append(args,
+			"--defaults-file="+mysqldCnfMountPath+"/"+MyCnfKey)
+	}
+
+	// Add operator and NDB Cluster specific MySQL Server arguments
+	args = append(args,
 		// Enable ndbcluster engine and set connect string
 		"--ndbcluster",
-		"--ndb-connectstring=" + ndb.GetConnectstring(),
+		"--ndb-connectstring="+ndb.GetConnectstring(),
 		"--user=mysql",
-		"--datadir=" + mysqldDataDir,
+		"--datadir="+mysqldDataDir,
 		// Disable binlogging as these MySQL Servers won't be acting as replication sources
 		"--skip-log-bin",
 		// Enable maximum verbosity for development debugging
 		"--ndb-extra-logging=99",
 		"--log-error-verbosity=3",
-	}
+	)
 
 	entryPointArgs := strings.Join(args, " ")
 
@@ -173,7 +214,7 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb, oldContaine
 				ContainerPort: 3306,
 			},
 		},
-		VolumeMounts:    *msd.getMysqlVolumeMounts(),
+		VolumeMounts:    msd.getMysqlVolumeMounts(ndb),
 		Command:         []string{"/bin/bash", "-ecx", cmd},
 		ImagePullPolicy: v1.PullIfNotPresent,
 	}
@@ -229,7 +270,7 @@ func (msd *MySQLServerDeployment) NewDeployment(
 
 	podSpec := v1.PodSpec{
 		Containers:         []v1.Container{*msd.createContainer(ndb, oldContainer)},
-		Volumes:            *msd.getPodVolumes(ndb),
+		Volumes:            msd.getPodVolumes(ndb),
 		ServiceAccountName: "ndb-agent",
 	}
 

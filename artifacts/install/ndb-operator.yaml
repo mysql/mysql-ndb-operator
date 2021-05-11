@@ -173,6 +173,10 @@ spec:
                 description: NdbMysqldSpec is the specification of MySQL Servers to
                   be run as an SQL Frontend
                 properties:
+                  myCnf:
+                    description: Configuration options to pass to the MySQL Server
+                      when it is started.
+                    type: string
                   nodecount:
                     description: NodeCount is the number of MySQL Servers running
                       in MySQL Cluster
@@ -327,13 +331,22 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - configmaps
   - services
   verbs:
   - get
   - list
   - update
   - create
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - create
+  - patch
   - watch
 - apiGroups:
   - ""
