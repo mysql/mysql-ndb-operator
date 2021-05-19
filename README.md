@@ -57,21 +57,23 @@ make operator-image
 
 ## Build MySQL Cluster docker image (optional)
 
-You can build your own ndb cluster images but you don't have to. Currently public image 8.0.22 is used.
+Ndb operator uses the public images available in dockerhub. By default the mysql/mysql-cluster:8.0.22 image is used. A custom MySQL Cluster image can also be built and used with the operator. The necessary docker files and scripts required for building the images are included in this repository.
 
-**Prerequisite**: You have a build directory available that is build for OL8.
-You can use a OL8 build-container in docker/ol8 for that or download a readily compiled OL8 build.
-
-If you use minikube then set the environment to minikube first before building the image.
-
+To compile and build a custom image from source code,
 ```sh
-# point to minikube
-$ eval $(minikube docker-env)
-
-# build docker image
-# BASEDIR is the MySQL Cluster build directory
+# SRCDIR is the location of the MySQL Cluster Source
+# TMPDIR is the location in which the MySQL Cluster will be built
 # IMAGE_TAG is the string to be tagged to the container image being built
-BASEDIR=<basedir> IMAGE_TAG=<build-tag> make ndb-container-image
+SRCDIR=/path/to/mysql/cluster/source TMPDIR=/build/dir IMAGE_TAG=<custom-tag> make ndb-container-image
+```
+
+Note : To compile and build the image directly on docker hosted inside minikube, additional steps might be required. Please look at [docker/mysql-cluster/build.sh](docker/mysql-cluster/build.sh) file for more information.
+
+To build a custom image from precompiled binaries for Oracle Linux 8,
+```sh
+# BASEDIR is the MySQL Cluster build directory or install location
+# IMAGE_TAG is the optional string to be tagged to the container image being built
+BASEDIR=/path/to/build/or/install/dir IMAGE_TAG=<custom-tag> make ndb-container-image
 ```
 
 ## Running Operator
