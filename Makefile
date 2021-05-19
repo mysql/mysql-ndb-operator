@@ -15,7 +15,7 @@ OS       ?= $(shell go env GOOS)
 # BASEDIR should point to the docker target platform MySQL Cluster build
 #  i.e. an OL8 MySQL Cluster build or install directory
 BASEDIR ?=
-# String to be tagged to the custom cluster docker image being built
+# Optional additional tag to the custom cluster docker image being built
 IMAGE_TAG ?=
 
 # SRCDIR points to the current mysql ndb source
@@ -57,14 +57,14 @@ version:
 # Build a MySQL Cluster container image
 .PHONY: ndb-container-image
 ndb-container-image:
-	@BASEDIR=$(BASEDIR) IMAGE_TAG=$(IMAGE_TAG) ./hack/build-cluster-container-image.sh
+	@SRCDIR=$(SRCDIR) BASEDIR=$(BASEDIR) IMAGE_TAG=$(IMAGE_TAG) ./docker/mysql-cluster/build.sh
 
 # Build a ndb operator image in docker
 .PHONY: operator-image
 # this MUST be here to cross-build for Linux on non-Linux build hosts
 operator-image: OS=linux
 operator-image: build
-	OS=linux docker build -t ndb-operator:"${VERSION}" -f docker/ndb-operator/Dockerfile .
+	OS=linux DOCKER_BUILDKIT=1 docker build -t ndb-operator:"${VERSION}" -f docker/ndb-operator/Dockerfile .
 
 .PHONY: generate
 generate:

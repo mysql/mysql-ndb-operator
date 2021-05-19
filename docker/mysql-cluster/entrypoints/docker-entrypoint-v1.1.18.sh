@@ -5,9 +5,9 @@
 
 set -e
 
-echo "[Entrypoint] MySQL Docker Image 8.0.18-0.0.1-cluster"
-echo "[Entrypoint] $1"
+# Docker entry point v1.1.18 for MySQL Cluster Versions 8.0.22 and 8.0.23
 
+echo "[Entrypoint] MySQL Docker Image #VERSION#-cluster"
 # Fetch value from server config
 # We use mysqld --verbose --help instead of my_print_defaults because the
 # latter only show values present in config files, and not server defaults
@@ -21,11 +21,6 @@ _get_config() {
 # needing to specify the "mysqld" command
 if [ "${1:0:1}" = '-' ]; then
 	set -- mysqld "$@"
-fi
-
-# if there is no port given then we'll set the default port
-if [ -v $NDB_MGMD_PORT ] || [ -z $NDB_MGMD_PORT ]; then
-	NDB_MGMD_PORT=1186
 fi
 
 if [ "$1" = 'mysqld' ]; then
@@ -131,7 +126,6 @@ EOF
 				echo "GRANT ALL ON \`"$MYSQL_DATABASE"\`.* TO '"$MYSQL_USER"'@'%' ;" | "${mysql[@]}"
 			fi
 
-			echo 'FLUSH PRIVILEGES ;' | "${mysql[@]}"
 		elif [ "$MYSQL_USER" -a ! "$MYSQL_PASSWORD" -o ! "$MYSQL_USER" -a "$MYSQL_PASSWORD" ]; then
 			echo '[Entrypoint] Not creating mysql user. MYSQL_USER and MYSQL_PASSWORD must be specified to create a mysql user.'
 		fi
@@ -187,49 +181,22 @@ password=healthcheckpass
 EOF
 	touch /mysql-init-complete
 	chown -R mysql:mysql "$DATADIR"
-	echo "[Entrypoint] Starting MySQL 8.0.21"
+	echo "[Entrypoint] Starting MySQL #VERSION#-cluster"
 
 elif [ "$1" == "ndb_mgmd" ]; then
-	echo "[Entrypoint] Creating ndb_mgmd config"
-
-	/usr/bin/confd -onetime -backend env -config-file ndb-cluster.toml
-	cat /etc/ndb-cluster.cnf
-
-	cat /etc/hosts
-
 	echo "[Entrypoint] Starting ndb_mgmd"
-
-	if [ "$NDB_MGMD_NODEID" ]; then
-	    set -- "$@" -f /etc/ndb-cluster.cnf --ndb-nodeid=$NDB_MGMD_NODEID --configdir=/var/lib/ndb --initial  --nodaemon -v
-    else
-    	set -- "$@" -f /etc/ndb-cluster.cnf --configdir=/var/lib/ndb --initial --nodaemon -v
-	fi
+	set -- "$@" -f /etc/mysql-cluster.cnf --nodaemon
 
 elif [ "$1" == "ndbd" ]; then
-	if [ "$NDB_MGMD_HOSTS" ]; then
-		echo "[Entrypoint] Starting ndbd with $NDB_MGMD_HOSTS:$NDB_MGMD_PORT"
-		set -- "$@" -c "$NDB_MGMD_HOSTS:$NDB_MGMD_PORT" --nodaemon -v 
-    else
-        set -- "$@" --nodaemon -v 
-	fi
+	echo "[Entrypoint] Starting ndbd"
+	set -- "$@" --nodaemon
 
 elif [ "$1" == "ndbmtd" ]; then
 	echo "[Entrypoint] Starting ndbmtd"
-	if [ "$NDB_MGMD_HOSTS" ]; then
-		echo "[Entrypoint] Starting ndbmtd with $NDB_MGMD_HOSTS:$NDB_MGMD_PORT"
-		set -- "$@" -c "$NDB_MGMD_HOSTS:$NDB_MGMD_PORT" --nodaemon -v 
-    else
-        set -- "$@" --nodaemon -v 
-	fi
+	set -- "$@" --nodaemon
 
 elif [ "$1" == "ndb_mgm" ]; then
-
 	echo "[Entrypoint] Starting ndb_mgm"
-	if [ "$NDB_MGMD_HOSTS" ]; then
-		set -- "$@" -c "$NDB_MGMD_HOSTS:$NDB_MGMD_PORT" 
-    else
-        set -- "$@" 
-	fi
 
 elif [ "$1" == "ndb_waiter" ]; then
 	if [ "%%NDBWAITER%%" == "yes" ]; then
@@ -241,12 +208,5 @@ elif [ "$1" == "ndb_waiter" ]; then
 	fi
 fi
 
-#while [ 0 -le 1 ]; do
-echo "[Entrypoint] Start the command"
-echo "$@"
-"$@"
-#sleep 1
-#done
-
-#exec "$@"
+exec "$@"
 
