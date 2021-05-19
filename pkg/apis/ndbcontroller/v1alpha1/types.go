@@ -73,14 +73,12 @@ type NdbSpec struct {
 	// +kubebuilder:validation:Maximum=144
 	NodeCount *int32 `json:"nodecount"`
 	// The name of the MySQL Ndb Cluster image to be used.
-	// If not specified, "mysql-cluster:latest" will be used.
+	// If not specified, "mysql/mysql-cluster:8.0.22" will be used.
 	// Lowest supported version is 8.0.22.
 	// +kubebuilder:default="mysql/mysql-cluster:8.0.22"
-	// +kubebuilder:validation:Pattern="mysql/mysql-cluster:8.0.2[2-5]"
+	// +kubebuilder:validation:Pattern="mysql/mysql-cluster:8.0.2[2-6](-[a-zA-Z0-9]*)?"
 	// +optional
 	ContainerImage string `json:"containerImage,omitempty"`
-	// TODO: How to validate customer's own image? eg. customer_cluster_8.0.23_patch3
-	// Should the validation be done after the image gets pulled?
 
 	// DataNodePVCSpec is the PersistentVolumeClaimSpec to be used as the
 	// VolumeClaimTemplate of the data node statefulset. A PVC will be created
