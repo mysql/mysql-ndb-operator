@@ -171,10 +171,8 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 	// TODO: Define more api nodes in the beginning so that the user can
 	//       scale up the MySQL Server Deployment without restarting the data/mgmd nodes
 	mysqlSections := ndb.GetMySQLServerNodeCount()
-	if mysqlSections == 0 {
-		// at least 1 must be there in order to not fail ndb_mgmd start
-		mysqlSections = 1
-	}
+	// always keep one extra api slot available
+	mysqlSections++
 
 	for i := int32(0); i < mysqlSections; i++ {
 		configString += "[mysqld]\n"
