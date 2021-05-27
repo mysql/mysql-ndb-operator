@@ -119,11 +119,6 @@ function info() {
     EXECUTE stmt;
     DEALLOCATE PREPARE stmt;
 
-    SET @grant_stmt2 := CONCAT('GRANT PROXY ON ''''@'''' TO ', @root_user,' WITH GRANT OPTION');
-    PREPARE stmt FROM @grant_stmt2;
-    EXECUTE stmt;
-    DEALLOCATE PREPARE stmt;
-
     FLUSH PRIVILEGES;
 
     SELECT CONCAT('User ''root''@''', root_host,''' has been created') AS Status;
