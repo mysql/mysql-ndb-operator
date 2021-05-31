@@ -224,7 +224,7 @@ func NewController(
 			} else if !equality.Semantic.DeepEqual(oldNdb.Status, newNdb.Status) {
 				klog.Infof("Difference in status")
 			} else {
-				klog.Infof("Other difference in spec")
+				klog.Infof("No difference in spec and status")
 				//diff.ObjectGoPrintSideBySide(oldNdb, newNdb))
 			}
 
@@ -1204,10 +1204,12 @@ func (sc *SyncContext) sync() error {
 		return err
 	}
 
-	if sc.resourceContext.ConfigHash != newConfigHash {
+	hasPendingConfigChanges := sc.resourceContext.ConfigHash != newConfigHash
+	if hasPendingConfigChanges {
 		klog.Infof("Config received is different from existing config map config. config map: \"%s\", new: \"%s\"",
 			sc.resourceContext.ConfigHash, newConfigHash)
 
+		// Patch config map
 		_, err := sc.configMapController.PatchConfigMap(sc.ndb)
 		if err != nil {
 			klog.Infof("Failed to patch config map: %s", err)
@@ -1215,9 +1217,8 @@ func (sc *SyncContext) sync() error {
 		}
 	}
 
-	// Finally, we update the status block of the Ndb resource to reflect the
-	// current state of the world
-	err = sc.updateNdbStatus()
+	// Update the status of the Ndb resource to reflect the state of changes applied
+	err = sc.updateNdbStatus(hasPendingConfigChanges)
 	if err != nil {
 		klog.Errorf("Updating status failed: %v", err)
 		return err
@@ -1254,28 +1255,43 @@ func patchPod(kubeClient kubernetes.Interface, oldData *corev1.Pod, newData *cor
 	return result, nil
 }
 
-func (sc *SyncContext) updateNdbStatus() error {
+func (sc *SyncContext) updateNdbStatus(hasPendingConfigChanges bool) error {
 
 	// we already received a deep copy here
 	ndb := sc.ndb
 
-	if ndb.Status.ProcessedGeneration == ndb.ObjectMeta.Generation {
-		return nil
+	if hasPendingConfigChanges {
+		// The loop received a new config change that has to be applied yet
+		if ndb.Status.ProcessedGeneration+1 == ndb.ObjectMeta.Generation {
+			// All the previous generations have been handled already
+			// and the status has been updated.
+			// Do not update status yet for the current change.
+			return nil
+		} else {
+			// All the config changes except the one received in this
+			// loop has been handled but the status is not updated yet.
+			// Bump up the ProcessedGeneration to reflect this.
+			ndb.Status.ProcessedGeneration = ndb.ObjectMeta.Generation - 1
+		}
+	} else {
+		// No pending changes
+		if ndb.Status.ProcessedGeneration == ndb.ObjectMeta.Generation {
+			// Nothing happened in this loop. Skip updating status.
+			return nil
+		} else {
+			// The last change was successfully applied.
+			// Update status to reflect this
+			ndb.Status.ProcessedGeneration = ndb.ObjectMeta.Generation
+		}
 	}
+
+	// Set the time of this status update
+	ndb.Status.LastUpdate = metav1.NewTime(time.Now())
 
 	updateErr := wait.ExponentialBackoff(retry.DefaultBackoff, func() (ok bool, err error) {
 
 		klog.Infof("Updating ndb cluster status: from process gen %d to %d",
 			ndb.Status.ProcessedGeneration, ndb.ObjectMeta.Generation)
-
-		ndb.Status.LastUpdate = metav1.NewTime(time.Now())
-		ndb.Status.ProcessedGeneration = ndb.ObjectMeta.Generation
-
-		// If the CustomResourceSubresources feature gate is not enabled,
-		// we must use Update instead of UpdateStatus to update the Status block of the Ndb resource.
-		// UpdateStatus will not allow changes to the Spec of the resource,
-		// which is ideal for ensuring nothing other than resource status has been updated.
-		//_, err = c.ndbclientset.NdbcontrollerV1alpha1().Ndbs(ndb.Namespace).Update(ndb)
 
 		_, err = sc.ndbclientset().MysqlV1alpha1().Ndbs(ndb.Namespace).UpdateStatus(context.TODO(), ndb, metav1.UpdateOptions{})
 		if err == nil {

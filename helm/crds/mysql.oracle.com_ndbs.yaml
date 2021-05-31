@@ -224,9 +224,14 @@ spec:
             description: NdbStatus is the status for a Ndb resource
             properties:
               lastUpdate:
+                description: LastUpdate is the time when the ProcessedGeneration was
+                  last updated.
                 format: date-time
                 type: string
               processedGeneration:
+                description: ProcessedGeneration holds the latest generation of the
+                  Ndb resource whose specs have been successfully applied to the MySQL
+                  Cluster running inside K8s.
                 format: int64
                 type: integer
               receivedConfigHash:
