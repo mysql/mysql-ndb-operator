@@ -11,7 +11,7 @@ The ndb controller uses [client-go library](https://github.com/kubernetes/client
 
 ## Fetch ndb-operator and its dependencies
 
-The ndb-operator uses go modules and has been developed with go 1.13. 
+The ndb-operator uses go modules and has been developed with go 1.16. 
 
 ```sh
 git clone <this repo>

@@ -2,7 +2,7 @@
 
 module github.com/mysql/ndb-operator
 
-go 1.12
+go 1.15
 
 require (
 	github.com/docker/docker v20.10.3+incompatible
@@ -24,9 +24,6 @@ require (
 replace (
 	github.com/mysql/ndb-operator/e2e-tests => ./e2e-tests
 	github.com/mysql/ndb-operator/pkg => ./pkg
-
-	golang.org/x/sys => golang.org/x/sys v0.0.0-20190813064441-fde4db37ae7a // pinned to release-branch.go1.13
-	golang.org/x/tools => golang.org/x/tools v0.0.0-20190821162956-65e3620a7ae7 // pinned to release-branch.go1.13
 
 	k8s.io/api => k8s.io/api v0.20.2
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.20.2
