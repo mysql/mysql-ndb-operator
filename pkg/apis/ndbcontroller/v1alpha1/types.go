@@ -93,16 +93,20 @@ type NdbSpec struct {
 
 // NdbStatus is the status for a Ndb resource
 type NdbStatus struct {
-	ProcessedGeneration int64       `json:"processedGeneration,omitempty"`
-	LastUpdate          metav1.Time `json:"lastUpdate,omitempty"`
+	// ProcessedGeneration holds the latest generation of the
+	// Ndb resource whose specs have been successfully applied
+	// to the MySQL Cluster running inside K8s.
+	ProcessedGeneration int64 `json:"processedGeneration,omitempty"`
+	// LastUpdate is the time when the ProcessedGeneration was last updated.
+	LastUpdate metav1.Time `json:"lastUpdate,omitempty"`
 	// The config hash of every new generation of a spec received and acknowledged
 	ReceivedConfigHash string `json:"receivedConfigHash,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// +kubebuilder:object:root=true
 // NdbList contains a list of Ndb resources
+// +kubebuilder:object:root=true
 type NdbList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
