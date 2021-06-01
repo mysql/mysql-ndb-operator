@@ -20,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsinformers "k8s.io/client-go/informers/apps/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
@@ -49,19 +48,29 @@ import (
 const controllerAgentName = "ndb-controller"
 
 const (
-	// SuccessSynced is used as part of the Event 'reason' when a Ndb is synced
-	SuccessSynced = "Synced"
-	// ErrResourceExists is used as part of the Event 'reason' when a Ndb fails
-	// to sync due to a resource of the same name already existing.
-	ErrResourceExists = "ResourceExists"
+	// ReasonResourceExists is the reason used for an Event when the
+	// operator fails to sync the Ndb object with MySQL Cluster due to
+	// some resource of the same name already existing but not owned by
+	// the Ndb object.
+	ReasonResourceExists = "ResourceExists"
+	// ReasonSyncSuccess is the reason used for an Event when
+	// the MySQL Cluster is successfully synced with the Ndb object.
+	ReasonSyncSuccess = "SyncSuccess"
+	// ReasonInSync is the reason used for an Event when the MySQL Cluster
+	// is already in sync with the spec of the Ndb object.
+	ReasonInSync = "InSync"
 
-	// MessageResourceExists is the message used for Events when a resource
-	// fails to sync due to a resource already existing
-	// but not having "our" Ndb resource as the owner
+	// MessageResourceExists is the message used for an Event when the
+	// operator fails to sync the Ndb object with MySQL Cluster due to
+	// some resource of the same name already existing but not owned by
+	// the Ndb object.
 	MessageResourceExists = "Resource %q already exists and is not managed by Ndb"
-	// MessageResourceSynced is the message used for an Event fired when a Ndb
-	// is synced successfully
-	MessageResourceSynced = "Ndb synced successfully"
+	// MessageSyncSuccess is the message used for an Event when
+	// the MySQL Cluster is successfully synced with the Ndb object.
+	MessageSyncSuccess = "MySQL Cluster was successfully synced up to match the spec"
+	// MessageInSync is the message used for an Event when the MySQL Cluster
+	// is already in sync with the spec of the Ndb object.
+	MessageInSync = "MySQL Cluster is in sync with the Ndb object"
 )
 
 // ControllerContext summarizes the context in which it is running,
@@ -545,7 +554,7 @@ func (sc *SyncContext) ensureManagementServerStatefulSet() (*appsv1.StatefulSet,
 	// a warning to the event recorder and return error msg.
 	if !metav1.IsControlledBy(sfset, sc.ndb) {
 		msg := fmt.Sprintf(MessageResourceExists, sfset.Name)
-		sc.recorder.Event(sc.ndb, corev1.EventTypeWarning, ErrResourceExists, msg)
+		sc.recorder.Event(sc.ndb, corev1.EventTypeWarning, ReasonResourceExists, MessageResourceExists)
 		return nil, existed, fmt.Errorf(msg)
 	}
 
@@ -573,7 +582,7 @@ func (sc *SyncContext) ensureDataNodeStatefulSet() (*appsv1.StatefulSet, bool, e
 	// a warning to the event recorder and return error msg.
 	if !metav1.IsControlledBy(sfset, sc.ndb) {
 		msg := fmt.Sprintf(MessageResourceExists, sfset.Name)
-		sc.recorder.Event(sc.ndb, corev1.EventTypeWarning, ErrResourceExists, msg)
+		sc.recorder.Event(sc.ndb, corev1.EventTypeWarning, ReasonResourceExists, msg)
 		return nil, existed, fmt.Errorf(msg)
 	}
 
@@ -601,7 +610,7 @@ func (sc *SyncContext) ensureMySQLServerDeployment() (*appsv1.Deployment, bool, 
 	// log a warning to the event recorder and return the error message.
 	if !metav1.IsControlledBy(deployment, sc.ndb) {
 		msg := fmt.Sprintf(MessageResourceExists, deployment.Name)
-		sc.recorder.Event(sc.ndb, corev1.EventTypeWarning, ErrResourceExists, msg)
+		sc.recorder.Event(sc.ndb, corev1.EventTypeWarning, ReasonResourceExists, msg)
 		return deployment, existed, fmt.Errorf(msg)
 	}
 
@@ -1187,29 +1196,25 @@ func (sc *SyncContext) sync() error {
 		return sr.getError()
 	}
 
-	// at this stage all resources are ensured to be
-	// aligned with the configuration *in the config map*
-	sc.recorder.Event(sc.ndb, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
-
-	// check if configuration in config map is still the desired from the Ndb CRD
-	// if not then apply a new version
-
+	// At this point, the MySQL Cluster is in sync with the configuration in the config map.
+	// The configuration in the config map has to be checked to see if it is still the
+	// desired config specified in the Ndb object.
 	klog.Infof("Config in config map config is \"%s\", generation: \"%d\"",
 		sc.resourceContext.ConfigHash, sc.resourceContext.ConfigGeneration)
 
-	// calculated the hash of the new config to see if ndb.Spec changed against whats in the config map
+	// calculate the hash of the new config
 	newConfigHash, err := sc.ndb.CalculateNewConfigHash()
 	if err != nil {
 		klog.Errorf("Error calculating hash of incoming Ndb resource.")
 		return err
 	}
 
+	// Check if configuration in config map is still the desired from the Ndb CRD
 	hasPendingConfigChanges := sc.resourceContext.ConfigHash != newConfigHash
 	if hasPendingConfigChanges {
+		// The Ndb object spec has changed - patch the config map
 		klog.Infof("Config received is different from existing config map config. config map: \"%s\", new: \"%s\"",
 			sc.resourceContext.ConfigHash, newConfigHash)
-
-		// Patch config map
 		_, err := sc.configMapController.PatchConfigMap(sc.ndb)
 		if err != nil {
 			klog.Infof("Failed to patch config map: %s", err)
@@ -1217,7 +1222,7 @@ func (sc *SyncContext) sync() error {
 		}
 	}
 
-	// Update the status of the Ndb resource to reflect the state of changes applied
+	// Update the status of the Ndb resource to reflect the state of any changes applied
 	err = sc.updateNdbStatus(hasPendingConfigChanges)
 	if err != nil {
 		klog.Errorf("Updating status failed: %v", err)
@@ -1227,32 +1232,6 @@ func (sc *SyncContext) sync() error {
 	klog.V(4).Infof("Returning from syncHandler")
 
 	return nil
-}
-
-// PatchPod perform a direct patch update for the specified Pod.
-func patchPod(kubeClient kubernetes.Interface, oldData *corev1.Pod, newData *corev1.Pod) (*corev1.Pod, error) {
-	currentPodJSON, err := json.Marshal(oldData)
-	if err != nil {
-		return nil, err
-	}
-
-	updatedPodJSON, err := json.Marshal(newData)
-	if err != nil {
-		return nil, err
-	}
-
-	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(currentPodJSON, updatedPodJSON, corev1.Pod{})
-	if err != nil {
-		return nil, err
-	}
-	klog.V(4).Infof("Patching Pod %q: %s", types.NamespacedName{Namespace: oldData.Namespace, Name: oldData.Name}, string(patchBytes))
-
-	result, err := kubeClient.CoreV1().Pods(oldData.Namespace).Patch(context.TODO(), oldData.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
-	if err != nil {
-		return nil, apierrors.NewNotFound(v1alpha1.Resource("Pod"), "failed patching pod")
-	}
-
-	return result, nil
 }
 
 func (sc *SyncContext) updateNdbStatus(hasPendingConfigChanges bool) error {
@@ -1277,6 +1256,8 @@ func (sc *SyncContext) updateNdbStatus(hasPendingConfigChanges bool) error {
 		// No pending changes
 		if ndb.Status.ProcessedGeneration == ndb.ObjectMeta.Generation {
 			// Nothing happened in this loop. Skip updating status.
+			// Record an InSync event and return
+			sc.recorder.Event(sc.ndb, corev1.EventTypeNormal, ReasonInSync, MessageInSync)
 			return nil
 		} else {
 			// The last change was successfully applied.
@@ -1314,6 +1295,11 @@ func (sc *SyncContext) updateNdbStatus(hasPendingConfigChanges bool) error {
 		klog.Errorf("failed to update Ndb %s/%s: %v", ndb.Namespace, ndb.Name, updateErr)
 		return updateErr
 	}
+
+	// Record an SyncSuccess event as the MySQL Cluster specification has been
+	// successfully synced with the spec of Ndb object and the status has been updated.
+	sc.recorder.Event(sc.ndb, corev1.EventTypeNormal, ReasonSyncSuccess, MessageSyncSuccess)
+
 	return nil
 }
 
