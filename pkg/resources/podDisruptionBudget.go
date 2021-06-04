@@ -21,7 +21,7 @@ func NewPodDisruptionBudget(ndb *v1alpha1.Ndb, nodeTypeSelector string) *policyv
 		constants.ClusterNodeTypeLabel: nodeTypeSelector,
 	})
 
-	minAvailable := intstr.FromInt(int(*ndb.Spec.NodeCount - 1))
+	minAvailable := intstr.FromInt(int(ndb.Spec.NodeCount - 1))
 	pdb := &policyv1beta1.PodDisruptionBudget{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            ndb.GetPodDisruptionBudgetName(nodeTypeSelector),

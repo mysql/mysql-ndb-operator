@@ -10,8 +10,6 @@ import (
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
-	"github.com/mysql/ndb-operator/pkg/helpers"
-
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -215,14 +213,14 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 	// Build the new stateful set and return
 	podLabels := bss.getPodLabels(ndb)
 	var podManagementPolicy apps.PodManagementPolicyType
-	var replicas *int32
+	var replicas int32
 	var volumeClaimTemplates []v1.PersistentVolumeClaim
 	if bss.isMgmd() {
-		replicas = helpers.IntToInt32Ptr(int(rc.ManagementNodeCount))
+		replicas = int32(rc.ManagementNodeCount)
 		// Start Management nodes one by one
 		podManagementPolicy = apps.OrderedReadyPodManagement
 	} else {
-		replicas = helpers.IntToInt32Ptr(int(rc.GetDataNodeCount()))
+		replicas = int32(rc.GetDataNodeCount())
 		// Data nodes can be started in parallel
 		podManagementPolicy = apps.ParallelPodManagement
 		// Add VolumeClaimTemplate if data node PVC Spec exists
@@ -251,7 +249,7 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 				// must match templates labels
 				MatchLabels: podLabels,
 			},
-			Replicas: replicas,
+			Replicas: &replicas,
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        bss.GetName(),

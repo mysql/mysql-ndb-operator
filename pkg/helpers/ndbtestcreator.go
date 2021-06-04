@@ -6,7 +6,7 @@ import (
 )
 
 // NewTestNdb creates a new Ndb resource for testing
-func NewTestNdb(namespace string, name string, noofnodes int) *ndbcontroller.Ndb {
+func NewTestNdb(namespace string, name string, noOfNodes int32) *ndbcontroller.Ndb {
 	return &ndbcontroller.Ndb{
 		TypeMeta: metav1.TypeMeta{APIVersion: ndbcontroller.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -14,10 +14,10 @@ func NewTestNdb(namespace string, name string, noofnodes int) *ndbcontroller.Ndb
 			Namespace: namespace,
 		},
 		Spec: ndbcontroller.NdbSpec{
-			NodeCount:       IntToInt32Ptr(int(noofnodes)),
-			RedundancyLevel: IntToInt32Ptr(int(2)),
+			NodeCount:       noOfNodes,
+			RedundancyLevel: 2,
 			Mysqld: &ndbcontroller.NdbMysqldSpec{
-				NodeCount: int32(noofnodes),
+				NodeCount: noOfNodes,
 			},
 		},
 	}

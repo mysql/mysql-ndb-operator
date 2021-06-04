@@ -60,7 +60,7 @@ ConfigGenerationNumber={{.GetGeneration}}
 Name={{.Name}}
 
 [ndbd default]
-NoOfReplicas={{.GetRedundancyLevel}}
+NoOfReplicas={{.Spec.RedundancyLevel}}
 DataMemory=80M
 # Use a fixed ServerPort for all data nodes
 ServerPort=1186
@@ -116,11 +116,11 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 			switch nodeType {
 			case "mgmd":
 				startNodeId = &ndbdMgmdStartNodeId
-				numberOfNodes = int32(ndb.GetManagementNodeCount())
+				numberOfNodes = ndb.GetManagementNodeCount()
 				break
 			case "ndbd":
 				startNodeId = &ndbdMgmdStartNodeId
-				numberOfNodes = *ndb.Spec.NodeCount
+				numberOfNodes = ndb.Spec.NodeCount
 				break
 			case "api":
 				startNodeId = &apiStartNodeId

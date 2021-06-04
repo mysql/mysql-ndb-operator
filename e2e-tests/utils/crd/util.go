@@ -10,10 +10,8 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework"
 )
 
-func int32Ptr(i int32) *int32 { return &i }
-
 // NewTestNdbCrd creates a new Ndb object for testing
-func NewTestNdbCrd(namespace string, name string, datanodes, replicas, mysqlnodes int) *ndbv1alpha1.Ndb {
+func NewTestNdbCrd(namespace string, name string, datanodes, replicas, mysqlnodes int32) *ndbv1alpha1.Ndb {
 	return &ndbv1alpha1.Ndb{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: ndbv1alpha1.SchemeGroupVersion.String(),
@@ -23,10 +21,10 @@ func NewTestNdbCrd(namespace string, name string, datanodes, replicas, mysqlnode
 			Namespace: namespace,
 		},
 		Spec: ndbv1alpha1.NdbSpec{
-			NodeCount:       int32Ptr(int32(datanodes)),
-			RedundancyLevel: int32Ptr(int32(replicas)),
+			NodeCount:       datanodes,
+			RedundancyLevel: replicas,
 			Mysqld: &ndbv1alpha1.NdbMysqldSpec{
-				NodeCount: int32(mysqlnodes),
+				NodeCount: mysqlnodes,
 			},
 		},
 	}

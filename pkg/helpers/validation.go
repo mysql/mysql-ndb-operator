@@ -17,25 +17,25 @@ func IsValidConfig(ndb *ndbv1alpha1.Ndb) error {
 
 	spec := ndb.Spec
 
-	nc := *spec.NodeCount
-	mc := ndb.GetMySQLServerNodeCount()
-	msc := *spec.RedundancyLevel
-	if msc > 2 {
-		msc = 2
+	dataNodeCount := spec.NodeCount
+	mysqlServerCount := ndb.GetMySQLServerNodeCount()
+	managementNodeCount := spec.RedundancyLevel
+	if managementNodeCount > 2 {
+		managementNodeCount = 2
 	}
 
 	errBuilder := ndberrors.NewInvalidConfigNdbErrorBuilder()
 
 	// checking if number of data nodes match redundancy
-	if math.Mod(float64(nc), float64(*spec.RedundancyLevel)) != 0 {
-		msg := fmt.Sprintf("spec.nodecount should be a multiple of the spec.redundancyLevel(=%d)", int(*spec.RedundancyLevel))
-		errBuilder.AddInvalidField("spec.nodecount", fmt.Sprint(nc), msg)
+	if math.Mod(float64(dataNodeCount), float64(spec.RedundancyLevel)) != 0 {
+		msg := fmt.Sprintf("spec.nodecount should be a multiple of the spec.redundancyLevel(=%d)", spec.RedundancyLevel)
+		errBuilder.AddInvalidField("spec.nodecount", fmt.Sprint(dataNodeCount), msg)
 	}
 
 	// checking total number of nodes
-	total := nc + mc + msc
+	total := managementNodeCount + dataNodeCount + mysqlServerCount
 	if total > constants.MaxNumberOfNodes {
-		invalidValue := fmt.Sprintf("%d (= %d data, %d management and %d mysql nodes)", total, nc, msc, mc)
+		invalidValue := fmt.Sprintf("%d (= %d management, %d data and %d mysql nodes)", total, managementNodeCount, dataNodeCount, mysqlServerCount)
 		msg := fmt.Sprintf("Total nodes should not exceed the allowed maximum of %d", constants.MaxNumberOfNodes)
 		errBuilder.AddInvalidField("Total Nodes", invalidValue, msg)
 	}
