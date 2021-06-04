@@ -5,20 +5,13 @@
 package resources
 
 import (
-	"fmt"
+	"bytes"
 	"strconv"
-	"strings"
+	"text/template"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers"
-)
-
-const (
-	// Right now maximum of 144 data nodes are allowed in a cluster
-	// So to accommodate scaling up of those nodes, start the api node id from 145
-	// TODO: Validate the maximum number of API ids
-	apiStartNodeId = 145
 )
 
 // NewResourceContextFromConfiguration extracts all relevant information from configuration
@@ -56,137 +49,108 @@ func NewResourceContextFromConfiguration(configStr string) (*ResourceContext, er
 	return rc, nil
 }
 
-func getMgmdHostname(ndb *v1alpha1.Ndb, count int) string {
-	//TODO - get the real domain name
-	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
-	mgmdPodNamePrefix := ndb.Name + "-mgmd"
-	mgmdServiceName := ndb.GetServiceName("mgmd")
-	mgmHostname := fmt.Sprintf("%s-%d.%s.%s", mgmdPodNamePrefix, count, mgmdServiceName, dnsZone)
-	return mgmHostname
-}
+// MySQL Cluster config template
+var mgmtConfigTmpl = `{{- /* Template to generate management config ini */ -}}
+# auto generated config.ini - do not edit
+#
+# ConfigHash={{.CalculateNewConfigHash}}
 
-func getNdbdHostname(ndb *v1alpha1.Ndb, count int) string {
-	//TODO - get the real domain name
-	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
-	ndbdPodNamePrefix := ndb.Name + "-ndbd"
-	ndbdServiceName := ndb.GetServiceName("ndbd")
-	ndbdHostName := fmt.Sprintf("%s-%d.%s.%s", ndbdPodNamePrefix, count, ndbdServiceName, dnsZone)
-	return ndbdHostName
-}
+[system]
+ConfigGenerationNumber={{.GetGeneration}}
+Name={{.Name}}
 
-// GetConfigString produces a new configuration "file" string from the current ndb.Spec
+[ndbd default]
+NoOfReplicas={{.GetRedundancyLevel}}
+DataMemory=80M
+# Use a fixed ServerPort for all data nodes
+ServerPort=1186
+
+[tcp default]
+AllowUnresolvedHostnames=1
+
+{{range $idx, $nodeId := GetNodeIds "mgmd" -}}
+[ndb_mgmd]
+NodeId={{$nodeId}}
+{{/*TODO - get and use the real domain name instead of .svc.cluster.local */ -}}
+Hostname={{$.Name}}-mgmd-{{$idx}}.{{$.GetServiceName "mgmd"}}.{{$.Namespace}}.svc.cluster.local
+DataDir={{GetDataDir}}
+
+{{end -}}
+{{range $idx, $nodeId := GetNodeIds "ndbd" -}}
+[ndbd]
+NodeId={{$nodeId}}
+{{/*TODO - get and use the real domain name instead of .svc.cluster.local */ -}}
+Hostname={{$.Name}}-ndbd-{{$idx}}.{{$.GetServiceName "ndbd"}}.{{$.Namespace}}.svc.cluster.local
+DataDir={{GetDataDir}}
+
+{{end -}}
+{{range $nodeId := GetNodeIds "api" -}}
+[mysqld]
+NodeId={{$nodeId}}
+
+{{end -}}
+`
+
+// GetConfigString generates a new configuration for the
+// MySQL Cluster from the given ndb resources Spec.
 //
-// It is important to note that GetConfigString uses the Spec
-// in its actual and consistent state and does not rely on any Status field.
+// It is important to note that GetConfigString uses the Spec in its
+// actual and consistent state and does not rely on any Status field.
 func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 
-	header := `
-	# auto generated config.ini - do not edit
-	#
-	# ConfigHash={{$confighash}}
-	`
+	var (
+		// Variable that keeps track of the first free data node, mgmd node ids
+		ndbdMgmdStartNodeId = 1
+		// Right now maximum of 144 data nodes are allowed in a cluster
+		// So to accommodate scaling up of those nodes, start the api node id from 145
+		// TODO: Validate the maximum number of API ids
+		apiStartNodeId = 145
+	)
 
-	systemSection := `
-	[system]
-	ConfigGenerationNumber={{$configgeneration}}
-	Name={{$clustername}}
-	`
+	tmpl := template.New("config.ini")
+	tmpl.Funcs(template.FuncMap{
+		// GetNodeIds returns an array of node ids for the given node type
+		"GetNodeIds": func(nodeType string) []int {
+			var startNodeId *int
+			var numberOfNodes int32
+			switch nodeType {
+			case "mgmd":
+				startNodeId = &ndbdMgmdStartNodeId
+				numberOfNodes = int32(ndb.GetManagementNodeCount())
+				break
+			case "ndbd":
+				startNodeId = &ndbdMgmdStartNodeId
+				numberOfNodes = *ndb.Spec.NodeCount
+				break
+			case "api":
+				startNodeId = &apiStartNodeId
+				// number of api slots = slots required for mysql server + 1
+				numberOfNodes = ndb.GetMySQLServerNodeCount()
+				numberOfNodes++
+				break
+			default:
+				panic("Unrecognised node type")
+			}
+			// generate nodeis based on start node id and number of nodes
+			nodeIds := make([]int, numberOfNodes)
+			for i := range nodeIds {
+				nodeIds[i] = *startNodeId
+				*startNodeId++
+			}
+			return nodeIds
+		},
+		"GetDataDir": func() string { return constants.DataDir },
+	})
 
-	defaultSections := `
-  [ndbd default]
-  NoOfReplicas={{$noofreplicas}}
-  DataMemory=80M
+	if _, err := tmpl.Parse(mgmtConfigTmpl); err != nil {
+		// panic to discover any parsing errors during development
+		panic("Failed to parse mgmt config template")
+	}
 
-  [tcp default]
-  AllowUnresolvedHostnames=1`
-
-	mgmdSection := `	
-  [ndb_mgmd]
-  NodeId={{$nodeId}}
-  Hostname={{$hostname}}
-  DataDir={{$datadir}}`
-
-	ndbdSection := `
-  [ndbd]
-  NodeId={{$nodeId}}
-  Hostname={{$hostname}}
-  DataDir={{$datadir}}
-  ServerPort=1186`
-
-	// START of generation
-	configString := ""
-
-	// header
-	hash, err := ndb.CalculateNewConfigHash()
-	if err != nil {
+	var configIni bytes.Buffer
+	if err := tmpl.Execute(&configIni, ndb); err != nil {
 		return "", err
 	}
-	configString += strings.ReplaceAll(header, "{{$confighash}}", hash)
-	configString += "\n"
 
-	// system section
-	// we use the actual config generation here
-	generation := fmt.Sprintf("%d", ndb.GetGeneration())
-	syss := systemSection
-	syss = strings.ReplaceAll(syss, "{{$configgeneration}}", generation)
-	syss = strings.ReplaceAll(syss, "{{$clustername}}", ndb.Name)
-	configString += syss + "\n"
-
-	// ndbd default
-	noofrepl := fmt.Sprintf("%d", ndb.GetRedundancyLevel())
-	configString += strings.ReplaceAll(defaultSections, "{{$noofreplicas}}", noofrepl)
-	configString += "\n"
-
-	/*
-		TODO - how about hostname/nodeid stability when patching existing config?
-	*/
-	nodeId := int(1)
-	for i := 0; i < int(ndb.GetManagementNodeCount()); i++ {
-
-		ms := mgmdSection
-		ms = strings.ReplaceAll(ms, "{{$nodeId}}", strconv.Itoa(nodeId))
-		ms = strings.ReplaceAll(ms, "{{$hostname}}", getMgmdHostname(ndb, i))
-		ms = strings.ReplaceAll(ms, "{{$datadir}}", constants.DataDir)
-
-		configString += ms
-		nodeId++
-		configString += "\n"
-	}
-
-	// data node sections
-	for i := 0; i < int(*ndb.Spec.NodeCount); i++ {
-
-		ns := ndbdSection
-		ns = strings.ReplaceAll(ns, "{{$nodeId}}", strconv.Itoa(nodeId))
-		ns = strings.ReplaceAll(ns, "{{$hostname}}", getNdbdHostname(ndb, i))
-		ns = strings.ReplaceAll(ns, "{{$datadir}}", constants.DataDir)
-
-		configString += ns
-		nodeId++
-		configString += "\n"
-	}
-	configString += "\n"
-
-	// mysqld sections
-	// TODO: Define more api nodes in the beginning so that the user can
-	//       scale up the MySQL Server Deployment without restarting the data/mgmd nodes
-	mysqlSections := ndb.GetMySQLServerNodeCount()
-	// always keep one extra api slot available
-	mysqlSections++
-
-	for i := int32(0); i < mysqlSections; i++ {
-		configString += "[mysqld]\n"
-		configString += fmt.Sprintf("NodeId=%d\n", apiStartNodeId+i)
-		configString += "\n"
-	}
-
-	/* pure estetics - trim whitespace from lines */
-	s := strings.Split(configString, "\n")
-	configString = ""
-	for _, line := range s {
-		configString += strings.TrimSpace(line) + "\n"
-	}
-
-	//klog.Infof("Config string: \n %s", configString)
-	return configString, nil
+	return configIni.String(), nil
 }
