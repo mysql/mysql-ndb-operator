@@ -469,7 +469,7 @@ func TestCreateInvalidCluster(t *testing.T) {
 	ndb := helpers.NewTestNdb(ns, "test", 2)
 
 	// that would be an invalid config with 3 replica and 2 data nodes
-	ndb.Spec.RedundancyLevel = helpers.IntToInt32Ptr(int(3))
+	ndb.Spec.RedundancyLevel = 3
 
 	f := newFixture(t, ndb)
 	defer f.close()
@@ -498,7 +498,7 @@ func TestCreateInvalidCluster(t *testing.T) {
 	klog.Infof("Fixed invalid config and run again")
 
 	// internally fake client maintains a copy, so we need to update the Ndb object
-	ndb.Spec.RedundancyLevel = helpers.IntToInt32Ptr(int(2))
+	ndb.Spec.RedundancyLevel = 2
 	_, err := f.client.MysqlV1alpha1().Ndbs(ndb.Namespace).Update(context.TODO(), ndb, metav1.UpdateOptions{})
 
 	if err != nil {

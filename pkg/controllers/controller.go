@@ -229,7 +229,7 @@ func NewController(
 
 			klog.Infof("Generation: %d -> %d", oldNdb.ObjectMeta.Generation, newNdb.ObjectMeta.Generation)
 			if !equality.Semantic.DeepEqual(oldNdb.Spec, newNdb.Spec) {
-				klog.Infof("Difference in spec: %d : %d", *oldNdb.Spec.NodeCount, *newNdb.Spec.NodeCount)
+				klog.Infof("Difference in spec: %d : %d", oldNdb.Spec.NodeCount, newNdb.Spec.NodeCount)
 			} else if !equality.Semantic.DeepEqual(oldNdb.Status, newNdb.Status) {
 				klog.Infof("Difference in status")
 			} else {
@@ -1182,7 +1182,7 @@ func (sc *SyncContext) sync() error {
 	// StatefulSet resource.
 	if sc.resourceContext.GetDataNodeCount() != uint32(*sc.dataNodeSfSet.Spec.Replicas) {
 		klog.Infof("Updating %q: DataNodes=%d statefulSetReplicas=%d",
-			sc.nsName, *sc.ndb.Spec.NodeCount, *sc.dataNodeSfSet.Spec.Replicas)
+			sc.nsName, sc.ndb.Spec.NodeCount, *sc.dataNodeSfSet.Spec.Replicas)
 		if sc.dataNodeSfSet, err = sc.ndbdController.Patch(sc.resourceContext, sc.ndb, sc.dataNodeSfSet); err != nil {
 			// Requeue the item so we can attempt processing again later.
 			// This could have been caused by a temporary network failure etc.

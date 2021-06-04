@@ -63,15 +63,16 @@ type NdbSpec struct {
 	// For a redundancy level of 1 one management server will be created.
 	// For 2 or higher two management servers will be used.
 	// Once a cluster has been created, this number can NOT be easily changed.
+	// +kubebuilder:default=2
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=4
-	RedundancyLevel *int32 `json:"redundancyLevel"`
+	RedundancyLevel int32 `json:"redundancyLevel,omitempty"`
 	// The total number of data nodes in cluster.
 	// The node count needs to be a multiple of the redundancyLevel.
 	// Currently the maximum is 144 data nodes.
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=144
-	NodeCount *int32 `json:"nodecount"`
+	NodeCount int32 `json:"nodecount"`
 	// The name of the MySQL Ndb Cluster image to be used.
 	// If not specified, "mysql/mysql-cluster:8.0.22" will be used.
 	// Lowest supported version is 8.0.22.
@@ -158,7 +159,8 @@ func (ndb *Ndb) CalculateNewConfigHash() (string, error) {
 	return base64.StdEncoding.EncodeToString(h), nil
 }
 
-/* comparing the stored hash with the newly calculated hash of the Spec we see if it changed */
+// IsConfigHashEqual calculates the new hash of the Spec and
+// compares it with the stored hash
 func (ndb *Ndb) IsConfigHashEqual() (string, bool, error) {
 
 	configHash, err := ndb.CalculateNewConfigHash()
@@ -174,15 +176,10 @@ func (ndb *Ndb) IsConfigHashEqual() (string, bool, error) {
 	return configHash, true, nil
 }
 
-func (ndb *Ndb) GetRedundancyLevel() int {
-	if ndb.Spec.RedundancyLevel == nil {
-		return 2
-	}
-	return int(*ndb.Spec.RedundancyLevel)
-}
-
-func (ndb *Ndb) GetManagementNodeCount() int {
-	if ndb.GetRedundancyLevel() == 1 {
+// GetManagementNodeCount returns the number of
+// management servers based on the redundancy levels
+func (ndb *Ndb) GetManagementNodeCount() int32 {
+	if ndb.Spec.RedundancyLevel == 1 {
 		return 1
 	}
 	return 2
@@ -206,7 +203,7 @@ func (ndb *Ndb) GetConnectstring() string {
 	connectstring := ""
 	mgmdPodNamePrefix := ndb.Name + "-mgmd"
 	mgmdServiceName := ndb.GetServiceName("mgmd")
-	for i := 0; i < (int)(ndb.GetManagementNodeCount()); i++ {
+	for i := int32(0); i < ndb.GetManagementNodeCount(); i++ {
 		if i > 0 {
 			connectstring += ","
 		}

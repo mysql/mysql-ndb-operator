@@ -202,6 +202,7 @@ spec:
                 minimum: 1
                 type: integer
               redundancyLevel:
+                default: 2
                 description: The number of data replicas or copies of data stored
                   in Ndb Cluster. Supported and allowed values are 1, 2, 3, and 4.
                   A redundancy level of 1 creates a sharded cluster providing NO fault
@@ -218,7 +219,6 @@ spec:
                 type: integer
             required:
             - nodecount
-            - redundancyLevel
             type: object
           status:
             description: NdbStatus is the status for a Ndb resource

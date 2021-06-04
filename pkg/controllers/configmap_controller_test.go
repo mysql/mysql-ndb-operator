@@ -98,8 +98,8 @@ func validateMgmtConfig(t *testing.T, cm *corev1.ConfigMap, ndb *v1alpha1.Ndb) {
 	}
 
 	// Validate the number of sections
-	validateConfigIniSectionCount(t, config, "ndb_mgmd", ndb.GetManagementNodeCount())
-	validateConfigIniSectionCount(t, config, "ndbd", int(*ndb.Spec.NodeCount))
+	validateConfigIniSectionCount(t, config, "ndb_mgmd", int(ndb.GetManagementNodeCount()))
+	validateConfigIniSectionCount(t, config, "ndbd", int(ndb.Spec.NodeCount))
 	validateConfigIniSectionCount(t, config, "mysqld", int(ndb.GetMySQLServerNodeCount())+1)
 }
 

@@ -93,8 +93,8 @@ func (rssc *realStatefulSetControl) Patch(rc *resources.ResourceContext, ndb *v1
 	klog.Infof("Patch stateful set %s/%s Replicas: %d, DataNodes: %d",
 		ndb.Namespace,
 		rssc.statefulSetType.GetName(),
-		ndb.GetRedundancyLevel(),
-		*ndb.Spec.NodeCount)
+		ndb.Spec.RedundancyLevel,
+		ndb.Spec.NodeCount)
 
 	sfset := rssc.statefulSetType.NewStatefulSet(rc, ndb)
 
@@ -142,7 +142,7 @@ func (rssc *realStatefulSetControl) EnsureStatefulSet(sc *SyncContext) (*apps.St
 		// re-queue if something went wrong
 		klog.Errorf("Failed to create stateful set %s/%s replicas: %d with error: %s",
 			sc.ndb.Namespace, rssc.statefulSetType.GetName(),
-			*sc.ndb.Spec.NodeCount, err)
+			sc.ndb.Spec.NodeCount, err)
 
 		return nil, false, err
 	}

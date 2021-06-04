@@ -14,14 +14,14 @@ type validationCase struct {
 	explain    string
 }
 
-func nodeNumberTests(reduncany, dnc, mysqldc int, fail bool, short string) validationCase {
+func nodeNumberTests(reduncany, dnc, mysqldc int32, fail bool, short string) validationCase {
 	return validationCase{
 		spec: &v1alpha1.NdbSpec{
-			RedundancyLevel: IntToInt32Ptr(int(reduncany)),
-			NodeCount:       IntToInt32Ptr(int(dnc)),
+			RedundancyLevel: reduncany,
+			NodeCount:       dnc,
 			ContainerImage:  "mysql/mysql-cluster:8.0.22",
 			Mysqld: &v1alpha1.NdbMysqldSpec{
-				NodeCount: int32(mysqldc),
+				NodeCount: mysqldc,
 			},
 		},
 		shouldFail: fail,
@@ -33,8 +33,8 @@ func nodeNumberTests(reduncany, dnc, mysqldc int, fail bool, short string) valid
 func mysqldRootPasswordSecretNameTests(secretName string, fail bool, short string) validationCase {
 	return validationCase{
 		spec: &v1alpha1.NdbSpec{
-			RedundancyLevel: IntToInt32Ptr(1),
-			NodeCount:       IntToInt32Ptr(1),
+			RedundancyLevel: 1,
+			NodeCount:       1,
 			ContainerImage:  "mysql/mysql-cluster:8.0.22",
 			Mysqld: &v1alpha1.NdbMysqldSpec{
 				NodeCount:              1,
