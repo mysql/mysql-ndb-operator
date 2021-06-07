@@ -46,11 +46,11 @@ var _ = ndbtest.DescribeFeature("MySQL Custom cnf", func() {
 	ginkgo.When("a custom cnf property is specified for MySQL Server", func() {
 
 		ginkgo.BeforeEach(func() {
-			ndbtest.CreateNdbResource(c, ns, "artifacts/examples", "example-ndb-cnf")
+			ndbtest.KubectlApplyNdbYaml(c, ns, "artifacts/examples", "example-ndb-cnf")
 		})
 
 		ginkgo.AfterEach(func() {
-			ndbtest.DeleteNdbResource(c, ns, "example-ndb", "artifacts/examples", "example-ndb-cnf")
+			ndbtest.KubectlDeleteNdbYaml(c, ns, "example-ndb", "artifacts/examples", "example-ndb-cnf")
 		})
 
 		ginkgo.It("should start the server with those values as the defaults", func() {

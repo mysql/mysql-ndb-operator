@@ -61,11 +61,11 @@ var _ = ndbtest.DescribeFeature("Ndb basic", func() {
 	ginkgo.When("the example-ndb yaml is applied", func() {
 
 		ginkgo.BeforeEach(func() {
-			ndbtest.CreateNdbResource(c, ns, "artifacts/examples", "example-ndb")
+			ndbtest.KubectlApplyNdbYaml(c, ns, "artifacts/examples", "example-ndb")
 		})
 
 		ginkgo.AfterEach(func() {
-			ndbtest.DeleteNdbResource(c, ns, "example-ndb", "artifacts/examples", "example-ndb")
+			ndbtest.KubectlDeleteNdbYaml(c, ns, "example-ndb", "artifacts/examples", "example-ndb")
 		})
 
 		ginkgo.It("should deploy MySQL cluster in K8s", func() {
@@ -100,7 +100,7 @@ var _ = ndbtest.DescribeFeature("Ndb basic", func() {
 			var err error
 
 			ndbobj := crd_utils.NewTestNdbCrd(ns, "test-ndb", 1, 2, 2)
-			ndbobj, err = ndbclient.MysqlV1alpha1().Ndbs(ns).Create(context.TODO(), ndbobj, metav1.CreateOptions{})
+			_, err = ndbclient.MysqlV1alpha1().Ndbs(ns).Create(context.TODO(), ndbobj, metav1.CreateOptions{})
 			framework.ExpectNoError(err)
 
 			err = ndbclient.MysqlV1alpha1().Ndbs(ns).Delete(context.TODO(), "test-ndb", metav1.DeleteOptions{})

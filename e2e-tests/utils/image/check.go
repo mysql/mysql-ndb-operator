@@ -13,7 +13,7 @@ import (
 // CheckOperatorImage tries to find the ndb-operator image
 // simply exits the program if not found
 func CheckOperatorImage() {
-	cli, err := client.NewEnvClient()
+	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		klog.Fatalf("Unable to connect to docker instance: %s\n", err)
 		os.Exit(1)
