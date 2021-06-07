@@ -1,4 +1,4 @@
-package helpers
+package testutils
 
 import (
 	ndbcontroller "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"

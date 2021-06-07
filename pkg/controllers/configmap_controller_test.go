@@ -15,6 +15,7 @@ import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/config"
 	"github.com/mysql/ndb-operator/pkg/helpers"
+	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -106,7 +107,7 @@ func validateMgmtConfig(t *testing.T, cm *corev1.ConfigMap, ndb *v1alpha1.Ndb) {
 func TestCreateConfigMap(t *testing.T) {
 
 	ns := metav1.NamespaceDefault
-	ndb := helpers.NewTestNdb(ns, "test", 2)
+	ndb := testutils.NewTestNdb(ns, "test", 2)
 	ndb.Spec.Mysqld.NodeCount = 7
 
 	f := newFixture(t, ndb)

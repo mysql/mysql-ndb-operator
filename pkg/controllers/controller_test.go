@@ -2,8 +2,6 @@
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-// NOTE: NOT READY AT ALL - FIX BUT DON'T USE
-
 package controllers
 
 import (
@@ -33,7 +31,7 @@ import (
 	ndbcontroller "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/fake"
 	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
-	helpers "github.com/mysql/ndb-operator/pkg/helpers"
+	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 )
 
 var (
@@ -466,7 +464,7 @@ func getObjectMetadata(name string, ndb *ndbcontroller.Ndb, t *testing.T) *metav
 func TestCreateInvalidCluster(t *testing.T) {
 
 	ns := metav1.NamespaceDefault
-	ndb := helpers.NewTestNdb(ns, "test", 2)
+	ndb := testutils.NewTestNdb(ns, "test", 2)
 
 	// that would be an invalid config with 3 replica and 2 data nodes
 	ndb.Spec.RedundancyLevel = 3
@@ -515,7 +513,7 @@ func TestCreateInvalidCluster(t *testing.T) {
 func TestCreatesCluster(t *testing.T) {
 
 	ns := metav1.NamespaceDefault
-	ndb := helpers.NewTestNdb(ns, "test", 2)
+	ndb := testutils.NewTestNdb(ns, "test", 2)
 
 	f := newFixture(t, ndb)
 	defer f.close()

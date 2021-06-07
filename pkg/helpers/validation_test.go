@@ -2,10 +2,11 @@ package helpers
 
 import (
 	"fmt"
-	"github.com/mysql/ndb-operator/pkg/helpers/ndberrors"
 	"testing"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/helpers/ndberrors"
+	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 )
 
 type validationCase struct {
@@ -48,7 +49,7 @@ func mysqldRootPasswordSecretNameTests(secretName string, fail bool, short strin
 
 func Test_InvalidValues(t *testing.T) {
 
-	ndb := NewTestNdb("ns", "test", 2)
+	ndb := testutils.NewTestNdb("ns", "test", 2)
 	if err := IsValidConfig(ndb); err != nil {
 		t.Errorf("2 node cluster is wrongly marked invalid with error %s", err)
 	}

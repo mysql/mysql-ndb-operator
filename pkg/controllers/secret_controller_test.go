@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mysql/ndb-operator/pkg/helpers"
+	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 	"github.com/mysql/ndb-operator/pkg/resources"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -14,7 +14,7 @@ import (
 func TestMysqlRootPasswordSecretInterface_EnsureSecret(t *testing.T) {
 
 	ns := metav1.NamespaceDefault
-	ndb := helpers.NewTestNdb(ns, "test", 2)
+	ndb := testutils.NewTestNdb(ns, "test", 2)
 
 	// Create fixture and start informers
 	f := newFixture(t, ndb)
