@@ -3,7 +3,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"github.com/onsi/ginkgo"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
@@ -14,10 +13,9 @@ import (
 	deployment_utils "github.com/mysql/ndb-operator/e2e-tests/utils/deployment"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
-	yaml_utils "github.com/mysql/ndb-operator/e2e-tests/utils/yaml"
-
 	"github.com/mysql/ndb-operator/pkg/constants"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
+	"github.com/onsi/ginkgo"
 )
 
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
@@ -60,43 +58,27 @@ var _ = ndbtest.DescribeFeature("Ndb basic", func() {
 		 - examples should always work and not degrade
 		 - the example with 2 nodes of each kind is probably the most common setup
 	*/
-	ginkgo.When("the example-ndb yaml is applied to the k8s cluster", func() {
-		ginkgo.It("should affect the Ndb cluster running in K8s", func() {
-			ginkgo.By("creating the ndb resource")
-			yaml_utils.CreateFromYaml(ns, "artifacts/examples", "example-ndb")
+	ginkgo.When("the example-ndb yaml is applied", func() {
 
-			ginkgo.By("deploying the NDB cluster nodes in k8s cluster")
-			err := sfset_utils.WaitForStatefulSetComplete(c, ns, "example-ndb-ndbd")
-			framework.ExpectNoError(err)
+		ginkgo.BeforeEach(func() {
+			ndbtest.CreateNdbResource(c, ns, "artifacts/examples", "example-ndb")
+		})
 
-			err = sfset_utils.WaitForStatefulSetComplete(c, ns, "example-ndb-mgmd")
-			framework.ExpectNoError(err)
+		ginkgo.AfterEach(func() {
+			ndbtest.DeleteNdbResource(c, ns, "example-ndb", "artifacts/examples", "example-ndb")
+		})
 
-			err = deployment_utils.WaitForDeploymentComplete(c, ns, "example-ndb-mysqld")
-			framework.ExpectNoError(err)
-
-			ginkgo.By("having the right labels for the pods")
-			sfset_utils.ExpectHasLabel(c, ns, "example-ndb-ndbd", constants.ClusterLabel, "example-ndb")
-			sfset_utils.ExpectHasLabel(c, ns, "example-ndb-mgmd", constants.ClusterLabel, "example-ndb")
-			deployment_utils.ExpectHasLabel(c, ns, "example-ndb-mysqld", constants.ClusterLabel, "example-ndb")
+		ginkgo.It("should deploy MySQL cluster in K8s", func() {
 
 			ginkgo.By("running the correct number of various Ndb nodes")
 			sfset_utils.ExpectHasReplicas(c, ns, "example-ndb-mgmd", 2)
 			sfset_utils.ExpectHasReplicas(c, ns, "example-ndb-ndbd", 2)
 			deployment_utils.ExpectHasReplicas(c, ns, "example-ndb-mysqld", 2)
 
-			ginkgo.By("deleting the Ndb resource when requested")
-			yaml_utils.DeleteFromYaml(ns, "artifacts/examples", "example-ndb")
-
-			ginkgo.By("stopping all the NDB cluster nodes")
-			err = sfset_utils.WaitForStatefulSetToDisappear(c, ns, "example-ndb-ndbd")
-			framework.ExpectNoError(err)
-
-			err = sfset_utils.WaitForStatefulSetToDisappear(c, ns, "example-ndb-mgmd")
-			framework.ExpectNoError(err)
-
-			err = deployment_utils.WaitForDeploymentToDisappear(c, ns, "example-ndb-mysqld")
-			framework.ExpectNoError(err)
+			ginkgo.By("having the right labels for the pods")
+			sfset_utils.ExpectHasLabel(c, ns, "example-ndb-ndbd", constants.ClusterLabel, "example-ndb")
+			sfset_utils.ExpectHasLabel(c, ns, "example-ndb-mgmd", constants.ClusterLabel, "example-ndb")
+			deployment_utils.ExpectHasLabel(c, ns, "example-ndb-mysqld", constants.ClusterLabel, "example-ndb")
 		})
 	})
 

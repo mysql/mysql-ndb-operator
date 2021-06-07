@@ -1,10 +1,13 @@
 package ndbtest
 
 import (
-	"fmt"
 	deployment_utils "github.com/mysql/ndb-operator/e2e-tests/utils/deployment"
+	event_utils "github.com/mysql/ndb-operator/e2e-tests/utils/events"
+	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
 	yaml_utils "github.com/mysql/ndb-operator/e2e-tests/utils/yaml"
 	"github.com/onsi/ginkgo"
+
+	"github.com/mysql/ndb-operator/pkg/controllers"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
@@ -51,7 +54,7 @@ func DeployNdbOperator(clientset kubernetes.Interface, namespace string) {
 	yaml_utils.CreateObjectsFromYaml(installYamlPath, installYamlFilename, ndbOperatorResources, namespace)
 
 	// wait for ndb operator deployment to come up
-	ginkgo.By(fmt.Sprintf("Waiting for ndb-operator deployment to complete"))
+	ginkgo.By("Waiting for ndb-operator deployment to complete")
 	err := deployment_utils.WaitForDeploymentComplete(clientset, namespace, "ndb-operator")
 	framework.ExpectNoError(err)
 }
@@ -64,7 +67,35 @@ func UndeployNdbOperator(clientset kubernetes.Interface, namespace string) {
 	yaml_utils.DeleteObjectsFromYaml(installYamlPath, installYamlFilename, ndbOperatorResources, namespace)
 
 	// wait for ndb operator deployment to disappear
-	ginkgo.By(fmt.Sprintf("Waiting for ndb-operator deployment to disappear"))
+	ginkgo.By("Waiting for ndb-operator deployment to disappear")
 	err := deployment_utils.WaitForDeploymentToDisappear(clientset, namespace, "ndb-operator")
 	framework.ExpectNoError(err)
+}
+
+// CreateNdbResource creates a Ndb object from the given file
+// and waits for the ndb operator to setup the MySQL Cluster
+func CreateNdbResource(clientset kubernetes.Interface, namespace, path, filename string) {
+	klog.V(2).Infof("Creating Ndb resource from %s/%s", path, filename)
+
+	ginkgo.By("creating the Ndb resource")
+	lastKnownEventResourceVersion := event_utils.GetLastKnownEventResourceVersion(clientset, namespace)
+	yaml_utils.CreateFromYaml(namespace, path, filename)
+
+	err := event_utils.WaitForEvent(clientset, namespace, controllers.ReasonSyncSuccess, lastKnownEventResourceVersion)
+	framework.ExpectNoError(err, "timed out waiting for operator to send sync event")
+}
+
+// DeleteNdbResource deletes the Ndb object from the given file
+// and waits for MySQL Cluster to shutdown
+func DeleteNdbResource(clientset kubernetes.Interface, namespace, ndbName, path, filename string) {
+	klog.V(2).Infof("Deleting Ndb resource from %s/%s", path, filename)
+
+	ginkgo.By("deleting the Ndb resource and waiting for the workloads to disappear")
+	yaml_utils.DeleteFromYaml(namespace, path, filename)
+	err := sfset_utils.WaitForStatefulSetToDisappear(clientset, namespace, ndbName+"-ndbd")
+	framework.ExpectNoError(err, "timed out waiting for ndb statefulset to disappear")
+	err = sfset_utils.WaitForStatefulSetToDisappear(clientset, namespace, ndbName+"-mgmd")
+	framework.ExpectNoError(err, "timed out waiting for mgmd statefulset to disappear")
+	err = deployment_utils.WaitForDeploymentToDisappear(clientset, namespace, ndbName+"-mysqld")
+	framework.ExpectNoError(err, "timed out waiting for mysqld deployment to disappear")
 }
