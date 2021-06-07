@@ -1,18 +1,14 @@
 package e2e
 
 import (
-	"fmt"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/test/e2e/framework"
 	"time"
 
-	deployment_utils "github.com/mysql/ndb-operator/e2e-tests/utils/deployment"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/mysql"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
-	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
-	yaml_utils "github.com/mysql/ndb-operator/e2e-tests/utils/yaml"
 )
 
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
@@ -38,7 +34,7 @@ var _ = ndbtest.DescribeFeature("MySQL Custom cnf", func() {
 		ns = f.Namespace.Name
 		c = f.ClientSet
 
-		ginkgo.By(fmt.Sprintf("Deploying operator in namespace '%s'", ns))
+		ginkgo.By("Deploying operator in namespace'" + ns + "'")
 		ndbtest.DeployNdbOperator(c, ns)
 	})
 
@@ -48,20 +44,16 @@ var _ = ndbtest.DescribeFeature("MySQL Custom cnf", func() {
 	})
 
 	ginkgo.When("a custom cnf property is specified for MySQL Server", func() {
+
+		ginkgo.BeforeEach(func() {
+			ndbtest.CreateNdbResource(c, ns, "artifacts/examples", "example-ndb-cnf")
+		})
+
+		ginkgo.AfterEach(func() {
+			ndbtest.DeleteNdbResource(c, ns, "example-ndb", "artifacts/examples", "example-ndb-cnf")
+		})
+
 		ginkgo.It("should start the server with those values as the defaults", func() {
-			ginkgo.By("creating the ndb resource")
-			yaml_utils.CreateFromYaml(ns, "artifacts/examples", "example-ndb-cnf")
-
-			ginkgo.By("deploying the NDB cluster nodes in k8s cluster")
-			err := sfset_utils.WaitForStatefulSetComplete(c, ns, "example-ndb-ndbd")
-			framework.ExpectNoError(err)
-
-			err = sfset_utils.WaitForStatefulSetComplete(c, ns, "example-ndb-mgmd")
-			framework.ExpectNoError(err)
-
-			err = deployment_utils.WaitForDeploymentComplete(c, ns, "example-ndb-mysqld")
-			framework.ExpectNoError(err)
-
 			// TODO : Implement MySQL Readiness Probes to skip timed waiting
 			time.Sleep(2 * time.Minute)
 			db := mysql.Connect(c, ns, "example-ndb", "performance_schema")
@@ -70,27 +62,18 @@ var _ = ndbtest.DescribeFeature("MySQL Custom cnf", func() {
 			row := db.QueryRow(
 				"select variable_value from global_variables where variable_name = 'max_user_connections';")
 			var value int
-			framework.ExpectNoError(row.Scan(&value))
-			gomega.Expect(value).To(gomega.Equal(42))
+			framework.ExpectNoError(row.Scan(&value),
+				"querying for max_user_connections returned an error")
+			gomega.Expect(value).To(gomega.Equal(42),
+				"max_user_connections had an unexpected value")
 
 			ginkgo.By("verifying that the defaults doesn't override the value set by the operator")
 			row = db.QueryRow(
 				"select variable_value from global_variables where variable_name = 'ndb_extra_logging';")
-			framework.ExpectNoError(row.Scan(&value))
-			gomega.Expect(value).To(gomega.Equal(99))
-
-			ginkgo.By("deleting the Ndb resource when requested")
-			yaml_utils.DeleteFromYaml(ns, "artifacts/examples", "example-ndb-cnf")
-
-			ginkgo.By("stopping all the NDB cluster nodes")
-			err = sfset_utils.WaitForStatefulSetToDisappear(c, ns, "example-ndb-ndbd")
-			framework.ExpectNoError(err)
-
-			err = sfset_utils.WaitForStatefulSetToDisappear(c, ns, "example-ndb-mgmd")
-			framework.ExpectNoError(err)
-
-			err = deployment_utils.WaitForDeploymentToDisappear(c, ns, "example-ndb-mysqld")
-			framework.ExpectNoError(err)
+			framework.ExpectNoError(row.Scan(&value),
+				"querying for ndb_extra_logging returned an error")
+			gomega.Expect(value).To(gomega.Equal(99),
+				"ndb_extra_logging had an unexpected value")
 		})
 	})
 })
