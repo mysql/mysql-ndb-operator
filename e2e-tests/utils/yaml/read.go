@@ -13,8 +13,8 @@ import (
 // YamlFile reads the content of a single yamle file as string
 // Read happens from a test files path which needs to first
 // be registered with testfiles.AddFileSource()
-func YamlFile(test, file string) string {
-	from := filepath.Join(test, file+".yaml")
+func YamlFile(path, file string) string {
+	from := filepath.Join(path, file+".yaml")
 	data, err := testfiles.Read(from)
 	if err != nil {
 		dir, _ := os.Getwd()

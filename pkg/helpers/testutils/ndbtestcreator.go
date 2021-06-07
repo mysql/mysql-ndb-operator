@@ -5,10 +5,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NewTestNdb creates a new Ndb resource for testing
+// NewTestNdb creates a new Ndb resource with few preset for testing
 func NewTestNdb(namespace string, name string, noOfNodes int32) *ndbcontroller.Ndb {
 	return &ndbcontroller.Ndb{
-		TypeMeta: metav1.TypeMeta{APIVersion: ndbcontroller.SchemeGroupVersion.String()},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Ndb",
+			APIVersion: ndbcontroller.SchemeGroupVersion.String(),
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
