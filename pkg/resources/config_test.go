@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/mysql/ndb-operator/pkg/helpers"
+	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 )
 
 func Test_NewResourceContextFromConfiguration(t *testing.T) {
@@ -68,7 +68,7 @@ func Test_NewResourceContextFromConfiguration2(t *testing.T) {
 }
 
 func Test_GetConfigString(t *testing.T) {
-	ndb := helpers.NewTestNdb("default", "example-ndb", 2)
+	ndb := testutils.NewTestNdb("default", "example-ndb", 2)
 	configString, err := GetConfigString(ndb)
 	if err != nil {
 		t.Errorf("Failed to generate config string from Ndb : %s", err)
