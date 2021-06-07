@@ -12,12 +12,14 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -25,11 +27,10 @@ import (
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
@@ -37,7 +38,7 @@ import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	clientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
-	samplescheme "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/scheme"
+	ndbscheme "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/scheme"
 	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
 	listers "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/helpers"
@@ -45,7 +46,7 @@ import (
 	"github.com/mysql/ndb-operator/pkg/resources"
 )
 
-const controllerAgentName = "ndb-controller"
+const controllerName = "ndb-controller"
 
 const (
 	// ReasonResourceExists is the reason used for an Event when the
@@ -59,6 +60,13 @@ const (
 	// ReasonInSync is the reason used for an Event when the MySQL Cluster
 	// is already in sync with the spec of the Ndb object.
 	ReasonInSync = "InSync"
+
+	// ActionNone is the action used for an Event when the operator does nothing.
+	ActionNone = "None"
+	// ActionSynced is the action used for an Event when the operator
+	// makes changes to the MySQL Cluster and successfully syncs it with
+	// the Ndb object.
+	ActionSynced = "Synced"
 
 	// MessageResourceExists is the message used for an Event when the
 	// operator fails to sync the Ndb object with MySQL Cluster due to
@@ -111,9 +119,8 @@ type SyncContext struct {
 	controllerContext *ControllerContext
 	ndbsLister        listers.NdbLister
 
-	// recorder is an event recorder for recording Event resources to the
-	// Kubernetes API.
-	recorder record.EventRecorder
+	// recorder is an event recorder for recording Event resources to the Kubernetes API.
+	recorder events.EventRecorder
 
 	// resource map stores the name of the resources already created and if they were created
 	resourceMap *map[string]bool
@@ -157,7 +164,7 @@ type Controller struct {
 	workqueue workqueue.RateLimitingInterface
 	// recorder is an event recorder for recording Event resources to the
 	// Kubernetes API.
-	recorder record.EventRecorder
+	recorder events.EventRecorder
 }
 
 // NewControllerContext returns a new controller context object
@@ -185,15 +192,24 @@ func NewController(
 	configMapInformer coreinformers.ConfigMapInformer,
 	ndbInformer informers.NdbInformer) *Controller {
 
+	// Add ndb-controller types to the default Kubernetes Scheme
+	// so Events can be logged for ndb-controller types.
+	utilruntime.Must(ndbscheme.AddToScheme(scheme.Scheme))
 	// Create event broadcaster
-	// Add ndb-controller types to the default Kubernetes Scheme so Events can be
-	// logged for ndb-controller types.
-	utilruntime.Must(samplescheme.AddToScheme(scheme.Scheme))
 	klog.V(4).Info("Creating event broadcaster")
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(klog.Infof)
-	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: controllerContext.kubeclientset.CoreV1().Events("")})
-	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: controllerAgentName})
+	eventBroadcaster := events.NewBroadcaster(
+		&events.EventSinkImpl{
+			Interface: controllerContext.kubeclientset.EventsV1(),
+		})
+	eventBroadcaster.StartRecordingToSink(make(chan struct{}))
+	// setup additional logging for events
+	eventBroadcaster.StartEventWatcher(func(event runtime.Object) {
+		e := event.(*eventsv1.Event)
+		klog.Infof("Event(%#v): type: '%s' action: '%s' reason: '%s' %s",
+			e.Regarding, e.Type, e.Action, e.Reason, e.Note)
+	})
+	// create a new recorder to send events to the broadcaster
+	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, controllerName)
 
 	controller := &Controller{
 		controllerContext:       controllerContext,
@@ -554,7 +570,8 @@ func (sc *SyncContext) ensureManagementServerStatefulSet() (*appsv1.StatefulSet,
 	// a warning to the event recorder and return error msg.
 	if !metav1.IsControlledBy(sfset, sc.ndb) {
 		msg := fmt.Sprintf(MessageResourceExists, sfset.Name)
-		sc.recorder.Event(sc.ndb, corev1.EventTypeWarning, ReasonResourceExists, MessageResourceExists)
+		sc.recorder.Eventf(sc.ndb, nil,
+			corev1.EventTypeWarning, ReasonResourceExists, ActionNone, MessageResourceExists)
 		return nil, existed, fmt.Errorf(msg)
 	}
 
@@ -582,7 +599,8 @@ func (sc *SyncContext) ensureDataNodeStatefulSet() (*appsv1.StatefulSet, bool, e
 	// a warning to the event recorder and return error msg.
 	if !metav1.IsControlledBy(sfset, sc.ndb) {
 		msg := fmt.Sprintf(MessageResourceExists, sfset.Name)
-		sc.recorder.Event(sc.ndb, corev1.EventTypeWarning, ReasonResourceExists, msg)
+		sc.recorder.Eventf(sc.ndb, nil,
+			corev1.EventTypeWarning, ReasonResourceExists, ActionNone, msg)
 		return nil, existed, fmt.Errorf(msg)
 	}
 
@@ -610,7 +628,8 @@ func (sc *SyncContext) ensureMySQLServerDeployment() (*appsv1.Deployment, bool, 
 	// log a warning to the event recorder and return the error message.
 	if !metav1.IsControlledBy(deployment, sc.ndb) {
 		msg := fmt.Sprintf(MessageResourceExists, deployment.Name)
-		sc.recorder.Event(sc.ndb, corev1.EventTypeWarning, ReasonResourceExists, msg)
+		sc.recorder.Eventf(sc.ndb, nil,
+			corev1.EventTypeWarning, ReasonResourceExists, ActionNone, msg)
 		return deployment, existed, fmt.Errorf(msg)
 	}
 
@@ -1257,7 +1276,8 @@ func (sc *SyncContext) updateNdbStatus(hasPendingConfigChanges bool) error {
 		if ndb.Status.ProcessedGeneration == ndb.ObjectMeta.Generation {
 			// Nothing happened in this loop. Skip updating status.
 			// Record an InSync event and return
-			sc.recorder.Event(sc.ndb, corev1.EventTypeNormal, ReasonInSync, MessageInSync)
+			sc.recorder.Eventf(sc.ndb, nil,
+				corev1.EventTypeNormal, ReasonInSync, ActionNone, MessageInSync)
 			return nil
 		} else {
 			// The last change was successfully applied.
@@ -1298,7 +1318,8 @@ func (sc *SyncContext) updateNdbStatus(hasPendingConfigChanges bool) error {
 
 	// Record an SyncSuccess event as the MySQL Cluster specification has been
 	// successfully synced with the spec of Ndb object and the status has been updated.
-	sc.recorder.Event(sc.ndb, corev1.EventTypeNormal, ReasonSyncSuccess, MessageSyncSuccess)
+	sc.recorder.Eventf(sc.ndb, nil,
+		corev1.EventTypeNormal, ReasonSyncSuccess, ActionSynced, MessageSyncSuccess)
 
 	return nil
 }
