@@ -15,7 +15,10 @@ GOMOD=$(grep "k8s.io/code-generator => " ${SCRIPT_ROOT}/go.mod)
 
 # extract directory and version in gopath
 MODULE=$(awk '{split($0, a, " => "); print a[2]}' <<< ${GOMOD})
-MODULE="${MODULE/ /@}" 
+MODULE="${MODULE/ /@}"
+
+# install the required generators in go cache
+go install k8s.io/code-generator/cmd/{defaulter-gen,client-gen,lister-gen,informer-gen,deepcopy-gen}
 
 # get go module cache
 CACHE=$(go env GOMODCACHE)
