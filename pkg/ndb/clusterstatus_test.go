@@ -10,53 +10,47 @@ import (
 	"testing"
 )
 
-func nodeTypeFromNodeId(mgmNodeCount, dataNodeCount, apiNodeCount, nodeId int) int {
-
+func nodeTypeFromNodeId(mgmNodeCount, dataNodeCount, nodeId int) NodeTypeEnum {
 	if nodeId <= mgmNodeCount {
-		return MgmNodeTypeID
+		return NodeTypeMGM
 	}
 	if nodeId <= mgmNodeCount+dataNodeCount {
-		return DataNodeTypeID
+		return NodeTypeNDB
 	}
-	return APINodeTypeID
+	// Any node after this point is an API node
+	return NodeTypeAPI
 }
 
-func Test_AddNodesByTLA(t *testing.T) {
+func Test_ensureNodeAndsetNodeTypeFromTLA(t *testing.T) {
 
 	cs := NewClusterStatus(8)
 
-	cs.SetNodeTypeFromTLA(1, "MGM")
-	cs.SetNodeTypeFromTLA(2, "MGM")
-	cs.SetNodeTypeFromTLA(3, "NDB")
-	cs.SetNodeTypeFromTLA(4, "NDB")
-	cs.SetNodeTypeFromTLA(5, "NDB")
-	cs.SetNodeTypeFromTLA(6, "API")
-	cs.SetNodeTypeFromTLA(7, "API")
-	cs.SetNodeTypeFromTLA(8, "API")
+	cs.ensureNode(1).setNodeTypeFromTLA("MGM")
+	cs.ensureNode(2).setNodeTypeFromTLA("MGM")
+	cs.ensureNode(3).setNodeTypeFromTLA("NDB")
+	cs.ensureNode(4).setNodeTypeFromTLA("NDB")
+	cs.ensureNode(5).setNodeTypeFromTLA("NDB")
+	cs.ensureNode(6).setNodeTypeFromTLA("API")
+	cs.ensureNode(7).setNodeTypeFromTLA("API")
+	cs.ensureNode(8).setNodeTypeFromTLA("API")
 
 	dnCnt := 0
 	mgmCnt := 0
 	apiCnt := 0
 	for _, ns := range *cs {
-		if ns.isAPINode() {
+		if ns.IsAPINode() {
 			apiCnt++
 		}
-		if ns.isDataNode() {
+		if ns.IsDataNode() {
 			dnCnt++
 		}
-		if ns.isMgmNode() {
+		if ns.IsMgmNode() {
 			mgmCnt++
 		}
 	}
 
 	if dnCnt != 3 && apiCnt != 3 && mgmCnt != 2 {
 		t.Errorf("Wrong node type count")
-	}
-
-	err := cs.SetNodeTypeFromTLA(2, "MGM__")
-
-	if err == nil {
-		t.Errorf("Wrong node type string doesn't produce error")
 	}
 }
 
@@ -83,8 +77,8 @@ func Test_ClusterIsDegraded(t *testing.T) {
 		}
 
 		ns := &NodeStatus{
-			NodeID:          nodeID,
-			NodeType:        nodeTypeFromNodeId(2, 6, 2, nodeID),
+			NodeId:          nodeID,
+			NodeType:        nodeTypeFromNodeId(2, 6, nodeID),
 			SoftwareVersion: "8.0.22",
 			IsConnected:     connected,
 			NodeGroup:       nodeGroup,
