@@ -561,5 +561,3 @@ func TestCreatesCluster(t *testing.T) {
 	expectedErrors := []string{"connection refused"}
 	f.runController(getKey(ndb, t), true, expectedErrors)
 }
-
-func int32Ptr(i int32) *int32 { return &i }

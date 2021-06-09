@@ -8,17 +8,17 @@ import (
 	"sort"
 )
 
-// NodeIDs contains the node ids of nodes in a ndb
-type NodeIDs []int
+// nodeIDs contains the node ids of nodes in a ndb
+type nodeIDs []int
 
 // ClusterReplicas contains as many arrays of node ids as cluster has replicas
-type ClusterReplicas []NodeIDs
+type ClusterReplicas []nodeIDs
 
 // NewClusterTopologyByReplica creates a new topology description by ndb replica
 func NewClusterTopologyByReplica(redundancyLevel int, nodeGroupCount int) *ClusterReplicas {
 	ct := make(ClusterReplicas, redundancyLevel)
 	for i := range ct {
-		ct[i] = make(NodeIDs, nodeGroupCount)
+		ct[i] = make(nodeIDs, nodeGroupCount)
 	}
 	return &ct
 }
@@ -37,7 +37,7 @@ func (cr *ClusterReplicas) GetNumberOfNodeGroups() int {
 }
 
 // GetNodeIDsFromReplica returns nodeids that belong to the replica with replicaID
-func (cr *ClusterReplicas) GetNodeIDsFromReplica(replicaID int) *NodeIDs {
+func (cr *ClusterReplicas) GetNodeIDsFromReplica(replicaID int) *nodeIDs {
 	if cr.GetNumberOfReplicas() >= 0 && replicaID < cr.GetNumberOfReplicas() {
 		return &(*cr)[replicaID]
 	}
@@ -50,10 +50,10 @@ func (cr *ClusterReplicas) GetNodeIDsFromReplica(replicaID int) *NodeIDs {
 func CreateClusterTopologyByReplicaFromClusterStatus(cs *ClusterStatus) *ClusterReplicas {
 
 	// we use int for count of nodes
-	tmpNodeGroups := make(map[int]NodeIDs)
+	tmpNodeGroups := make(map[int]nodeIDs)
 
 	for _, ns := range *cs {
-		if !ns.isDataNode() {
+		if !ns.IsDataNode() {
 			continue
 		}
 
@@ -64,10 +64,10 @@ func CreateClusterTopologyByReplicaFromClusterStatus(cs *ClusterStatus) *Cluster
 		_, ok := tmpNodeGroups[ns.NodeGroup]
 
 		if !ok {
-			tmpNodeGroups[ns.NodeGroup] = make(NodeIDs, 0, 4)
+			tmpNodeGroups[ns.NodeGroup] = make(nodeIDs, 0, 4)
 		}
 
-		tmpNodeGroups[ns.NodeGroup] = append(tmpNodeGroups[ns.NodeGroup], ns.NodeID)
+		tmpNodeGroups[ns.NodeGroup] = append(tmpNodeGroups[ns.NodeGroup], ns.NodeId)
 	}
 
 	// sort by node group id and by node id within node group

@@ -689,23 +689,23 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 	}
 
 	reduncanyLevel := ct.GetNumberOfReplicas()
-	api := &ndb.Mgmclient{}
-
-	err := sc.enstablishManagementConnection(api, 1)
+	mgmClient, err := sc.connectToManagementServer(1)
 	if err != nil {
 		return errorWhileProcssing(err)
 	}
-	defer api.Disconnect()
+	defer mgmClient.Disconnect()
 
 	for replica := 0; replica < reduncanyLevel; replica++ {
 
-		restartIDs := []int{}
-
+		var restartIDs []int
 		nodeIDs := ct.GetNodeIDsFromReplica(replica)
-
 		for _, nodeID := range *nodeIDs {
-			nodeConfigGeneration := api.GetConfigVersionFromNode(nodeID)
-			if wantedGeneration != nodeConfigGeneration {
+			nodeConfigGeneration, err := mgmClient.GetConfigVersionFromNode(nodeID)
+			if err != nil {
+				return errorWhileProcssing(err)
+			}
+
+			if wantedGeneration != int(nodeConfigGeneration) {
 				// node is on wrong config generation
 				restartIDs = append(restartIDs, nodeID)
 			}
@@ -716,7 +716,7 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 			klog.Infof("Identified %d nodes with wrong version in replica %d: %s",
 				len(restartIDs), replica, s)
 
-			_, err := api.StopNodes(&restartIDs)
+			err := mgmClient.StopNodes(restartIDs)
 			if err != nil {
 				klog.Infof("Error restarting replica %d nodes %s", replica, s)
 				return errorWhileProcssing(err)
@@ -732,7 +732,7 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 	return continueProcessing()
 }
 
-func (sc *SyncContext) enstablishManagementConnection(api *ndb.Mgmclient, nodeID int) error {
+func (sc *SyncContext) connectToManagementServer(nodeID int) (ndb.MgmClient, error) {
 
 	var connectstring string
 	if !sc.controllerContext.runningInK8 {
@@ -750,49 +750,45 @@ func (sc *SyncContext) enstablishManagementConnection(api *ndb.Mgmclient, nodeID
 		pod, err := sc.kubeclientset().CoreV1().Pods(sc.ndb.Namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("No pod %s/%s for management server with node id %d found", sc.ndb.Namespace, podName, nodeID)
-			return err
+			return nil, err
 		}
 
 		connectstring = fmt.Sprintf("%s:%d", pod.Status.PodIP, 1186)
 		klog.Infof("Using pod %s/%s for management server with node id %d", sc.ndb.Namespace, podName, nodeID)
 	}
 
-	err := api.ConnectToNodeId(connectstring, nodeID)
+	mgmClient, err := ndb.NewMgmClient(connectstring, nodeID)
 	if err != nil {
 		klog.Errorf("No contact to management server to desired management server with node id %d established", nodeID)
+		return nil, err
 	}
 
-	return err
+	return mgmClient, nil
 }
 
 func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
-
 	wantedGeneration := int(sc.resourceContext.ConfigGeneration)
-
 	klog.Infof("Ensuring Management Server has correct config version %d", wantedGeneration)
 
-	api := &ndb.Mgmclient{}
-
-	// management server have the first nodeids
-	// TODO: when we'll ever scale the number of management servers then this
-	// needs to be changed to actually currently configured management servers
-	// ndbobj has "desired" number of management servers
+	// management server have the first one/two node ids
 	for nodeID := 1; nodeID <= (int)(sc.ndb.GetManagementNodeCount()); nodeID++ {
 
-		// TODO : we use this function so far during test operator from outside cluster
-
-		err := sc.enstablishManagementConnection(api, nodeID)
+		mgmClient, err := sc.connectToManagementServer(nodeID)
 		if err != nil {
 			return errorWhileProcssing(err)
 		}
 
-		version := api.GetConfigVersion()
-		if version == wantedGeneration {
+		version, err := mgmClient.GetConfigVersion()
+		if err != nil {
+			return errorWhileProcssing(err)
+		}
+
+		if int(version) == wantedGeneration {
 			klog.Infof("Management server with node id %d has desired version %d",
 				nodeID, version)
 
 			// node has right version, continue to process next node
-			api.Disconnect()
+			mgmClient.Disconnect()
 			continue
 		}
 
@@ -803,11 +799,11 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 		// management server with nodeId was so nice to reveal all information
 		// now we kill it - pod should terminate and restarted with updated config map and management server
 		nodeIDs := []int{nodeID}
-		_, err = api.StopNodes(&nodeIDs)
+		err = mgmClient.StopNodes(nodeIDs)
 		if err != nil {
 			klog.Errorf("Error stopping management node %v", err)
 		}
-		api.Disconnect()
+		mgmClient.Disconnect()
 
 		// we do one at a time - exit here and wait for next reconcilation
 		return finishProcessing()
@@ -871,19 +867,16 @@ func (sc *SyncContext) ensureClusterLabel() (*labels.Set, bool, error) {
 
 func (sc *SyncContext) getClusterState() error {
 
-	api := &ndb.Mgmclient{}
-
-	err := sc.enstablishManagementConnection(api, 1)
+	mgmClient, err := sc.connectToManagementServer(1)
 	if err != nil {
 		return err
 	}
-
-	defer api.Disconnect()
+	defer mgmClient.Disconnect()
 
 	// check if management nodes report a degraded cluster state
-	cs, err := api.GetStatus()
+	cs, err := mgmClient.GetStatus()
 	if err != nil {
-		klog.Errorf("Error getting cluster status from mangement server: %s", err)
+		klog.Errorf("Error getting cluster status from management server: %s", err)
 		return err
 	}
 

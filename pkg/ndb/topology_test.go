@@ -18,13 +18,13 @@ func Test_ClusterTopologyByReplica(t *testing.T) {
 	// (!) start at 1
 	for nodeID := 1; nodeID <= 8; nodeID++ {
 		ns := &NodeStatus{
-			NodeID:          nodeID,
-			NodeType:        nodeTypeFromNodeId(2, 4, 2, nodeID),
+			NodeId:          nodeID,
+			NodeType:        nodeTypeFromNodeId(2, 4, nodeID),
 			SoftwareVersion: "8.0.22",
 			IsConnected:     true,
 		}
 
-		if ns.isDataNode() {
+		if ns.IsDataNode() {
 			ns.NodeGroup = ng
 			ngCnt++
 			if ngCnt > 1 {

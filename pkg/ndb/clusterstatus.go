@@ -1,31 +1,38 @@
 package ndb
 
-import (
-	"fmt"
+// NodeTypeEnum identifies the node type used in NodeStatus object
+// there are more types defined in c-code, but they are not used here
+type NodeTypeEnum int
+
+const (
+	// NodeTypeNDB identifies a data node
+	NodeTypeNDB NodeTypeEnum = iota
+	// NodeTypeAPI identifies a MySQL Server or generic API node
+	NodeTypeAPI
+	// NodeTypeMGM identifies a management server
+	NodeTypeMGM
 )
 
-// node types used in NodeStatus object
-// there are more types defined in c-code, but they are not used here
-
-// InvalidSectionTypeID describes an unkown or illegal node type
-const InvalidSectionTypeID = 0
-
-// DataNodeTypeID describes a data node type
-const DataNodeTypeID = 1
-
-// APINodeTypeID describes a mysql server or general API node
-const APINodeTypeID = 2
-
-// MgmNodeTypeID is the management server node type
-const MgmNodeTypeID = 3
+func (t NodeTypeEnum) toString() string {
+	switch t {
+	case NodeTypeMGM:
+		return "MGM"
+	case NodeTypeNDB:
+		return "NDB"
+	case NodeTypeAPI:
+		return "API"
+	default:
+		panic("unrecognized node type")
+	}
+}
 
 // NodeStatus describes the state of a node of any node type in cluster
 type NodeStatus struct {
 	// Type of node: data node, API or management server
-	NodeType int
+	NodeType NodeTypeEnum
 
 	// node id of the node described in status object
-	NodeID int
+	NodeId int
 
 	// isConnected reports if the node is fully started and connected to cluster
 	IsConnected bool
@@ -37,20 +44,36 @@ type NodeStatus struct {
 	SoftwareVersion string
 }
 
+func (ns *NodeStatus) IsDataNode() bool {
+	return ns.NodeType == NodeTypeNDB
+}
+
+func (ns *NodeStatus) IsMgmNode() bool {
+	return ns.NodeType == NodeTypeMGM
+}
+
+func (ns *NodeStatus) IsAPINode() bool {
+	return ns.NodeType == NodeTypeAPI
+}
+
+// setNodeTypeFromTLA sets the nodeId's NodeStatus' node type.
+// Allowed TLAs are NDB, MGM, API
+func (ns *NodeStatus) setNodeTypeFromTLA(TLA string) {
+	// node type NDB, MGM, API
+	switch TLA {
+	case "NDB":
+		ns.NodeType = NodeTypeNDB
+	case "MGM":
+		ns.NodeType = NodeTypeMGM
+	case "API":
+		ns.NodeType = NodeTypeAPI
+	default:
+		panic("unsupported node type : " + TLA)
+	}
+}
+
 // ClusterStatus describes the state of all nodes in the cluster
 type ClusterStatus map[int]*NodeStatus
-
-func (ns *NodeStatus) isDataNode() bool {
-	return ns.NodeType == DataNodeTypeID
-}
-
-func (ns *NodeStatus) isMgmNode() bool {
-	return ns.NodeType == MgmNodeTypeID
-}
-
-func (ns *NodeStatus) isAPINode() bool {
-	return ns.NodeType == APINodeTypeID
-}
 
 // NewClusterStatus creates a new ClusterStatus objects
 // and allocates memory for nodeCount status entries
@@ -61,9 +84,8 @@ func NewClusterStatus(nodeCount int) *ClusterStatus {
 
 // IsClusterDegraded returns true if any data node or mgm node is down
 func (cs *ClusterStatus) IsClusterDegraded() bool {
-
 	for _, ns := range *cs {
-		if ns.isDataNode() || ns.isMgmNode() {
+		if ns.IsDataNode() || ns.IsMgmNode() {
 			if !ns.IsConnected {
 				return true
 			}
@@ -77,10 +99,10 @@ func (cs *ClusterStatus) IsClusterDegraded() bool {
 // It returns
 //   - the number of nodegroups with a node group
 //   - and number of scaling nodes running/connected but with no node group created
-//     (which diveded by reduncanyLevel is the number of potential node groups)
+//     (which divided by redundancyLevel is the number of potential node groups)
 //
-// Its currently the only way to decide if cluster is healthy during
-// scaling where new node are configured but not started.
+// It is currently the only way to decide if cluster is healthy during
+// scaling where new nodes are configured but not started.
 // This function is a bit weird as the mgm status report contains node group 0 for any
 // node not connected (its set to -1 in mgmapi) - also during scaling
 // Some guess-work is applied with the help of noOfReplicas.
@@ -98,11 +120,11 @@ func (cs *ClusterStatus) NumberNodegroupsFullyUp(reduncancyLevel int) (int, int)
 	// during scaling a started node group not created in cluster is marked -256
 	for _, ns := range *cs {
 
-		if ns.isMgmNode() && ns.IsConnected {
+		if ns.IsMgmNode() && ns.IsConnected {
 			mgmCount++
 			continue
 		}
-		if !ns.isDataNode() {
+		if !ns.IsDataNode() {
 			continue
 		}
 
@@ -135,51 +157,17 @@ func (cs *ClusterStatus) NumberNodegroupsFullyUp(reduncancyLevel int) (int, int)
 	return nodeGroupsFullyUp, scaleNodes
 }
 
-// EnsureNode makes sure there is a node entry for the given nodeID
-// if there is no node status for this node id yet then create
-func (cs *ClusterStatus) EnsureNode(nodeID int) *NodeStatus {
-
-	var nodeStatus *NodeStatus
-	var ok bool
-	if nodeStatus, ok = (*cs)[nodeID]; !ok {
+// ensureNode returns the NodeStatus entry for the given node.
+// If one is not present for the given nodeId, it creates a new
+// NodeStatus entry and returns it
+func (cs *ClusterStatus) ensureNode(nodeId int) *NodeStatus {
+	nodeStatus, ok := (*cs)[nodeId]
+	if !ok {
+		// create a new entry
 		nodeStatus = &NodeStatus{
-			NodeID: nodeID,
+			NodeId: nodeId,
 		}
-		(*cs)[nodeID] = nodeStatus
+		(*cs)[nodeId] = nodeStatus
 	}
-
 	return nodeStatus
-}
-
-// SetNodeTypeFromTLA sets the internal type id for the node state of nodeID
-// allowed TLAs are NDB, MGM, API
-func (cs *ClusterStatus) SetNodeTypeFromTLA(nodeID int, tla string) error {
-
-	ns := cs.EnsureNode(nodeID)
-
-	if ns == nil {
-		return fmt.Errorf("Invalid node id %d", nodeID)
-	}
-
-	// node type NDB, MGM, API
-	nodeType := InvalidTypeId
-	switch tla {
-	case "NDB":
-		nodeType = DataNodeTypeID
-		break
-	case "MGM":
-		nodeType = MgmNodeTypeID
-		break
-	case "API":
-		nodeType = APINodeTypeID
-		break
-	default:
-	}
-
-	if nodeType == InvalidTypeId {
-		return fmt.Errorf("Invalid node type %s", tla)
-	}
-	ns.NodeType = nodeType
-
-	return nil
 }
