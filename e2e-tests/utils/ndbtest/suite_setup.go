@@ -7,8 +7,6 @@ import (
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/config"
 	"github.com/onsi/gomega"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -26,10 +24,9 @@ func init() {
 
 	// framework args
 	// we don't use framework.RegisterCommonFlags() framework.RegisterClusterFlags() yet
-	// use kubeconfig at $HOME/.kube/config as the default
-	defaultKubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
 	flag.StringVar(&framework.TestContext.KubeConfig,
-		"kubeconfig", defaultKubeconfig, "Path to a kubeconfig.")
+		"kubeconfig", "", "Kubeconfig of the existing K8s cluster to run tests on.\n"+
+			"Only required if running from outside the K8s CLuster.")
 	flag.StringVar(&framework.TestContext.KubectlPath,
 		"kubectl-path", "kubectl", "The kubectl binary to use. For development, you might use 'cluster/kubectl.sh' here.")
 }
