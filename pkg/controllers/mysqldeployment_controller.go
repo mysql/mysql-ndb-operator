@@ -126,8 +126,8 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(
 
 	// Get the last applied Config Generation
 	annotations := deployment.Spec.Template.GetAnnotations()
-	existingConfigGeneration, _ := strconv.ParseInt(annotations[constants.LastAppliedConfigGeneration], 10, 64)
-	if existingConfigGeneration == rc.ConfigGeneration {
+	existingConfigGeneration, _ := strconv.ParseUint(annotations[constants.LastAppliedConfigGeneration], 10, 64)
+	if uint32(existingConfigGeneration) == rc.ConfigGeneration {
 		// Deployment upto date with the current config
 		return continueProcessing()
 	}

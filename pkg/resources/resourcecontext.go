@@ -12,7 +12,7 @@ type ResourceContext struct {
 	// ConfigHash used to create the config map with
 	ConfigHash string
 	// ConfigGeneration shows the generation the configuration is based on
-	ConfigGeneration int64
+	ConfigGeneration uint32
 	// NodeGroupCount is the number of node groups in cluster configured in config
 	ConfiguredNodeGroupCount uint32
 	// ManagementNodeCount is the number of management nodes in cluster (1 or 2)

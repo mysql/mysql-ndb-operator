@@ -307,7 +307,7 @@ func (msd *MySQLServerDeployment) NewDeployment(
 					// TODO: Trigger a rolling update only when there is a change in Ndb
 					//       resource config that affects the MySQL Server
 					Annotations: map[string]string{
-						constants.LastAppliedConfigGeneration: strconv.FormatInt(rc.ConfigGeneration, 10),
+						constants.LastAppliedConfigGeneration: strconv.FormatUint(uint64(rc.ConfigGeneration), 10),
 					},
 				},
 				Spec: podSpec,

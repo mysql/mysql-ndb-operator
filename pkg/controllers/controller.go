@@ -677,7 +677,7 @@ func (sc *SyncContext) ensurePodDisruptionBudget() (*policyv1beta1.PodDisruption
 
 func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 
-	wantedGeneration := int(sc.resourceContext.ConfigGeneration)
+	wantedGeneration := sc.resourceContext.ConfigGeneration
 
 	// we go through all data nodes and see if they are on the latest config version
 	// we do this "ndb replica" wise, i.e. we iterate first through first nodes in each node group, then second, etc.
@@ -705,7 +705,7 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 				return errorWhileProcssing(err)
 			}
 
-			if wantedGeneration != int(nodeConfigGeneration) {
+			if wantedGeneration != nodeConfigGeneration {
 				// node is on wrong config generation
 				restartIDs = append(restartIDs, nodeID)
 			}
@@ -767,7 +767,7 @@ func (sc *SyncContext) connectToManagementServer(nodeID int) (mgmapi.MgmClient, 
 }
 
 func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
-	wantedGeneration := int(sc.resourceContext.ConfigGeneration)
+	wantedGeneration := sc.resourceContext.ConfigGeneration
 	klog.Infof("Ensuring Management Server has correct config version %d", wantedGeneration)
 
 	// management server have the first one/two node ids
@@ -783,7 +783,7 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 			return errorWhileProcssing(err)
 		}
 
-		if int(version) == wantedGeneration {
+		if version == wantedGeneration {
 			klog.Infof("Management server with node id %d has desired version %d",
 				nodeID, version)
 

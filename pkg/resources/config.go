@@ -29,7 +29,8 @@ func NewResourceContextFromConfiguration(configStr string) (*ResourceContext, er
 	rc.ConfigHash = helpers.GetValueFromSingleSectionGroup(config, "header", "ConfigHash")
 
 	generationStr := helpers.GetValueFromSingleSectionGroup(config, "system", "ConfigGenerationNumber")
-	rc.ConfigGeneration, _ = strconv.ParseInt(generationStr, 10, 64)
+	gen, _ := strconv.ParseUint(generationStr, 10, 32)
+	rc.ConfigGeneration = uint32(gen)
 
 	reduncancyLevelStr := helpers.GetValueFromSingleSectionGroup(config, "ndbd default", "NoOfReplicas")
 	rl, _ := strconv.ParseUint(reduncancyLevelStr, 10, 32)
