@@ -1,4 +1,4 @@
-package ndb
+package mgmapi
 
 // Config parameters with the same ids as specified in
 // storage/ndb/include/mgmapi/mgmapi_config_parematers.h

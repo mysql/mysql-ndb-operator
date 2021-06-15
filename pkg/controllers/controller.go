@@ -42,7 +42,7 @@ import (
 	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
 	listers "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/helpers"
-	"github.com/mysql/ndb-operator/pkg/ndb"
+	"github.com/mysql/ndb-operator/pkg/mgmapi"
 	"github.com/mysql/ndb-operator/pkg/resources"
 )
 
@@ -104,7 +104,7 @@ type SyncContext struct {
 	ManagementServerPort int32
 	ManagementServerIP   string
 
-	clusterState *ndb.ClusterStatus
+	clusterState *mgmapi.ClusterStatus
 
 	ndb             *v1alpha1.Ndb
 	resourceIsValid bool // the incoming Ndb resource contains a valid config
@@ -681,7 +681,7 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 
 	// we go through all data nodes and see if they are on the latest config version
 	// we do this "ndb replica" wise, i.e. we iterate first through first nodes in each node group, then second, etc.
-	ct := ndb.CreateClusterTopologyByReplicaFromClusterStatus(sc.clusterState)
+	ct := mgmapi.CreateClusterTopologyByReplicaFromClusterStatus(sc.clusterState)
 
 	if ct == nil {
 		err := fmt.Errorf("Internal error: could not extract topology from cluster status")
@@ -732,7 +732,7 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 	return continueProcessing()
 }
 
-func (sc *SyncContext) connectToManagementServer(nodeID int) (ndb.MgmClient, error) {
+func (sc *SyncContext) connectToManagementServer(nodeID int) (mgmapi.MgmClient, error) {
 
 	var connectstring string
 	if !sc.controllerContext.runningInK8 {
@@ -757,7 +757,7 @@ func (sc *SyncContext) connectToManagementServer(nodeID int) (ndb.MgmClient, err
 		klog.Infof("Using pod %s/%s for management server with node id %d", sc.ndb.Namespace, podName, nodeID)
 	}
 
-	mgmClient, err := ndb.NewMgmClient(connectstring, nodeID)
+	mgmClient, err := mgmapi.NewMgmClient(connectstring, nodeID)
 	if err != nil {
 		klog.Errorf("No contact to management server to desired management server with node id %d established", nodeID)
 		return nil, err

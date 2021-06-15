@@ -1,4 +1,4 @@
-package ndb
+package mgmapi
 
 import (
 	"bufio"

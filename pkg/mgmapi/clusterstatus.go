@@ -1,4 +1,4 @@
-package ndb
+package mgmapi
 
 // NodeTypeEnum identifies the node type used in NodeStatus object
 // there are more types defined in c-code, but they are not used here
