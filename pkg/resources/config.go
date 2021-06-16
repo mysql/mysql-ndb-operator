@@ -6,49 +6,11 @@ package resources
 
 import (
 	"bytes"
-	"strconv"
 	"text/template"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
-	"github.com/mysql/ndb-operator/pkg/helpers"
 )
-
-// NewResourceContextFromConfiguration extracts all relevant information from configuration
-// needed for further resource creation (SfSets) or comparison with new incoming ndb.Spec
-func NewResourceContextFromConfiguration(configStr string) (*ResourceContext, error) {
-
-	config, err := helpers.ParseString(configStr)
-	if err != nil {
-		return nil, err
-	}
-
-	rc := &ResourceContext{}
-
-	//TODO work with constants
-	rc.ConfigHash = helpers.GetValueFromSingleSectionGroup(config, "header", "ConfigHash")
-
-	generationStr := helpers.GetValueFromSingleSectionGroup(config, "system", "ConfigGenerationNumber")
-	gen, _ := strconv.ParseUint(generationStr, 10, 32)
-	rc.ConfigGeneration = uint32(gen)
-
-	reduncancyLevelStr := helpers.GetValueFromSingleSectionGroup(config, "ndbd default", "NoOfReplicas")
-	rl, _ := strconv.ParseUint(reduncancyLevelStr, 10, 32)
-	rc.ReduncancyLevel = uint32(rl)
-
-	if rl != 0 {
-		noofdatanodes := helpers.GetNumberOfSectionsInSectionGroup(config, "ndbd")
-		rc.ConfiguredNodeGroupCount = uint32(noofdatanodes / int(rl))
-
-		noofmgm := helpers.GetNumberOfSectionsInSectionGroup(config, "ndb_mgmd")
-		rc.ManagementNodeCount = uint32(noofmgm)
-	} else {
-		rc.ConfiguredNodeGroupCount = 0
-		rc.ManagementNodeCount = 0
-	}
-
-	return rc, nil
-}
 
 // MySQL Cluster config template
 var mgmtConfigTmpl = `{{- /* Template to generate management config ini */ -}}

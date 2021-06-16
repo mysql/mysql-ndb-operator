@@ -5,11 +5,17 @@
 package resources
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 )
+
+func errorIfNotEqual(t *testing.T, expected, actual uint32, desc string) {
+	t.Helper()
+	if expected != actual {
+		t.Errorf("Actual '%s' value(%d) didn't match the expected value(%d).", desc, actual, expected)
+	}
+}
 
 func Test_NewResourceContextFromConfiguration(t *testing.T) {
 
@@ -22,49 +28,34 @@ func Test_NewResourceContextFromConfiguration(t *testing.T) {
 	;               notice this ^
 	[system]
 	ConfigGenerationNumber=4711
-	`
-
-	rc, err := NewResourceContextFromConfiguration(testini)
-
-	if err != nil {
-		t.Errorf("extracting hash or generation failed : %s", err)
-	}
-
-	if rc.ConfigHash != "asdasdlkajhhnxh=?" {
-		t.Fail()
-	}
-	if rc.ConfigGeneration != 4711 {
-		t.Errorf("Wrong generation :" + fmt.Sprint(rc.ConfigGeneration))
-	}
-}
-
-func Test_NewResourceContextFromConfiguration2(t *testing.T) {
-
-	// just testing actual extraction of ConfigHash - not ini-file reading
-	testini := `
-	[ndbd default]
+    [ndbd default]
 	NoOfReplicas=2
 	[ndbd]
 	[ndbd]
 	[ndb_mgmd]
 	[ndb_mgmd]
+    [mysqld]
+    [mysqld]
+    [mysqld]
+    [mysqld]
+    [mysqld]
+    [mysqld]
 	`
 
 	rc, err := NewResourceContextFromConfiguration(testini)
 
 	if err != nil {
-		t.Errorf("extracting hash or generation failed : %s", err)
+		t.Errorf("NewResourceContextFromConfiguration failed : %s", err)
 	}
 
-	if rc.ManagementNodeCount != 2 {
-		t.Fail()
+	if rc.ConfigHash != "asdasdlkajhhnxh=?" {
+		t.Errorf("Actual 'rc.ConfigHash' value(%s) didn't match the expected value(asdasdlkajhhnxh=?).", rc.ConfigHash)
 	}
-	if rc.ReduncancyLevel != 2 {
-		t.Fail()
-	}
-	if rc.ConfiguredNodeGroupCount != 1 {
-		t.Fail()
-	}
+	errorIfNotEqual(t, 4711, rc.ConfigGeneration, "rc.ConfigGeneration")
+	errorIfNotEqual(t, 2, rc.ManagementNodeCount, "rc.ManagementNodeCount")
+	errorIfNotEqual(t, 2, rc.RedundancyLevel, " rc.RedundancyLevel")
+	errorIfNotEqual(t, 1, rc.ConfiguredNodeGroupCount, "rc.ConfiguredNodeGroupCount")
+	errorIfNotEqual(t, 6, rc.NumOfApiSlots, "rc.NumOfApiSlots")
 }
 
 func Test_GetConfigString(t *testing.T) {

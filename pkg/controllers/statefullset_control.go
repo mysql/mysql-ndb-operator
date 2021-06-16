@@ -131,8 +131,8 @@ func (rssc *realStatefulSetControl) EnsureStatefulSet(sc *SyncContext) (*apps.St
 	klog.Infof("Creating stateful set %s/%s Replicas: %d, Data Nodes: %d, Mgm Nodes: %d",
 		sc.ndb.Namespace,
 		rssc.statefulSetType.GetName(),
-		rc.ReduncancyLevel,
-		rc.ConfiguredNodeGroupCount*rc.ReduncancyLevel,
+		rc.RedundancyLevel,
+		rc.ConfiguredNodeGroupCount*rc.RedundancyLevel,
 		rc.ManagementNodeCount)
 
 	sfset = rssc.statefulSetType.NewStatefulSet(rc, sc.ndb)
