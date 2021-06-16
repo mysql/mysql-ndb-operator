@@ -69,6 +69,7 @@ func Test_NewResourceContextFromConfiguration2(t *testing.T) {
 
 func Test_GetConfigString(t *testing.T) {
 	ndb := testutils.NewTestNdb("default", "example-ndb", 2)
+	ndb.Spec.DataMemory = "80M"
 	configString, err := GetConfigString(ndb)
 	if err != nil {
 		t.Errorf("Failed to generate config string from Ndb : %s", err)
@@ -76,7 +77,7 @@ func Test_GetConfigString(t *testing.T) {
 
 	expectedConfigString := `# auto generated config.ini - do not edit
 #
-# ConfigHash=/MYzVPzS/vQRVtW4+ZIFMg==
+# ConfigHash=5cGZo+vgbQzTEgDkOfxLlw==
 
 [system]
 ConfigGenerationNumber=0

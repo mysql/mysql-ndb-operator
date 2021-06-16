@@ -63,6 +63,8 @@ type NdbSpec struct {
 	// For a redundancy level of 1 one management server will be created.
 	// For 2 or higher two management servers will be used.
 	// Once a cluster has been created, this number can NOT be easily changed.
+	// More info :
+	// https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-ndbd-definition.html#ndbparam-ndbd-noofreplicas
 	// +kubebuilder:default=2
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=4
@@ -73,6 +75,14 @@ type NdbSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=144
 	NodeCount int32 `json:"nodecount"`
+	// DataMemory specifies the space available per data node
+	// for storing in memory tables and indexes.
+	// Allowed values 1M - 1T. More info :
+	// https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datamemory
+	// +kubebuilder:default="98M"
+	// +kubebuilder:validation:Pattern="[0-9]+[MGT]"
+	DataMemory string `json:"dataMemory,omitempty"`
+
 	// The name of the MySQL Ndb Cluster image to be used.
 	// If not specified, "mysql/mysql-cluster:8.0.22" will be used.
 	// Lowest supported version is 8.0.22.

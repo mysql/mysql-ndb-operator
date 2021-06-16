@@ -62,7 +62,7 @@ Name={{.Name}}
 
 [ndbd default]
 NoOfReplicas={{.Spec.RedundancyLevel}}
-DataMemory=80M
+DataMemory={{.Spec.DataMemory}}
 # Use a fixed ServerPort for all data nodes
 ServerPort=1186
 

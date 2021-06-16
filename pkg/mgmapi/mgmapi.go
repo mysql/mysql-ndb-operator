@@ -21,6 +21,7 @@ type MgmClient interface {
 	GetConfigVersion() (uint32, error)
 	GetConfigVersionFromNode(nodeID int) (uint32, error)
 	StopNodes(nodeIds []int) error
+	GetDataMemory(dataNodeId int) (uint64, error)
 }
 
 // mgmClientImpl implements the MgmClient interface
@@ -595,4 +596,13 @@ func (mci *mgmClientImpl) GetConfigVersionFromNode(nodeId int) (uint32, error) {
 		return 0, err
 	}
 	return value.(uint32), nil
+}
+
+// GetDataMemory returns the data memory of the datanode with id dataNodeId
+func (mci *mgmClientImpl) GetDataMemory(dataNodeId int) (uint64, error) {
+	value, err := mci.getConfigFromNode(dataNodeId, cfgSectionTypeNDB, dbCfgDataMemory)
+	if err != nil {
+		return 0, err
+	}
+	return value.(uint64), nil
 }

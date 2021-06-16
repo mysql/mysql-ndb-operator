@@ -18,19 +18,6 @@ import (
 	"github.com/onsi/ginkgo"
 )
 
-var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
-	// create the Ndb CRD to be used by the suite
-	ndbtest.CreateNdbCRD()
-	return nil
-},
-	func([]byte) {},
-)
-
-var _ = ginkgo.SynchronizedAfterSuite(func() {
-	// delete the Ndb CRD once the suite is done running
-	ndbtest.DeleteNdbCRD()
-}, func() {}, 5000)
-
 var _ = ndbtest.DescribeFeature("Ndb basic", func() {
 	var ns string
 	var c clientset.Interface
