@@ -105,6 +105,8 @@ func (rcmc *ConfigMapControl) PatchConfigMap(ndb *v1alpha1.Ndb) (*corev1.ConfigM
 
 	// If the resource doesn't exist
 	if errors.IsNotFound(err) {
+		klog.Errorf("Config map %s doesn't exist", ndb.GetConfigMapName())
+		return nil, err
 	}
 
 	// Get an updated config map copy
