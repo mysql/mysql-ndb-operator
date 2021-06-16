@@ -46,6 +46,13 @@ spec:
                   supported version is 8.0.22.
                 pattern: mysql/mysql-cluster:8.0.2[2-6](-[a-zA-Z0-9]*)?
                 type: string
+              dataMemory:
+                default: 98M
+                description: 'DataMemory specifies the space available per data node
+                  for storing in memory tables and indexes. Allowed values 1M - 1T.
+                  More info : https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datamemory'
+                pattern: '[0-9]+[MGT]'
+                type: string
               dataNodePVCSpec:
                 description: DataNodePVCSpec is the PersistentVolumeClaimSpec to be
                   used as the VolumeClaimTemplate of the data node statefulset. A
@@ -203,7 +210,7 @@ spec:
                 type: integer
               redundancyLevel:
                 default: 2
-                description: The number of data replicas or copies of data stored
+                description: 'The number of data replicas or copies of data stored
                   in Ndb Cluster. Supported and allowed values are 1, 2, 3, and 4.
                   A redundancy level of 1 creates a sharded cluster providing NO fault
                   tolerance in case of node failure. With a redundancy level of 2
@@ -212,7 +219,8 @@ spec:
                   default. A redundancy level of 3 provides additional protection.
                   For a redundancy level of 1 one management server will be created.
                   For 2 or higher two management servers will be used. Once a cluster
-                  has been created, this number can NOT be easily changed.
+                  has been created, this number can NOT be easily changed. More info
+                  : https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-ndbd-definition.html#ndbparam-ndbd-noofreplicas'
                 format: int32
                 maximum: 4
                 minimum: 1
