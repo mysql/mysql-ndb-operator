@@ -689,7 +689,7 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 	}
 
 	reduncanyLevel := ct.GetNumberOfReplicas()
-	mgmClient, err := sc.connectToManagementServer(1)
+	mgmClient, err := sc.connectToManagementServer()
 	if err != nil {
 		return errorWhileProcssing(err)
 	}
@@ -732,34 +732,46 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 	return continueProcessing()
 }
 
-func (sc *SyncContext) connectToManagementServer(nodeID int) (mgmapi.MgmClient, error) {
+// connectToManagementServer connects to a management server and returns the mgmapi.MgmClient
+// An optional managementNodeId can be passed to force the method to connect to the mgmd with the id.
+func (sc *SyncContext) connectToManagementServer(managementNodeId ...int) (mgmapi.MgmClient, error) {
 
+	if len(managementNodeId) > 1 {
+		// connectToManagementServer usage error
+		panic("nodeId can take in only one optional management node id to connect to")
+	}
+
+	// By default, connect to the mgmd with nodeId 1
+	nodeId := 1
+	if len(managementNodeId) == 1 {
+		nodeId = managementNodeId[0]
+	}
+
+	// Deduce the connectstring
 	var connectstring string
 	if !sc.controllerContext.runningInK8 {
-		// we try connecting via load balancer until we connect to correct wanted node
+		// connect to the Management servers via load balancer.
+		// The MgmClient will retry connecting via the load balancer
+		// until a connection is established to the desired node
 		connectstring = fmt.Sprintf("%s:%d", sc.ManagementServerIP, sc.ManagementServerPort)
 
 	} else {
-
-		// we could: use pod ip, url from config file, calculated url (like ndb.GetConnectstring() and resolve via DNS)
-		// we could: list pod or use generated name
-		// maybe use a mix for parallel consistency check
-		// now we simply use the pod ip
-
-		podName := fmt.Sprintf("%s-%d", sc.ndb.GetServiceName("mgmd"), nodeID-1)
+		// Use the desired management pod's ip to connect to it directly
+		podName := fmt.Sprintf("%s-%d", sc.ndb.GetServiceName("mgmd"), nodeId-1)
 		pod, err := sc.kubeclientset().CoreV1().Pods(sc.ndb.Namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 		if err != nil {
-			klog.Errorf("No pod %s/%s for management server with node id %d found", sc.ndb.Namespace, podName, nodeID)
+			klog.Errorf("No pod %s/%s for management server with node id %d found", sc.ndb.Namespace, podName, nodeId)
 			return nil, err
 		}
 
 		connectstring = fmt.Sprintf("%s:%d", pod.Status.PodIP, 1186)
-		klog.Infof("Using pod %s/%s for management server with node id %d", sc.ndb.Namespace, podName, nodeID)
+		klog.Infof("Using pod %s/%s for management server with node id %d", sc.ndb.Namespace, podName, nodeId)
 	}
 
-	mgmClient, err := mgmapi.NewMgmClient(connectstring, nodeID)
+	mgmClient, err := mgmapi.NewMgmClient(connectstring, nodeId)
 	if err != nil {
-		klog.Errorf("No contact to management server to desired management server with node id %d established", nodeID)
+		klog.Errorf(
+			"Failed to establish connection with management server with desired node id %d : %v", nodeId, err)
 		return nil, err
 	}
 
@@ -867,7 +879,7 @@ func (sc *SyncContext) ensureClusterLabel() (*labels.Set, bool, error) {
 
 func (sc *SyncContext) getClusterState() error {
 
-	mgmClient, err := sc.connectToManagementServer(1)
+	mgmClient, err := sc.connectToManagementServer()
 	if err != nil {
 		return err
 	}
