@@ -12,74 +12,70 @@ import (
 	"strings"
 )
 
-const headerSection = "header"
+const (
+	headerSection = "header"
+)
 
-/* config variable name, config value pair */
+// Section is a map of all config variable names and
+// their value extracted from a particular section.
 type Section map[string]string
 
-/*
-	Multipe sections with same name will be grouped
-	(such as [ndbd]) and maintained as an array in that group
-*/
-type ConfigIni struct {
-	Groups map[string][]Section
-}
+// ConfigIni holds the parsed management configuration. It is a map
+// of section names, and an array of all Sections with that name.
+type ConfigIni map[string][]Section
 
-func NewConfig() *ConfigIni {
-	return &ConfigIni{
-		Groups: make(map[string][]Section),
-	}
-}
-
-func GetValueFromSingleSectionGroup(c *ConfigIni, sectionName string, key string) string {
-
-	//TODO return error if multi section group is parsed here
-	if grp, ok := c.Groups[sectionName]; ok {
-		if len(grp) > 0 {
-			if value, exists := grp[0][key]; exists {
-				return value
-			}
+// GetValueFromSection extracts the config value of the key from the requested
+// section. If multiple sections exist with the sectionName, the method will panic.
+func (ci ConfigIni) GetValueFromSection(sectionName string, key string) string {
+	var value string
+	if grp, ok := ci[sectionName]; ok {
+		switch len(grp) {
+		case 0:
+			// no Sections exist
+		case 1:
+			value = grp[0][key]
+		default:
+			// Wrong usage : multiple Sections exist with the same
+			// name, and the method doesn't know which one to extract from.
+			panic("GetValueFromSection : multiple Sections exist with the sectionName")
 		}
-	}
 
-	return ""
+	}
+	return value
 }
 
-func GetNumberOfSectionsInSectionGroup(c *ConfigIni, sectionName string) int {
-
-	if grp, ok := c.Groups[sectionName]; ok {
+// GetNumberOfSections returns the number of sections with the given sectionName.
+func (ci ConfigIni) GetNumberOfSections(sectionName string) int {
+	if grp, ok := ci[sectionName]; ok {
 		return len(grp)
 	}
-
 	return 0
 }
 
-/* ensures a new group if not exists and a new section within that group */
-func (c *ConfigIni) addSection(sectionName string) *Section {
+func (ci ConfigIni) addSection(sectionName string) Section {
 
-	grp := []Section{}
-	if c.Groups[sectionName] == nil {
-		// new group
-		c.Groups[sectionName] = grp
-	} else {
-		grp = c.Groups[sectionName]
+	grp := ci[sectionName]
+
+	if sectionName == headerSection && len(grp) == 1 {
+		// header group should have only one section, and it already exists
+		return grp[0]
 	}
 
-	if sectionName == headerSection {
-		// if there is a header section it should only have 1 element and we return that
-		if len(grp) > 0 {
-			return &grp[0]
-		}
+	if grp == nil {
+		// Section group doesn't exist - create one
+		grp = []Section{}
+		ci[sectionName] = grp
 	}
 
-	// create a new section under the new or existing group
-	currentSection := &Section{}
-	c.Groups[sectionName] = append(c.Groups[sectionName], *currentSection)
-
-	return currentSection
+	// Add the new section and return
+	newSection := make(Section)
+	ci[sectionName] = append(grp, newSection)
+	return newSection
 }
 
-func ParseFile(file string) (*ConfigIni, error) {
+// ParseFile parses the config from the file at the
+// given location into a ConfigIni object.
+func ParseFile(file string) (ConfigIni, error) {
 
 	f, err := os.Open(file)
 	if err != nil {
@@ -92,44 +88,25 @@ func ParseFile(file string) (*ConfigIni, error) {
 	return parseConfig(reader)
 }
 
-func ParseString(inString string) (*ConfigIni, error) {
+// ParseString parses the config string into a ConfigIni object
+func ParseString(inString string) (ConfigIni, error) {
 
 	reader := bufio.NewReader(strings.NewReader(inString))
 
 	return parseConfig(reader)
 }
 
-/*
-	parses an ini configuration file and returns it
-	as a config struct
+// parseConfig parses the config from the reader and returns a ConfigIni object
+func parseConfig(reader *bufio.Reader) (ConfigIni, error) {
 
-	grp              e.g. [ndbd]
-		section        e.g. [ndbd]
-			key=value
-			key=value
-			...
-		section        e.g. [ndbd]
-	grp
-		...
-
-	all sections [section name] of same kind will be grouped under same name
-
-	each grp is just a map of sections pointing to an array of sections:
-		map[section name] = []sections
-
-	each section has unique keys with a value:
-	  map[key] = value
-*/
-func parseConfig(reader *bufio.Reader) (*ConfigIni, error) {
-
-	c := NewConfig()
+	c := make(ConfigIni)
 
 	lineno := 1
 	sectionName := ""
 	seenHeader := false // we only want to allow 1 header and keep track
 	isComment := false
 
-	var currentSection *Section = nil
+	var currentSection Section
 
 	for {
 
@@ -178,7 +155,7 @@ func parseConfig(reader *bufio.Reader) (*ConfigIni, error) {
 				return nil, fmt.Errorf("Incomplete section name in line %d %s", lineno, line)
 			}
 
-			sectionName = string(line[1 : len(line)-1])
+			sectionName = line[1 : len(line)-1]
 			currentSection = c.addSection(sectionName)
 			continue
 		}
@@ -199,7 +176,7 @@ func parseConfig(reader *bufio.Reader) (*ConfigIni, error) {
 			// ignore config values in comments outside header section
 			continue
 		}
-		(*currentSection)[split[0]] = split[1]
+		currentSection[split[0]] = split[1]
 
 		lineno++
 	}

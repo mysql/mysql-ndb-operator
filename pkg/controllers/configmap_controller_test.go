@@ -75,9 +75,9 @@ func Test_TestThingsRelatedToConfigMaps(t *testing.T) {
 
 // ValidateConfigIniSectionCount validates the count of a
 // given section in the configIni
-func validateConfigIniSectionCount(t *testing.T, config *helpers.ConfigIni, sectionName string, expected int) {
+func validateConfigIniSectionCount(t *testing.T, config helpers.ConfigIni, sectionName string, expected int) {
 	t.Helper()
-	if actual := helpers.GetNumberOfSectionsInSectionGroup(config, sectionName); actual != expected {
+	if actual := config.GetNumberOfSections(sectionName); actual != expected {
 		t.Errorf("Expected number of '%s' sections : %d. Actual : %d", sectionName, expected, actual)
 	}
 }
