@@ -45,22 +45,22 @@ func NewResourceContextFromConfiguration(configStr string) (*ResourceContext, er
 
 	rc := &ResourceContext{}
 
-	rc.ConfigHash = helpers.GetValueFromSingleSectionGroup(config, "header", "ConfigHash")
+	rc.ConfigHash = config.GetValueFromSection("header", "ConfigHash")
 
-	generationStr := helpers.GetValueFromSingleSectionGroup(config, "system", "ConfigGenerationNumber")
+	generationStr := config.GetValueFromSection("system", "ConfigGenerationNumber")
 	gen, _ := strconv.ParseUint(generationStr, 10, 32)
 	rc.ConfigGeneration = uint32(gen)
 
-	reduncancyLevelStr := helpers.GetValueFromSingleSectionGroup(config, "ndbd default", "NoOfReplicas")
-	rl, _ := strconv.ParseUint(reduncancyLevelStr, 10, 32)
+	redundancyLevelStr := config.GetValueFromSection("ndbd default", "NoOfReplicas")
+	rl, _ := strconv.ParseUint(redundancyLevelStr, 10, 32)
 	rc.RedundancyLevel = uint32(rl)
 
-	noofdatanodes := helpers.GetNumberOfSectionsInSectionGroup(config, "ndbd")
-	rc.ConfiguredNodeGroupCount = uint32(uint64(noofdatanodes) / rl)
+	numOfDataNodes := config.GetNumberOfSections("ndbd")
+	rc.ConfiguredNodeGroupCount = uint32(uint64(numOfDataNodes) / rl)
 
-	rc.ManagementNodeCount = uint32(helpers.GetNumberOfSectionsInSectionGroup(config, "ndb_mgmd"))
+	rc.ManagementNodeCount = uint32(config.GetNumberOfSections("ndb_mgmd"))
 
-	rc.NumOfApiSlots = uint32(helpers.GetNumberOfSectionsInSectionGroup(config, "mysqld"))
+	rc.NumOfApiSlots = uint32(config.GetNumberOfSections("mysqld"))
 
 	return rc, nil
 }

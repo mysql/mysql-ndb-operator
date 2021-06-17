@@ -70,8 +70,8 @@ func IsValidConfig(ndb *ndbv1alpha1.Ndb) error {
 			errBuilder.AddInvalidField("spec.mysqld.additionalCnf", myCnfString, err.Error())
 		} else {
 			// accept only one mysqld section in the cnf
-			if len(myCnf.Groups) > 1 ||
-				len(myCnf.Groups) != GetNumberOfSectionsInSectionGroup(myCnf, "mysqld") {
+			if len(myCnf) > 1 ||
+				len(myCnf) != myCnf.GetNumberOfSections("mysqld") {
 				msg := "spec.mysqld.additionalCnf can have only one mysqld section"
 				errBuilder.AddInvalidField("spec.mysqld.additionalCnf", myCnfString, msg)
 			}

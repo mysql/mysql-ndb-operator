@@ -12,10 +12,10 @@ import (
 
 // ValidateConfigIniSectionCount validates the count of a
 // given section in the configIni
-// returns true if the validation succeeds and false otherwise
-func validateConfigIniSectionCount(t *testing.T, config *ConfigIni, sectionName string, expected int) bool {
+func validateConfigIniSectionCount(
+	t *testing.T, config ConfigIni, sectionName string, expected int) (validationSuccess bool) {
 	t.Helper()
-	if actual := GetNumberOfSectionsInSectionGroup(config, sectionName); actual != expected {
+	if actual := config.GetNumberOfSections(sectionName); actual != expected {
 		t.Errorf("Expected number of '%s' sections : %d. Actual : %d", sectionName, expected, actual)
 		return false
 	}
@@ -96,20 +96,20 @@ func TestReadInifile(t *testing.T) {
 		return
 	}
 
-	if c == nil {
-		t.Fail()
+	if c == nil || len(c) == 0 {
+		t.Fatal("configIni is empty")
 		return
 	}
 
 	// Verify number of groups
 	expectedNumOfGroups := 6
-	numOfGroups := len(c.Groups)
+	numOfGroups := len(c)
 	if numOfGroups != expectedNumOfGroups {
 		t.Errorf("Expected %d groups but got %d groups", expectedNumOfGroups, numOfGroups)
 	}
 
 	t.Log("Iterating")
-	for s, grp := range c.Groups {
+	for s, grp := range c {
 		for _, sec := range grp {
 			t.Log("[" + s + "]")
 			for key, val := range sec {
@@ -121,13 +121,13 @@ func TestReadInifile(t *testing.T) {
 	// Verify that values are parsed as expected
 	// TODO: Verify more keys
 	expectedNdbdServerPort := "1186"
-	ndbdServerPort := GetValueFromSingleSectionGroup(c, "ndbd", "ServerPort")
+	ndbdServerPort := c.GetValueFromSection("ndbd", "ServerPort")
 	if expectedNdbdServerPort != ndbdServerPort {
 		t.Errorf("Expected ndbd's ServerPort : %s but got %s", expectedNdbdServerPort, ndbdServerPort)
 	}
 
 	expectedMgmdHostname := "example-ndb-0.example-ndb.svc.default-namespace.com"
-	mgmdHostname := GetValueFromSingleSectionGroup(c, "ndb_mgmd", "Hostname")
+	mgmdHostname := c.GetValueFromSection("ndb_mgmd", "Hostname")
 	if expectedMgmdHostname != mgmdHostname {
 		t.Errorf("Expected mgmd's Hostname : %s but got %s", expectedMgmdHostname, mgmdHostname)
 	}
