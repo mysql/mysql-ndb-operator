@@ -1244,7 +1244,7 @@ func (sc *SyncContext) sync() error {
 		// The Ndb object spec has changed - patch the config map
 		klog.Infof("Config received is different from existing config map config. config map: \"%s\", new: \"%s\"",
 			sc.resourceContext.ConfigHash, newConfigHash)
-		_, err := sc.configMapController.PatchConfigMap(sc.ndb)
+		_, err := sc.configMapController.PatchConfigMap(sc.ndb, sc.resourceContext)
 		if err != nil {
 			klog.Infof("Failed to patch config map: %s", err)
 			return err

@@ -150,7 +150,7 @@ func TestCreateConfigMap(t *testing.T) {
 
 	// Patch cmget and verify
 	ndb.Spec.Mysqld.NodeCount = 12
-	patchedCm, err := cmc.PatchConfigMap(ndb)
+	patchedCm, err := cmc.PatchConfigMap(ndb, nil)
 	// Passing nil as expected patch to skip comparing the expected and original patches
 	f.expectPatchAction(ndb.GetNamespace(), "configmaps",
 		cm.GetName(), types.StrategicMergePatchType, nil)

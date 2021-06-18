@@ -11,19 +11,6 @@ import (
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 )
 
-var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
-	// create the Ndb CRD to be used by the suite
-	ndbtest.CreateNdbCRD()
-	return nil
-},
-	func([]byte) {},
-)
-
-var _ = ginkgo.SynchronizedAfterSuite(func() {
-	// delete the Ndb CRD once the suite is done running
-	ndbtest.DeleteNdbCRD()
-}, func() {}, 5000)
-
 var _ = ndbtest.DescribeFeature("MySQL Custom cnf", func() {
 	var ns string
 	var c clientset.Interface
