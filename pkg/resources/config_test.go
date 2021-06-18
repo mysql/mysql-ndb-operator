@@ -61,7 +61,7 @@ func Test_NewResourceContextFromConfiguration(t *testing.T) {
 func Test_GetConfigString(t *testing.T) {
 	ndb := testutils.NewTestNdb("default", "example-ndb", 2)
 	ndb.Spec.DataMemory = "80M"
-	configString, err := GetConfigString(ndb)
+	configString, err := GetConfigString(ndb, nil)
 	if err != nil {
 		t.Errorf("Failed to generate config string from Ndb : %s", err)
 	}

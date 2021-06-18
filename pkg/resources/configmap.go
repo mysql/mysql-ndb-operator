@@ -39,9 +39,9 @@ func GetConfigFromConfigMapObject(cm *corev1.ConfigMap) (string, error) {
 }
 
 // updateManagementConfig updates the Data map with latest config.ini
-func updateManagementConfig(ndb *v1alpha1.Ndb, data map[string]string) error {
+func updateManagementConfig(ndb *v1alpha1.Ndb, data map[string]string, oldRC *ResourceContext) error {
 	// get the updated config string
-	configString, err := GetConfigString(ndb)
+	configString, err := GetConfigString(ndb, oldRC)
 	if err != nil {
 		klog.Errorf("Failed to get the config string : %v", err)
 		return err
@@ -83,12 +83,12 @@ func updateMySQLConfig(ndb *v1alpha1.Ndb, data map[string]string) error {
 }
 
 // GetUpdatedConfigMap creates and returns a new config map with updated data
-func GetUpdatedConfigMap(ndb *v1alpha1.Ndb, cm *corev1.ConfigMap) *corev1.ConfigMap {
+func GetUpdatedConfigMap(ndb *v1alpha1.Ndb, cm *corev1.ConfigMap, oldRC *ResourceContext) *corev1.ConfigMap {
 	// create a deep copy of the original ConfigMap
 	updatedCm := cm.DeepCopy()
 
 	// Update the config.ini
-	if err := updateManagementConfig(ndb, updatedCm.Data); err != nil {
+	if err := updateManagementConfig(ndb, updatedCm.Data, oldRC); err != nil {
 		klog.Errorf("Failed to update the config map : %v", err)
 		return nil
 	}
@@ -127,7 +127,7 @@ func CreateConfigMap(ndb *v1alpha1.Ndb) *corev1.ConfigMap {
 	data := make(map[string]string)
 
 	// Add the config ini value
-	if updateManagementConfig(ndb, data) != nil {
+	if updateManagementConfig(ndb, data, nil) != nil {
 		return nil
 	}
 

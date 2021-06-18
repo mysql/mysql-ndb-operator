@@ -59,7 +59,7 @@ NodeId={{$nodeId}}
 //
 // It is important to note that GetConfigString uses the Spec in its
 // actual and consistent state and does not rely on any Status field.
-func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
+func GetConfigString(ndb *v1alpha1.Ndb, oldResourceContext *ResourceContext) (string, error) {
 
 	var (
 		// Variable that keeps track of the first free data node, mgmd node ids
@@ -69,6 +69,27 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 		// TODO: Validate the maximum number of API ids
 		apiStartNodeId = 145
 	)
+
+	// default number of API slots in the config :
+	// slots required for mysql servers + 1 free slot for others
+	requiredNumOfAPISlots := ndb.GetMySQLServerNodeCount() + 1
+
+	if oldResourceContext != nil {
+		// An update has been applied to the Ndb resource.
+		// Calculate the number of API slots to be set in the config.
+		// If the new update has requested for more MySQL Servers,
+		// increase the slots if required, but if a scale down has
+		// been requested, do not decrease the slots. This is to
+		// avoid a potential issue where the remaining MySQL
+		// Servers after the scale down might have mismatching NodeIds
+		// with the ones specified in the config file causing the
+		// setup to go into a degraded state.
+		existingNumOfAPISlots := int32(oldResourceContext.NumOfApiSlots)
+		if requiredNumOfAPISlots < existingNumOfAPISlots {
+			// Scale down requested - retain the existingNumOfSlots
+			requiredNumOfAPISlots = existingNumOfAPISlots
+		}
+	}
 
 	tmpl := template.New("config.ini")
 	tmpl.Funcs(template.FuncMap{
@@ -87,9 +108,7 @@ func GetConfigString(ndb *v1alpha1.Ndb) (string, error) {
 				break
 			case "api":
 				startNodeId = &apiStartNodeId
-				// number of api slots = slots required for mysql server + 1
-				numberOfNodes = ndb.GetMySQLServerNodeCount()
-				numberOfNodes++
+				numberOfNodes = requiredNumOfAPISlots
 				break
 			default:
 				panic("Unrecognised node type")
