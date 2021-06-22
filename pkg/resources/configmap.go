@@ -21,7 +21,6 @@ import (
 
 const (
 	configIniKey = "config.ini"
-	MyCnfKey     = "my.cnf"
 )
 
 // GetConfigFromConfigMapObject returns the config string from the config map
@@ -64,7 +63,7 @@ func updateMySQLConfig(ndb *v1alpha1.Ndb, data map[string]string) error {
 			// add mysqld section header
 			myCnfValue = "[mysqld]\n" + myCnfValue
 		}
-		data[MyCnfKey] = myCnfValue
+		data[mysqldMyCnfKey] = myCnfValue
 	}
 	return nil
 }
@@ -73,24 +72,24 @@ func updateMySQLConfig(ndb *v1alpha1.Ndb, data map[string]string) error {
 // scripts used by the MySQL Server initialisation and health probes.
 func updateMySQLHelperScripts(data map[string]string) error {
 	// Extract and add the MySQL Server initializer file
-	mysqlServerInitScriptPath := config.ScriptsDir + "/" + constants.NdbClusterInitScript
+	mysqlServerInitScriptPath := config.ScriptsDir + "/" + mysqldInitScriptKey
 	fileBytes, err := ioutil.ReadFile(mysqlServerInitScriptPath)
 	if err != nil {
 		klog.Errorf("Failed to read MySQL Server init script at %s : %v",
 			mysqlServerInitScriptPath, err)
 		return err
 	}
-	data[constants.NdbClusterInitScript] = string(fileBytes)
+	data[mysqldInitScriptKey] = string(fileBytes)
 
 	// Extract and add the healthcheck script
-	mysqlServerHealthCheckScript := config.ScriptsDir + "/" + constants.NdbClusterHealthCheckScript
+	mysqlServerHealthCheckScript := config.ScriptsDir + "/" + mysqldHealthCheckKey
 	fileBytes, err = ioutil.ReadFile(mysqlServerHealthCheckScript)
 	if err != nil {
 		klog.Errorf("Failed to read MySQL Server healthcheck script at %s : %v",
 			mysqlServerHealthCheckScript, err)
 		return err
 	}
-	data[constants.NdbClusterHealthCheckScript] = string(fileBytes)
+	data[mysqldHealthCheckKey] = string(fileBytes)
 	return nil
 }
 

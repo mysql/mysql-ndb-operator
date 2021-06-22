@@ -8,8 +8,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
+
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,20 +27,27 @@ const (
 	mysqldDataDir        = mysqldDir + "/datadir"
 
 	// MySQL root password secret volume and mount path
+	mysqldRootPasswordFileName  = ".root-password"
 	mysqldRootPasswordVolName   = mysqldClientName + "-root-password-vol"
 	mysqldRootPasswordMountPath = mysqldDir + "/auth"
-	mysqldRootPasswordFileName  = ".root-password"
 
-	mysqldInitScriptsVolName   = mysqldClientName + "-init-scripts"
+	// MySQL Cluster init script name, volume and mount path
+	mysqldInitScriptKey        = "ndbcluster-init-script.sh"
+	mysqldInitScriptsVolName   = mysqldClientName + "-init-scripts-vol"
 	mysqldInitScriptsMountPath = "/docker-entrypoint-initdb.d/"
 
-	// my.cnf volume and mount path
+	// my.cnf configmap key, volume and mount path
+	mysqldMyCnfKey     = "my.cnf"
 	mysqldCnfVolName   = mysqldClientName + "-cnf-vol"
 	mysqldCnfMountPath = mysqldDir + "/cnf"
 
-	// healthcheck.sh volume and mount path
+	// healthcheck.sh configmap key, volume and mount path
+	mysqldHealthCheckKey       = "ndbcluster-healthcheck.sh"
 	mysqldHealthCheckVolName   = mysqldClientName + "-healthcheck-vol"
 	mysqldHealthCheckMountPath = mysqldDir + "/helper"
+
+	// LastAppliedConfigGeneration is the annotation key that holds the last applied config generation
+	LastAppliedConfigGeneration = ndbcontroller.GroupName + "/last-applied-config-generation"
 )
 
 func getContainerFromDeployment(containerName string, deployment *apps.Deployment) *v1.Container {
@@ -118,8 +127,8 @@ func (msd *MySQLServerDeployment) getPodVolumes(ndb *v1alpha1.Ndb) []v1.Volume {
 					// Load only the MySQL Server init scripts
 					Items: []v1.KeyToPath{
 						{
-							Key:  constants.NdbClusterInitScript,
-							Path: constants.NdbClusterInitScript,
+							Key:  mysqldInitScriptKey,
+							Path: mysqldInitScriptKey,
 						},
 					},
 				},
@@ -135,8 +144,8 @@ func (msd *MySQLServerDeployment) getPodVolumes(ndb *v1alpha1.Ndb) []v1.Volume {
 					},
 					Items: []v1.KeyToPath{
 						{
-							Key:  constants.NdbClusterHealthCheckScript,
-							Path: constants.NdbClusterHealthCheckScript,
+							Key:  mysqldHealthCheckKey,
+							Path: mysqldHealthCheckKey,
 						},
 					},
 				},
@@ -155,8 +164,8 @@ func (msd *MySQLServerDeployment) getPodVolumes(ndb *v1alpha1.Ndb) []v1.Volume {
 					},
 					Items: []v1.KeyToPath{
 						{
-							Key:  MyCnfKey,
-							Path: MyCnfKey,
+							Key:  mysqldMyCnfKey,
+							Path: mysqldMyCnfKey,
 						},
 					},
 				},
@@ -211,7 +220,7 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb, oldContaine
 	// first, pass any provided cnf options via defaults-file
 	if len(ndb.GetMySQLCnf()) > 0 {
 		args = append(args,
-			"--defaults-file="+mysqldCnfMountPath+"/"+MyCnfKey)
+			"--defaults-file="+mysqldCnfMountPath+"/"+mysqldMyCnfKey)
 	}
 
 	// Add operator and NDB Cluster specific MySQL Server arguments
@@ -240,7 +249,7 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb, oldContaine
 		Exec: &v1.ExecAction{
 			Command: []string{
 				"/bin/bash",
-				mysqldHealthCheckMountPath + "/" + constants.NdbClusterHealthCheckScript,
+				mysqldHealthCheckMountPath + "/" + mysqldHealthCheckKey,
 			},
 		},
 	}
@@ -358,7 +367,7 @@ func (msd *MySQLServerDeployment) NewDeployment(
 					// TODO: Trigger a rolling update only when there is a change in Ndb
 					//       resource config that affects the MySQL Server
 					Annotations: map[string]string{
-						constants.LastAppliedConfigGeneration: strconv.FormatUint(uint64(rc.ConfigGeneration), 10),
+						LastAppliedConfigGeneration: strconv.FormatUint(uint64(rc.ConfigGeneration), 10),
 					},
 				},
 				Spec: podSpec,

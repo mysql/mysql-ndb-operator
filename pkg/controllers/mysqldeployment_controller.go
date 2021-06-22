@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/resources"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -126,7 +125,7 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(
 
 	// Get the last applied Config Generation
 	annotations := deployment.Spec.Template.GetAnnotations()
-	existingConfigGeneration, _ := strconv.ParseUint(annotations[constants.LastAppliedConfigGeneration], 10, 64)
+	existingConfigGeneration, _ := strconv.ParseUint(annotations[resources.LastAppliedConfigGeneration], 10, 64)
 	if uint32(existingConfigGeneration) == rc.ConfigGeneration {
 		// Deployment upto date with the current config
 		return continueProcessing()
