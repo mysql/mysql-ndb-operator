@@ -21,6 +21,8 @@ const (
 	LastAppliedConfigGeneration = ndbcontroller.GroupName + "/last-applied-config-generation"
 	// NdbClusterInitScript is the name of the ndbcluster initialisation script
 	NdbClusterInitScript = "ndbcluster-init-script.sh"
+	// NdbClusterHealthCheckScript is the name of the MySQL Cluster health checker
+	NdbClusterHealthCheckScript = "ndbcluster-healthcheck.sh"
 )
 
 // MaxNumberOfNodes is the maximum number of nodes in Ndb Cluster

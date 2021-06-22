@@ -23,15 +23,22 @@ const (
 	// Data directory volume and mount path
 	mysqldDataDirVolName = mysqldClientName + "-vol"
 	mysqldDataDir        = mysqldDir + "/datadir"
+
 	// MySQL root password secret volume and mount path
 	mysqldRootPasswordVolName   = mysqldClientName + "-root-password-vol"
 	mysqldRootPasswordMountPath = mysqldDir + "/auth"
 	mysqldRootPasswordFileName  = ".root-password"
-	mysqldInitScriptsVolName    = mysqldClientName + "-init-scripts"
-	mysqldInitScriptsMountPath  = "/docker-entrypoint-initdb.d/"
+
+	mysqldInitScriptsVolName   = mysqldClientName + "-init-scripts"
+	mysqldInitScriptsMountPath = "/docker-entrypoint-initdb.d/"
+
 	// my.cnf volume and mount path
 	mysqldCnfVolName   = mysqldClientName + "-cnf-vol"
 	mysqldCnfMountPath = mysqldDir + "/cnf"
+
+	// healthcheck.sh volume and mount path
+	mysqldHealthCheckVolName   = mysqldClientName + "-healthcheck-vol"
+	mysqldHealthCheckMountPath = mysqldDir + "/helper"
 )
 
 func getContainerFromDeployment(containerName string, deployment *apps.Deployment) *v1.Container {
@@ -118,6 +125,23 @@ func (msd *MySQLServerDeployment) getPodVolumes(ndb *v1alpha1.Ndb) []v1.Volume {
 				},
 			},
 		},
+		// Load the healthcheck script as a volume
+		{
+			Name: mysqldHealthCheckVolName,
+			VolumeSource: v1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: ndb.GetConfigMapName(),
+					},
+					Items: []v1.KeyToPath{
+						{
+							Key:  constants.NdbClusterHealthCheckScript,
+							Path: constants.NdbClusterHealthCheckScript,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	if len(ndb.GetMySQLCnf()) > 0 {
@@ -160,6 +184,11 @@ func (msd *MySQLServerDeployment) getMysqlVolumeMounts(ndb *v1alpha1.Ndb) []v1.V
 		{
 			Name:      mysqldInitScriptsVolName,
 			MountPath: mysqldInitScriptsMountPath,
+		},
+		// Mount the MySQL Server health script volume
+		{
+			Name:      mysqldHealthCheckVolName,
+			MountPath: mysqldHealthCheckMountPath,
 		},
 	}
 
@@ -206,6 +235,16 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb, oldContaine
 	imageName := ndb.Spec.ContainerImage
 	klog.Infof("Creating MySQL container from image %s", imageName)
 
+	// exec handler to be used in health probes
+	healthProbeHandler := v1.Handler{
+		Exec: &v1.ExecAction{
+			Command: []string{
+				"/bin/bash",
+				mysqldHealthCheckMountPath + "/" + constants.NdbClusterHealthCheckScript,
+			},
+		},
+	}
+
 	container := &v1.Container{
 		Name:  mysqldClientName,
 		Image: imageName,
@@ -217,6 +256,18 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb, oldContaine
 		VolumeMounts:    msd.getMysqlVolumeMounts(ndb),
 		Command:         []string{"/bin/bash", "-ecx", cmd},
 		ImagePullPolicy: v1.PullIfNotPresent,
+
+		// Health probes.
+		// Startup probe - expects MySQL to get ready within 5 minutes
+		StartupProbe: &v1.Probe{
+			Handler:          healthProbeHandler,
+			PeriodSeconds:    2,
+			FailureThreshold: 150,
+		},
+		// Readiness probe
+		ReadinessProbe: &v1.Probe{
+			Handler: healthProbeHandler,
+		},
 	}
 
 	if oldContainer == nil {
