@@ -137,7 +137,7 @@ kubectl get service "example-ndb-mgmd-ext" \
 
 # (or) retrieve it using the service label
 kubectl get service \
-  -l "mysql.oracle.com/resourcetype=mgmd-service-ext" \
+  -l "mysql.oracle.com/resource-type=mgmd-service-ext" \
   -o jsonpath={.items[0].status.loadBalancer.ingress[0].ip}
 
 # Retrieve the MySQL Server load balancer service IP address using the service name
@@ -146,7 +146,7 @@ kubectl get service "example-ndb-mysqld-ext" \
 
 # (or) retrieve it using the service label
 kubectl get service \
-  -l "mysql.oracle.com/resourcetype=mysqld-service-ext" \
+  -l "mysql.oracle.com/resource-type=mysqld-service-ext" \
   -o jsonpath={.items[0].status.loadBalancer.ingress[0].ip}
 
 ```
