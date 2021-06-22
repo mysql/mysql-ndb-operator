@@ -53,25 +53,12 @@ func updateManagementConfig(ndb *v1alpha1.Ndb, data map[string]string, oldRC *Re
 }
 
 // updateMySQLConfig updates the Data map with the
-// configs/files required for the MySQL Server
+// default my.cnf if it is specified in the Ndb resource.
 func updateMySQLConfig(ndb *v1alpha1.Ndb, data map[string]string) error {
-	// Put the MySQL Server initializer file as a config
-	mysqlServerInitScriptPath := config.ScriptsDir + "/" + constants.NdbClusterInitScript
-
-	fileBytes, err := ioutil.ReadFile(mysqlServerInitScriptPath)
-	if err != nil {
-		klog.Errorf("Failed to read MySQL Server init script at %s : %v",
-			mysqlServerInitScriptPath, err)
-		return err
-	}
-
-	// add it to the data map
-	data[constants.NdbClusterInitScript] = string(fileBytes)
-
 	// Add the cnf, if any, to the data map
 	myCnfValue := ndb.GetMySQLCnf()
 	if len(myCnfValue) > 0 {
-		_, err = helpers.ParseString(myCnfValue)
+		_, err := helpers.ParseString(myCnfValue)
 		if err != nil && strings.Contains(err.Error(), "Non-empty line without section") {
 			// section header is missing as it is optional
 			// add mysqld section header
@@ -79,6 +66,31 @@ func updateMySQLConfig(ndb *v1alpha1.Ndb, data map[string]string) error {
 		}
 		data[MyCnfKey] = myCnfValue
 	}
+	return nil
+}
+
+// updateMySQLHelperScripts updates the Data map with the helper
+// scripts used by the MySQL Server initialisation and health probes.
+func updateMySQLHelperScripts(data map[string]string) error {
+	// Extract and add the MySQL Server initializer file
+	mysqlServerInitScriptPath := config.ScriptsDir + "/" + constants.NdbClusterInitScript
+	fileBytes, err := ioutil.ReadFile(mysqlServerInitScriptPath)
+	if err != nil {
+		klog.Errorf("Failed to read MySQL Server init script at %s : %v",
+			mysqlServerInitScriptPath, err)
+		return err
+	}
+	data[constants.NdbClusterInitScript] = string(fileBytes)
+
+	// Extract and add the healthcheck script
+	mysqlServerHealthCheckScript := config.ScriptsDir + "/" + constants.NdbClusterHealthCheckScript
+	fileBytes, err = ioutil.ReadFile(mysqlServerHealthCheckScript)
+	if err != nil {
+		klog.Errorf("Failed to read MySQL Server healthcheck script at %s : %v",
+			mysqlServerHealthCheckScript, err)
+		return err
+	}
+	data[constants.NdbClusterHealthCheckScript] = string(fileBytes)
 	return nil
 }
 
@@ -93,7 +105,7 @@ func GetUpdatedConfigMap(ndb *v1alpha1.Ndb, cm *corev1.ConfigMap, oldRC *Resourc
 		return nil
 	}
 
-	// Update the mysqld config/cnf
+	// Update the MySQL custom config
 	if err := updateMySQLConfig(ndb, updatedCm.Data); err != nil {
 		klog.Errorf("Failed to update the config map : %v", err)
 		return nil
@@ -131,8 +143,13 @@ func CreateConfigMap(ndb *v1alpha1.Ndb) *corev1.ConfigMap {
 		return nil
 	}
 
-	// Add the MySQL Configs
+	// Add the MySQL custom config
 	if updateMySQLConfig(ndb, data) != nil {
+		return nil
+	}
+
+	// Add the MySQL helper scripts
+	if updateMySQLHelperScripts(data) != nil {
 		return nil
 	}
 

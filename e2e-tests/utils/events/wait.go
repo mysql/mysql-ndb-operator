@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	defaultWaitTimeout = 5 * time.Minute
+	defaultWaitTimeout = 10 * time.Minute
 )
 
 // GetLastKnownEventResourceVersion returns the ResourceVersion

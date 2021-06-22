@@ -5,7 +5,6 @@ import (
 	"github.com/onsi/gomega"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/test/e2e/framework"
-	"time"
 
 	"github.com/mysql/ndb-operator/e2e-tests/utils/mysql"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
@@ -41,8 +40,6 @@ var _ = ndbtest.DescribeFeature("MySQL Custom cnf", func() {
 		})
 
 		ginkgo.It("should start the server with those values as the defaults", func() {
-			// TODO : Implement MySQL Readiness Probes to skip timed waiting
-			time.Sleep(2 * time.Minute)
 			db := mysql.Connect(c, ns, "example-ndb", "performance_schema")
 
 			ginkgo.By("verifying that max_user_connections is properly set in server")

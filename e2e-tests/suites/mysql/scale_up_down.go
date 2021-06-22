@@ -13,7 +13,6 @@ import (
 	"github.com/onsi/gomega"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/test/e2e/framework"
-	"time"
 )
 
 var _ = ndbtest.DescribeFeature("MySQL Servers scaling up and down", func() {
@@ -58,8 +57,6 @@ var _ = ndbtest.DescribeFeature("MySQL Servers scaling up and down", func() {
 		})
 
 		ginkgo.It("should scale up or scale down the MySQL Servers", func() {
-			// TODO : Implement MySQL Readiness Probes to skip timed waiting
-			time.Sleep(2 * time.Minute)
 
 			ginkgo.By("verifying the initial MySQL Server node count and running queries", func() {
 				deployment.ExpectHasReplicas(c, testNdb.Namespace, ndbName+"-mysqld", 2)
@@ -73,8 +70,6 @@ var _ = ndbtest.DescribeFeature("MySQL Servers scaling up and down", func() {
 			ginkgo.By("scaling up the MySQL Servers", func() {
 				testNdb.Spec.Mysqld.NodeCount = 5
 				ndbtest.KubectlApplyNdbObj(c, testNdb)
-				// TODO : Implement MySQL Readiness Probes to skip timed waiting
-				time.Sleep(2 * time.Minute)
 			})
 
 			ginkgo.By("verifying the MySQL Server node count after scale up and running queries", func() {
@@ -88,8 +83,6 @@ var _ = ndbtest.DescribeFeature("MySQL Servers scaling up and down", func() {
 			ginkgo.By("scaling down the MySQL Servers", func() {
 				testNdb.Spec.Mysqld.NodeCount = 1
 				ndbtest.KubectlApplyNdbObj(c, testNdb)
-				// TODO : Implement MySQL Readiness Probes to skip timed waiting
-				time.Sleep(2 * time.Minute)
 			})
 
 			ginkgo.By("verifying the MySQL Server node count after scale up and running queries", func() {
