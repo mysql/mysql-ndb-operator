@@ -53,17 +53,6 @@ func Test_AllErrors(t *testing.T) {
 		}
 	}
 
-	// create error functions have different signatures, test separately
-	ndbErrBuilder := NewInvalidConfigNdbErrorBuilder()
-	ndbErrBuilder.AddInvalidField("invalidTestField", "", "Test message")
-	err := ndbErrBuilder.NdbError()
-	if !IsInvalidConfiguration(err) {
-		t.Errorf("%s wrongly created as %s", ErrReasonInvalidConfiguration, getReason(err))
-	}
-	if GetFieldDetails(err)[0].Field != "invalidTestField" {
-		t.Errorf("extra info wrongly set as : %s expected : invalidField", ndbErr.fieldDetails[0].Field)
-	}
-
 	ndbErr = NewErrorNoManagementServerConnection("Test message")
 	if ndbErr.reason != ErrReasonNoManagementServerConnection {
 		t.Errorf("%s wrongly created as %s", ErrReasonNoManagementServerConnection, ndbErr.reason)

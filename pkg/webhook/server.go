@@ -13,7 +13,6 @@ import (
 
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog"
 )
@@ -49,14 +48,6 @@ func sendAdmissionResponse(w http.ResponseWriter, response *v1.AdmissionResponse
 	}
 }
 
-// failAdmissionRequest sends a failure AdmissionResponse back to the caller
-func failAdmissionRequest(w http.ResponseWriter, reqUID types.UID, errMessage string, reason metav1.StatusReason) {
-	// Build AdmissionResponse with error
-	response := notAllowedAdmissionResponse(reqUID, failureStatus(errMessage, reason, nil))
-	// send the response
-	sendAdmissionResponse(w, response)
-}
-
 // serve handles the http portion of a request and then validates the review request
 func serve(w http.ResponseWriter, r *http.Request, vtor validator) {
 
@@ -64,14 +55,14 @@ func serve(w http.ResponseWriter, r *http.Request, vtor validator) {
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
 		errMessage := fmt.Sprintf("Expected 'application/json' contentType but got '%s'", contentType)
-		failAdmissionRequest(w, "", errMessage, metav1.StatusReasonBadRequest)
+		sendAdmissionResponse(w, requestDeniedBad("", errMessage))
 		return
 	}
 
 	// Read all the request body content
 	bodyBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		failAdmissionRequest(w, "", err.Error(), metav1.StatusReasonBadRequest)
+		sendAdmissionResponse(w, requestDeniedBad("", err.Error()))
 		return
 	}
 	klog.V(5).Infof("Received body : %s", string(bodyBytes))
@@ -80,7 +71,7 @@ func serve(w http.ResponseWriter, r *http.Request, vtor validator) {
 	requestedAdmissionReview := v1.AdmissionReview{}
 	_, _, err = scheme.Codecs.UniversalDeserializer().Decode(bodyBytes, nil, &requestedAdmissionReview)
 	if err != nil {
-		failAdmissionRequest(w, "", err.Error(), metav1.StatusReasonBadRequest)
+		sendAdmissionResponse(w, requestDeniedBad("", err.Error()))
 		return
 	}
 	klog.V(5).Infof("Received review request : %s", requestedAdmissionReview.String())
@@ -90,14 +81,13 @@ func serve(w http.ResponseWriter, r *http.Request, vtor validator) {
 		errMessage := fmt.Sprintf(
 			"Webhook can only handle API version 'admission.k8s.io/v1' but got '%s'",
 			requestedAdmissionReview.APIVersion)
-		failAdmissionRequest(w, "", errMessage, metav1.StatusReasonBadRequest)
+		sendAdmissionResponse(w, requestDeniedBad("", errMessage))
 		return
 	}
 
 	request := requestedAdmissionReview.Request
 	if request == nil {
-		failAdmissionRequest(
-			w, "", "Received an empty(nil) AdmissionRequest", metav1.StatusReasonBadRequest)
+		sendAdmissionResponse(w, requestDeniedBad("", "Received an empty(nil) AdmissionRequest"))
 		return
 	}
 
@@ -131,8 +121,7 @@ func initWebhookServer(ws *http.Server) {
 		if vtor := validators[request.URL.Path]; vtor == nil {
 			// No validator found. Handle error
 			klog.V(2).Infof("No validator mapped for pattern '%s'", request.URL.Path)
-			failAdmissionRequest(
-				writer, "", "requested URL path not found", metav1.StatusReasonNotFound)
+			sendAdmissionResponse(writer, requestDeniedBad("", "requested URL path not found"))
 		} else {
 			// Found a validator for the pattern
 			serve(writer, request, vtor)

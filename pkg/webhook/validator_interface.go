@@ -25,7 +25,7 @@ type validator interface {
 func unsupportedOperation(reqUID types.UID, operation v1.Operation) *v1.AdmissionResponse {
 	errMsg := fmt.Sprintf("validating a %s operation not supported", operation)
 	klog.Error(errMsg)
-	return requestDenied(reqUID, failureStatus(errMsg, metav1.StatusReasonBadRequest, nil))
+	return requestDeniedBad(reqUID, errMsg)
 }
 
 func validate(req *v1.AdmissionRequest, v validator) *v1.AdmissionResponse {

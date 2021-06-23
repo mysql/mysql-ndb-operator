@@ -7,50 +7,51 @@ import (
 
 	ndbv1alpha1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
-	"github.com/mysql/ndb-operator/pkg/helpers/ndberrors"
 
 	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-// IsValidConfig validates the Ndb resource and returns an error with all invalid field values
-func IsValidConfig(ndb *ndbv1alpha1.Ndb) error {
+// IsValidConfig validates the Ndb resource and returns an ErrorList with all invalid field values
+func IsValidConfig(ndb *ndbv1alpha1.Ndb) field.ErrorList {
 
 	spec := ndb.Spec
 
 	dataNodeCount := spec.NodeCount
 	mysqlServerCount := ndb.GetMySQLServerNodeCount()
-	managementNodeCount := spec.RedundancyLevel
-	if managementNodeCount > 2 {
-		managementNodeCount = 2
-	}
+	managementNodeCount := ndb.GetManagementNodeCount()
 
-	errBuilder := ndberrors.NewInvalidConfigNdbErrorBuilder()
+	var errList field.ErrorList
+	specPath := field.NewPath("spec")
 
 	// checking if number of data nodes match redundancy
 	if math.Mod(float64(dataNodeCount), float64(spec.RedundancyLevel)) != 0 {
-		msg := fmt.Sprintf("spec.nodeCount should be a multiple of the spec.redundancyLevel(=%d)", spec.RedundancyLevel)
-		errBuilder.AddInvalidField("spec.nodeCount", fmt.Sprint(dataNodeCount), msg)
+		msg := fmt.Sprintf(
+			"spec.nodeCount should be a multiple of the spec.redundancyLevel(=%d)", spec.RedundancyLevel)
+		errList = append(errList, field.Invalid(specPath.Child("nodeCount"), dataNodeCount, msg))
 	}
 
 	// checking total number of nodes
 	total := managementNodeCount + dataNodeCount + mysqlServerCount
 	if total > constants.MaxNumberOfNodes {
 		invalidValue := fmt.Sprintf("%d (= %d management, %d data and %d mysql nodes)", total, managementNodeCount, dataNodeCount, mysqlServerCount)
-		msg := fmt.Sprintf("Total nodes should not exceed the allowed maximum of %d", constants.MaxNumberOfNodes)
-		errBuilder.AddInvalidField("Total Nodes", invalidValue, msg)
+		msg := fmt.Sprintf(
+			"Total number of MySQL Cluster nodes should not exceed the allowed maximum of %d", constants.MaxNumberOfNodes)
+		errList = append(errList, field.Invalid(field.NewPath("Total Nodes"), invalidValue, msg))
 	}
 
 	// validate the MySQL Root password secret name
+	mysqldPath := specPath.Child("mysqld")
 	var rootPasswordSecret string
 	if ndb.Spec.Mysqld != nil {
 		rootPasswordSecret = ndb.Spec.Mysqld.RootPasswordSecretName
 	}
 	if rootPasswordSecret != "" {
 		errs := validation.IsDNS1123Subdomain(rootPasswordSecret)
-		if errs != nil {
-			for _, err := range errs {
-				errBuilder.AddInvalidField("spec.mysqld.rootPasswordSecretName", rootPasswordSecret, err)
-			}
+		// append errors, if any, to errList
+		for _, err := range errs {
+			errList = append(errList,
+				field.Invalid(mysqldPath.Child("rootPasswordSecretName"), rootPasswordSecret, err))
 		}
 	}
 
@@ -67,16 +68,18 @@ func IsValidConfig(ndb *ndbv1alpha1.Ndb) error {
 
 		if err != nil {
 			// error parsing the cnf
-			errBuilder.AddInvalidField("spec.mysqld.additionalCnf", myCnfString, err.Error())
+			errList = append(errList,
+				field.Invalid(mysqldPath.Child("myCnf"), myCnfString, err.Error()))
 		} else {
 			// accept only one mysqld section in the cnf
 			if len(myCnf) > 1 ||
 				len(myCnf) != myCnf.GetNumberOfSections("mysqld") {
-				msg := "spec.mysqld.additionalCnf can have only one mysqld section"
-				errBuilder.AddInvalidField("spec.mysqld.additionalCnf", myCnfString, msg)
+				errList = append(errList,
+					field.Invalid(mysqldPath.Child("myCnf"),
+						myCnfString, "spec.mysqld.myCnf can have only one mysqld section"))
 			}
 		}
 	}
 
-	return errBuilder.NdbError()
+	return errList
 }
