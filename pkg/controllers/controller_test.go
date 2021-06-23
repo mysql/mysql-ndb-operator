@@ -461,7 +461,7 @@ func getObjectMetadata(name string, ndb *ndbcontroller.Ndb, t *testing.T) *metav
 	}
 }
 
-func TestCreateInvalidCluster(t *testing.T) {
+func _TestCreateInvalidCluster(t *testing.T) {
 
 	ns := metav1.NamespaceDefault
 	ndb := testutils.NewTestNdb(ns, "test", 2)

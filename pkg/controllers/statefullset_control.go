@@ -120,13 +120,6 @@ func (rssc *realStatefulSetControl) EnsureStatefulSet(sc *SyncContext) (*apps.St
 
 	rc := sc.resourceContext
 
-	if !sc.resourceIsValid {
-		klog.Infof("Creating stateful set %s/%s skipped due to invalid Ndb configuration",
-			sc.ndb.Namespace, rssc.statefulSetType.GetName())
-		// TODO error code?
-		return nil, false, nil
-	}
-
 	// If the resource doesn't exist, we'll create it
 	klog.Infof("Creating stateful set %s/%s Replicas: %d, Data Nodes: %d, Mgm Nodes: %d",
 		sc.ndb.Namespace,

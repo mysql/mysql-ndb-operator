@@ -103,9 +103,8 @@ type SyncContext struct {
 
 	clusterState *mgmapi.ClusterStatus
 
-	ndb             *v1alpha1.Ndb
-	resourceIsValid bool // the incoming Ndb resource contains a valid config
-	nsName          string
+	ndb    *v1alpha1.Ndb
+	nsName string
 
 	// controller handling creation and changes of resources
 	mysqldController    DeploymentControlInterface
@@ -254,9 +253,9 @@ func NewController(
 		},
 		DeleteFunc: func(obj interface{}) {
 			var ndb *v1alpha1.Ndb
-			switch obj.(type) {
+			switch objType := obj.(type) {
 			case *v1alpha1.Ndb:
-				ndb = obj.(*v1alpha1.Ndb)
+				ndb = objType
 			case cache.DeletedFinalStateUnknown:
 				del := obj.(cache.DeletedFinalStateUnknown).Obj
 				ndb = del.(*v1alpha1.Ndb)
@@ -635,13 +634,6 @@ func (sc *SyncContext) ensurePodDisruptionBudget() (*policyv1beta1.PodDisruption
 	}
 	if !apierrors.IsNotFound(err) {
 		return nil, false, err
-	}
-
-	if !sc.resourceIsValid {
-		klog.Infof("Skip creating PodDisruptionBudget for Data Nodes of Cluster %q due to invalid configuration.",
-			types.NamespacedName{Namespace: sc.ndb.Namespace, Name: sc.ndb.Name})
-		// TODO return err or generate one?
-		return nil, false, nil
 	}
 
 	klog.Infof("Creating a new PodDisruptionBudget for Data Nodes of Cluster %q",
@@ -1057,7 +1049,6 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.Ndb) *SyncContext {
 		mysqldController:    c.mysqldController,
 		configMapController: c.configMapController,
 		ndb:                 ndb,
-		resourceIsValid:     true,
 		resourceMap:         &resourceMap,
 		controllerContext:   c.controllerContext,
 		ndbsLister:          c.ndbsLister,
@@ -1122,17 +1113,6 @@ func (c *Controller) syncHandler(key string) error {
 }
 
 func (sc *SyncContext) sync() error {
-
-	// is the incoming Ndb resource valid?
-	// if it is not valid we should still continue any ongoing
-	// reconciliation / operators on the obviously previously valid Ndb
-	// we just do not allow to create any resources
-	// and do not re-write anything based on the new/faulty Ndb
-	sc.resourceIsValid = true
-	if validConfigErr := helpers.IsValidConfig(sc.ndb); validConfigErr != nil {
-		sc.resourceIsValid = false
-		klog.Errorf("Invalid incoming resource specification. Still continuing to process potential changes from previous last healthy version. Error was: %s", validConfigErr)
-	}
 
 	// create all resources necessary to start and run cluster
 	existed, err := sc.ensureAllResources()
