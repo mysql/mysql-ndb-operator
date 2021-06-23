@@ -184,13 +184,6 @@ func (mdc *mysqlDeploymentController) EnsureDeployment(
 
 	numberOfMySQLServers := sc.ndb.GetMySQLServerNodeCount()
 
-	if !sc.resourceIsValid {
-		// TODO error code?
-		klog.Infof("Creating a deployment of '%d' MySQL Servers skipped due to invalid Ndb configuration",
-			numberOfMySQLServers)
-		return nil, false, nil
-	}
-
 	// Deployment doesn't exist
 	// First ensure that a root password secret exists
 	sci := NewMySQLRootPasswordSecretInterface(mdc.client, sc.ndb.GetNamespace())

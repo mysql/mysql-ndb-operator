@@ -80,14 +80,6 @@ func (rcmc *ConfigMapControl) EnsureConfigMap(sc *SyncContext) (*corev1.ConfigMa
 		return nil, false, err
 	}
 
-	if !sc.resourceIsValid {
-		// If the resource doesn't exist, we'll create it
-		klog.Infof("Skip creating ConfigMap %s/%s due to invalid Ndb configuration",
-			ndb.Namespace, ndb.GetConfigMapName())
-		// TODO error code
-		return nil, false, nil
-	}
-
 	// If the resource doesn't exist, we'll create it
 	klog.Infof("Creating ConfigMap %s/%s", ndb.Namespace, ndb.GetConfigMapName())
 
