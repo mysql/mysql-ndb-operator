@@ -35,7 +35,7 @@ metadata:
   name: example-ndb
 spec:
   containerImage: mysql/mysql-cluster:8.0.22
-  nodecount: 2
+  nodeCount: 2
   redundancyLevel: 2
   dataNodePVCSpec:
     storageClassName: manual
@@ -45,4 +45,4 @@ spec:
       requests:
         storage: 1Gi
   mysqld:
-    nodecount: 2
+    nodeCount: 2
