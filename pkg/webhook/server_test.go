@@ -135,7 +135,7 @@ func Test_serve(t *testing.T) {
 			desc:            "invalid pattern",
 			action:          "dummy",
 			allowed:         false,
-			statusReason:    metav1.StatusReasonNotFound,
+			statusReason:    metav1.StatusReasonBadRequest,
 			messageContains: "requested URL path not found",
 		},
 		{

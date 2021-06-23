@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/mysql/ndb-operator/pkg/helpers/ndberrors"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 )
 
@@ -78,12 +77,9 @@ func Test_InvalidValues(t *testing.T) {
 
 		vc.spec.DeepCopyInto(&ndb.Spec)
 
-		if err := IsValidConfig(ndb); err != nil {
-			if !ndberrors.IsInvalidConfiguration(err) {
-				t.Errorf("Wrong error type returned %s for:  %s", err, vc.explain)
-			}
+		if errList := IsValidConfig(ndb); errList != nil {
 			if !vc.shouldFail {
-				t.Errorf("Error \"%s\" for valid case: %s", err, vc.explain)
+				t.Errorf("Error \"%s\" for valid case: %s", errList.ToAggregate(), vc.explain)
 			}
 		} else {
 			if vc.shouldFail {
