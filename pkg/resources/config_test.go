@@ -5,6 +5,7 @@
 package resources
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
@@ -68,7 +69,7 @@ func Test_GetConfigString(t *testing.T) {
 
 	expectedConfigString := `# auto generated config.ini - do not edit
 #
-# ConfigHash=5cGZo+vgbQzTEgDkOfxLlw==
+# ConfigHash=######
 
 [system]
 ConfigGenerationNumber=0
@@ -113,6 +114,10 @@ NodeId=146
 NodeId=147
 
 `
+	// replace the config hash
+	re := regexp.MustCompile(`ConfigHash=.*`)
+	configString = re.ReplaceAllString(configString, "ConfigHash=######")
+
 	if configString != expectedConfigString {
 		t.Error("The generated config string does not match the expected value")
 		t.Errorf("Expected :\n%s\n", expectedConfigString)
