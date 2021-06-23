@@ -37,7 +37,7 @@ type Ndb struct {
 // NdbMysqldSpec is the specification of MySQL Servers to be run as an SQL Frontend
 type NdbMysqldSpec struct {
 	// NodeCount is the number of MySQL Servers running in MySQL Cluster
-	NodeCount int32 `json:"nodecount"`
+	NodeCount int32 `json:"nodeCount"`
 	// The name of the Secret that holds the password to be set for the MySQL
 	// root accounts. The Secret should have a 'password' key that holds the
 	// password.
@@ -74,7 +74,7 @@ type NdbSpec struct {
 	// Currently the maximum is 144 data nodes.
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=144
-	NodeCount int32 `json:"nodecount"`
+	NodeCount int32 `json:"nodeCount"`
 	// DataMemory specifies the space available per data node
 	// for storing in memory tables and indexes.
 	// Allowed values 1M - 1T. More info :

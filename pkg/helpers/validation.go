@@ -28,8 +28,8 @@ func IsValidConfig(ndb *ndbv1alpha1.Ndb) error {
 
 	// checking if number of data nodes match redundancy
 	if math.Mod(float64(dataNodeCount), float64(spec.RedundancyLevel)) != 0 {
-		msg := fmt.Sprintf("spec.nodecount should be a multiple of the spec.redundancyLevel(=%d)", spec.RedundancyLevel)
-		errBuilder.AddInvalidField("spec.nodecount", fmt.Sprint(dataNodeCount), msg)
+		msg := fmt.Sprintf("spec.nodeCount should be a multiple of the spec.redundancyLevel(=%d)", spec.RedundancyLevel)
+		errBuilder.AddInvalidField("spec.nodeCount", fmt.Sprint(dataNodeCount), msg)
 	}
 
 	// checking total number of nodes

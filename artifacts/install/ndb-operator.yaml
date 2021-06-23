@@ -184,7 +184,7 @@ spec:
                     description: Configuration options to pass to the MySQL Server
                       when it is started.
                     type: string
-                  nodecount:
+                  nodeCount:
                     description: NodeCount is the number of MySQL Servers running
                       in MySQL Cluster
                     format: int32
@@ -197,9 +197,9 @@ spec:
                       "<ndb-resource-name>-mysqld-root-password"
                     type: string
                 required:
-                - nodecount
+                - nodeCount
                 type: object
-              nodecount:
+              nodeCount:
                 description: The total number of data nodes in cluster. The node count
                   needs to be a multiple of the redundancyLevel. Currently the maximum
                   is 144 data nodes.
@@ -225,7 +225,7 @@ spec:
                 minimum: 1
                 type: integer
             required:
-            - nodecount
+            - nodeCount
             type: object
           status:
             description: NdbStatus is the status for a Ndb resource
