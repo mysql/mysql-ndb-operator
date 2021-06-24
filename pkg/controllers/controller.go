@@ -37,10 +37,10 @@ import (
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
-	clientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
+	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	ndbscheme "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/scheme"
-	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
-	listers "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
+	ndbinformers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
+	ndblisters "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/helpers"
 	"github.com/mysql/ndb-operator/pkg/mgmapi"
 	"github.com/mysql/ndb-operator/pkg/resources"
@@ -81,17 +81,14 @@ const (
 	MessageInSync = "MySQL Cluster is in sync with the Ndb object"
 )
 
-// ControllerContext summarizes the context in which it is running,
-// client sets and whether or not its running inside or
-// outside (testing only) k8 cluster
+// ControllerContext summarizes the context in which it is running
 type ControllerContext struct {
-	// kubeclientset is a standard kubernetes clientset
-	kubeclientset kubernetes.Interface
-	ndbclientset  clientset.Interface
+	// kubeClientset is the standard kubernetes clientset
+	kubeClientset kubernetes.Interface
+	ndbClientset  ndbclientset.Interface
 
-	// is this controller running inside kubernetes cluster
-	// false is mostly testing only
-	runningInK8 bool
+	// runningInsideK8s is set to true if the operator is running inside a K8s cluster.
+	runningInsideK8s bool
 }
 
 // SyncContext stores all information collected in/for a single run of syncHandler
@@ -117,7 +114,7 @@ type SyncContext struct {
 	configMapController ConfigMapControlInterface
 
 	controllerContext *ControllerContext
-	ndbsLister        listers.NdbLister
+	ndbsLister        ndblisters.NdbLister
 
 	// recorder is an event recorder for recording Event resources to the Kubernetes API.
 	recorder events.EventRecorder
@@ -133,7 +130,7 @@ type Controller struct {
 	statefulSetLister       appslisters.StatefulSetLister
 	statefulSetListerSynced cache.InformerSynced
 
-	ndbsLister listers.NdbLister
+	ndbsLister ndblisters.NdbLister
 	ndbsSynced cache.InformerSynced
 
 	mgmdController      StatefulSetControlInterface
@@ -170,13 +167,13 @@ type Controller struct {
 // NewControllerContext returns a new controller context object
 func NewControllerContext(
 	kubeclient kubernetes.Interface,
-	ndbclient clientset.Interface,
-	runInCluster bool,
+	ndbclient ndbclientset.Interface,
+	runningInsideK8s bool,
 ) *ControllerContext {
 	ctx := &ControllerContext{
-		kubeclientset: kubeclient,
-		ndbclientset:  ndbclient,
-		runningInK8:   runInCluster,
+		kubeClientset:    kubeclient,
+		ndbClientset:     ndbclient,
+		runningInsideK8s: runningInsideK8s,
 	}
 
 	return ctx
@@ -190,7 +187,7 @@ func NewController(
 	serviceInformer coreinformers.ServiceInformer,
 	podInformer coreinformers.PodInformer,
 	configMapInformer coreinformers.ConfigMapInformer,
-	ndbInformer informers.NdbInformer) *Controller {
+	ndbInformer ndbinformers.NdbInformer) *Controller {
 
 	// Add ndb-controller types to the default Kubernetes Scheme
 	// so Events can be logged for ndb-controller types.
@@ -199,7 +196,7 @@ func NewController(
 	klog.V(4).Info("Creating event broadcaster")
 	eventBroadcaster := events.NewBroadcaster(
 		&events.EventSinkImpl{
-			Interface: controllerContext.kubeclientset.EventsV1(),
+			Interface: controllerContext.kubeClientset.EventsV1(),
 		})
 	eventBroadcaster.StartRecordingToSink(make(chan struct{}))
 	// setup additional logging for events
@@ -223,7 +220,7 @@ func NewController(
 		serviceListerSynced:     serviceInformer.Informer().HasSynced,
 		podLister:               podInformer.Lister(),
 		podListerSynced:         podInformer.Informer().HasSynced,
-		configMapController:     NewConfigMapControl(controllerContext.kubeclientset, configMapInformer),
+		configMapController:     NewConfigMapControl(controllerContext.kubeClientset, configMapInformer),
 		workqueue:               workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Ndbs"),
 		recorder:                recorder,
 	}
@@ -414,12 +411,12 @@ func (c *Controller) processNextWorkItem() bool {
 	return true
 }
 
-func (sc *SyncContext) kubeclientset() kubernetes.Interface {
-	return sc.controllerContext.kubeclientset
+func (sc *SyncContext) kubeClientset() kubernetes.Interface {
+	return sc.controllerContext.kubeClientset
 }
 
-func (sc *SyncContext) ndbclientset() clientset.Interface {
-	return sc.controllerContext.ndbclientset
+func (sc *SyncContext) ndbClientset() ndbclientset.Interface {
+	return sc.controllerContext.ndbClientset
 }
 
 func (sc *SyncContext) updateClusterLabels() error {
@@ -428,9 +425,9 @@ func (sc *SyncContext) updateClusterLabels() error {
 	lbls := sc.ndb.GetLabels()
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		ndb.Labels = labels.Merge(labels.Set(ndb.Labels), lbls)
+		ndb.Labels = labels.Merge(ndb.Labels, lbls)
 		_, updateErr :=
-			sc.ndbclientset().MysqlV1alpha1().Ndbs(ndb.Namespace).Update(context.TODO(), ndb, metav1.UpdateOptions{})
+			sc.ndbClientset().MysqlV1alpha1().Ndbs(ndb.Namespace).Update(context.TODO(), ndb, metav1.UpdateOptions{})
 		if updateErr == nil {
 			return nil
 		}
@@ -438,7 +435,7 @@ func (sc *SyncContext) updateClusterLabels() error {
 		key := fmt.Sprintf("%s/%s", ndb.GetNamespace(), ndb.GetName())
 		klog.V(4).Infof("Conflict updating Cluster labels. Getting updated Cluster %s from cache...", key)
 
-		updated, err := sc.ndbclientset().MysqlV1alpha1().Ndbs(ndb.Namespace).Get(context.TODO(), ndb.Name, metav1.GetOptions{})
+		updated, err := sc.ndbClientset().MysqlV1alpha1().Ndbs(ndb.Namespace).Get(context.TODO(), ndb.Name, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("Error getting updated Cluster %q: %v", key, err)
 			return err
@@ -462,7 +459,7 @@ func (sc *SyncContext) ensureService(port int32, selector string, createLoadBala
 		serviceName += "-ext"
 	}
 
-	svc, err := sc.kubeclientset().CoreV1().Services(sc.ndb.Namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
+	svc, err := sc.kubeClientset().CoreV1().Services(sc.ndb.Namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
 
 	if err == nil {
 		return svc, true, nil
@@ -475,7 +472,7 @@ func (sc *SyncContext) ensureService(port int32, selector string, createLoadBala
 	klog.Infof("Creating a new Service %s for cluster %q", serviceName,
 		types.NamespacedName{Namespace: sc.ndb.Namespace, Name: sc.ndb.Name})
 	svc = resources.NewService(sc.ndb, port, selector, createLoadBalancer)
-	svc, err = sc.kubeclientset().CoreV1().Services(sc.ndb.Namespace).Create(context.TODO(), svc, metav1.CreateOptions{})
+	svc, err = sc.kubeClientset().CoreV1().Services(sc.ndb.Namespace).Create(context.TODO(), svc, metav1.CreateOptions{})
 	if err != nil {
 		return nil, false, err
 	}
@@ -631,7 +628,7 @@ func (sc *SyncContext) ensurePodDisruptionBudget() (*policyv1beta1.PodDisruption
 
 	// Check if ndbd pod disruption budget is present
 	nodeType := sc.ndbdController.GetTypeName()
-	pdbs := sc.kubeclientset().PolicyV1beta1().PodDisruptionBudgets(sc.ndb.Namespace)
+	pdbs := sc.kubeClientset().PolicyV1beta1().PodDisruptionBudgets(sc.ndb.Namespace)
 	pdb, err := pdbs.Get(context.TODO(), sc.ndb.GetPodDisruptionBudgetName(nodeType), metav1.GetOptions{})
 	if err == nil {
 		return pdb, true, nil
@@ -659,27 +656,32 @@ func (sc *SyncContext) ensurePodDisruptionBudget() (*policyv1beta1.PodDisruption
 	return pdb, false, err
 }
 
+// ensureDataNodeConfigVersion checks if all the data nodes have the desired configuration.
+// If not, it safely restarts them without affecting the availability of MySQL Cluster.
 func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 
 	wantedGeneration := sc.resourceContext.ConfigGeneration
 
-	// we go through all data nodes and see if they are on the latest config version
-	// we do this "ndb replica" wise, i.e. we iterate first through first nodes in each node group, then second, etc.
+	// Every data node is assigned a unique replica number
+	// (0 to N-1, where N is the redundancyLevel), within their nodegroup.
+	// All data nodes with the same replica number are stopped and
+	// restarted during a single reconciliation run. At any given time,
+	// only one data node per group will be affected by this maneuver,
+	// thus ensuring availability of the MySQL Cluster.
 	ct := mgmapi.CreateClusterTopologyByReplicaFromClusterStatus(sc.clusterState)
-
 	if ct == nil {
-		err := fmt.Errorf("Internal error: could not extract topology from cluster status")
+		err := fmt.Errorf("internal error: could not extract topology from cluster status")
 		return errorWhileProcssing(err)
 	}
 
-	reduncanyLevel := ct.GetNumberOfReplicas()
+	redundancyLevel := ct.GetNumberOfReplicas()
 	mgmClient, err := sc.connectToManagementServer()
 	if err != nil {
 		return errorWhileProcssing(err)
 	}
 	defer mgmClient.Disconnect()
 
-	for replica := 0; replica < reduncanyLevel; replica++ {
+	for replica := 0; replica < redundancyLevel; replica++ {
 
 		var restartIDs []int
 		nodeIDs := ct.GetNodeIDsFromReplica(replica)
@@ -690,12 +692,13 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 			}
 
 			if wantedGeneration != nodeConfigGeneration {
-				// node is on wrong config generation
+				// data node runs with an old versioned config
 				restartIDs = append(restartIDs, nodeID)
 			}
 		}
 
 		if len(restartIDs) > 0 {
+			// restart all the identified data nodes
 			s, _ := json.Marshal(restartIDs)
 			klog.Infof("Identified %d nodes with wrong version in replica %d: %s",
 				len(restartIDs), replica, s)
@@ -706,13 +709,16 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 				return errorWhileProcssing(err)
 			}
 
-			// nodes started to stop - exit sync loop
+			// The data nodes have started to stop.
+			// Exit here and allow them to be restarted by the statefulset controllers.
+			// Continue syncing once they are up, in a later reconciliation loop.
 			return finishProcessing()
 		}
 
 		klog.Infof("All datanodes nodes in replica %d have desired config version %d", replica, wantedGeneration)
 	}
 
+	// All data nodes have the desired config version. Continue with rest of the sync process.
 	return continueProcessing()
 }
 
@@ -733,29 +739,31 @@ func (sc *SyncContext) connectToManagementServer(managementNodeId ...int) (mgmap
 
 	// Deduce the connectstring
 	var connectstring string
-	if !sc.controllerContext.runningInK8 {
-		// connect to the Management servers via load balancer.
-		// The MgmClient will retry connecting via the load balancer
-		// until a connection is established to the desired node
-		connectstring = fmt.Sprintf("%s:%d", sc.ManagementServerIP, sc.ManagementServerPort)
-
-	} else {
-		// Use the desired management pod's ip to connect to it directly
+	if sc.controllerContext.runningInsideK8s {
+		// Operator is running inside a K8s pod.
+		// Directly connect to the desired management server's pod using its IP
 		podName := fmt.Sprintf("%s-%d", sc.ndb.GetServiceName("mgmd"), nodeId-1)
-		pod, err := sc.kubeclientset().CoreV1().Pods(sc.ndb.Namespace).Get(context.TODO(), podName, metav1.GetOptions{})
+		pod, err := sc.kubeClientset().CoreV1().Pods(sc.ndb.Namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 		if err != nil {
-			klog.Errorf("No pod %s/%s for management server with node id %d found", sc.ndb.Namespace, podName, nodeId)
+			klog.Errorf("Management server with node id '%d' and pod '%s/%s' not found",
+				nodeId, sc.ndb.Namespace, podName)
 			return nil, err
 		}
-
 		connectstring = fmt.Sprintf("%s:%d", pod.Status.PodIP, 1186)
 		klog.Infof("Using pod %s/%s for management server with node id %d", sc.ndb.Namespace, podName, nodeId)
+	} else {
+		// Operator is running from outside K8s.
+		// Connect to the Management server via load balancer.
+		// The MgmClient will retry connecting via the load balancer
+		// until a connection is established to the desired node.
+		connectstring = fmt.Sprintf("%s:%d", sc.ManagementServerIP, sc.ManagementServerPort)
 	}
 
 	mgmClient, err := mgmapi.NewMgmClient(connectstring, nodeId)
 	if err != nil {
 		klog.Errorf(
-			"Failed to establish connection with management server with desired node id %d : %v", nodeId, err)
+			"Failed to connect to the Management Server with desired node id %d : %s",
+			nodeId, err)
 		return nil, err
 	}
 
@@ -766,9 +774,8 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 	wantedGeneration := sc.resourceContext.ConfigGeneration
 	klog.Infof("Ensuring Management Server has correct config version %d", wantedGeneration)
 
-	// management server have the first one/two node ids
+	// Management servers have the first one/two node ids
 	for nodeID := 1; nodeID <= (int)(sc.ndb.GetManagementNodeCount()); nodeID++ {
-
 		mgmClient, err := sc.connectToManagementServer(nodeID)
 		if err != nil {
 			return errorWhileProcssing(err)
@@ -783,7 +790,7 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 			klog.Infof("Management server with node id %d has desired version %d",
 				nodeID, version)
 
-			// node has right version, continue to process next node
+			// This Management Server already has the desired config version.
 			mgmClient.Disconnect()
 			continue
 		}
@@ -791,9 +798,8 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 		klog.Infof("Management server with node id %d has different version %d than desired %d",
 			nodeID, version, wantedGeneration)
 
-		// we are not in degraded in state
-		// management server with nodeId was so nice to reveal all information
-		// now we kill it - pod should terminate and restarted with updated config map and management server
+		// The Management Server does not have the desired config version.
+		// Stop it and let the statefulset controller start the server with the correct, recent config.
 		nodeIDs := []int{nodeID}
 		err = mgmClient.StopNodes(nodeIDs)
 		if err != nil {
@@ -801,11 +807,13 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 		}
 		mgmClient.Disconnect()
 
-		// we do one at a time - exit here and wait for next reconcilation
+		// Management Server has been stopped. Trigger only one restart
+		// at a time and handle the rest in later reconciliations.
 		return finishProcessing()
 	}
 
-	// if we end up here then both mgm servers are on latest version, continue processing other sync steps
+	// All Management Servers have the latest config.
+	// Continue further processing and sync.
 	return continueProcessing()
 }
 
@@ -819,7 +827,7 @@ func (sc *SyncContext) checkPodStatus() (bool, error) {
 		LabelSelector: labels.Set(sc.ndb.GetLabels()).String(),
 		Limit:         256,
 	}
-	pods, err := sc.kubeclientset().CoreV1().Pods(sc.ndb.Namespace).List(context.TODO(), listOptions)
+	pods, err := sc.kubeClientset().CoreV1().Pods(sc.ndb.Namespace).List(context.TODO(), listOptions)
 	if err != nil {
 		return false, apierrors.NewNotFound(v1alpha1.Resource("Pod"), listOptions.LabelSelector)
 	}
@@ -1020,7 +1028,7 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.Ndb) *SyncContext {
 		ndbdSfSet := resources.NewNdbdStatefulSet(ndb)
 		c.ndbdController =
 			&realStatefulSetControl{
-				client:            c.controllerContext.kubeclientset,
+				client:            c.controllerContext.kubeClientset,
 				statefulSetLister: c.statefulSetLister,
 				statefulSetType:   ndbdSfSet}
 	}
@@ -1029,13 +1037,13 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.Ndb) *SyncContext {
 		mgmdSfSet := resources.NewMgmdStatefulSet(ndb)
 		c.mgmdController =
 			&realStatefulSetControl{
-				client:            c.controllerContext.kubeclientset,
+				client:            c.controllerContext.kubeClientset,
 				statefulSetLister: c.statefulSetLister,
 				statefulSetType:   mgmdSfSet}
 	}
 	if c.mysqldController == nil {
 		c.mysqldController = &mysqlDeploymentController{
-			client:                c.controllerContext.kubeclientset,
+			client:                c.controllerContext.kubeClientset,
 			deploymentLister:      c.deploymentLister,
 			mysqlServerDeployment: resources.NewMySQLServerDeployment(ndb),
 		}
@@ -1288,7 +1296,7 @@ func (sc *SyncContext) updateNdbStatus(hasPendingConfigChanges bool) error {
 		klog.Infof("Updating ndb cluster status: from process gen %d to %d",
 			ndb.Status.ProcessedGeneration, ndb.ObjectMeta.Generation)
 
-		_, err = sc.ndbclientset().MysqlV1alpha1().Ndbs(ndb.Namespace).UpdateStatus(context.TODO(), ndb, metav1.UpdateOptions{})
+		_, err = sc.ndbClientset().MysqlV1alpha1().Ndbs(ndb.Namespace).UpdateStatus(context.TODO(), ndb, metav1.UpdateOptions{})
 		if err == nil {
 			return true, nil
 		}
@@ -1296,7 +1304,7 @@ func (sc *SyncContext) updateNdbStatus(hasPendingConfigChanges bool) error {
 			return false, err
 		}
 
-		updated, err := sc.ndbclientset().MysqlV1alpha1().Ndbs(ndb.Namespace).Get(context.TODO(), ndb.Name, metav1.GetOptions{})
+		updated, err := sc.ndbClientset().MysqlV1alpha1().Ndbs(ndb.Namespace).Get(context.TODO(), ndb.Name, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("failed to get Ndb %s/%s: %v", ndb.Namespace, ndb.Name, err)
 			return false, err
@@ -1317,8 +1325,6 @@ func (sc *SyncContext) updateNdbStatus(hasPendingConfigChanges bool) error {
 
 	return nil
 }
-
-func (c *Controller) onDeleteNdb(ndb *v1alpha1.Ndb) {}
 
 /*
 	enqueueNdb takes a Ndb resource and converts it into a namespace/name
