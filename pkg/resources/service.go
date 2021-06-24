@@ -11,17 +11,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NewService builds and returns a new Service resource
-func NewService(ndb *v1alpha1.Ndb, port int32, nodeTypeSelector string, externalIP bool) *corev1.Service {
+// NewService builds and returns a new headless or a load balancer Service for the nodes with the given nodeTypeSelector
+func NewService(ndb *v1alpha1.Ndb, port int32, nodeTypeSelector string, createLoadBalancer bool) *corev1.Service {
 
-	// default service details
+	// default headless service details
 	serviceName := ndb.GetServiceName(nodeTypeSelector)
 	svcType := corev1.ServiceTypeClusterIP
 	clusterIP := corev1.ClusterIPNone
 	serviceResourceLabel := nodeTypeSelector + "-service"
 
 	// if externalIP is true, create an external load balancer service
-	if externalIP {
+	if createLoadBalancer {
 		serviceName += "-ext"
 		svcType = corev1.ServiceTypeLoadBalancer
 		clusterIP = ""
@@ -48,9 +48,7 @@ func NewService(ndb *v1alpha1.Ndb, port int32, nodeTypeSelector string, external
 		Spec: corev1.ServiceSpec{
 			PublishNotReadyAddresses: true,
 			Ports: []corev1.ServicePort{
-				// TODO: two ports in array didn't work, at least not exposing via minikube tunnel
-				//corev1.ServicePort{Port: 8080, Name: "agent", Protocol: "TCP"},
-				corev1.ServicePort{Port: port, Name: serviceResourceLabel + "-port", Protocol: "TCP"},
+				{Port: port, Name: serviceResourceLabel + "-port", Protocol: "TCP"},
 			},
 			Selector:  selectorLabel,
 			ClusterIP: clusterIP,
