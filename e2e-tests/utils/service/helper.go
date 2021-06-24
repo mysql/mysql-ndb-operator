@@ -2,23 +2,21 @@ package service
 
 import (
 	"context"
+	"github.com/mysql/ndb-operator/pkg/helpers"
 	"github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/test/e2e/framework"
 )
 
-func GetExternalIP(
-	clientset kubernetes.Interface, namespace string, serviceName string) string {
+func GetServiceAddressAndPort(
+	clientset kubernetes.Interface, namespace string, serviceName string) (string, int32) {
 	svc, err := clientset.CoreV1().Services(namespace).Get(
 		context.TODO(), serviceName, metav1.GetOptions{})
 	framework.ExpectNoError(err)
 
-	// ensure that external ips are available
-	// a failure here probably means there is no tunnel to k8s
-	gomega.Expect(svc.Spec.Ports).NotTo(gomega.BeEmpty())
-	gomega.Expect(svc.Status.LoadBalancer.Ingress).NotTo(gomega.BeEmpty())
-	gomega.Expect(svc.Status.LoadBalancer.Ingress[0].IP).NotTo(gomega.BeEmpty())
-
-	return svc.Status.LoadBalancer.Ingress[0].IP
+	svcAddress, svcPort := helpers.GetServiceAddressAndPort(svc)
+	gomega.Expect(svcAddress).NotTo(gomega.BeEmpty(), "service address should not be empty")
+	gomega.Expect(svcPort).NotTo(gomega.BeZero(), "service port should not be empty")
+	return svcAddress, svcPort
 }
