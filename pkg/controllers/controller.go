@@ -450,25 +450,18 @@ func (sc *SyncContext) updateClusterLabels() error {
 	})
 }
 
-/* TODO function should ensure useful and needed default values for
-the ndb setup */
-func (c *Controller) ensureDefaults(ndb *v1alpha1.Ndb) {
-
-}
-
 // ensureService creates a services if it doesn't exist
 // returns
 //    service existing or created
 //    true if services was created
 //    error if any such occurred
-func (sc *SyncContext) ensureService(port int32, selector string, externalIP bool) (*corev1.Service, bool, error) {
+func (sc *SyncContext) ensureService(port int32, selector string, createLoadBalancer bool) (*corev1.Service, bool, error) {
 
 	serviceName := sc.ndb.GetServiceName(selector)
-	if externalIP {
+	if createLoadBalancer {
 		serviceName += "-ext"
 	}
 
-	// TODO: check which get options are supposed to be used, fetch from cache sufficient?
 	svc, err := sc.kubeclientset().CoreV1().Services(sc.ndb.Namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
 
 	if err == nil {
@@ -481,7 +474,7 @@ func (sc *SyncContext) ensureService(port int32, selector string, externalIP boo
 	// Service not found - create it
 	klog.Infof("Creating a new Service %s for cluster %q", serviceName,
 		types.NamespacedName{Namespace: sc.ndb.Namespace, Name: sc.ndb.Name})
-	svc = resources.NewService(sc.ndb, port, selector, externalIP)
+	svc = resources.NewService(sc.ndb, port, selector, createLoadBalancer)
 	svc, err = sc.kubeclientset().CoreV1().Services(sc.ndb.Namespace).Create(context.TODO(), svc, metav1.CreateOptions{})
 	if err != nil {
 		return nil, false, err
@@ -511,24 +504,15 @@ func (sc *SyncContext) ensureServices() (*[]*corev1.Service, bool, error) {
 	retExisted = retExisted && existed
 	svcs = append(svcs, svc)
 
-	// create a loadbalancer service for management servers
+	// create a load balancer service for management servers
 	svc, existed, err = sc.ensureService(1186, sc.mgmdController.GetTypeName(), true)
 	if err != nil {
 		return nil, false, err
 	}
-
-	if len(svc.Spec.Ports) > 0 && len(svc.Status.LoadBalancer.Ingress) > 0 {
-		sc.ManagementServerPort = svc.Spec.Ports[0].Port
-
-		lbingress := svc.Status.LoadBalancer.Ingress[0]
-		if len(lbingress.IP) > 0 {
-			sc.ManagementServerIP = lbingress.IP
-		} else {
-			sc.ManagementServerIP = lbingress.Hostname
-		}
-	}
 	retExisted = retExisted && existed
 	svcs = append(svcs, svc)
+	// store the management IP and port
+	sc.ManagementServerIP, sc.ManagementServerPort = helpers.GetServiceAddressAndPort(svc)
 
 	// create a headless service for data nodes
 	svc, existed, err = sc.ensureService(1186, sc.ndbdController.GetTypeName(), false)
