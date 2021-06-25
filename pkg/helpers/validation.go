@@ -13,16 +13,36 @@ import (
 )
 
 // IsValidConfig validates the Ndb resource and returns an ErrorList with all invalid field values
-func IsValidConfig(ndb *ndbv1alpha1.Ndb) field.ErrorList {
+func IsValidConfig(newNdb *ndbv1alpha1.Ndb, oldNdb *ndbv1alpha1.Ndb) field.ErrorList {
 
-	spec := ndb.Spec
-
-	dataNodeCount := spec.NodeCount
-	mysqlServerCount := ndb.GetMySQLServerNodeCount()
-	managementNodeCount := ndb.GetManagementNodeCount()
+	spec := newNdb.Spec
 
 	var errList field.ErrorList
 	specPath := field.NewPath("spec")
+
+	if oldNdb != nil {
+		// this is an update - do not allow updating Spec.NodeCount and Spec.RedundancyLevel.
+		if oldNdb.Spec.NodeCount != newNdb.Spec.NodeCount {
+			var msg string
+			if oldNdb.Spec.NodeCount < newNdb.Spec.NodeCount {
+				msg = "Online add node is not supported by the operator yet"
+			} else {
+				msg = "spec.NodeCount cannot be reduced once MySQL Cluster has been started"
+			}
+			errList = append(errList,
+				field.Invalid(specPath.Child("nodeCount"), newNdb.Spec.NodeCount, msg))
+		}
+
+		if oldNdb.Spec.RedundancyLevel != newNdb.Spec.RedundancyLevel {
+			errList = append(errList,
+				field.Invalid(specPath.Child("redundancyLevel"), newNdb.Spec.RedundancyLevel,
+					"spec.redundancyLevel cannot be updated once MySQL Cluster has been started"))
+		}
+	}
+
+	dataNodeCount := spec.NodeCount
+	mysqlServerCount := newNdb.GetMySQLServerNodeCount()
+	managementNodeCount := newNdb.GetManagementNodeCount()
 
 	// checking if number of data nodes match redundancy
 	if math.Mod(float64(dataNodeCount), float64(spec.RedundancyLevel)) != 0 {
@@ -43,8 +63,8 @@ func IsValidConfig(ndb *ndbv1alpha1.Ndb) field.ErrorList {
 	// validate the MySQL Root password secret name
 	mysqldPath := specPath.Child("mysqld")
 	var rootPasswordSecret string
-	if ndb.Spec.Mysqld != nil {
-		rootPasswordSecret = ndb.Spec.Mysqld.RootPasswordSecretName
+	if newNdb.Spec.Mysqld != nil {
+		rootPasswordSecret = newNdb.Spec.Mysqld.RootPasswordSecretName
 	}
 	if rootPasswordSecret != "" {
 		errs := validation.IsDNS1123Subdomain(rootPasswordSecret)
@@ -56,7 +76,7 @@ func IsValidConfig(ndb *ndbv1alpha1.Ndb) field.ErrorList {
 	}
 
 	// validate any passed additional cnf
-	myCnfString := ndb.GetMySQLCnf()
+	myCnfString := newNdb.GetMySQLCnf()
 	if len(myCnfString) > 0 {
 		myCnf, err := ParseString(myCnfString)
 		if err != nil && strings.Contains(err.Error(), "Non-empty line without section") {
