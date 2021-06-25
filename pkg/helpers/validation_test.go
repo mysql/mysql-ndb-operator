@@ -5,19 +5,19 @@ import (
 	"testing"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 )
 
 type validationCase struct {
 	spec       *v1alpha1.NdbSpec
+	oldSpec    *v1alpha1.NdbSpec
 	shouldFail bool
 	explain    string
 }
 
-func nodeNumberTests(reduncany, dnc, mysqldc int32, fail bool, short string) validationCase {
-	return validationCase{
+func nodeNumberTests(redundancy, dnc, mysqldc int32, fail bool, short string) *validationCase {
+	return &validationCase{
 		spec: &v1alpha1.NdbSpec{
-			RedundancyLevel: reduncany,
+			RedundancyLevel: redundancy,
 			NodeCount:       dnc,
 			ContainerImage:  "mysql/mysql-cluster:8.0.22",
 			Mysqld: &v1alpha1.NdbMysqldSpec{
@@ -25,13 +25,13 @@ func nodeNumberTests(reduncany, dnc, mysqldc int32, fail bool, short string) val
 			},
 		},
 		shouldFail: fail,
-		explain: fmt.Sprintf("%3d reduncany, %3d data nodes, %3d mysql nodes - %s",
-			reduncany, dnc, mysqldc, short),
+		explain: fmt.Sprintf("%3d redundancy, %3d data nodes, %3d mysql nodes - %s",
+			redundancy, dnc, mysqldc, short),
 	}
 }
 
-func mysqldRootPasswordSecretNameTests(secretName string, fail bool, short string) validationCase {
-	return validationCase{
+func mysqldRootPasswordSecretNameTests(secretName string, fail bool, short string) *validationCase {
+	return &validationCase{
 		spec: &v1alpha1.NdbSpec{
 			RedundancyLevel: 1,
 			NodeCount:       1,
@@ -46,15 +46,33 @@ func mysqldRootPasswordSecretNameTests(secretName string, fail bool, short strin
 	}
 }
 
+func ndbUpdateTests(redundancy, dnc, mysqldCount,
+	oldRedundancy, oldDnc, oldMysqldCount int32,
+	fail bool, short string) *validationCase {
+	return &validationCase{
+		spec: &v1alpha1.NdbSpec{
+			RedundancyLevel: redundancy,
+			NodeCount:       dnc,
+			Mysqld: &v1alpha1.NdbMysqldSpec{
+				NodeCount: mysqldCount,
+			},
+		},
+		oldSpec: &v1alpha1.NdbSpec{
+			RedundancyLevel: oldRedundancy,
+			NodeCount:       oldDnc,
+			Mysqld: &v1alpha1.NdbMysqldSpec{
+				NodeCount: oldMysqldCount,
+			},
+		},
+		shouldFail: fail,
+		explain:    short,
+	}
+}
+
 func Test_InvalidValues(t *testing.T) {
 
-	ndb := testutils.NewTestNdb("ns", "test", 2)
-	if err := IsValidConfig(ndb); err != nil {
-		t.Errorf("2 node cluster is wrongly marked invalid with error %s", err)
-	}
-
 	shouldFail := true
-	vcs := []validationCase{
+	vcs := []*validationCase{
 		nodeNumberTests(0, 0, 0, shouldFail, "all zero"),
 		nodeNumberTests(0, 2, 2, shouldFail, "reduncany zero, not matching node count"),
 		nodeNumberTests(3, 2, 2, shouldFail, "reduncany not matching data node count"),
@@ -71,13 +89,26 @@ func Test_InvalidValues(t *testing.T) {
 		mysqldRootPasswordSecretNameTests("-root-pass123", shouldFail, "should start with an alphabet"),
 		mysqldRootPasswordSecretNameTests("root-pass-", shouldFail, "should end with an alphabet"),
 		mysqldRootPasswordSecretNameTests("root-pass!", shouldFail, "has invalid character"),
+
+		ndbUpdateTests(2, 2, 2, 1, 2, 2, shouldFail, "should not update redundancy"),
+		ndbUpdateTests(2, 4, 2, 2, 2, 2, shouldFail, "should not update data node count"),
+		ndbUpdateTests(2, 2, 5, 2, 2, 2, !shouldFail, "allow increasing mysqld node count"),
 	}
 
 	for _, vc := range vcs {
 
-		vc.spec.DeepCopyInto(&ndb.Spec)
+		ndb := &v1alpha1.Ndb{
+			Spec: *vc.spec,
+		}
 
-		if errList := IsValidConfig(ndb); errList != nil {
+		var oldNdb *v1alpha1.Ndb
+		if vc.oldSpec != nil {
+			oldNdb = &v1alpha1.Ndb{
+				Spec: *vc.oldSpec,
+			}
+		}
+
+		if errList := IsValidConfig(ndb, oldNdb); errList != nil {
 			if !vc.shouldFail {
 				t.Errorf("Error \"%s\" for valid case: %s", errList.ToAggregate(), vc.explain)
 			}
