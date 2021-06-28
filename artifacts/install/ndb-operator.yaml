@@ -503,8 +503,8 @@ spec:
         app: ndb-operator
     spec:
       containers:
-      - image: ndb-operator:1.0.0
-        imagePullPolicy: Never
+      - image: mysql/ndb-operator:latest
+        imagePullPolicy: IfNotPresent
         name: ndb-operator-controller
         ports:
         - containerPort: 1186
@@ -533,8 +533,8 @@ spec:
         - -service=ndbop-webhook-service
         command:
         - ndb-operator-webhook
-        image: ndb-operator:1.0.0
-        imagePullPolicy: Never
+        image: mysql/ndb-operator:latest
+        imagePullPolicy: IfNotPresent
         name: ndb-operator-webhook
         ports:
         - containerPort: 9443

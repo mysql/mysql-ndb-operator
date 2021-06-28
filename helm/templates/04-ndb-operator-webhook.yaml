@@ -75,10 +75,14 @@ spec:
     spec:
       # use the account created above to run the server
       serviceAccountName: ndb-operator-webhook
+      {{- if .Values.imagePullSecretName }}
+      imagePullSecrets:
+      - name: {{.Values.imagePullSecretName}}
+      {{- end }}
       containers:
         - name: ndb-operator-webhook
-          image: ndb-operator:1.0.0
-          imagePullPolicy: Never
+          image: {{.Values.image}}
+          imagePullPolicy: {{.Values.imagePullPolicy}}
           ports:
             # expose the web server port
             - containerPort: {{$webhookServicePort}}

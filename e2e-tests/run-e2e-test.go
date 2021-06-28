@@ -164,10 +164,10 @@ func (k *kind) setupK8sCluster(t *testRunner) bool {
 	log.Println("✅ Successfully started a KinD cluster")
 
 	// Load the operator docker image into cluster nodes
-	// kind load docker-image ndb-operator:1.0.0 --name ndb-e2e-test
+	// kind load docker-image ndb-operator:latest --name ndb-e2e-test
 	kindLoadNdbOperatorImage := append(kindCmd,
 		// load docker-image
-		"load", "docker-image", "ndb-operator:1.0.0",
+		"load", "docker-image", "ndb-operator:latest",
 		// cluster name
 		"--name="+clusterName,
 	)
