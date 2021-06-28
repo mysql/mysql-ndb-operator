@@ -6,6 +6,7 @@
 !go.sum
 !artifacts/
 !cmd/
+!config/
 !e2e-tests/
 !helm/
 !pkg/

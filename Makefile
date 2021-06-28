@@ -2,15 +2,13 @@
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-# Configurable variables to be set when building the operator :
+# Configurable variables that can be set when building the operator :
 
-# Version of the ndb-operator being built
-VERSION := 0.1.0
-
-# To enable cross compiling, set ARCH and OS
-# to the target OS before calling make
-ARCH     ?= $(shell go env GOARCH)
-OS       ?= $(shell go env GOOS)
+# To enable compiling for a particular platform,
+# set ARCH and OS when calling make
+# By default, the operator is compiled for the linux_amd64 platforms
+ARCH ?= amd64
+OS   ?= linux
 
 # BASEDIR should point to the docker target platform MySQL Cluster build
 #  i.e. an OL8 MySQL Cluster build or install directory
@@ -30,48 +28,7 @@ OSBASEDIR ?=
 .PHONY: all
 all: build
 
-# Determine the go install location based on OS and ARCH
-UNAME_S := $(shell uname -s)
-PKG      := github.com/mysql/ndb-operator/
-CMD_DIRECTORIES := $(sort $(dir $(wildcard ./cmd/*/)))
-COMMANDS := $(CMD_DIRECTORIES:./cmd/%/=%)
-
-# docker command with DOCKER_BUILDKIT=1
-DOCKER_CMD := DOCKER_BUILDKIT=1 docker
-
-.PHONY: build
-build: manifests
-	@echo "Building ndb operator..."
-	@echo "arch:     $(ARCH)"
-	@echo "os:       $(OS)"
-	@echo "version:  $(VERSION)"
-	@echo "pkg:      $(PKG)"
-	@touch pkg/version/version.go # Important. Work around for https://github.com/golang/go/issues/18369
-	ARCH=$(ARCH) OS=$(OS) VERSION=$(VERSION) PKG=$(PKG) ./hack/build.sh
-
-.PHONY: clean
-clean:
-	rm -rf .go bin
-
-.PHONY: version
-version:
-	@echo $(VERSION)
-
-# Build a MySQL Cluster container image
-.PHONY: ndb-container-image
-ndb-container-image:
-	@SRCDIR=$(SRCDIR) BASEDIR=$(BASEDIR) IMAGE_TAG=$(IMAGE_TAG) ./docker/mysql-cluster/build.sh
-
-# Build a ndb operator image in docker
-.PHONY: operator-image
-operator-image: build
-	$(DOCKER_CMD) build -t mysql/ndb-operator:latest -f docker/ndb-operator/Dockerfile .
-
-# Build e2e-tests-tests image in docker
-.PHONY: e2e-tests-image
-e2e-tests-image:
-	DOCKER_BUILDKIT=1 docker build -t e2e-tests -f docker/e2e-tests/Dockerfile .
-
+# Generate clientset, informers, listers and deepcopy for Ndb resource
 .PHONY: generate
 generate:
 	./hack/update-codegen.sh
@@ -86,9 +43,35 @@ $(INSTALL_ARTIFACT): $(shell find helm) $(shell find pkg/apis/ndbcontroller)
 .PHONY: manifests
 manifests: $(INSTALL_ARTIFACT)
 
+.PHONY: build
+build: manifests
+	ARCH=$(ARCH) OS=$(OS) ./hack/build.sh
+
 .PHONY: run
 run:
 	bin/$(OS)_$(ARCH)/ndb-operator --kubeconfig=$(HOME)/.kube/config --scripts_dir=pkg/helpers/scripts
+
+.PHONY: clean
+clean:
+	rm -rf bin
+
+# docker command with DOCKER_BUILDKIT=1
+DOCKER_CMD := DOCKER_BUILDKIT=1 docker
+
+# Build NDB Operator container image
+.PHONY: operator-image
+operator-image: build
+	$(DOCKER_CMD) build -t mysql/ndb-operator:latest -f docker/ndb-operator/Dockerfile .
+
+# Build e2e-tests-tests image in docker
+.PHONY: e2e-tests-image
+e2e-tests-image:
+	$(DOCKER_CMD) build -t e2e-tests -f docker/e2e-tests/Dockerfile .
+
+# Build MySQL Cluster container image
+.PHONY: ndb-container-image
+ndb-container-image:
+	@SRCDIR=$(SRCDIR) BASEDIR=$(BASEDIR) IMAGE_TAG=$(IMAGE_TAG) ./docker/mysql-cluster/build.sh
 
 NDBINFO_CPP_DIR=pkg/ndb/ndbinfo
 NDBINFO_BLD_DIR=lib/ndb/$(OS)_$(ARCH)

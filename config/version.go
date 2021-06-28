@@ -2,17 +2,15 @@
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-package version
+package config
 
-var buildVersion = "0.0.0"
-var buildTime = ""
+var version string
+var gitCommit string
 
 // GetBuildVersion returns the NDB Operator build version
 func GetBuildVersion() string {
-	return buildVersion
-}
-
-// GetBuildTime returns the Ndb operator build time
-func GetBuildTime() string {
-	return buildTime
+	if version == "" || gitCommit == "" {
+		panic("version or git commit was not set during build")
+	}
+	return version + "-" + gitCommit
 }

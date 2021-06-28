@@ -27,10 +27,7 @@ CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ${CACHE}/${MODULE} 2>
 #OUTPUT_BASE="$(dirname "${BASH_SOURCE[0]}")/../../.."
 OUTPUT_BASE="$(dirname "${BASH_SOURCE[0]}")/.."
 
-# mind the missing slash 
-# - listers and informers are not generated 
-#   without 100% clean paths (e.g. // in path)
-PROJECT_MODULE="github.com/mysql/ndb-operator"
+PROJECT_MODULE=$(go list -m)
 
 echo "output base is ${OUTPUT_BASE}"
 echo "code gen pkg is ${CODEGEN_PKG}"

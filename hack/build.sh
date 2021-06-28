@@ -7,40 +7,31 @@
 set -o errexit
 set -o nounset
 
-if [ -z "${PKG}" ]; then
-    echo "PKG must be set"
-    exit 1
-fi
-if [ -z "${ARCH}" ]; then
-    echo "ARCH must be set"
-    exit 1
-fi
-if [ -z "${OS}" ]; then
-    echo "OS must be set"
-    exit 1
-fi
-if [ -z "${VERSION}" ]; then
-    echo "VERSION must be set"
-    exit 1
-fi
+# Required env variables :
+# ARCH - target golang architecture
+# OS   - target golang OS
+
+PKG=$(go list -m)
+VERSION=$(cat VERSION)
+
+echo "Building ndb operator..."
+echo "arch:     ${ARCH}"
+echo "os:       ${OS}"
+echo "version:  ${VERSION}"
+echo "pkg:      ${PKG}"
 
 export CGO_ENABLED=0
 export GOARCH="${ARCH}"
 export GOOS="${OS}"
 
-PKG=${PKG%/}
-
-LDFLAGS=""
-LDFLAGS="${LDFLAGS} -X '${PKG}/pkg/version.buildVersion=${VERSION}'"
-LDFLAGS="${LDFLAGS} -X '${PKG}/pkg/version.buildTime=$(date)'"
+LDFLAGS="-X '${PKG}/config.version=${VERSION}'"
+LDFLAGS="${LDFLAGS} -X '${PKG}/config.gitCommit=$(git rev-parse --short HEAD)'"
 
 BINARIES="./bin/${OS}_${ARCH}"
-mkdir -p ${BINARIES}
+mkdir -p "${BINARIES}"
 
-# TODO buildVersion doesn't work
-go build                     \
-   -v                        \
-   -o ${BINARIES}            \
-    -installsuffix "static"  \
-    -ldflags  "${LDFLAGS}"   \
+go build                    \
+    -v                      \
+    -o "${BINARIES}"        \
+    -ldflags  "${LDFLAGS}"  \
     ./...
