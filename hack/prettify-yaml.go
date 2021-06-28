@@ -26,6 +26,11 @@ func main() {
 	flag.Parse()
 	log.SetFlags(log.Lshortfile)
 
+	if filePath == "" {
+		flag.Usage()
+		os.Exit(1)
+	}
+
 	// read the file
 	yamlFile, err := os.ReadFile(filePath)
 	if err != nil {
