@@ -66,6 +66,11 @@ operator-image: OS=linux
 operator-image: build
 	OS=linux DOCKER_BUILDKIT=1 docker build -t ndb-operator:"${VERSION}" -f docker/ndb-operator/Dockerfile .
 
+# Build e2e-tests-tests image in docker
+.PHONY: e2e-tests-image
+e2e-tests-image:
+	DOCKER_BUILDKIT=1 docker build -t e2e-tests -f docker/e2e-tests/Dockerfile .
+
 .PHONY: generate
 generate:
 	./hack/update-codegen.sh
