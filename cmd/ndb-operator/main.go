@@ -15,12 +15,12 @@ import (
 	"k8s.io/klog"
 
 	"github.com/mysql/ndb-operator/pkg/config"
+	"github.com/mysql/ndb-operator/config"
 	"github.com/mysql/ndb-operator/pkg/controllers"
 	clientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
 	"github.com/mysql/ndb-operator/pkg/helpers"
 	"github.com/mysql/ndb-operator/pkg/signals"
-	"github.com/mysql/ndb-operator/pkg/version"
 )
 
 var (
@@ -33,12 +33,10 @@ func main() {
 	klog.InitFlags(nil)
 	flag.Parse()
 
-	// set up signals so we handle the first shutdown signal gracefully
+	// set up signal handlers
 	stopCh := signals.SetupSignalHandler()
 
-	klog.Infof("Starting ndb-operator build version %s build time %s",
-		version.GetBuildVersion(),
-		version.GetBuildTime())
+	klog.Infof("Starting ndb-operator with build version %s", config.GetBuildVersion())
 
 	var cfg *restclient.Config
 	var err error
