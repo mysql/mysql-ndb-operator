@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	image_utils "github.com/mysql/ndb-operator/e2e-tests/utils/image"
-
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/test/e2e/framework"
@@ -79,7 +77,7 @@ func RunGinkgoSuite(t *testing.T, suiteName string, description string, createFr
 	flag.Parse()
 
 	// Fail if operator image is not found
-	image_utils.CheckOperatorImage()
+	//image_utils.CheckOperatorImage()
 	// Add the repo root as a file source
 	testfiles.AddFileSource(testfiles.RootFileSource{Root: "../../.."})
 

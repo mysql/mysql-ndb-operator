@@ -1,0 +1,11 @@
+# Ignore everything
+*
+
+# except these files
+!go.mod
+!go.sum
+!artifacts/
+!cmd/
+!e2e-tests/
+!helm/
+!pkg/

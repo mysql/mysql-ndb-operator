@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e2e-tests
+spec:
+  containers:
+  - image: e2e-tests
+    imagePullPolicy: Never
+    name: e2e-tests
+  restartPolicy: Never
