@@ -1,9 +1,10 @@
-rbac:
-  enabled: true
+# Yaml file with default values for the NDB Operator templates
+
+# default image, pull secret and pull policy
+image: mysql/ndb-operator:latest
+imagePullPolicy: IfNotPresent
+imagePullSecretName:
+
 operator:
   namespace: default
   global: true
-#image:
-#  registry: iad.ocir.io/oracle
-#  tag: 0.3.0
-#  pullPolicy: Always

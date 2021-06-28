@@ -20,9 +20,13 @@ spec:
         prometheus.io/port: "8080"
     spec:
       serviceAccountName: ndb-operator
+      {{- if .Values.imagePullSecretName }}
+      imagePullSecrets:
+      - name: {{.Values.imagePullSecretName}}
+      {{- end }}
       containers:
       - name: ndb-operator-controller
-        imagePullPolicy: Never
-        image: ndb-operator:1.0.0
+        image: {{.Values.image}}
+        imagePullPolicy: {{.Values.imagePullPolicy}}
         ports:
         - containerPort: 1186

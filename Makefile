@@ -5,7 +5,7 @@
 # Configurable variables to be set when building the operator :
 
 # Version of the ndb-operator being built
-VERSION := 1.0.0
+VERSION := 0.1.0
 
 # To enable cross compiling, set ARCH and OS
 # to the target OS before calling make
@@ -36,6 +36,9 @@ PKG      := github.com/mysql/ndb-operator/
 CMD_DIRECTORIES := $(sort $(dir $(wildcard ./cmd/*/)))
 COMMANDS := $(CMD_DIRECTORIES:./cmd/%/=%)
 
+# docker command with DOCKER_BUILDKIT=1
+DOCKER_CMD := DOCKER_BUILDKIT=1 docker
+
 .PHONY: build
 build: manifests
 	@echo "Building ndb operator..."
@@ -61,10 +64,8 @@ ndb-container-image:
 
 # Build a ndb operator image in docker
 .PHONY: operator-image
-# this MUST be here to cross-build for Linux on non-Linux build hosts
-operator-image: OS=linux
 operator-image: build
-	OS=linux DOCKER_BUILDKIT=1 docker build -t ndb-operator:"${VERSION}" -f docker/ndb-operator/Dockerfile .
+	$(DOCKER_CMD) build -t mysql/ndb-operator:latest -f docker/ndb-operator/Dockerfile .
 
 # Build e2e-tests-tests image in docker
 .PHONY: e2e-tests-image
