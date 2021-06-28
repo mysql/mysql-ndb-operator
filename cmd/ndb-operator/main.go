@@ -14,7 +14,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
 
-	"github.com/mysql/ndb-operator/pkg/config"
 	"github.com/mysql/ndb-operator/config"
 	"github.com/mysql/ndb-operator/pkg/controllers"
 	clientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
@@ -23,14 +22,7 @@ import (
 	"github.com/mysql/ndb-operator/pkg/signals"
 )
 
-var (
-	masterURL  string
-	kubeconfig string
-)
-
 func main() {
-
-	klog.InitFlags(nil)
 	flag.Parse()
 
 	// set up signal handlers
@@ -45,12 +37,12 @@ func main() {
 		// Operator is running inside K8s Pods
 		cfg, err = restclient.InClusterConfig()
 	} else {
-		if kubeconfig == "" && masterURL == "" {
+		if config.Kubeconfig == "" && config.MasterURL == "" {
 			// Operator is not running inside K8s and kubeconfig/masterURL are not specified.
 			klog.Fatal("Ndb operator cannot connect to the Kubernetes Server.\n" +
 				"Please specify kubeconfig or masterURL.")
 		}
-		cfg, err = clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
+		cfg, err = clientcmd.BuildConfigFromFlags(config.MasterURL, config.Kubeconfig)
 	}
 	if err != nil {
 		klog.Fatalf("Error getting kubeconfig: %s", err.Error())
@@ -91,10 +83,6 @@ func main() {
 }
 
 func init() {
-	flag.StringVar(&kubeconfig, "kubeconfig", "",
-		"Path to a kubeconfig. Only required if out-of-cluster.")
-	flag.StringVar(&masterURL, "master", "",
-		"The address of the Kubernetes API server. Overrides any value in kubeconfig. Only required if out-of-cluster.")
-	flag.StringVar(&config.ScriptsDir, "scripts_dir", config.DefaultScriptsDir,
-		"The location of scripts to be deployed by the operator in the pods. Only required if out-of-cluster.")
+	klog.InitFlags(nil)
+	config.InitFlags()
 }
