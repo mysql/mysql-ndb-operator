@@ -12,8 +12,8 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/mysql/ndb-operator/config"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/mysql/ndb-operator/pkg/config"
 	"github.com/mysql/ndb-operator/pkg/helpers"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 
