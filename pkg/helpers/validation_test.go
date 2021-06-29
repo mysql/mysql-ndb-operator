@@ -19,7 +19,6 @@ func nodeNumberTests(redundancy, dnc, mysqldc int32, fail bool, short string) *v
 		spec: &v1alpha1.NdbSpec{
 			RedundancyLevel: redundancy,
 			NodeCount:       dnc,
-			ContainerImage:  "mysql/mysql-cluster:8.0.22",
 			Mysqld: &v1alpha1.NdbMysqldSpec{
 				NodeCount: mysqldc,
 			},
@@ -35,7 +34,6 @@ func mysqldRootPasswordSecretNameTests(secretName string, fail bool, short strin
 		spec: &v1alpha1.NdbSpec{
 			RedundancyLevel: 1,
 			NodeCount:       1,
-			ContainerImage:  "mysql/mysql-cluster:8.0.22",
 			Mysqld: &v1alpha1.NdbMysqldSpec{
 				NodeCount:              1,
 				RootPasswordSecretName: secretName,

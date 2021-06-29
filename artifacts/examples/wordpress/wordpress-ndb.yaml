@@ -11,7 +11,7 @@ kind: Ndb
 metadata:
   name: wordpress-ndb
 spec:
-  containerImage: mysql/mysql-cluster:8.0.22
+  image: mysql/mysql-cluster:8.0.22
   nodeCount: 2
   redundancyLevel: 2
   mysqld:
