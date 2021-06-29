@@ -188,7 +188,7 @@ func (bss *baseStatefulSet) getContainers(ndb *v1alpha1.Ndb) []v1.Container {
 	cmdArgs := fmt.Sprintf("%s %s", cmd, strings.Join(args, " "))
 
 	// Use the image provided in spec
-	imageName := ndb.Spec.ContainerImage
+	imageName := ndb.Spec.Image
 	klog.Infof("Creating %s container from image %s", bss.typeName, imageName)
 
 	return []v1.Container{

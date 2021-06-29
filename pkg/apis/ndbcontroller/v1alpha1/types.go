@@ -84,12 +84,11 @@ type NdbSpec struct {
 	DataMemory string `json:"dataMemory,omitempty"`
 
 	// The name of the MySQL Ndb Cluster image to be used.
-	// If not specified, "mysql/mysql-cluster:8.0.22" will be used.
-	// Lowest supported version is 8.0.22.
-	// +kubebuilder:default="mysql/mysql-cluster:8.0.22"
-	// +kubebuilder:validation:Pattern="mysql/mysql-cluster:8.0.2[2-6](-[a-zA-Z0-9]*)?"
+	// If not specified, "mysql/mysql-cluster:latest" will be used.
+	// Lowest supported version is 8.0.26.
+	// +kubebuilder:default="mysql/mysql-cluster:latest"
 	// +optional
-	ContainerImage string `json:"containerImage,omitempty"`
+	Image string `json:"image,omitempty"`
 
 	// DataNodePVCSpec is the PersistentVolumeClaimSpec to be used as the
 	// VolumeClaimTemplate of the data node statefulset. A PVC will be created

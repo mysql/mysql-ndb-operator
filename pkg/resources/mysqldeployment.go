@@ -241,7 +241,7 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb, oldContaine
 
 	cmd := "/entrypoint.sh " + entryPointArgs
 
-	imageName := ndb.Spec.ContainerImage
+	imageName := ndb.Spec.Image
 	klog.Infof("Creating MySQL container from image %s", imageName)
 
 	// exec handler to be used in health probes
