@@ -10,15 +10,6 @@
 ARCH ?= amd64
 OS   ?= linux
 
-# BASEDIR should point to the docker target platform MySQL Cluster build
-#  i.e. an OL8 MySQL Cluster build or install directory
-BASEDIR ?=
-# Optional additional tag to the custom cluster docker image being built
-IMAGE_TAG ?=
-
-# SRCDIR points to the current mysql ndb source
-SRCDIR ?=
-
 # End of configurable variables
 
 .PHONY: all
@@ -63,11 +54,6 @@ operator-image: build
 .PHONY: e2e-tests-image
 e2e-tests-image:
 	$(DOCKER_CMD) build -t e2e-tests -f docker/e2e-tests/Dockerfile .
-
-# Build MySQL Cluster container image
-.PHONY: ndb-container-image
-ndb-container-image:
-	@SRCDIR=$(SRCDIR) BASEDIR=$(BASEDIR) IMAGE_TAG=$(IMAGE_TAG) ./docker/mysql-cluster/build.sh
 
 .PHONY: test
 test:
