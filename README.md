@@ -57,24 +57,7 @@ make operator-image
 
 ## Build MySQL Cluster docker image (optional)
 
-Ndb operator uses the public images available in dockerhub. By default the mysql/mysql-cluster:8.0.22 image is used. A custom MySQL Cluster image can also be built and used with the operator. The necessary docker files and scripts required for building the images are included in this repository.
-
-To compile and build a custom image from source code,
-```sh
-# SRCDIR is the location of the MySQL Cluster Source
-# TMPDIR is the location in which the MySQL Cluster will be built
-# IMAGE_TAG is the string to be tagged to the container image being built
-SRCDIR=/path/to/mysql/cluster/source TMPDIR=/build/dir IMAGE_TAG=<custom-tag> make ndb-container-image
-```
-
-Note : To compile and build the image directly on docker hosted inside minikube, additional steps might be required. Please look at [docker/mysql-cluster/build.sh](docker/mysql-cluster/build.sh) file for more information.
-
-To build a custom image from precompiled binaries for Oracle Linux 8,
-```sh
-# BASEDIR is the MySQL Cluster build directory or install location
-# IMAGE_TAG is the optional string to be tagged to the container image being built
-BASEDIR=/path/to/build/or/install/dir IMAGE_TAG=<custom-tag> make ndb-container-image
-```
+Ndb operator uses the public images available in dockerhub. By default, the mysql/mysql-cluster:latest image is used. A custom MySQL Cluster image can also be built and used with the operator. Please look at [docker/mysql-cluster/README.md](docker/mysql-cluster/README.md) for more information.
 
 ## Running Operator
 
@@ -168,30 +151,6 @@ You can delete the cluster installation again with
 
 ```sh
 kubectl delete -f artifacts/examples/example-ndb.yaml
-```
-
-
-## Defining types
-
-The Ndb instance of our custom resource has an attached Spec, 
-which is defined in [types.go](pkg/apis/ndbcontroller/types.go)
-
-## Validation
-
-To validate custom resources, use the [`CustomResourceValidation`](https://kubernetes.io/docs/tasks/access-kubernetes-api/extend-api-custom-resource-definitions/#validation) feature.
-
-This feature is beta and enabled by default in v1.9.
-
-### Example
-
-The schema in [`crd-validation.yaml`](./artifacts/examples/crd-validation.yaml) applies the following validation on the custom resource:
-`spec.replicas` must be an integer and must have a minimum value of 1 and a maximum value of 10.
-
-In the above steps, use `crd-validation.yaml` to create the CRD:
-
-```sh
-# create a CustomResourceDefinition supporting validation
-kubectl create -f artifacts/examples/crd-validation.yaml
 ```
 
 ## Cleanup
