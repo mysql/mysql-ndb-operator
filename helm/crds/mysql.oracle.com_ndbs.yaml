@@ -176,6 +176,20 @@ spec:
                   not specified, "mysql/mysql-cluster:latest" will be used. Lowest
                   supported version is 8.0.26.
                 type: string
+              imagePullPolicy:
+                default: IfNotPresent
+                description: ImagePullPolicy describes a policy for if/when to pull
+                  the MySQL Cluster container image
+                enum:
+                - Always
+                - Never
+                - IfNotPresent
+                type: string
+              imagePullSecretName:
+                description: ImagePullSecretName optionally specifies the name of
+                  the secret that holds the credentials required for pulling the MySQL
+                  Cluster image.
+                type: string
               mysqld:
                 description: NdbMysqldSpec is the specification of MySQL Servers to
                   be run as an SQL Frontend

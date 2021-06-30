@@ -89,6 +89,16 @@ type NdbSpec struct {
 	// +kubebuilder:default="mysql/mysql-cluster:latest"
 	// +optional
 	Image string `json:"image,omitempty"`
+	// ImagePullPolicy describes a policy for if/when to
+	// pull the MySQL Cluster container image
+	// +kubebuilder:validation:Enum:={Always, Never, IfNotPresent}
+	// +kubebuilder:default:="IfNotPresent"
+	// +optional
+	ImagePullPolicy v1.PullPolicy `json:"imagePullPolicy,omitempty"`
+	// ImagePullSecretName optionally specifies the name of the secret that
+	// holds the credentials required for pulling the MySQL Cluster image.
+	// +optional
+	ImagePullSecretName string `json:"imagePullSecretName,omitempty"`
 
 	// DataNodePVCSpec is the PersistentVolumeClaimSpec to be used as the
 	// VolumeClaimTemplate of the data node statefulset. A PVC will be created

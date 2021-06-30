@@ -264,7 +264,7 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb, oldContaine
 		},
 		VolumeMounts:    msd.getMysqlVolumeMounts(ndb),
 		Command:         []string{"/bin/bash", "-ecx", cmd},
-		ImagePullPolicy: v1.PullIfNotPresent,
+		ImagePullPolicy: ndb.Spec.ImagePullPolicy,
 
 		// Health probes.
 		// Startup probe - expects MySQL to get ready within 5 minutes
@@ -332,6 +332,15 @@ func (msd *MySQLServerDeployment) NewDeployment(
 		Containers:         []v1.Container{*msd.createContainer(ndb, oldContainer)},
 		Volumes:            msd.getPodVolumes(ndb),
 		ServiceAccountName: "ndb-agent",
+	}
+
+	imagePullSecretName := ndb.Spec.ImagePullSecretName
+	if imagePullSecretName != "" {
+		podSpec.ImagePullSecrets = []v1.LocalObjectReference{
+			{
+				Name: imagePullSecretName,
+			},
+		}
 	}
 
 	// The deployment name to be used

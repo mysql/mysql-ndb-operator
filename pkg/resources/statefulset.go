@@ -202,7 +202,7 @@ func (bss *baseStatefulSet) getContainers(ndb *v1alpha1.Ndb) []v1.Container {
 			},
 			VolumeMounts:    bss.getVolumeMounts(ndb),
 			Command:         []string{"/bin/bash", "-ecx", cmdArgs},
-			ImagePullPolicy: v1.PullIfNotPresent,
+			ImagePullPolicy: ndb.Spec.ImagePullPolicy,
 		},
 	}
 }
@@ -233,6 +233,21 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 		}
 	}
 
+	podSpec := v1.PodSpec{
+		Containers:         bss.getContainers(ndb),
+		Volumes:            bss.getPodVolumes(ndb),
+		ServiceAccountName: "ndb-agent",
+	}
+
+	imagePullSecretName := ndb.Spec.ImagePullSecretName
+	if imagePullSecretName != "" {
+		podSpec.ImagePullSecrets = []v1.LocalObjectReference{
+			{
+				Name: imagePullSecretName,
+			},
+		}
+	}
+
 	ss := &apps.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   bss.GetName(),
@@ -256,11 +271,7 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 					Labels:      podLabels,
 					Annotations: map[string]string{},
 				},
-				Spec: v1.PodSpec{
-					Containers:         bss.getContainers(ndb),
-					Volumes:            bss.getPodVolumes(ndb),
-					ServiceAccountName: "ndb-agent",
-				},
+				Spec: podSpec,
 			},
 			// service must exist before the StatefulSet, and is responsible for
 			// the network identity of the set.
