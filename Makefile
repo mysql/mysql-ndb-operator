@@ -55,14 +55,11 @@ operator-image: build
 e2e-tests-image:
 	$(DOCKER_CMD) build -t e2e-tests -f docker/e2e-tests/Dockerfile .
 
-.PHONY: test
-test:
-	go test -v --count=1 ./e2e-tests/suites/...
-
 .PHONY: unit-test
 unit-test:
 	go test -v --count=1 ./pkg/...
 
+# Run e2e tests against a local K8s Cluster
 .PHONY: e2e
 e2e:
 	go run e2e-tests/run-e2e-test.go
@@ -70,6 +67,11 @@ e2e:
 .PHONY: e2e-kind
 e2e-kind:
 	go run e2e-tests/run-e2e-test.go --use-kind
+
+# Run all unit tests and e2e test. Requires a minikube running
+# with the tunnel open and the operator image to be available in it
+.PHONY: test
+test: unit-test e2e
 
 fmt:
 	go fmt ./pkg/...
