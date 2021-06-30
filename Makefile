@@ -19,10 +19,6 @@ IMAGE_TAG ?=
 # SRCDIR points to the current mysql ndb source
 SRCDIR ?=
 
-# OS base dir is the *build* directory of your current runtime platform 
-# the one you run the operator from when running it *outside* kubernetes
-OSBASEDIR ?=
-
 # End of configurable variables
 
 .PHONY: all
@@ -72,16 +68,6 @@ e2e-tests-image:
 .PHONY: ndb-container-image
 ndb-container-image:
 	@SRCDIR=$(SRCDIR) BASEDIR=$(BASEDIR) IMAGE_TAG=$(IMAGE_TAG) ./docker/mysql-cluster/build.sh
-
-NDBINFO_CPP_DIR=pkg/ndb/ndbinfo
-NDBINFO_BLD_DIR=lib/ndb/$(OS)_$(ARCH)
-
-ndbinfo-bin:
-	rm -rf $(NDBINFO_BLD_DIR)
-	mkdir -p $(NDBINFO_BLD_DIR)
-	cmake -S $(NDBINFO_CPP_DIR) -B $(NDBINFO_BLD_DIR) -DNDB_SOURCE_DIR=$(SRCDIR) -DNDB_BUILD_DIR=$(OSBASEDIR)  
-	cd $(NDBINFO_BLD_DIR) ; make -f ./Makefile
-	mv $(NDBINFO_BLD_DIR)/libndbinfo_native* $(NDBINFO_CPP_DIR)
 
 .PHONY: test
 test:
