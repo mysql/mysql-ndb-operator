@@ -234,9 +234,8 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 	}
 
 	podSpec := v1.PodSpec{
-		Containers:         bss.getContainers(ndb),
-		Volumes:            bss.getPodVolumes(ndb),
-		ServiceAccountName: "ndb-agent",
+		Containers: bss.getContainers(ndb),
+		Volumes:    bss.getPodVolumes(ndb),
 	}
 
 	imagePullSecretName := ndb.Spec.ImagePullSecretName

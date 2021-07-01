@@ -31,16 +31,28 @@ func DeleteNdbCRD() {
 
 // required resources for ndb operator
 var ndbOperatorResources = []yaml_utils.K8sObject{
-	// ndb-agent service account and roles
-	{"ndb-agent", "ServiceAccount", "v1"},
-	{"ndb-agent", "ClusterRole", "rbac.authorization.k8s.io/v1"},
-	{"ndb-agent", "ClusterRoleBinding", "rbac.authorization.k8s.io/v1"},
 	// ndb-operator service account and roles
-	{"ndb-operator", "ServiceAccount", "v1"},
-	{"ndb-operator", "ClusterRole", "rbac.authorization.k8s.io/v1"},
-	{"ndb-operator", "ClusterRoleBinding", "rbac.authorization.k8s.io/v1"},
+	{
+		Name:    "ndb-operator",
+		Kind:    "ServiceAccount",
+		Version: "v1",
+	},
+	{
+		Name:    "ndb-operator",
+		Kind:    "ClusterRole",
+		Version: "rbac.authorization.k8s.io/v1",
+	},
+	{
+		Name:    "ndb-operator",
+		Kind:    "ClusterRoleBinding",
+		Version: "rbac.authorization.k8s.io/v1",
+	},
 	// the ndb operator itself
-	{"ndb-operator", "Deployment", "apps/v1"},
+	{
+		Name:    "ndb-operator",
+		Kind:    "Deployment",
+		Version: "apps/v1",
+	},
 }
 
 // DeployNdbOperator deploys the Ndb operator and the required cluster roles

@@ -329,9 +329,8 @@ func (msd *MySQLServerDeployment) NewDeployment(
 	}
 
 	podSpec := v1.PodSpec{
-		Containers:         []v1.Container{*msd.createContainer(ndb, oldContainer)},
-		Volumes:            msd.getPodVolumes(ndb),
-		ServiceAccountName: "ndb-agent",
+		Containers: []v1.Container{*msd.createContainer(ndb, oldContainer)},
+		Volumes:    msd.getPodVolumes(ndb),
 	}
 
 	imagePullSecretName := ndb.Spec.ImagePullSecretName
