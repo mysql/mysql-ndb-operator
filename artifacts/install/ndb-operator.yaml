@@ -276,12 +276,6 @@ status:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: ndb-agent
-  namespace: default
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
   name: ndb-operator
   namespace: default
 ---
@@ -290,54 +284,6 @@ kind: ServiceAccount
 metadata:
   name: ndb-operator-webhook
   namespace: default
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: ndb-agent
-  namespace: default
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - endpoints
-  verbs:
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - apps
-  resources:
-  - statefulsets
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - mysql.oracle.com
-  resources:
-  - ndbs
-  verbs:
-  - get
-  - list
-  - patch
-  - update
-  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -440,20 +386,6 @@ rules:
   verbs:
   - list
   - patch
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: ndb-agent
-  namespace: default
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: ndb-agent
-subjects:
-- kind: ServiceAccount
-  name: ndb-agent
-  namespace: default
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

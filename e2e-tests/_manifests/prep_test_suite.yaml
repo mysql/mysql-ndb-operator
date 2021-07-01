@@ -1,7 +1,7 @@
 ---
 A: v1
 metadata:
-  name: ndb-agent
+  name: test
   namespace:  replace-me{{ xyz }}
 namespace:  replace{{ xyz }}-me
 ---
