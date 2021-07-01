@@ -119,7 +119,8 @@ type NdbStatus struct {
 	ProcessedGeneration int64 `json:"processedGeneration,omitempty"`
 	// LastUpdate is the time when the ProcessedGeneration was last updated.
 	LastUpdate metav1.Time `json:"lastUpdate,omitempty"`
-	// The config hash of every new generation of a spec received and acknowledged
+	// The config hash of every new generation of a spec
+	// received and acknowledged. Note : This is not used yet.
 	ReceivedConfigHash string `json:"receivedConfigHash,omitempty"`
 }
 
