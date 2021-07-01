@@ -256,8 +256,8 @@ spec:
                 format: int64
                 type: integer
               receivedConfigHash:
-                description: The config hash of every new generation of a spec received
-                  and acknowledged
+                description: 'The config hash of every new generation of a spec received
+                  and acknowledged. Note : This is not used yet.'
                 type: string
             type: object
         required:
