@@ -276,19 +276,39 @@ status:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: ndb-operator
+  name: ndb-operator-webhook-sa
   namespace: default
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: ndb-operator-webhook
+  name: ndb-operator-sa
   namespace: default
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: ndb-operator
+  name: ndb-operator-webhook-cr
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - validatingwebhookconfigurations
+  verbs:
+  - list
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ndb-operator-cr
   namespace: default
 rules:
 - apiGroups:
@@ -368,51 +388,31 @@ rules:
   - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: ndb-operator-webhook-role
-  namespace: default
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - get
-- apiGroups:
-  - admissionregistration.k8s.io
-  resources:
-  - validatingwebhookconfigurations
-  verbs:
-  - list
-  - patch
----
-apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: ndb-operator
+  name: ndb-operator-webhook-crb
   namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: ndb-operator
+  name: ndb-operator-webhook-cr
 subjects:
 - kind: ServiceAccount
-  name: ndb-operator
+  name: ndb-operator-webhook-sa
   namespace: default
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: ndb-operator-webhook-role-binding
+  name: ndb-operator-crb
   namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: ndb-operator-webhook-role
+  name: ndb-operator-cr
 subjects:
 - kind: ServiceAccount
-  name: ndb-operator-webhook
+  name: ndb-operator-sa
   namespace: default
 ---
 apiVersion: v1
@@ -430,37 +430,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: ndb-operator
-    release: 0.0.1
-  name: ndb-operator
-  namespace: default
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: ndb-operator
-  template:
-    metadata:
-      annotations:
-        prometheus.io/port: "8080"
-        prometheus.io/scrape: "true"
-      labels:
-        app: ndb-operator
-    spec:
-      containers:
-      - image: mysql/ndb-operator:latest
-        imagePullPolicy: IfNotPresent
-        name: ndb-operator-controller
-        ports:
-        - containerPort: 1186
-      serviceAccountName: ndb-operator
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  labels:
     app: ndb-operator-webhook-deployment
-    release: 0.0.1
+    release: 0.1.0
   name: ndb-operator-webhook-server
   namespace: default
 spec:
@@ -488,7 +459,36 @@ spec:
             path: /health
             port: 9443
             scheme: HTTPS
-      serviceAccountName: ndb-operator-webhook
+      serviceAccountName: ndb-operator-webhook-sa
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: ndb-operator
+    release: 0.1.0
+  name: ndb-operator
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ndb-operator
+  template:
+    metadata:
+      annotations:
+        prometheus.io/port: "8080"
+        prometheus.io/scrape: "true"
+      labels:
+        app: ndb-operator
+    spec:
+      containers:
+      - image: mysql/ndb-operator:latest
+        imagePullPolicy: IfNotPresent
+        name: ndb-operator-controller
+        ports:
+        - containerPort: 1186
+      serviceAccountName: ndb-operator-sa
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration

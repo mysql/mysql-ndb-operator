@@ -1,0 +1,32 @@
+# Register the webhook service as a validating webhook
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: ndb-validating-webhook-config
+  labels:
+    # This label will be used by the webhook server to
+    # list WebhookConfigurations to inject caBundle into
+    webhook-server: {{ template "webhook-service.name" }}
+webhooks:
+  - clientConfig:
+      # caBundle will be filled in by the webhook server
+      service:
+        name: {{ template "webhook-service.name" }}
+        namespace: {{ .Values.operator.namespace }}
+        path: /validate-ndb
+        port: {{ template "webhook-service.port" }}
+    failurePolicy: Fail
+    name: validating-webhook.ndb.mysql.oracle.com
+    rules:
+      - apiGroups:
+          - mysql.oracle.com
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - ndbs
+    admissionReviewVersions:
+      - v1
+    sideEffects: None
