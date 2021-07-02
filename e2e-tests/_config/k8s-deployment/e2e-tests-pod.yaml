@@ -8,3 +8,4 @@ spec:
     imagePullPolicy: Never
     name: e2e-tests
   restartPolicy: Never
+  serviceAccountName: e2e-tests-service-account
