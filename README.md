@@ -93,7 +93,7 @@ Once installed, either using helm or using the yaml file, the ndb-operator and t
 
 ```sh
 # create a custom resource of type Ndb
-kubectl apply -f artifacts/examples/example-ndb.yaml
+kubectl apply -f docs/examples/example-ndb.yaml
 
 # check statefulsets created through the custom resource
 kubectl get pods,statefulsets
@@ -147,7 +147,7 @@ You can delete the cluster installation again with
 
 
 ```sh
-kubectl delete -f artifacts/examples/example-ndb.yaml
+kubectl delete -f docs/examples/example-ndb.yaml
 ```
 
 ## Cleanup
