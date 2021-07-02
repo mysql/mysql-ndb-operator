@@ -1,0 +1,11 @@
+# Service to expose the webhook
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{template "webhook-service.name" }}
+  namespace: {{.Values.operator.namespace}}
+spec:
+  ports:
+    - port: {{template "webhook-service.port"}}
+  selector:
+    {{template "webhook-service.pod-label"}}

@@ -1,0 +1,94 @@
+# Cluster roles for Webhook server
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ndb-operator-webhook-cr
+  namespace: {{.Values.operator.namespace}}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - validatingwebhookconfigurations
+    verbs:
+      - list
+      - patch
+---
+# Cluster roles for Ndb Operator
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ndb-operator-cr
+  namespace:  {{ if and (.Values.operator.global) (eq .Values.operator.namespace "ndb-operator") }}ndb-operator{{ else }}{{ .Values.operator.namespace}}{{ end }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs:
+      - get
+      - list
+      - update
+      - watch
+
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs:
+      - get
+      - list
+      - update
+      - create
+      - watch
+
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs:
+      - get
+      - list
+      - create
+      - patch
+      - watch
+
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs:
+      - get
+      - create
+
+  - apiGroups: ["events.k8s.io"]
+    resources: ["events"]
+    verbs:
+      - create
+      - patch
+
+  - apiGroups: ["apps"]
+    resources: ["statefulsets", "deployments"]
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch
+
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+
+  - apiGroups: ["mysql.oracle.com"]
+    resources:
+      - ndbs
+      - ndbs/status
+    verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch

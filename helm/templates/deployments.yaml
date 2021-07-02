@@ -1,0 +1,75 @@
+# Deploy the webhook server
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ndb-operator-webhook-server
+  namespace: {{.Values.operator.namespace}}
+  labels:
+    release: {{.Chart.AppVersion}}
+    app: ndb-operator-webhook-deployment
+spec:
+  selector:
+    matchLabels:
+      {{template "webhook-service.pod-label"}}
+  template:
+    metadata:
+      labels:
+        {{template "webhook-service.pod-label"}}
+    spec:
+      # use the account created above to run the server
+      serviceAccountName: ndb-operator-webhook-sa
+      {{- if .Values.imagePullSecretName }}
+      imagePullSecrets:
+        - name: {{.Values.imagePullSecretName}}
+      {{- end }}
+      containers:
+        - name: ndb-operator-webhook
+          image: {{.Values.image}}
+          imagePullPolicy: {{.Values.imagePullPolicy}}
+          ports:
+            # expose the web server port
+            - containerPort: {{template "webhook-service.port"}}
+          command:
+            - ndb-operator-webhook
+          args:
+            - -namespace={{.Values.operator.namespace}}
+            - -service={{template "webhook-service.name"}}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{template "webhook-service.port"}}
+              scheme: HTTPS
+---
+# Deploy Ndb operator
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ndb-operator
+  namespace:  {{ if and (.Values.operator.global) (eq .Values.operator.namespace "ndb-operator") }}ndb-operator{{ else }}{{ .Values.operator.namespace}}{{ end }}
+  labels:
+    release: {{.Chart.AppVersion}}
+    app: ndb-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ndb-operator
+  template:
+    metadata:
+      labels:
+        app: ndb-operator
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      serviceAccountName: ndb-operator-sa
+      {{- if .Values.imagePullSecretName }}
+      imagePullSecrets:
+        - name: {{.Values.imagePullSecretName}}
+      {{- end }}
+      containers:
+        - name: ndb-operator-controller
+          image: {{.Values.image}}
+          imagePullPolicy: {{.Values.imagePullPolicy}}
+          ports:
+            - containerPort: 1186

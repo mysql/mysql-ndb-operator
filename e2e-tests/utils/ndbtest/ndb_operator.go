@@ -33,17 +33,17 @@ func DeleteNdbCRD() {
 var ndbOperatorResources = []yaml_utils.K8sObject{
 	// ndb-operator service account and roles
 	{
-		Name:    "ndb-operator",
+		Name:    "ndb-operator-sa",
 		Kind:    "ServiceAccount",
 		Version: "v1",
 	},
 	{
-		Name:    "ndb-operator",
+		Name:    "ndb-operator-cr",
 		Kind:    "ClusterRole",
 		Version: "rbac.authorization.k8s.io/v1",
 	},
 	{
-		Name:    "ndb-operator",
+		Name:    "ndb-operator-crb",
 		Kind:    "ClusterRoleBinding",
 		Version: "rbac.authorization.k8s.io/v1",
 	},

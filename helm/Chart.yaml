@@ -3,6 +3,7 @@ name: ndb-operator
 version: 0.1.0
 kubeVersion: ">= 1.19.0"
 description: A Helm chart for deploying the Oracle MySQL NDB Cluster Operator
+appVersion: "0.1.0"
 keywords:
   - mysql cluster
   - NDB
