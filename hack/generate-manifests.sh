@@ -5,8 +5,9 @@
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_GEN_OPTS="crd:trivialVersions=true"
 CRD_GEN_INPUT_PATH="./pkg/apis/..."
-CRD_GEN_OUTPUT="helm/crds"
-CRD_NAME="helm/crds/mysql.oracle.com_ndbs.yaml"
+HELM_CHART_PATH="deploy/charts/ndb-operator"
+CRD_GEN_OUTPUT="${HELM_CHART_PATH}/crds"
+CRD_FULL_PATH="${CRD_GEN_OUTPUT}/mysql.oracle.com_ndbs.yaml"
 CONTROLLER_GEN_CMD="go run sigs.k8s.io/controller-tools/cmd/controller-gen"
 
 # Generate Ndb CRD
@@ -21,8 +22,8 @@ sed -i.crd.bak "/\ \ creationTimestamp\:\ null/d" ${CRD_GEN_OUTPUT}/* && rm ${CR
 INSTALL_ARTIFACT="artifacts/install/ndb-operator.yaml"
 echo "Generating install artifact..."
 # Copy in the Ndb CRD
-cp ${CRD_NAME} ${INSTALL_ARTIFACT}
+cp ${CRD_FULL_PATH} ${INSTALL_ARTIFACT}
 # Generate and append the resources from helm templates
-helm template helm >> ${INSTALL_ARTIFACT}
+helm template ${HELM_CHART_PATH} >> ${INSTALL_ARTIFACT}
 # Prettify the yaml file
 go run hack/prettify-yaml.go --yaml=${INSTALL_ARTIFACT}

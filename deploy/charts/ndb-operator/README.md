@@ -11,7 +11,7 @@ This chart installs the Ndb CRD, deploys the Ndb Operator and the webhook server
 To install the chart with the release name `ndbop`:
 
 ```bash
-helm install ndbop helm
+helm install ndbop deploy/charts/ndb-operator
 ```
 
 The command creates the Ndb CRD, deploys the NDB Operator and the webhook server to the Kubernetes cluster with the default configuration. The [configuration](#configuration) section lists the parameters that can be configured during installation.
