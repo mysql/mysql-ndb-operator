@@ -22,7 +22,7 @@ generate:
 
 # If there is any change in the Ndb api definition or the helm charts,
 # generate the install artifact (and implicitly the Ndb CRD)
-INSTALL_ARTIFACT=artifacts/install/ndb-operator.yaml
+INSTALL_ARTIFACT=deploy/manifests/ndb-operator.yaml
 $(INSTALL_ARTIFACT): $(shell find deploy/charts/ndb-operator) $(shell find pkg/apis/ndbcontroller)
 	./hack/generate-manifests.sh
 

@@ -19,7 +19,7 @@ ${CONTROLLER_GEN_CMD} ${CRD_GEN_OPTS} paths=${CRD_GEN_INPUT_PATH} output:crd:art
 sed -i.crd.bak "/\ \ creationTimestamp\:\ null/d" ${CRD_GEN_OUTPUT}/* && rm ${CRD_GEN_OUTPUT}/*.crd.bak
 
 # Generate a single ndb-operator yaml file for deploying the CRD and the ndb operator
-INSTALL_ARTIFACT="artifacts/install/ndb-operator.yaml"
+INSTALL_ARTIFACT="deploy/manifests/ndb-operator.yaml"
 echo "Generating install artifact..."
 # Copy in the Ndb CRD
 cp ${CRD_FULL_PATH} ${INSTALL_ARTIFACT}

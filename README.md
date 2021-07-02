@@ -75,15 +75,15 @@ More information on using the helm chart is available at [deploy/charts/ndb-oper
 
 ### Install using regular manifests
 
-Create custom resource definitions, the roles and deploy the ndb operator by applying the single YAML file - artifacts/release/ndb-operator.yaml
+Create custom resource definitions, the roles and deploy the ndb operator by applying the single YAML file - deploy/manifests/ndb-operator.yaml
 
 ```sh
 # To create all the K8s resources in the default namespace
-kubectl apply -f artifacts/release/ndb-operator.yaml
+kubectl apply -f deploy/manifests/ndb-operator.yaml
 
 # To create all the K8s resources in a custom namespace, say example-ns, run
 sed -r "s/([ ]*namespace\: )default/\1example-ns/" \
-  artifacts/install/ndb-operator.yaml | kubectl apply -f -
+  deploy/manifests/ndb-operator.yaml | kubectl apply -f -
 
 ```
 

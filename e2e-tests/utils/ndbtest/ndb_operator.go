@@ -13,7 +13,7 @@ import (
 
 const (
 	ndbCRDYaml          = "deploy/charts/ndb-operator/crds/mysql.oracle.com_ndbs"
-	installYamlPath     = "artifacts/install"
+	installYamlPath     = "deploy/manifests"
 	installYamlFilename = "ndb-operator"
 )
 
