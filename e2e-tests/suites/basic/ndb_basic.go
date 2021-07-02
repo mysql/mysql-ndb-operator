@@ -48,11 +48,11 @@ var _ = ndbtest.DescribeFeature("Ndb basic", func() {
 	ginkgo.When("the example-ndb yaml is applied", func() {
 
 		ginkgo.BeforeEach(func() {
-			ndbtest.KubectlApplyNdbYaml(c, ns, "artifacts/examples", "example-ndb")
+			ndbtest.KubectlApplyNdbYaml(c, ns, "docs/examples", "example-ndb")
 		})
 
 		ginkgo.AfterEach(func() {
-			ndbtest.KubectlDeleteNdbYaml(c, ns, "example-ndb", "artifacts/examples", "example-ndb")
+			ndbtest.KubectlDeleteNdbYaml(c, ns, "example-ndb", "docs/examples", "example-ndb")
 		})
 
 		ginkgo.It("should deploy MySQL cluster in K8s", func() {

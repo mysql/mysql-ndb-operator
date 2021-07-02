@@ -4,8 +4,8 @@
 # except these files
 !go.mod
 !go.sum
-!artifacts/
 !cmd/
+!docs/examples
 !config/
 !deploy/
 !e2e-tests/
