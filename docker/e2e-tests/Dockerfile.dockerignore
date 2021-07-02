@@ -7,6 +7,6 @@
 !artifacts/
 !cmd/
 !config/
+!deploy/
 !e2e-tests/
-!helm/
 !pkg/

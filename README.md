@@ -69,12 +69,9 @@ Ndb operator comes with a helm chart that can install the CRDs and deploy the op
 
 ```sh
 # Install the ndb operator and other resources in the default namespace
-helm install ndb-operator helm
+helm install ndb-operator deploy/charts/ndb-operator
 ```
-#### Helm chart values
-
-##### operator.namespace
-The namespace in which the ndb-operator and other related resources are to be installed.
+More information on using the helm chart is available at [deploy/charts/ndb-operator/README.md](deploy/charts/ndb-operator/README.md)
 
 ### Install using regular manifests
 
