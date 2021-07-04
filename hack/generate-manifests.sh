@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Copyright (c) 2021, Oracle and/or its affiliates.
+#
+# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
+
 # Script to generate Ndb CRD and the release artifact
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
