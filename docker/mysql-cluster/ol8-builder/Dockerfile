@@ -1,3 +1,7 @@
+# Copyright (c) 2021, Oracle and/or its affiliates.
+#
+# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
+
 # Compiles the given MySQL Source code inside
 # a docker container running Oracle Linux 8.
 # Note : This Dockerfile is designed to be used by the build.sh script

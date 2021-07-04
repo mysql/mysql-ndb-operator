@@ -1,3 +1,7 @@
+# Copyright (c) 2021, Oracle and/or its affiliates.
+#
+# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
+
 # Builds custom MySQL Cluster minimal docker image to be consumed
 # by the Ndb operator from precompiled binaries for ol8.
 # Note : This Dockerfile is designed to be used by the build.sh script
