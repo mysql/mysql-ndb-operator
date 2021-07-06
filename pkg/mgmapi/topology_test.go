@@ -33,10 +33,10 @@ func Test_ClusterTopologyByReplica(t *testing.T) {
 			}
 		}
 
-		(*cs)[nodeID] = ns
+		cs[nodeID] = ns
 	}
 
-	for nodeID, ns := range *cs {
+	for nodeID, ns := range cs {
 		s, _ := json.Marshal(ns)
 		fmt.Printf("%d - %s\n", nodeID, s)
 	}

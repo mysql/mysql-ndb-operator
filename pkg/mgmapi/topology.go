@@ -47,12 +47,12 @@ func (cr *ClusterReplicas) GetNodeIDsFromReplica(replicaID int) *nodeIDs {
 
 // CreateClusterTopologyByReplicaFromClusterStatus extracts
 // a ClusterTopology from a ClusterStatus report object
-func CreateClusterTopologyByReplicaFromClusterStatus(cs *ClusterStatus) *ClusterReplicas {
+func CreateClusterTopologyByReplicaFromClusterStatus(cs ClusterStatus) *ClusterReplicas {
 
 	// we use int for count of nodes
 	tmpNodeGroups := make(map[int]nodeIDs)
 
-	for _, ns := range *cs {
+	for _, ns := range cs {
 		if !ns.IsDataNode() {
 			continue
 		}

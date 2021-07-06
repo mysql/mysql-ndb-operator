@@ -21,7 +21,7 @@ import (
 // MgmClient defines an interface that communicates with MySQL Cluster.
 type MgmClient interface {
 	Disconnect()
-	GetStatus() (*ClusterStatus, error)
+	GetStatus() (ClusterStatus, error)
 	GetConfigVersion() (uint32, error)
 	GetConfigVersionFromNode(nodeID int) (uint32, error)
 	StopNodes(nodeIds []int) error
@@ -127,7 +127,7 @@ func (mci *mgmClientImpl) connectToNodeId(connectstring string, desiredNodeId in
 // Disconnect closes the tcp connection to the mgmd server
 func (mci *mgmClientImpl) Disconnect() {
 	if mci.connection != nil {
-		mci.connection.Close()
+		_ = mci.connection.Close()
 		klog.V(4).Infof("Management server disconnected.")
 	}
 }
@@ -378,7 +378,7 @@ func (mci *mgmClientImpl) getConnectedMgmdNodeId() (int, error) {
 
 // GetStatus reads the MySQL Cluster nodes' status and returns
 // a ClusterStatus object filled with that information
-func (mci *mgmClientImpl) GetStatus() (*ClusterStatus, error) {
+func (mci *mgmClientImpl) GetStatus() (ClusterStatus, error) {
 
 	// command :
 	// get status

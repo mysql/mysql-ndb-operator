@@ -21,7 +21,7 @@ func nodeTypeFromNodeId(mgmNodeCount, dataNodeCount, nodeId int) NodeTypeEnum {
 	return NodeTypeAPI
 }
 
-func Test_ensureNodeAndsetNodeTypeFromTLA(t *testing.T) {
+func Test_ensureNodeAndSetNodeTypeFromTLA(t *testing.T) {
 
 	cs := NewClusterStatus(8)
 
@@ -37,7 +37,7 @@ func Test_ensureNodeAndsetNodeTypeFromTLA(t *testing.T) {
 	dnCnt := 0
 	mgmCnt := 0
 	apiCnt := 0
-	for _, ns := range *cs {
+	for _, ns := range cs {
 		if ns.IsAPINode() {
 			apiCnt++
 		}
@@ -67,11 +67,11 @@ func Test_ClusterIsDegraded(t *testing.T) {
 			nodeGroup = (nodeID - 1 - 2) / 2
 		}
 		if nodeID == 7 {
-			// mark data node like its a started node in a new group
+			// mark data node as started node in a new group
 			nodeGroup = -256
 		}
 		if nodeID == 8 {
-			// mark data node like its an unstarted node in a new group
+			// mark data node as disconnected node in a new group
 			connected = false
 			nodeGroup = -1
 		}
@@ -83,11 +83,11 @@ func Test_ClusterIsDegraded(t *testing.T) {
 			IsConnected:     connected,
 			NodeGroup:       nodeGroup,
 		}
-		(*cs)[nodeID] = ns
+		cs[nodeID] = ns
 	}
 
 	for nodeID := 1; nodeID <= 10; nodeID++ {
-		s, _ := json.Marshal((*cs)[nodeID])
+		s, _ := json.Marshal(cs[nodeID])
 		fmt.Printf("%d - %s\n", nodeID, s)
 	}
 
@@ -103,7 +103,7 @@ func Test_ClusterIsDegraded(t *testing.T) {
 		t.Errorf("Cluster has one scaling node node up but reported wrong node group count %d.", scale)
 	}
 
-	if ns, ok := (*cs)[9]; ok {
+	if ns, ok := cs[9]; ok {
 		(*ns).IsConnected = false
 	} else {
 		t.Errorf("Defined node id 9 not found.")
@@ -117,7 +117,7 @@ func Test_ClusterIsDegraded(t *testing.T) {
 		t.Errorf("Cluster is should have same number of scaling nodes with an API node down but reported %d.", scale)
 	}
 
-	if ns, ok := (*cs)[3]; ok {
+	if ns, ok := cs[3]; ok {
 		(*ns).IsConnected = false
 	} else {
 		t.Errorf("Defined node id 3 not found.")
@@ -133,7 +133,7 @@ func Test_ClusterIsDegraded(t *testing.T) {
 	}
 
 	// Start second scale node
-	ns, _ := (*cs)[8]
+	ns, _ := cs[8]
 	(*ns).IsConnected = true
 	(*ns).NodeGroup = -256
 
@@ -147,10 +147,10 @@ func Test_ClusterIsDegraded(t *testing.T) {
 
 	// "Start" cluster
 
-	for nodeID, ns := range *cs {
+	for nodeID, ns := range cs {
 		nodeGroup := -1
 		if nodeID >= 2 && nodeID <= 8 {
-			nodeGroup = ((nodeID - 1 - 2) / 2)
+			nodeGroup = (nodeID - 1 - 2) / 2
 		}
 
 		(*ns).IsConnected = true
@@ -159,7 +159,7 @@ func Test_ClusterIsDegraded(t *testing.T) {
 
 	fmt.Println()
 	for nodeID := 1; nodeID <= 10; nodeID++ {
-		s, _ := json.Marshal((*cs)[nodeID])
+		s, _ := json.Marshal(cs[nodeID])
 		fmt.Printf("%d - %s\n", nodeID, s)
 	}
 
@@ -167,12 +167,12 @@ func Test_ClusterIsDegraded(t *testing.T) {
 		t.Errorf("Cluster is not degraded but reported degraded.")
 	}
 
-	cnt, scale = cs.NumberNodegroupsFullyUp(2)
+	cnt, _ = cs.NumberNodegroupsFullyUp(2)
 	if cnt != 3 {
 		t.Errorf("Cluster is degraded with a data node down but reported wrong node group count %d.", cnt)
 	}
 
-	if ns, ok := (*cs)[3]; ok {
+	if ns, ok := cs[3]; ok {
 		(*ns).IsConnected = false
 	} else {
 		t.Errorf("Defined node id 3 not found.")
