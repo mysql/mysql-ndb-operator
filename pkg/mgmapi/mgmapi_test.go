@@ -44,7 +44,7 @@ func getAnyConnectedNodeId(t *testing.T, mc MgmClient, nodeType NodeTypeEnum) in
 		return 0
 	}
 
-	for _, node := range *status {
+	for _, node := range status {
 		if node.IsConnected && node.NodeType == nodeType {
 			return node.NodeId
 		}
@@ -370,7 +370,7 @@ func TestMgmClientImpl_GetStatus(t *testing.T) {
 		return
 	}
 
-	for s, v := range *clusterStatus {
+	for s, v := range clusterStatus {
 		vs, _ := json.MarshalIndent(v, "", " ")
 		fmt.Printf("[%d] %s ", s, vs)
 	}

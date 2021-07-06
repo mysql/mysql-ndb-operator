@@ -101,7 +101,7 @@ type SyncContext struct {
 	ManagementServerPort int32
 	ManagementServerIP   string
 
-	clusterState *mgmapi.ClusterStatus
+	clusterState mgmapi.ClusterStatus
 
 	ndb    *v1alpha1.Ndb
 	nsName string
@@ -881,7 +881,7 @@ func (sc *SyncContext) getClusterState() error {
 	return nil
 }
 
-// checkClusterState checks the cluster state and whether its in a managable state
+// checkClusterState checks the cluster state and whether its in a manageable state
 // e.g. - we don't want to touch it with rolling out new versions when not all data nodes are up
 func (sc *SyncContext) checkClusterState() syncResult {
 

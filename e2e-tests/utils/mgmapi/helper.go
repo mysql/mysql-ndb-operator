@@ -38,7 +38,7 @@ func ForEachConnectedNodes(
 	cs, err := mgmClient.GetStatus()
 	framework.ExpectNoError(err)
 	// Run the test on desired nodes
-	for _, node := range *cs {
+	for _, node := range cs {
 		if node.IsConnected && node.NodeType == nodeType {
 			testFunc(mgmClient, node.NodeId)
 		}

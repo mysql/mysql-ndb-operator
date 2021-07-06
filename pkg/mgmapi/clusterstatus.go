@@ -79,16 +79,14 @@ func (ns *NodeStatus) setNodeTypeFromTLA(TLA string) {
 // ClusterStatus describes the state of all nodes in the cluster
 type ClusterStatus map[int]*NodeStatus
 
-// NewClusterStatus creates a new ClusterStatus objects
-// and allocates memory for nodeCount status entries
-func NewClusterStatus(nodeCount int) *ClusterStatus {
-	cs := make(ClusterStatus, nodeCount)
-	return &cs
+// NewClusterStatus returns a new ClusterStatus object
+func NewClusterStatus(nodeCount int) ClusterStatus {
+	return make(ClusterStatus, nodeCount)
 }
 
 // IsClusterDegraded returns true if any data node or mgm node is down
-func (cs *ClusterStatus) IsClusterDegraded() bool {
-	for _, ns := range *cs {
+func (cs ClusterStatus) IsClusterDegraded() bool {
+	for _, ns := range cs {
 		if ns.IsDataNode() || ns.IsMgmNode() {
 			if !ns.IsConnected {
 				return true
@@ -110,7 +108,7 @@ func (cs *ClusterStatus) IsClusterDegraded() bool {
 // This function is a bit weird as the mgm status report contains node group 0 for any
 // node not connected (its set to -1 in mgmapi) - also during scaling
 // Some guess-work is applied with the help of noOfReplicas.
-func (cs *ClusterStatus) NumberNodegroupsFullyUp(reduncancyLevel int) (int, int) {
+func (cs ClusterStatus) NumberNodegroupsFullyUp(redundancyLevel int) (int, int) {
 
 	//TODO: function feels a bit brute force
 	// as node group numbers actually should not have gaps
@@ -122,7 +120,7 @@ func (cs *ClusterStatus) NumberNodegroupsFullyUp(reduncancyLevel int) (int, int)
 
 	// collect number of nodes up in each node group
 	// during scaling a started node group not created in cluster is marked -256
-	for _, ns := range *cs {
+	for _, ns := range cs {
 
 		if ns.IsMgmNode() && ns.IsConnected {
 			mgmCount++
@@ -153,7 +151,7 @@ func (cs *ClusterStatus) NumberNodegroupsFullyUp(reduncancyLevel int) (int, int)
 
 	nodeGroupsFullyUp := 0
 	for _, nodesLiveInNodeGroup := range nodeMap {
-		if nodesLiveInNodeGroup == reduncancyLevel {
+		if nodesLiveInNodeGroup == redundancyLevel {
 			nodeGroupsFullyUp++
 		}
 	}
@@ -164,14 +162,14 @@ func (cs *ClusterStatus) NumberNodegroupsFullyUp(reduncancyLevel int) (int, int)
 // ensureNode returns the NodeStatus entry for the given node.
 // If one is not present for the given nodeId, it creates a new
 // NodeStatus entry and returns it
-func (cs *ClusterStatus) ensureNode(nodeId int) *NodeStatus {
-	nodeStatus, ok := (*cs)[nodeId]
+func (cs ClusterStatus) ensureNode(nodeId int) *NodeStatus {
+	nodeStatus, ok := cs[nodeId]
 	if !ok {
 		// create a new entry
 		nodeStatus = &NodeStatus{
 			NodeId: nodeId,
 		}
-		(*cs)[nodeId] = nodeStatus
+		cs[nodeId] = nodeStatus
 	}
 	return nodeStatus
 }
