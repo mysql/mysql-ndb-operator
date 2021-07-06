@@ -84,79 +84,34 @@ func NewClusterStatus(nodeCount int) ClusterStatus {
 	return make(ClusterStatus, nodeCount)
 }
 
-// IsClusterDegraded returns true if any data node or mgm node is down
-func (cs ClusterStatus) IsClusterDegraded() bool {
+// IsHealthy returns true if the MySQL Cluster is healthy,
+// i.e., if all the data and management nodes are connected and ready
+func (cs ClusterStatus) IsHealthy() bool {
 	for _, ns := range cs {
-		if ns.IsDataNode() || ns.IsMgmNode() {
+		switch ns.NodeType {
+		case NodeTypeMGM:
 			if !ns.IsConnected {
-				return true
+				return false
+			}
+		case NodeTypeNDB:
+			if !ns.IsConnected {
+				// During online add the new data node slots will
+				// have a nodegroup 65536 and they will not have a
+				// valid nodegroup until they are inducted into
+				// the cluster. So, any unconnected node without
+				// that nodegroup is an unhealthy node.
+				// TODO: Verify if this still holds true during the online add node.
+				//       If a node is being started on the Node slot with NG 65536,
+				//       it will change its NG to -256 once it gets connected. This
+				//       method might wrongly report such a node as healthy before it
+				//       reaches the connected state.
+				if ns.NodeGroup != 65536 {
+					return false
+				}
 			}
 		}
 	}
-
-	return false
-}
-
-// NumberNodegroupsFullyUp returns number of node groups fully up
-// It returns
-//   - the number of nodegroups with a node group
-//   - and number of scaling nodes running/connected but with no node group created
-//     (which divided by redundancyLevel is the number of potential node groups)
-//
-// It is currently the only way to decide if cluster is healthy during
-// scaling where new nodes are configured but not started.
-// This function is a bit weird as the mgm status report contains node group 0 for any
-// node not connected (its set to -1 in mgmapi) - also during scaling
-// Some guess-work is applied with the help of noOfReplicas.
-func (cs ClusterStatus) NumberNodegroupsFullyUp(redundancyLevel int) (int, int) {
-
-	//TODO: function feels a bit brute force
-	// as node group numbers actually should not have gaps
-
-	//TODO: same function basically in topology, but just counting
-	nodeMap := make(map[int]int)
-	mgmCount := 0
-	scaleNodes := 0
-
-	// collect number of nodes up in each node group
-	// during scaling a started node group not created in cluster is marked -256
-	for _, ns := range cs {
-
-		if ns.IsMgmNode() && ns.IsConnected {
-			mgmCount++
-			continue
-		}
-		if !ns.IsDataNode() {
-			continue
-		}
-
-		if ns.NodeGroup == -256 {
-			scaleNodes++
-			continue
-		}
-
-		if ns.NodeGroup < 0 || ns.NodeGroup > 144 {
-			continue
-		}
-
-		_, ok := nodeMap[ns.NodeGroup]
-		if !ok {
-			nodeMap[ns.NodeGroup] = 0
-		}
-
-		if ns.IsConnected {
-			nodeMap[ns.NodeGroup]++
-		}
-	}
-
-	nodeGroupsFullyUp := 0
-	for _, nodesLiveInNodeGroup := range nodeMap {
-		if nodesLiveInNodeGroup == redundancyLevel {
-			nodeGroupsFullyUp++
-		}
-	}
-
-	return nodeGroupsFullyUp, scaleNodes
+	return true
 }
 
 // ensureNode returns the NodeStatus entry for the given node.
