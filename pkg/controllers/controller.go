@@ -678,7 +678,7 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 		var restartIDs []int
 		nodeIDs := ct.GetNodeIDsFromReplica(replica)
 		for _, nodeID := range *nodeIDs {
-			nodeConfigGeneration, err := mgmClient.GetConfigVersionFromNode(nodeID)
+			nodeConfigGeneration, err := mgmClient.GetConfigVersion(nodeID)
 			if err != nil {
 				return errorWhileProcssing(err)
 			}

@@ -22,9 +22,10 @@ const (
 
 // Data node config param ids
 const (
-	dbCfgDataMemory        uint32 = 112
-	dbCfgTransactionMemory uint32 = 667
 	dbCfgNoTables          uint32 = 102
+	dbCfgDataMemory        uint32 = 112
+	dbCfgNodegroup         uint32 = 185
+	dbCfgTransactionMemory uint32 = 667
 )
 
 // Mgmd config param ids

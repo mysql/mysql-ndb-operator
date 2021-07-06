@@ -22,8 +22,7 @@ import (
 type MgmClient interface {
 	Disconnect()
 	GetStatus() (ClusterStatus, error)
-	GetConfigVersion() (uint32, error)
-	GetConfigVersionFromNode(nodeID int) (uint32, error)
+	GetConfigVersion(nodeID ...int) (uint32, error)
 	StopNodes(nodeIds []int) error
 	GetDataMemory(dataNodeId int) (uint64, error)
 }
@@ -205,7 +204,7 @@ func (mci *mgmClientImpl) sendCommand(
 
 		n, err := mci.connection.Read(buffer)
 		if err != nil {
-			// Error occured during read
+			// Error occurred during read
 			if retries > maxReadRetries || err == io.EOF {
 				// no more retries or the connection closed
 				return nil, err
@@ -443,17 +442,24 @@ func (mci *mgmClientImpl) GetStatus() (ClusterStatus, error) {
 				ns.IsConnected = true
 			}
 
-			// In a similar manner, set node group
-			// node groups for data nodes can be set only if they are connected
+			// In a similar manner, set node group for the data node. It is set
+			// in get status reply only if the data node is connected.
 			if ns.IsDataNode() {
 				if ns.IsConnected {
+					// Extract the NodeGroup from reply
 					nodeGroupKey := fmt.Sprintf("node.%d.node_group", nodeId)
 					ns.NodeGroup, err = strconv.Atoi(reply[nodeGroupKey])
 					if err != nil {
 						panic("node_group in node status reply has unexpected format")
 					}
 				} else {
-					ns.NodeGroup = -1
+					// NodeGroup is not set in reply as the node is not connected yet.
+					// Retrieve the NodeGroup using 'get config' command
+					nodeGroupValue, err := mci.getConfig(nodeId, cfgSectionTypeNDB, dbCfgNodegroup, true)
+					if err != nil {
+						panic("node_group was not found in data node config " + keyTokens[1])
+					}
+					ns.NodeGroup = int(nodeGroupValue.(uint32))
 				}
 			}
 
@@ -513,15 +519,12 @@ func (mci *mgmClientImpl) StopNodes(nodeIds []int) error {
 	return nil
 }
 
-// getConfig extracts the value of the config variable configKey from the connected MySQL Cluster
-func (mci *mgmClientImpl) getConfig(sectionFilter cfgSectionType, configKey uint32) (configValue, error) {
-	return mci.getConfigFromNode(0, sectionFilter, configKey)
-}
-
-// getConfig extracts the value of the config variable configKey
-// from the connected MySQL Cluster node with node id fromNodeId
-func (mci *mgmClientImpl) getConfigFromNode(
-	fromNodeId int, sectionFilter cfgSectionType, configKey uint32) (configValue, error) {
+// getConfig extracts the value of the config variable 'configKey'
+// from the MySQL Cluster node with node id 'nodeId'. The config
+// is either retrieved from the config stored in connected
+// Management node or from the config stored in the node with 'nodeId' itself.
+func (mci *mgmClientImpl) getConfig(
+	nodeId int, sectionFilter cfgSectionType, configKey uint32, getConfigFromConnectedMgmd bool) (configValue, error) {
 
 	// command :
 	// get config_v2
@@ -556,8 +559,9 @@ func (mci *mgmClientImpl) getConfigFromNode(
 		"node": 255,
 	}
 
-	if fromNodeId > 0 {
-		args["from_node"] = fromNodeId
+	if !getConfigFromConnectedMgmd {
+		// Get the config directly from the node with 'nodeId'.
+		args["from_node"] = nodeId
 	}
 
 	expectedReply := []string{
@@ -585,17 +589,23 @@ func (mci *mgmClientImpl) getConfigFromNode(
 		panic("unexpected content in get config reply")
 	}
 
-	return readConfigFromBase64EncodedData(reply["config"], sectionFilter, uint32(fromNodeId), configKey), nil
+	return readConfigFromBase64EncodedData(reply["config"], sectionFilter, uint32(nodeId), configKey), nil
 }
 
-// GetConfigVersion returns the config version of the connected Management Node
-func (mci *mgmClientImpl) GetConfigVersion() (uint32, error) {
-	return mci.GetConfigVersionFromNode(0)
-}
+// GetConfigVersion returns the config version of the node with nodeId. If nodeId
+// is not given, it will return the config version of the connected Management Server.
+func (mci *mgmClientImpl) GetConfigVersion(nodeId ...int) (uint32, error) {
+	var fromNodeId int
+	if len(nodeId) == 1 {
+		fromNodeId = nodeId[0]
+	}
 
-// GetConfigVersionFromNode returns the config version of the node with nodeId
-func (mci *mgmClientImpl) GetConfigVersionFromNode(nodeId int) (uint32, error) {
-	value, err := mci.getConfigFromNode(nodeId, cfgSectionTypeSystem, sysCfgConfigGenerationNumber)
+	if len(nodeId) > 1 {
+		// nodeId is meant to be an optional argument and not var args
+		panic("wrong usage of GetConfigVersion arguments")
+	}
+
+	value, err := mci.getConfig(fromNodeId, cfgSectionTypeSystem, sysCfgConfigGenerationNumber, false)
 	if err != nil {
 		return 0, err
 	}
@@ -604,7 +614,7 @@ func (mci *mgmClientImpl) GetConfigVersionFromNode(nodeId int) (uint32, error) {
 
 // GetDataMemory returns the data memory of the datanode with id dataNodeId
 func (mci *mgmClientImpl) GetDataMemory(dataNodeId int) (uint64, error) {
-	value, err := mci.getConfigFromNode(dataNodeId, cfgSectionTypeNDB, dbCfgDataMemory)
+	value, err := mci.getConfig(dataNodeId, cfgSectionTypeNDB, dbCfgDataMemory, false)
 	if err != nil {
 		return 0, err
 	}

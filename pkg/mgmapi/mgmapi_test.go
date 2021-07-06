@@ -5,8 +5,6 @@
 package mgmapi
 
 import (
-	"encoding/json"
-	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -371,8 +369,7 @@ func TestMgmClientImpl_GetStatus(t *testing.T) {
 	}
 
 	for s, v := range clusterStatus {
-		vs, _ := json.MarshalIndent(v, "", " ")
-		fmt.Printf("[%d] %s ", s, vs)
+		t.Logf("[%d] %#v", s, v)
 	}
 
 	ok := clusterStatus.IsClusterDegraded()
@@ -400,23 +397,18 @@ func TestMgmClientImpl_getConfig(t *testing.T) {
 	mci := getConnectionToMgmd(t)
 	defer mci.Disconnect()
 
-	_, err := mci.getConfig(cfgSectionTypeNDB, dbCfgDataMemory)
-	if err != nil {
-		t.Errorf("getting config failed : %s", err)
-		return
-	}
-
 	dataNodeId := getAnyConnectedNodeId(t, mci, NodeTypeNDB)
 	if dataNodeId == 0 {
 		return
 	}
 
-	_, err = mci.getConfigFromNode(dataNodeId, cfgSectionTypeNDB, dbCfgTransactionMemory)
+	_, err := mci.getConfig(dataNodeId, cfgSectionTypeNDB, dbCfgTransactionMemory, false)
 	if err != nil {
 		t.Errorf("getting config failed : %s", err)
 		return
 	}
 }
+
 func TestMgmClientImpl_GetConfigVersionFromNode(t *testing.T) {
 	mci := getConnectionToMgmd(t)
 	defer mci.Disconnect()
@@ -426,15 +418,7 @@ func TestMgmClientImpl_GetConfigVersionFromNode(t *testing.T) {
 		return
 	}
 
-	version, err := mci.GetConfigVersionFromNode(dataNodeId)
-	if err != nil {
-		t.Errorf("GetConfigVersionFromNode nodeId:%d failed : %s", dataNodeId, err)
-	} else {
-		t.Logf("Extracted config version: %d", version)
-	}
-
-	// Test the default version
-	version, err = mci.GetConfigVersion()
+	version, err := mci.GetConfigVersion(dataNodeId)
 	if err != nil {
 		t.Errorf("GetConfigVersionFromNode nodeId:%d failed : %s", dataNodeId, err)
 	} else {
