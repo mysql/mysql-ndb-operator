@@ -5,8 +5,6 @@
 package mgmapi
 
 import (
-	"encoding/json"
-	"fmt"
 	"testing"
 )
 
@@ -54,132 +52,103 @@ func Test_ensureNodeAndSetNodeTypeFromTLA(t *testing.T) {
 	}
 }
 
-func Test_ClusterIsDegraded(t *testing.T) {
+func verifyClusterHealth(
+	t *testing.T, cs ClusterStatus, csMockUpdate func(cs ClusterStatus), expectHealthyState bool, desc string) {
+	t.Helper()
 
-	cs := NewClusterStatus(10)
+	// copy it to a temp ClusterStatus before making the update
+	testCs := make(ClusterStatus, len(cs))
+	for k, v := range cs {
+		testCs[k] = v
+	}
 
-	// (!) start at 1
-	for nodeID := 1; nodeID <= 10; nodeID++ {
+	// Make the update
+	if csMockUpdate != nil {
+		csMockUpdate(testCs)
+	}
 
-		nodeGroup := -1
-		connected := true
-		if nodeID > 2 && nodeID <= 6 {
-			nodeGroup = (nodeID - 1 - 2) / 2
+	if cs.IsHealthy() != expectHealthyState {
+		if expectHealthyState {
+			t.Error("Expected the ClusterState to be healthy but it was not. Case :", desc)
+		} else {
+			t.Error("Expected the ClusterState to be not healthy but it was. Case :", desc)
 		}
-		if nodeID == 7 {
-			// mark data node as started node in a new group
-			nodeGroup = -256
-		}
-		if nodeID == 8 {
-			// mark data node as disconnected node in a new group
-			connected = false
-			nodeGroup = -1
+	}
+
+}
+
+func TestClusterStatus_IsHealthy(t *testing.T) {
+
+	cs := NewClusterStatus(6)
+	for nodeId := 1; nodeId <= 6; nodeId++ {
+
+		nodeType := nodeTypeFromNodeId(2, 4, nodeId)
+		nodeGroup := 0
+		if nodeType == NodeTypeNDB {
+			// 3,4 => 0, 5,6 => 1
+			switch nodeId {
+			case 3, 4:
+				nodeGroup = 0
+			case 5, 6:
+				nodeGroup = 1
+			}
 		}
 
-		ns := &NodeStatus{
-			NodeId:          nodeID,
-			NodeType:        nodeTypeFromNodeId(2, 6, nodeID),
+		cs[nodeId] = &NodeStatus{
+			NodeId:          nodeId,
+			NodeType:        nodeTypeFromNodeId(2, 4, nodeId),
 			SoftwareVersion: "8.0.22",
-			IsConnected:     connected,
+			IsConnected:     true,
 			NodeGroup:       nodeGroup,
 		}
-		cs[nodeID] = ns
 	}
 
-	for nodeID := 1; nodeID <= 10; nodeID++ {
-		s, _ := json.Marshal(cs[nodeID])
-		fmt.Printf("%d - %s\n", nodeID, s)
+	for nodeId, ns := range cs {
+		t.Logf("%d - %#v", nodeId, ns)
 	}
 
-	if !cs.IsClusterDegraded() {
-		t.Errorf("Cluster should be reported degraded by simple IsDegraded function.")
-	}
-
-	cnt, scale := cs.NumberNodegroupsFullyUp(2)
-	if cnt != 2 {
-		t.Errorf("Cluster is not degraded but reported wrong node group count %d.", cnt)
-	}
-	if scale != 1 {
-		t.Errorf("Cluster has one scaling node node up but reported wrong node group count %d.", scale)
-	}
-
-	if ns, ok := cs[9]; ok {
-		(*ns).IsConnected = false
-	} else {
-		t.Errorf("Defined node id 9 not found.")
-		return
-	}
-	cnt, scale = cs.NumberNodegroupsFullyUp(2)
-	if cnt != 2 {
-		t.Errorf("Cluster is not degraded with an API node down but reported wrong node group count %d.", cnt)
-	}
-	if scale != 1 {
-		t.Errorf("Cluster is should have same number of scaling nodes with an API node down but reported %d.", scale)
-	}
-
-	if ns, ok := cs[3]; ok {
-		(*ns).IsConnected = false
-	} else {
-		t.Errorf("Defined node id 3 not found.")
-		return
-	}
-
-	cnt, scale = cs.NumberNodegroupsFullyUp(2)
-	if cnt != 1 {
-		t.Errorf("Cluster is degraded with a data node down but reported wrong node group count %d.", cnt)
-	}
-	if scale != 1 {
-		t.Errorf("Cluster is degraded with a data node down but reported wrong scale node count %d.", scale)
-	}
-
-	// Start second scale node
-	ns, _ := cs[8]
-	(*ns).IsConnected = true
-	(*ns).NodeGroup = -256
-
-	cnt, scale = cs.NumberNodegroupsFullyUp(2)
-	if cnt != 1 {
-		t.Errorf("Cluster is degraded with a data node down but reported wrong node group count %d.", cnt)
-	}
-	if scale != 2 {
-		t.Errorf("Cluster is degraded with a data node down but reported wrong scale node count %d.", scale)
-	}
-
-	// "Start" cluster
-
-	for nodeID, ns := range cs {
-		nodeGroup := -1
-		if nodeID >= 2 && nodeID <= 8 {
-			nodeGroup = (nodeID - 1 - 2) / 2
-		}
-
-		(*ns).IsConnected = true
-		(*ns).NodeGroup = nodeGroup
-	}
-
-	fmt.Println()
-	for nodeID := 1; nodeID <= 10; nodeID++ {
-		s, _ := json.Marshal(cs[nodeID])
-		fmt.Printf("%d - %s\n", nodeID, s)
-	}
-
-	if cs.IsClusterDegraded() {
-		t.Errorf("Cluster is not degraded but reported degraded.")
-	}
-
-	cnt, _ = cs.NumberNodegroupsFullyUp(2)
-	if cnt != 3 {
-		t.Errorf("Cluster is degraded with a data node down but reported wrong node group count %d.", cnt)
-	}
-
-	if ns, ok := cs[3]; ok {
-		(*ns).IsConnected = false
-	} else {
-		t.Errorf("Defined node id 3 not found.")
-		return
-	}
-
-	if !cs.IsClusterDegraded() {
-		t.Errorf("Cluster is not degraded if 1 API Node is down but reported degraded.")
+	for _, tc := range []struct {
+		desc               string
+		csMockUpdate       func(cs ClusterStatus)
+		expectHealthyState bool
+	}{
+		{
+			desc:               "verify original cs is healthy",
+			expectHealthyState: true,
+		},
+		{
+			desc: "a node with NG -256 and connected is healthy",
+			csMockUpdate: func(cs ClusterStatus) {
+				// start one node at 65536
+				cs[6].NodeGroup = -256
+			},
+			expectHealthyState: true,
+		},
+		{
+			desc: "a node with NG 65536 and not connected is healthy",
+			csMockUpdate: func(cs ClusterStatus) {
+				cs[5].NodeGroup = 65536
+				cs[5].IsConnected = false
+				cs[6].NodeGroup = 65536
+				cs[6].IsConnected = false
+			},
+			expectHealthyState: true,
+		},
+		{
+			desc: "a disconnected data node is not healthy",
+			csMockUpdate: func(cs ClusterStatus) {
+				cs[3].IsConnected = false
+			},
+			expectHealthyState: false,
+		},
+		{
+			desc: "a disconnected mgmd node is not healthy",
+			csMockUpdate: func(cs ClusterStatus) {
+				cs[1].IsConnected = false
+			},
+			expectHealthyState: false,
+		},
+	} {
+		verifyClusterHealth(t, cs, tc.csMockUpdate, tc.expectHealthyState, tc.desc)
 	}
 }

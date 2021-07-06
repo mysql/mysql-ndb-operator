@@ -371,11 +371,6 @@ func TestMgmClientImpl_GetStatus(t *testing.T) {
 	for s, v := range clusterStatus {
 		t.Logf("[%d] %#v", s, v)
 	}
-
-	ok := clusterStatus.IsClusterDegraded()
-	if ok {
-		t.Errorf("Cluster is in degraded state\n")
-	}
 }
 
 func TestMgmClientImpl_StopNodes(t *testing.T) {

@@ -861,11 +861,13 @@ func (sc *SyncContext) ensureClusterLabel() (*labels.Set, bool, error) {
 
 }
 
-func (sc *SyncContext) getClusterState() error {
+// retrieveClusterStatus gets the cluster status from the
+// Management Server and stores it in the SyncContext
+func (sc *SyncContext) retrieveClusterStatus() (mgmapi.ClusterStatus, error) {
 
 	mgmClient, err := sc.connectToManagementServer()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer mgmClient.Disconnect()
 
@@ -873,40 +875,12 @@ func (sc *SyncContext) getClusterState() error {
 	cs, err := mgmClient.GetStatus()
 	if err != nil {
 		klog.Errorf("Error getting cluster status from management server: %s", err)
-		return err
+		return nil, err
 	}
 
 	sc.clusterState = cs
 
-	return nil
-}
-
-// checkClusterState checks the cluster state and whether its in a manageable state
-// e.g. - we don't want to touch it with rolling out new versions when not all data nodes are up
-func (sc *SyncContext) checkClusterState() syncResult {
-
-	err := sc.getClusterState()
-	if err != nil {
-		return errorWhileProcssing(err)
-	}
-
-	// cluster is okay if all active node groups have all data nodes up
-
-	// during scaling ndb CRD will have more nodes configured
-	// this will already be written to config file in a first sync step
-	// but statefulsets will adopt no of replicas as last step before node group is created
-	nodeGroupsUp, scalingNodes := sc.clusterState.NumberNodegroupsFullyUp(int(sc.resourceContext.RedundancyLevel))
-	numberOfDataNodes := nodeGroupsUp * int(sc.resourceContext.RedundancyLevel)
-
-	if int(*sc.dataNodeSfSet.Spec.Replicas) == numberOfDataNodes {
-		// all nodes that should be up have all nodes running
-		return continueProcessing()
-	}
-	if int(*sc.dataNodeSfSet.Spec.Replicas) == numberOfDataNodes+scalingNodes {
-		// all nodes that should be up have all nodes running
-		return continueProcessing()
-	}
-	return finishProcessing()
+	return cs, nil
 }
 
 // allResourcesExisted returns falls if any resource map is false (resource was created)
@@ -1114,50 +1088,53 @@ func (c *Controller) syncHandler(key string) error {
 
 func (sc *SyncContext) sync() error {
 
-	// create all resources necessary to start and run cluster
+	// Multiple resources are required to start
+	// and run the MySQL Cluster in K8s. Create
+	// them if they do not exist yet.
 	existed, err := sc.ensureAllResources()
 	if err != nil {
 		return err
 	}
 
-	// we do not take further action and exit here if any resources still had to be created
-	// pods will need to time to start, etc.
-	//
-	// since no error occured all resources should have been successfully created
-	// TODO: we should take note of it by updating the ndb.Status with a creationTimestamp
-	// - then we can check that later and avoid checking if all resources existed
-	// - could be also good to always check if individual resources were deleted
-	//   but re-creating them could be tricky due to resource dependencies bringing us to chaotic state
-	// - if individual resources are missing after creation that would be a major error for now
+	// TODO: Update ndb.Status with a creationTimestamp?
+	//       All subsequent sync loop could just check that and skip ensuring resources
+	//       Handle individual resources getting deleted.
+	// All resources either exist or were created
 	if !existed {
+		// All or some resources did not exist before this sync loop
+		// and were created just now. Do not take any further action
+		// as the resources like pods will need some time to get ready.
 		return nil
 	}
 
-	// at this point all resources were created already
-	// some pods might still not be fully up and running
-	// cluster potentially not (fully) started yet
-
+	// All resources already exist or were created in a previous reconciliation loop.
+	// Continue further only if all the pods are ready.
 	if ready, _ := sc.checkPodStatus(); !ready {
-		// if not all pods are ready yet there is no sense in processing config changes
+		// Pods are not ready => The MySQL Cluster is not fully up yet.
+		// Any further config changes cannot be processed until the pods are ready.
 		klog.Infof("Cluster has not all pods ready - exit sync and return later")
 		return nil
 	}
 
-	//
-	// as of here actions will only be taken if cluster is in a good state
-	//
-
-	if sr := sc.checkClusterState(); sr.finished() {
+	// Resources exist and the pods(MySQL Cluster nodes) are ready.
+	// Continue further only if the MySQL Cluster is healthy.
+	// TODO: Check if this is redundant once the Readiness probes for ndbd/mgmd are implemented
+	if clusterState, err := sc.retrieveClusterStatus(); err != nil || !clusterState.IsHealthy() {
 		klog.Infof("Cluster is not reported to be fully running - exit sync and return here later")
-		// TODO - introduce a re-schedule event
-		return sr.getError() // return error if any
+		return err
 	}
 
-	// sync handler does not accept new configurations from Ndb CRD
-	// before previous configuration changes are not completed
-	// start by aligning cluster to the configuration *in the config map* previously applied
-	// only if everything is in line with that configuration
-	// a new configuration from the Ndb CRD is accepted and written to the config map
+	// Resources, pods are ready and the MySQL Cluster is healthy.
+	// Before starting to handle any new changes from the Ndb
+	// Custom object, verify that the MySQL Cluster is in sync
+	// with the current config in the config map. This is to avoid
+	// applying config changes midway through a previous config
+	// change. This also means that this entire reconciliation
+	// will be spent only on this verification. If the MySQL
+	// Cluster has the expected config, the K8s config map will be
+	// updated with the new config, specified by the Ndb object,
+	// at the end of this loop. The new changes will be applied to
+	// the MySQL Cluster starting from the next reconciliation loop.
 
 	// First pass of MySQL Server reconciliation.
 	// If any scale down was requested, it will be handled in this pass.
