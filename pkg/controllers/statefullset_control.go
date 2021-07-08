@@ -28,7 +28,7 @@ import (
 type StatefulSetControlInterface interface {
 	GetTypeName() string
 	EnsureStatefulSet(sc *SyncContext) (*apps.StatefulSet, bool, error)
-	Patch(rc *resources.ResourceContext, ndb *v1alpha1.Ndb, old *apps.StatefulSet) (*apps.StatefulSet, error)
+	Patch(rc *resources.ResourceContext, ndb *v1alpha1.NdbCluster, old *apps.StatefulSet) (*apps.StatefulSet, error)
 }
 
 type realStatefulSetControl struct {
@@ -86,7 +86,7 @@ func patchStatefulSet(client kubernetes.Interface, oldData *apps.StatefulSet, ne
 	return result, nil
 }
 
-func (rssc *realStatefulSetControl) Patch(rc *resources.ResourceContext, ndb *v1alpha1.Ndb, old *apps.StatefulSet) (*apps.StatefulSet, error) {
+func (rssc *realStatefulSetControl) Patch(rc *resources.ResourceContext, ndb *v1alpha1.NdbCluster, old *apps.StatefulSet) (*apps.StatefulSet, error) {
 
 	oldCopy := old.DeepCopy()
 

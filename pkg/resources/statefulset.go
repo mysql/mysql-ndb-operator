@@ -28,7 +28,7 @@ const (
 // StatefulSetInterface is the interface for a statefulset of NDB management or data nodes
 type StatefulSetInterface interface {
 	GetTypeName() string
-	NewStatefulSet(rc *ResourceContext, cluster *v1alpha1.Ndb) *apps.StatefulSet
+	NewStatefulSet(rc *ResourceContext, cluster *v1alpha1.NdbCluster) *apps.StatefulSet
 	GetName() string
 }
 
@@ -38,12 +38,12 @@ type baseStatefulSet struct {
 }
 
 // NewMgmdStatefulSet returns a new baseStatefulSet for management nodes
-func NewMgmdStatefulSet(cluster *v1alpha1.Ndb) *baseStatefulSet {
+func NewMgmdStatefulSet(cluster *v1alpha1.NdbCluster) *baseStatefulSet {
 	return &baseStatefulSet{typeName: sfsetTypeMgmd, clusterName: cluster.Name}
 }
 
 // NewNdbdStatefulSet returns a new baseStatefulSet for data nodes
-func NewNdbdStatefulSet(cluster *v1alpha1.Ndb) *baseStatefulSet {
+func NewNdbdStatefulSet(cluster *v1alpha1.NdbCluster) *baseStatefulSet {
 	return &baseStatefulSet{typeName: sfsetTypeNdbd, clusterName: cluster.Name}
 }
 
@@ -63,7 +63,7 @@ func (bss *baseStatefulSet) getEmptyDirVolumeName() string {
 }
 
 // getPodVolumes returns the named volume available in the Pods
-func (bss *baseStatefulSet) getPodVolumes(ndb *v1alpha1.Ndb) []v1.Volume {
+func (bss *baseStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) []v1.Volume {
 
 	var podVolumes []v1.Volume
 	if bss.isMgmd() || ndb.Spec.DataNodePVCSpec == nil {
@@ -104,7 +104,7 @@ func (bss *baseStatefulSet) getPodVolumes(ndb *v1alpha1.Ndb) []v1.Volume {
 }
 
 // getVolumeMounts returns the volumes to be mounted to the container
-func (bss *baseStatefulSet) getVolumeMounts(ndb *v1alpha1.Ndb) []v1.VolumeMount {
+func (bss *baseStatefulSet) getVolumeMounts(ndb *v1alpha1.NdbCluster) []v1.VolumeMount {
 
 	var volumeName string
 	if bss.isNdbd() && ndb.Spec.DataNodePVCSpec != nil {
@@ -145,21 +145,21 @@ func (bss *baseStatefulSet) GetTypeName() string {
 }
 
 // getStatefulSetLabels returns the labels of the statefulset
-func (bss *baseStatefulSet) getStatefulSetLabels(ndb *v1alpha1.Ndb) map[string]string {
+func (bss *baseStatefulSet) getStatefulSetLabels(ndb *v1alpha1.NdbCluster) map[string]string {
 	return ndb.GetCompleteLabels(map[string]string{
 		constants.ClusterResourceTypeLabel: bss.typeName + "-statefulset",
 	})
 }
 
 // getPodLabels generates the labels of the pods controlled by the statefulsets
-func (bss *baseStatefulSet) getPodLabels(ndb *v1alpha1.Ndb) map[string]string {
+func (bss *baseStatefulSet) getPodLabels(ndb *v1alpha1.NdbCluster) map[string]string {
 	return ndb.GetCompleteLabels(map[string]string{
 		constants.ClusterNodeTypeLabel: bss.typeName,
 	})
 }
 
 // getContainers returns the container to run the NDB node represented by the baseStatefulSet
-func (bss *baseStatefulSet) getContainers(ndb *v1alpha1.Ndb) []v1.Container {
+func (bss *baseStatefulSet) getContainers(ndb *v1alpha1.NdbCluster) []v1.Container {
 	// Set type specific values
 	var cmd string
 	var args []string
@@ -208,7 +208,7 @@ func (bss *baseStatefulSet) getContainers(ndb *v1alpha1.Ndb) []v1.Container {
 }
 
 // NewStatefulSet creates a new StatefulSet for the given Cluster.
-func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Ndb) *apps.StatefulSet {
+func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.NdbCluster) *apps.StatefulSet {
 
 	// Build the new stateful set and return
 	podLabels := bss.getPodLabels(ndb)

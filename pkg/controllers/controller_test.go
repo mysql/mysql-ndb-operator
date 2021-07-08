@@ -5,7 +5,6 @@
 package controllers
 
 import (
-	"context"
 	"reflect"
 	"strings"
 	"testing"
@@ -52,7 +51,7 @@ type fixture struct {
 	k8If kubeinformers.SharedInformerFactory
 
 	// Objects to put in the store.
-	ndbLister        []*ndbcontroller.Ndb
+	ndbLister        []*ndbcontroller.NdbCluster
 	deploymentLister []*apps.Deployment
 	configMapLister  []*coreapi.ConfigMap
 
@@ -66,7 +65,7 @@ type fixture struct {
 	c *Controller
 }
 
-func newFixtures(t *testing.T, ndbs []*ndbcontroller.Ndb) *fixture {
+func newFixtures(t *testing.T, ndbclusters []*ndbcontroller.NdbCluster) *fixture {
 
 	f := &fixture{}
 	f.t = t
@@ -81,7 +80,7 @@ func newFixtures(t *testing.T, ndbs []*ndbcontroller.Ndb) *fixture {
 		t.Errorf("f.objects len was %d", len(f.objects))
 	}
 
-	for _, ndb := range ndbs {
+	for _, ndb := range ndbclusters {
 		f.ndbLister = append(f.ndbLister, ndb)
 		f.objects = append(f.objects, ndb)
 	}
@@ -93,10 +92,10 @@ func newFixtures(t *testing.T, ndbs []*ndbcontroller.Ndb) *fixture {
 	return f
 }
 
-func newFixture(t *testing.T, ndb *ndbcontroller.Ndb) *fixture {
-	ndbs := make([]*ndbcontroller.Ndb, 1)
-	ndbs[0] = ndb
-	return newFixtures(t, ndbs)
+func newFixture(t *testing.T, ndbcluster *ndbcontroller.NdbCluster) *fixture {
+	ndbclusters := make([]*ndbcontroller.NdbCluster, 1)
+	ndbclusters[0] = ndbcluster
+	return newFixtures(t, ndbclusters)
 }
 
 func (f *fixture) init() {
@@ -130,10 +129,10 @@ func (f *fixture) newController() {
 		f.k8If.Core().V1().Services(),
 		f.k8If.Core().V1().Pods(),
 		f.k8If.Core().V1().ConfigMaps(),
-		f.sif.Mysql().V1alpha1().Ndbs())
+		f.sif.Mysql().V1alpha1().NdbClusters())
 
 	for _, n := range f.ndbLister {
-		f.sif.Mysql().V1alpha1().Ndbs().Informer().GetIndexer().Add(n)
+		f.sif.Mysql().V1alpha1().NdbClusters().Informer().GetIndexer().Add(n)
 	}
 
 	for _, d := range f.configMapLister {
@@ -269,9 +268,9 @@ func extractObjectMetaData(actual core.Action, extO, actO runtime.Object, t *tes
 	case "deployments":
 		expOM = extO.(*appsv1.Deployment).ObjectMeta
 		actOM = actO.(*appsv1.Deployment).ObjectMeta
-	case "ndbs":
-		expOM = extO.(*ndbcontroller.Ndb).ObjectMeta
-		actOM = actO.(*ndbcontroller.Ndb).ObjectMeta
+	case "ndbclusters":
+		expOM = extO.(*ndbcontroller.NdbCluster).ObjectMeta
+		actOM = actO.(*ndbcontroller.NdbCluster).ObjectMeta
 	case "validatingwebhookconfigurations":
 		expOM = extO.(*admissionregistrationv1.ValidatingWebhookConfiguration).ObjectMeta
 		actOM = actO.(*admissionregistrationv1.ValidatingWebhookConfiguration).ObjectMeta
@@ -367,7 +366,7 @@ func filterInformerActions(actions []core.Action) []core.Action {
 	ret := []core.Action{}
 	for _, action := range actions {
 		if action.GetNamespace() == "default" &&
-			(action.Matches("get", "ndbs") ||
+			(action.Matches("get", "ndbclusters") ||
 				action.Matches("get", "pods") ||
 				action.Matches("list", "pods") ||
 				action.Matches("get", "services") ||
@@ -380,8 +379,8 @@ func filterInformerActions(actions []core.Action) []core.Action {
 			continue
 		}
 		if len(action.GetNamespace()) == 0 &&
-			(action.Matches("list", "ndbs") ||
-				action.Matches("watch", "ndbs") ||
+			(action.Matches("list", "ndbclusters") ||
+				action.Matches("watch", "ndbclusters") ||
 				action.Matches("list", "pods") ||
 				action.Matches("watch", "pods") ||
 				action.Matches("list", "services") ||
@@ -423,19 +422,19 @@ func (f *fixture) expectPatchAction(ns string, resource string, name string, pt 
 }
 
 func (f *fixture) expectUpdateNdbAction(ns string, o runtime.Object) {
-	grpVersionResource := schema.GroupVersionResource{Group: "mysql.oracle.com", Version: "v1alpha1", Resource: "ndbs"}
+	grpVersionResource := schema.GroupVersionResource{Group: "mysql.oracle.com", Version: "v1alpha1", Resource: "ndbclusters"}
 	action := core.NewUpdateAction(grpVersionResource, ns, o)
 	f.actions = append(f.actions, action)
 }
 
-func (f *fixture) expectUpdateNdbStatusAction(ns string, ndb *ndbcontroller.Ndb) {
-	grpVersionResource := schema.GroupVersionResource{Group: "mysql.oracle.com", Version: "v1alpha1", Resource: "ndbs"}
+func (f *fixture) expectUpdatendbclusterstatusAction(ns string, ndb *ndbcontroller.NdbCluster) {
+	grpVersionResource := schema.GroupVersionResource{Group: "mysql.oracle.com", Version: "v1alpha1", Resource: "ndbclusters"}
 	action := core.NewUpdateAction(grpVersionResource, ns, ndb)
 	// TODO: before #38113 was merged, we can't use Subresource
 	f.actions = append(f.actions, action)
 }
 
-func getKey(foo *ndbcontroller.Ndb, t *testing.T) string {
+func getKey(foo *ndbcontroller.NdbCluster, t *testing.T) string {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(foo)
 	if err != nil {
 		t.Errorf("Unexpected error getting key for foo %v: %v", foo.Name, err)
@@ -444,12 +443,12 @@ func getKey(foo *ndbcontroller.Ndb, t *testing.T) string {
 	return key
 }
 
-func getObjectMetadata(name string, ndb *ndbcontroller.Ndb, t *testing.T) *metav1.ObjectMeta {
+func getObjectMetadata(name string, ndb *ndbcontroller.NdbCluster, t *testing.T) *metav1.ObjectMeta {
 
 	gvk := schema.GroupVersionKind{
 		Group:   ndbcontroller.SchemeGroupVersion.Group,
 		Version: ndbcontroller.SchemeGroupVersion.Version,
-		Kind:    "Ndb",
+		Kind:    "NdbCluster",
 	}
 
 	return &metav1.ObjectMeta{
@@ -459,55 +458,6 @@ func getObjectMetadata(name string, ndb *ndbcontroller.Ndb, t *testing.T) *metav
 			*metav1.NewControllerRef(ndb, gvk),
 		},
 	}
-}
-
-func _TestCreateInvalidCluster(t *testing.T) {
-
-	ns := metav1.NamespaceDefault
-	ndb := testutils.NewTestNdb(ns, "test", 2)
-
-	// that would be an invalid config with 3 replica and 2 data nodes
-	ndb.Spec.RedundancyLevel = 3
-
-	f := newFixture(t, ndb)
-	defer f.close()
-
-	// even if config is invalid we do still expect services / labels to be created / updated
-	// but no further resources
-
-	// update labels will happen first sync run
-	f.expectUpdateNdbAction(ns, ndb)
-
-	// two services for ndbd and mgmds
-	omd := getObjectMetadata("test-mgmd", ndb, t)
-	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
-
-	omd.Name = "test-mgmd-ext"
-	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
-
-	omd.Name = "test-ndbd"
-	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
-
-	omd.Name = "test-mysqld-ext"
-	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
-
-	f.run(getKey(ndb, t))
-
-	klog.Infof("Fixed invalid config and run again")
-
-	// internally fake client maintains a copy, so we need to update the Ndb object
-	ndb.Spec.RedundancyLevel = 2
-	_, err := f.client.MysqlV1alpha1().Ndbs(ndb.Namespace).Update(context.TODO(), ndb, metav1.UpdateOptions{})
-
-	if err != nil {
-		t.Error("Failed to update Ndb resource object")
-	}
-
-	// update from above needs to be expected
-	f.expectUpdateNdbAction(ns, ndb)
-
-	// run again, this time without error
-	f.runController(getKey(ndb, t), false, nil)
 }
 
 func TestCreatesCluster(t *testing.T) {

@@ -101,7 +101,7 @@ type SyncContext struct {
 
 	clusterState mgmapi.ClusterStatus
 
-	ndb    *v1alpha1.Ndb
+	ndb    *v1alpha1.NdbCluster
 	nsName string
 
 	// controller handling creation and changes of resources
@@ -111,7 +111,7 @@ type SyncContext struct {
 	configMapController ConfigMapControlInterface
 
 	controllerContext *ControllerContext
-	ndbsLister        ndblisters.NdbLister
+	ndbsLister        ndblisters.NdbClusterLister
 
 	// recorder is an event recorder for recording Event resources to the Kubernetes API.
 	recorder events.EventRecorder
@@ -127,7 +127,7 @@ type Controller struct {
 	statefulSetLister       appslisters.StatefulSetLister
 	statefulSetListerSynced cache.InformerSynced
 
-	ndbsLister ndblisters.NdbLister
+	ndbsLister ndblisters.NdbClusterLister
 	ndbsSynced cache.InformerSynced
 
 	mgmdController      StatefulSetControlInterface
@@ -184,7 +184,7 @@ func NewController(
 	serviceInformer coreinformers.ServiceInformer,
 	podInformer coreinformers.PodInformer,
 	configMapInformer coreinformers.ConfigMapInformer,
-	ndbInformer ndbinformers.NdbInformer) *Controller {
+	ndbInformer ndbinformers.NdbClusterInformer) *Controller {
 
 	// Add ndb-controller types to the default Kubernetes Scheme
 	// so Events can be logged for ndb-controller types.
@@ -227,8 +227,8 @@ func NewController(
 	ndbInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.enqueueNdb,
 		UpdateFunc: func(old, new interface{}) {
-			oldNdb := old.(*v1alpha1.Ndb)
-			newNdb := new.(*v1alpha1.Ndb)
+			oldNdb := old.(*v1alpha1.NdbCluster)
+			newNdb := new.(*v1alpha1.NdbCluster)
 
 			if oldNdb.ResourceVersion == newNdb.ResourceVersion {
 				// we don't do anything here - just log
@@ -250,13 +250,13 @@ func NewController(
 			controller.enqueueNdb(newNdb)
 		},
 		DeleteFunc: func(obj interface{}) {
-			var ndb *v1alpha1.Ndb
+			var ndb *v1alpha1.NdbCluster
 			switch objType := obj.(type) {
-			case *v1alpha1.Ndb:
+			case *v1alpha1.NdbCluster:
 				ndb = objType
 			case cache.DeletedFinalStateUnknown:
 				del := obj.(cache.DeletedFinalStateUnknown).Obj
-				ndb = del.(*v1alpha1.Ndb)
+				ndb = del.(*v1alpha1.NdbCluster)
 			}
 
 			if ndb != nil {
@@ -424,7 +424,7 @@ func (sc *SyncContext) updateClusterLabels() error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		ndb.Labels = labels.Merge(ndb.Labels, lbls)
 		_, updateErr :=
-			sc.ndbClientset().MysqlV1alpha1().Ndbs(ndb.Namespace).Update(context.TODO(), ndb, metav1.UpdateOptions{})
+			sc.ndbClientset().MysqlV1alpha1().NdbClusters(ndb.Namespace).Update(context.TODO(), ndb, metav1.UpdateOptions{})
 		if updateErr == nil {
 			return nil
 		}
@@ -432,7 +432,7 @@ func (sc *SyncContext) updateClusterLabels() error {
 		key := fmt.Sprintf("%s/%s", ndb.GetNamespace(), ndb.GetName())
 		klog.V(4).Infof("Conflict updating Cluster labels. Getting updated Cluster %s from cache...", key)
 
-		updated, err := sc.ndbClientset().MysqlV1alpha1().Ndbs(ndb.Namespace).Get(context.TODO(), ndb.Name, metav1.GetOptions{})
+		updated, err := sc.ndbClientset().MysqlV1alpha1().NdbClusters(ndb.Namespace).Get(context.TODO(), ndb.Name, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("Error getting updated Cluster %q: %v", key, err)
 			return err
@@ -995,7 +995,7 @@ func (sc *SyncContext) ensureAllResources() (bool, error) {
 	return sc.allResourcesExisted(), nil
 }
 
-func (c *Controller) newSyncContext(ndb *v1alpha1.Ndb) *SyncContext {
+func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
 
 	//TODO: should probably create controller earlier
 	if c.ndbdController == nil {
@@ -1072,7 +1072,7 @@ func (c *Controller) syncHandler(key string) error {
 	}
 
 	// Get the Ndb resource with this namespace/name
-	ndbOrg, err := c.ndbsLister.Ndbs(namespace).Get(name)
+	ndbOrg, err := c.ndbsLister.NdbClusters(namespace).Get(name)
 	if err != nil {
 		klog.Infof("Ndb does not exist as resource, %s", name)
 		// The Ndb resource may no longer exist, in which case we stop
@@ -1209,7 +1209,7 @@ func (sc *SyncContext) sync() error {
 	}
 
 	// Update the status of the Ndb resource to reflect the state of any changes applied
-	err = sc.updateNdbStatus(hasPendingConfigChanges)
+	err = sc.updateNdbClusterStatus(hasPendingConfigChanges)
 	if err != nil {
 		klog.Errorf("Updating status failed: %v", err)
 		return err
@@ -1220,7 +1220,7 @@ func (sc *SyncContext) sync() error {
 	return nil
 }
 
-func (sc *SyncContext) updateNdbStatus(hasPendingConfigChanges bool) error {
+func (sc *SyncContext) updateNdbClusterStatus(hasPendingConfigChanges bool) error {
 
 	// we already received a deep copy here
 	ndb := sc.ndb
@@ -1255,13 +1255,14 @@ func (sc *SyncContext) updateNdbStatus(hasPendingConfigChanges bool) error {
 
 	// Set the time of this status update
 	ndb.Status.LastUpdate = metav1.NewTime(time.Now())
+	ndbClusterInterface := sc.ndbClientset().MysqlV1alpha1().NdbClusters(ndb.Namespace)
 
 	updateErr := wait.ExponentialBackoff(retry.DefaultBackoff, func() (ok bool, err error) {
 
 		klog.Infof("Updating ndb cluster status: from process gen %d to %d",
 			ndb.Status.ProcessedGeneration, ndb.ObjectMeta.Generation)
 
-		_, err = sc.ndbClientset().MysqlV1alpha1().Ndbs(ndb.Namespace).UpdateStatus(context.TODO(), ndb, metav1.UpdateOptions{})
+		_, err = ndbClusterInterface.UpdateStatus(context.TODO(), ndb, metav1.UpdateOptions{})
 		if err == nil {
 			return true, nil
 		}
@@ -1269,7 +1270,7 @@ func (sc *SyncContext) updateNdbStatus(hasPendingConfigChanges bool) error {
 			return false, err
 		}
 
-		updated, err := sc.ndbClientset().MysqlV1alpha1().Ndbs(ndb.Namespace).Get(context.TODO(), ndb.Name, metav1.GetOptions{})
+		updated, err := ndbClusterInterface.Get(context.TODO(), ndb.Name, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("failed to get Ndb %s/%s: %v", ndb.Namespace, ndb.Name, err)
 			return false, err
@@ -1335,11 +1336,11 @@ func (c *Controller) handleObject(obj interface{}) {
 	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
 		// If this object is not owned by a Ndb, we should not do anything more
 		// with it.
-		if ownerRef.Kind != "Ndb" {
+		if ownerRef.Kind != "NdbCluster" {
 			return
 		}
 
-		ndb, err := c.ndbsLister.Ndbs(object.GetNamespace()).Get(ownerRef.Name)
+		ndb, err := c.ndbsLister.NdbClusters(object.GetNamespace()).Get(ownerRef.Name)
 		if err != nil {
 			klog.Infof("ignoring orphaned object '%s' of ndb '%s'", object.GetSelfLink(), ownerRef.Name)
 			return

@@ -15,8 +15,8 @@ import (
 )
 
 // NewTestNdbCrd creates a new Ndb object for testing
-func NewTestNdbCrd(namespace string, name string, datanodes, replicas, mysqlnodes int32) *ndbv1alpha1.Ndb {
-	return &ndbv1alpha1.Ndb{
+func NewTestNdbCrd(namespace string, name string, datanodes, replicas, mysqlnodes int32) *ndbv1alpha1.NdbCluster {
+	return &ndbv1alpha1.NdbCluster{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: ndbv1alpha1.SchemeGroupVersion.String(),
 		},
@@ -24,7 +24,7 @@ func NewTestNdbCrd(namespace string, name string, datanodes, replicas, mysqlnode
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: ndbv1alpha1.NdbSpec{
+		Spec: ndbv1alpha1.NdbClusterSpec{
 			NodeCount:       datanodes,
 			RedundancyLevel: replicas,
 			Mysqld: &ndbv1alpha1.NdbMysqldSpec{

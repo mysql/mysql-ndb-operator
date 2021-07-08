@@ -4,14 +4,17 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.4.1
-  name: ndbs.mysql.oracle.com
+  name: ndbclusters.mysql.oracle.com
 spec:
   group: mysql.oracle.com
   names:
-    kind: Ndb
-    listKind: NdbList
-    plural: ndbs
-    singular: ndb
+    kind: NdbCluster
+    listKind: NdbClusterList
+    plural: ndbclusters
+    shortNames:
+    - ndb
+    - ndbc
+    singular: ndbcluster
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -21,7 +24,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Ndb is the Schema for the Ndb CRD API
+        description: NdbCluster is the Schema for the Ndb CRD API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -36,7 +39,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: NdbSpec defines the desired state of MySQL Ndb Cluster
+            description: NdbClusterSpec defines the desired state of MySQL Ndb Cluster
             properties:
               dataMemory:
                 default: 98M
@@ -241,7 +244,7 @@ spec:
             - nodeCount
             type: object
           status:
-            description: NdbStatus is the status for a Ndb resource
+            description: NdbClusterStatus is the status for a Ndb resource
             properties:
               lastUpdate:
                 description: LastUpdate is the time when the ProcessedGeneration was
@@ -378,8 +381,8 @@ rules:
 - apiGroups:
   - mysql.oracle.com
   resources:
-  - ndbs
-  - ndbs/status
+  - ndbclusters
+  - ndbclusters/status
   verbs:
   - get
   - list
@@ -506,7 +509,7 @@ webhooks:
       path: /validate-ndb
       port: 9443
   failurePolicy: Fail
-  name: validating-webhook.ndb.mysql.oracle.com
+  name: validating-webhook.ndbcluster.mysql.oracle.com
   rules:
   - apiGroups:
     - mysql.oracle.com
@@ -516,5 +519,5 @@ webhooks:
     - CREATE
     - UPDATE
     resources:
-    - ndbs
+    - ndbclusters
   sideEffects: None

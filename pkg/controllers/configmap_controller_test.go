@@ -83,7 +83,7 @@ func validateConfigIniSectionCount(t *testing.T, config helpers.ConfigIni, secti
 }
 
 // validateMgmtConfig validates the config.ini key of the config map
-func validateMgmtConfig(t *testing.T, cm *corev1.ConfigMap, ndb *v1alpha1.Ndb) {
+func validateMgmtConfig(t *testing.T, cm *corev1.ConfigMap, ndb *v1alpha1.NdbCluster) {
 	t.Helper()
 
 	if cm == nil {

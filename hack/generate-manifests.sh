@@ -11,7 +11,7 @@ CRD_GEN_OPTS="crd:trivialVersions=true"
 CRD_GEN_INPUT_PATH="./pkg/apis/..."
 HELM_CHART_PATH="deploy/charts/ndb-operator"
 CRD_GEN_OUTPUT="${HELM_CHART_PATH}/crds"
-CRD_FULL_PATH="${CRD_GEN_OUTPUT}/mysql.oracle.com_ndbs.yaml"
+CRD_FULL_PATH="${CRD_GEN_OUTPUT}/mysql.oracle.com_ndbclusters.yaml"
 CONTROLLER_GEN_CMD="go run sigs.k8s.io/controller-tools/cmd/controller-gen"
 
 # Generate Ndb CRD

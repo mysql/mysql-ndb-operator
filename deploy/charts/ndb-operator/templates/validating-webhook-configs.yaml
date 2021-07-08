@@ -16,7 +16,7 @@ webhooks:
         path: /validate-ndb
         port: {{ template "webhook-service.port" }}
     failurePolicy: Fail
-    name: validating-webhook.ndb.mysql.oracle.com
+    name: validating-webhook.ndbcluster.mysql.oracle.com
     rules:
       - apiGroups:
           - mysql.oracle.com
@@ -26,7 +26,7 @@ webhooks:
           - CREATE
           - UPDATE
         resources:
-          - ndbs
+          - ndbclusters
     admissionReviewVersions:
       - v1
     sideEffects: None

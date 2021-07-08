@@ -123,8 +123,8 @@ rules:
 - apiGroups:
   - mysql.oracle.com
   resources:
-  - ndbs
-  - ndbs/status
+  - ndbclusters
+  - ndbclusters/status
   verbs:
   - create
   - delete

@@ -16,7 +16,7 @@ import (
 
 // ConnectToMgmd connects to a Management Server of the MySQL Cluster
 // represented by the ndb object and returns a mgmapi.MgmClient
-func ConnectToMgmd(clientset kubernetes.Interface, ndb *v1alpha1.Ndb) mgmapi.MgmClient {
+func ConnectToMgmd(clientset kubernetes.Interface, ndb *v1alpha1.NdbCluster) mgmapi.MgmClient {
 	ginkgo.By("connecting to the Management Node service")
 	serviceName := ndb.GetServiceName("mgmd") + "-ext"
 	host, port := service.GetServiceAddressAndPort(clientset, ndb.Namespace, serviceName)
@@ -28,7 +28,7 @@ func ConnectToMgmd(clientset kubernetes.Interface, ndb *v1alpha1.Ndb) mgmapi.Mgm
 // ForEachConnectedNodes runs the given function for
 // every connected MySQL Cluster node of type nodeType
 func ForEachConnectedNodes(
-	clientset kubernetes.Interface, ndb *v1alpha1.Ndb, nodeType mgmapi.NodeTypeEnum,
+	clientset kubernetes.Interface, ndb *v1alpha1.NdbCluster, nodeType mgmapi.NodeTypeEnum,
 	testFunc func(mgmClient mgmapi.MgmClient, nodeId int)) {
 	// connect to MySQL Cluster
 	mgmClient := ConnectToMgmd(clientset, ndb)

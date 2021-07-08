@@ -36,8 +36,8 @@ func requestDeniedBad(reqUID types.UID, errMsg string) *v1.AdmissionResponse {
 
 // requestDeniedNdbInvalid returns a AdmissionResponse with the request denied and with reason StatusReasonInvalid
 func requestDeniedNdbInvalid(
-	reqUID types.UID, ndb *v1alpha1.Ndb, errs field.ErrorList) *v1.AdmissionResponse {
-	return requestDenied(reqUID, errors.NewInvalid(ndb.GroupVersionKind().GroupKind(), ndb.Name, errs))
+	reqUID types.UID, nc *v1alpha1.NdbCluster, errs field.ErrorList) *v1.AdmissionResponse {
+	return requestDenied(reqUID, errors.NewInvalid(nc.GroupVersionKind().GroupKind(), nc.Name, errs))
 }
 
 // requestAllowed returns a AdmissionResponse with the request allowed

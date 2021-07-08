@@ -27,9 +27,9 @@ import (
 
 type ConfigMapControlInterface interface {
 	EnsureConfigMap(sc *SyncContext) (*corev1.ConfigMap, bool, error)
-	PatchConfigMap(ndb *v1alpha1.Ndb, rc *resources.ResourceContext) (*corev1.ConfigMap, error)
+	PatchConfigMap(ndb *v1alpha1.NdbCluster, rc *resources.ResourceContext) (*corev1.ConfigMap, error)
 	ExtractConfig(cm *corev1.ConfigMap) (string, error)
-	DeleteConfigMap(ndb *v1alpha1.Ndb) error
+	DeleteConfigMap(ndb *v1alpha1.NdbCluster) error
 }
 
 type ConfigMapControl struct {
@@ -90,7 +90,7 @@ func (rcmc *ConfigMapControl) EnsureConfigMap(sc *SyncContext) (*corev1.ConfigMa
 }
 
 // PatchConfigMap patches the existing config map with new configuration data generated from ndb CRD object
-func (rcmc *ConfigMapControl) PatchConfigMap(ndb *v1alpha1.Ndb, rc *resources.ResourceContext) (*corev1.ConfigMap, error) {
+func (rcmc *ConfigMapControl) PatchConfigMap(ndb *v1alpha1.NdbCluster, rc *resources.ResourceContext) (*corev1.ConfigMap, error) {
 
 	// Get the StatefulSet with the name specified in Ndb.spec, fetching from client not cache
 	cmOrg, err := rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Get(context.TODO(), ndb.GetConfigMapName(), metav1.GetOptions{})
@@ -139,7 +139,7 @@ func (rcmc *ConfigMapControl) PatchConfigMap(ndb *v1alpha1.Ndb, rc *resources.Re
 
 // DeleteConfigMap -
 // TODO make functions
-func (rcmc *ConfigMapControl) DeleteConfigMap(ndb *v1alpha1.Ndb) error {
+func (rcmc *ConfigMapControl) DeleteConfigMap(ndb *v1alpha1.NdbCluster) error {
 	panic("DeleteConfigMap not implemented yet")
 	return nil
 }

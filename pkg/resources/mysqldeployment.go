@@ -76,21 +76,21 @@ func (msd *MySQLServerDeployment) GetTypeName() string {
 }
 
 // getDeploymentLabels returns the labels of the deployment
-func (msd *MySQLServerDeployment) getDeploymentLabels(ndb *v1alpha1.Ndb) map[string]string {
+func (msd *MySQLServerDeployment) getDeploymentLabels(ndb *v1alpha1.NdbCluster) map[string]string {
 	return ndb.GetCompleteLabels(map[string]string{
 		constants.ClusterResourceTypeLabel: mysqldClientName + "-deployment",
 	})
 }
 
 // getPodLabels generates the labels for the MySQL Server pods controlled by the deployment
-func (msd *MySQLServerDeployment) getPodLabels(ndb *v1alpha1.Ndb) map[string]string {
+func (msd *MySQLServerDeployment) getPodLabels(ndb *v1alpha1.NdbCluster) map[string]string {
 	return ndb.GetCompleteLabels(map[string]string{
 		constants.ClusterNodeTypeLabel: mysqldClientName,
 	})
 }
 
 // getPodVolumes returns the volumes to be used by the pod
-func (msd *MySQLServerDeployment) getPodVolumes(ndb *v1alpha1.Ndb) []v1.Volume {
+func (msd *MySQLServerDeployment) getPodVolumes(ndb *v1alpha1.NdbCluster) []v1.Volume {
 	allowOnlyOwnerToReadMode := int32(0400)
 	rootPasswordSecretName, _ := GetMySQLRootPasswordSecretName(ndb)
 	podVolumes := []v1.Volume{
@@ -177,7 +177,7 @@ func (msd *MySQLServerDeployment) getPodVolumes(ndb *v1alpha1.Ndb) []v1.Volume {
 }
 
 // getMysqlVolumeMounts returns pod volumes to be mounted into the container
-func (msd *MySQLServerDeployment) getMysqlVolumeMounts(ndb *v1alpha1.Ndb) []v1.VolumeMount {
+func (msd *MySQLServerDeployment) getMysqlVolumeMounts(ndb *v1alpha1.NdbCluster) []v1.VolumeMount {
 	volumeMounts := []v1.VolumeMount{
 		// Mount the empty dir volume as data directory
 		{
@@ -213,7 +213,7 @@ func (msd *MySQLServerDeployment) getMysqlVolumeMounts(ndb *v1alpha1.Ndb) []v1.V
 }
 
 // createContainer creates the MySQL Server container to be run as a client
-func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb, oldContainer *v1.Container) *v1.Container {
+func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.NdbCluster, oldContainer *v1.Container) *v1.Container {
 
 	// Build the arguments to MySQL Server
 	var args []string
@@ -321,7 +321,7 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.Ndb, oldContaine
 
 // NewDeployment creates a new MySQL Server Deployment for the given Cluster.
 func (msd *MySQLServerDeployment) NewDeployment(
-	ndb *v1alpha1.Ndb, rc *ResourceContext, oldDeployment *apps.Deployment) *apps.Deployment {
+	ndb *v1alpha1.NdbCluster, rc *ResourceContext, oldDeployment *apps.Deployment) *apps.Deployment {
 
 	var oldContainer *v1.Container
 	if oldDeployment != nil {
@@ -387,7 +387,7 @@ func (msd *MySQLServerDeployment) NewDeployment(
 }
 
 // NewMySQLServerDeployment creates a new MySQLServerDeployment
-func NewMySQLServerDeployment(ndb *v1alpha1.Ndb) *MySQLServerDeployment {
+func NewMySQLServerDeployment(ndb *v1alpha1.NdbCluster) *MySQLServerDeployment {
 	return &MySQLServerDeployment{
 		name: ndb.Name + "-" + mysqldClientName,
 	}

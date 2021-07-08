@@ -27,7 +27,7 @@ helm delete ndbop
 The command removes the NDB Operator deployment and the webhook server deployment. The CRDs will not be deleted by this command. To remove them from the Kubernetes cluster :
 
 ```bash
-kubectl delete customresourcedefinitions ndbs.mysql.oracle.com
+kubectl delete customresourcedefinitions ndbclusters.mysql.oracle.com
 ```
 
 

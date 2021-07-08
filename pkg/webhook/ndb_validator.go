@@ -26,7 +26,7 @@ func (nv *ndbValidator) getGVR() *metav1.GroupVersionResource {
 	return &metav1.GroupVersionResource{
 		Group:    "mysql.oracle.com",
 		Version:  "v1alpha1",
-		Resource: "ndbs",
+		Resource: "ndbclusters",
 	}
 }
 
@@ -34,19 +34,19 @@ func (nv *ndbValidator) getGVK() *schema.GroupVersionKind {
 	return &schema.GroupVersionKind{
 		Group:   "mysql.oracle.com",
 		Version: "v1alpha1",
-		Kind:    "ndb",
+		Kind:    "ndbcluster",
 	}
 }
 
 func (nv *ndbValidator) newObject() runtime.Object {
-	return &v1alpha1.Ndb{}
+	return &v1alpha1.NdbCluster{}
 }
 
 func (nv *ndbValidator) validateCreate(reqUID types.UID, obj runtime.Object) *v1.AdmissionResponse {
-	ndb := obj.(*v1alpha1.Ndb)
-	if errList := helpers.IsValidConfig(ndb, nil); errList != nil {
+	nc := obj.(*v1alpha1.NdbCluster)
+	if errList := helpers.IsValidConfig(nc, nil); errList != nil {
 		// ndb does not define a valid configuration
-		return requestDeniedNdbInvalid(reqUID, ndb, errList)
+		return requestDeniedNdbInvalid(reqUID, nc, errList)
 	}
 
 	return requestAllowed(reqUID)
@@ -55,18 +55,18 @@ func (nv *ndbValidator) validateCreate(reqUID types.UID, obj runtime.Object) *v1
 func (nv *ndbValidator) validateUpdate(
 	reqUID types.UID, newObj runtime.Object, oldObj runtime.Object) *v1.AdmissionResponse {
 
-	oldNdb := oldObj.(*v1alpha1.Ndb)
-	if oldNdb.Status.ProcessedGeneration != oldNdb.Generation {
+	oldNC := oldObj.(*v1alpha1.NdbCluster)
+	if oldNC.Status.ProcessedGeneration != oldNC.Generation {
 		// The previous update is still being applied, and
 		// the operator can handle only one update at a moment.
 		return requestDenied(reqUID,
 			errors.NewTooManyRequestsError("previous update to the Ndb resource is still being applied"))
 	}
 
-	newNdb := newObj.(*v1alpha1.Ndb)
-	if errList := helpers.IsValidConfig(newNdb, oldNdb); errList != nil {
+	newNC := newObj.(*v1alpha1.NdbCluster)
+	if errList := helpers.IsValidConfig(newNC, oldNC); errList != nil {
 		// new ndb does not define a valid configuration
-		return requestDeniedNdbInvalid(reqUID, newNdb, errList)
+		return requestDeniedNdbInvalid(reqUID, newNC, errList)
 	}
 
 	return requestAllowed(reqUID)

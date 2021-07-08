@@ -18,7 +18,7 @@ import (
 )
 
 type SecretControlInterface interface {
-	EnsureSecret(ctx context.Context, ndb *v1alpha1.Ndb) (*v1.Secret, error)
+	EnsureSecret(ctx context.Context, ndb *v1alpha1.NdbCluster) (*v1.Secret, error)
 }
 
 // mysqlRootPasswordSecretInterface implements SecretControlInterface
@@ -35,7 +35,7 @@ func NewMySQLRootPasswordSecretInterface(client kubernetes.Interface, namespace 
 
 // EnsureSecret checks if a secret with the given name exists
 // and creates a new one if it doesn't exist already
-func (mrpsi *mysqlRootPasswordSecretInterface) EnsureSecret(ctx context.Context, ndb *v1alpha1.Ndb) (*v1.Secret, error) {
+func (mrpsi *mysqlRootPasswordSecretInterface) EnsureSecret(ctx context.Context, ndb *v1alpha1.NdbCluster) (*v1.Secret, error) {
 	secretName, customSecret := resources.GetMySQLRootPasswordSecretName(ndb)
 
 	// Check if the secret exists
