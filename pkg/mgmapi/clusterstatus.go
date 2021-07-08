@@ -4,6 +4,8 @@
 
 package mgmapi
 
+import "sort"
+
 // NodeTypeEnum identifies the node type used in NodeStatus object
 // there are more types defined in c-code, but they are not used here
 type NodeTypeEnum int
@@ -84,6 +86,21 @@ func NewClusterStatus(nodeCount int) ClusterStatus {
 	return make(ClusterStatus, nodeCount)
 }
 
+// ensureNode returns the NodeStatus entry for the given node.
+// If one is not present for the given nodeId, it creates a new
+// NodeStatus entry and returns it
+func (cs ClusterStatus) ensureNode(nodeId int) *NodeStatus {
+	nodeStatus, ok := cs[nodeId]
+	if !ok {
+		// create a new entry
+		nodeStatus = &NodeStatus{
+			NodeId: nodeId,
+		}
+		cs[nodeId] = nodeStatus
+	}
+	return nodeStatus
+}
+
 // IsHealthy returns true if the MySQL Cluster is healthy,
 // i.e., if all the data and management nodes are connected and ready
 func (cs ClusterStatus) IsHealthy() bool {
@@ -114,17 +131,49 @@ func (cs ClusterStatus) IsHealthy() bool {
 	return true
 }
 
-// ensureNode returns the NodeStatus entry for the given node.
-// If one is not present for the given nodeId, it creates a new
-// NodeStatus entry and returns it
-func (cs ClusterStatus) ensureNode(nodeId int) *NodeStatus {
-	nodeStatus, ok := cs[nodeId]
-	if !ok {
-		// create a new entry
-		nodeStatus = &NodeStatus{
-			NodeId: nodeId,
+// GetNodesGroupedByNodegroup returns an array of grouped
+// and sorted node ids grouped based on node groups.
+func (cs ClusterStatus) GetNodesGroupedByNodegroup() [][]int {
+
+	// Map to store the nodes based on nodegroup
+	nodesInNodeGroupMap := make(map[int][]int)
+	for nodeId, node := range cs {
+		if !node.IsDataNode() {
+			// not a data node
+			continue
 		}
-		cs[nodeId] = nodeStatus
+		if !node.IsConnected {
+			// data node not connected
+			panic("should be called only when the cluster is healthy")
+		}
+		nodegroup := node.NodeGroup
+		if nodegroup == 65536 || nodegroup == -256 {
+			// node is not inducted into cluster yet
+			continue
+		}
+
+		// append the node id to the map based on nodegroup
+		nodesInNodeGroupMap[nodegroup] = append(nodesInNodeGroupMap[nodegroup], nodeId)
 	}
-	return nodeStatus
+
+	// The map has the required node ids grouped under node groups
+	// but nothing is sorted yet. Sort the output based on node groups
+	// and then the sort the node ids under them
+	nodeGroupIds := make([]int, 0, len(nodesInNodeGroupMap))
+	for ng, nodeIdsInNodegroup := range nodesInNodeGroupMap {
+		nodeGroupIds = append(nodeGroupIds, ng)
+
+		// sort the node ids
+		sort.Ints(nodeIdsInNodegroup)
+	}
+	// sort the node group
+	sort.Ints(nodeGroupIds)
+
+	// Copy out the sorted output in an [][]int and return
+	nodesGroupedByNodegroup := make([][]int, 0, len(nodesInNodeGroupMap))
+	for ng := range nodeGroupIds {
+		nodesGroupedByNodegroup = append(nodesGroupedByNodegroup, nodesInNodeGroupMap[ng])
+	}
+
+	return nodesGroupedByNodegroup
 }

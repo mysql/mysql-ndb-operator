@@ -6,7 +6,6 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	eventsv1 "k8s.io/api/events/v1"
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -653,31 +651,42 @@ func (sc *SyncContext) ensurePodDisruptionBudget() (*policyv1beta1.PodDisruption
 func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 
 	wantedGeneration := sc.resourceContext.ConfigGeneration
+	redundancyLevel := sc.resourceContext.RedundancyLevel
 
-	// Every data node is assigned a unique replica number
-	// (0 to N-1, where N is the redundancyLevel), within their nodegroup.
-	// All data nodes with the same replica number are stopped and
-	// restarted during a single reconciliation run. At any given time,
-	// only one data node per group will be affected by this maneuver,
-	// thus ensuring availability of the MySQL Cluster.
-	ct := mgmapi.CreateClusterTopologyByReplicaFromClusterStatus(sc.clusterState)
-	if ct == nil {
-		err := fmt.Errorf("internal error: could not extract topology from cluster status")
-		return errorWhileProcssing(err)
-	}
-
-	redundancyLevel := ct.GetNumberOfReplicas()
 	mgmClient, err := sc.connectToManagementServer()
 	if err != nil {
 		return errorWhileProcssing(err)
 	}
 	defer mgmClient.Disconnect()
 
-	for replica := 0; replica < redundancyLevel; replica++ {
+	// For data node reconciliation, one data node per nodegroup is
+	// chosen and are restarted together if they have an outdated
+	// config version. Once a set of data nodes are restarted, any
+	// further reconciliation is stopped, and is resumed only after
+	// the restarted data nodes become ready. At any given time,
+	// only one data node per group will be affected by this
+	// maneuver thus ensuring MySQL Cluster's availability.
+	nodesGroupedByNodegroups := sc.clusterState.GetNodesGroupedByNodegroup()
+	if nodesGroupedByNodegroups == nil {
+		err := fmt.Errorf("internal error: could not extract nodes and node groups from cluster status")
+		return errorWhileProcssing(err)
+	}
 
-		var restartIDs []int
-		nodeIDs := ct.GetNodeIDsFromReplica(replica)
-		for _, nodeID := range *nodeIDs {
+	// The node ids are sorted within the sub arrays and the array
+	// itself is sorted based on the node groups. Every sub array
+	// will have RedundancyLevel number of node ids. Pick up the
+	// i'th node from every sub array during every iteration and
+	// ensure that they all have the expected config version.
+	for i := 0; i < int(redundancyLevel); i++ {
+		// Note down the node ids to be ensured
+		candidateNodeIds := make([]int, 0, redundancyLevel)
+		for _, nodesInNodegroup := range nodesGroupedByNodegroups {
+			candidateNodeIds = append(candidateNodeIds, nodesInNodegroup[i])
+		}
+
+		var nodesWithOldConfig []int
+		// Check if the data nodes have the expected config version
+		for _, nodeID := range candidateNodeIds {
 			nodeConfigGeneration, err := mgmClient.GetConfigVersion(nodeID)
 			if err != nil {
 				return errorWhileProcssing(err)
@@ -685,19 +694,18 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 
 			if wantedGeneration != nodeConfigGeneration {
 				// data node runs with an old versioned config
-				restartIDs = append(restartIDs, nodeID)
+				nodesWithOldConfig = append(nodesWithOldConfig, nodeID)
 			}
 		}
 
-		if len(restartIDs) > 0 {
-			// restart all the identified data nodes
-			s, _ := json.Marshal(restartIDs)
-			klog.Infof("Identified %d nodes with wrong version in replica %d: %s",
-				len(restartIDs), replica, s)
+		if len(nodesWithOldConfig) > 0 {
+			// Stop all the data nodes that has old config version
+			klog.Infof("Identified %d nodes with wrong version : %v",
+				len(nodesWithOldConfig), nodesWithOldConfig)
 
-			err := mgmClient.StopNodes(restartIDs)
+			err := mgmClient.StopNodes(nodesWithOldConfig)
 			if err != nil {
-				klog.Infof("Error restarting replica %d nodes %s", replica, s)
+				klog.Infof("Error stopping data nodes %v", nodesWithOldConfig)
 				return errorWhileProcssing(err)
 			}
 
@@ -707,7 +715,7 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 			return finishProcessing()
 		}
 
-		klog.Infof("All datanodes nodes in replica %d have desired config version %d", replica, wantedGeneration)
+		klog.Infof("The data nodes%v have desired config version %d", candidateNodeIds, wantedGeneration)
 	}
 
 	// All data nodes have the desired config version. Continue with rest of the sync process.
@@ -1257,7 +1265,7 @@ func (sc *SyncContext) updateNdbStatus(hasPendingConfigChanges bool) error {
 		if err == nil {
 			return true, nil
 		}
-		if !errors.IsConflict(err) {
+		if !apierrors.IsConflict(err) {
 			return false, err
 		}
 

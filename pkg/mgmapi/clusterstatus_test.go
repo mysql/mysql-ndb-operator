@@ -5,21 +5,11 @@
 package mgmapi
 
 import (
+	"reflect"
 	"testing"
 )
 
-func nodeTypeFromNodeId(mgmNodeCount, dataNodeCount, nodeId int) NodeTypeEnum {
-	if nodeId <= mgmNodeCount {
-		return NodeTypeMGM
-	}
-	if nodeId <= mgmNodeCount+dataNodeCount {
-		return NodeTypeNDB
-	}
-	// Any node after this point is an API node
-	return NodeTypeAPI
-}
-
-func Test_ensureNodeAndSetNodeTypeFromTLA(t *testing.T) {
+func TestClusterStatus_ensureNodeAndSetNodeTypeFromTLA(t *testing.T) {
 
 	cs := NewClusterStatus(8)
 
@@ -77,8 +67,18 @@ func verifyClusterHealth(
 
 }
 
-func TestClusterStatus_IsHealthy(t *testing.T) {
+func nodeTypeFromNodeId(mgmNodeCount, dataNodeCount, nodeId int) NodeTypeEnum {
+	if nodeId <= mgmNodeCount {
+		return NodeTypeMGM
+	}
+	if nodeId <= mgmNodeCount+dataNodeCount {
+		return NodeTypeNDB
+	}
+	// Any node after this point is an API node
+	return NodeTypeAPI
+}
 
+func getClusterStatus() ClusterStatus {
 	cs := NewClusterStatus(6)
 	for nodeId := 1; nodeId <= 6; nodeId++ {
 
@@ -103,9 +103,12 @@ func TestClusterStatus_IsHealthy(t *testing.T) {
 		}
 	}
 
-	for nodeId, ns := range cs {
-		t.Logf("%d - %#v", nodeId, ns)
-	}
+	return cs
+}
+
+func TestClusterStatus_IsHealthy(t *testing.T) {
+
+	cs := getClusterStatus()
 
 	for _, tc := range []struct {
 		desc               string
@@ -150,5 +153,17 @@ func TestClusterStatus_IsHealthy(t *testing.T) {
 		},
 	} {
 		verifyClusterHealth(t, cs, tc.csMockUpdate, tc.expectHealthyState, tc.desc)
+	}
+}
+
+func TestClusterStatus_GetNodesGroupedByNodegroup(t *testing.T) {
+	cs := getClusterStatus()
+	nodes := cs.GetNodesGroupedByNodegroup()
+
+	// verify the nodes are grouped as expected
+	expectedReply := [][]int{{3, 4}, {5, 6}}
+	if !reflect.DeepEqual(nodes, expectedReply) {
+		t.Errorf("Expected grouping : %#v", expectedReply)
+		t.Errorf("Actual grouping : %#v", nodes)
 	}
 }
