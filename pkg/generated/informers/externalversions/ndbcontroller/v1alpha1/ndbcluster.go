@@ -20,59 +20,59 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// NdbInformer provides access to a shared informer and lister for
-// Ndbs.
-type NdbInformer interface {
+// NdbClusterInformer provides access to a shared informer and lister for
+// NdbClusters.
+type NdbClusterInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha1.NdbLister
+	Lister() v1alpha1.NdbClusterLister
 }
 
-type ndbInformer struct {
+type ndbClusterInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewNdbInformer constructs a new informer for Ndb type.
+// NewNdbClusterInformer constructs a new informer for NdbCluster type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewNdbInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredNdbInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewNdbClusterInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredNdbClusterInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredNdbInformer constructs a new informer for Ndb type.
+// NewFilteredNdbClusterInformer constructs a new informer for NdbCluster type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredNdbInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredNdbClusterInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.MysqlV1alpha1().Ndbs(namespace).List(context.TODO(), options)
+				return client.MysqlV1alpha1().NdbClusters(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.MysqlV1alpha1().Ndbs(namespace).Watch(context.TODO(), options)
+				return client.MysqlV1alpha1().NdbClusters(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&ndbcontrollerv1alpha1.Ndb{},
+		&ndbcontrollerv1alpha1.NdbCluster{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *ndbInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredNdbInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *ndbClusterInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredNdbClusterInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *ndbInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&ndbcontrollerv1alpha1.Ndb{}, f.defaultInformer)
+func (f *ndbClusterInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&ndbcontrollerv1alpha1.NdbCluster{}, f.defaultInformer)
 }
 
-func (f *ndbInformer) Lister() v1alpha1.NdbLister {
-	return v1alpha1.NewNdbLister(f.Informer().GetIndexer())
+func (f *ndbClusterInformer) Lister() v1alpha1.NdbClusterLister {
+	return v1alpha1.NewNdbClusterLister(f.Informer().GetIndexer())
 }

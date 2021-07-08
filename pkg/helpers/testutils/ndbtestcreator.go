@@ -9,18 +9,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NewTestNdb creates a new Ndb resource with few preset for testing
-func NewTestNdb(namespace string, name string, noOfNodes int32) *ndbcontroller.Ndb {
-	return &ndbcontroller.Ndb{
+// NewTestNdb creates a new NdbCluster resource with few preset for testing
+func NewTestNdb(namespace string, name string, noOfNodes int32) *ndbcontroller.NdbCluster {
+	return &ndbcontroller.NdbCluster{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "Ndb",
+			Kind:       "NdbCluster",
 			APIVersion: ndbcontroller.SchemeGroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: ndbcontroller.NdbSpec{
+		Spec: ndbcontroller.NdbClusterSpec{
 			NodeCount:       noOfNodes,
 			RedundancyLevel: 2,
 			Mysqld: &ndbcontroller.NdbMysqldSpec{

@@ -13,7 +13,7 @@ import (
 )
 
 // NewPodDisruptionBudget creates a PodDisruptionBudget allowing maximum 1 data node to be unavailable
-func NewPodDisruptionBudget(ndb *v1alpha1.Ndb, nodeTypeSelector string) *policyv1beta1.PodDisruptionBudget {
+func NewPodDisruptionBudget(ndb *v1alpha1.NdbCluster, nodeTypeSelector string) *policyv1beta1.PodDisruptionBudget {
 
 	// Labels for the resource
 	pdbLabels := ndb.GetCompleteLabels(map[string]string{

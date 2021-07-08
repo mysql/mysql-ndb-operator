@@ -38,7 +38,7 @@ func GetConfigFromConfigMapObject(cm *corev1.ConfigMap) (string, error) {
 }
 
 // updateManagementConfig updates the Data map with latest config.ini
-func updateManagementConfig(ndb *v1alpha1.Ndb, data map[string]string, oldRC *ResourceContext) error {
+func updateManagementConfig(ndb *v1alpha1.NdbCluster, data map[string]string, oldRC *ResourceContext) error {
 	// get the updated config string
 	configString, err := GetConfigString(ndb, oldRC)
 	if err != nil {
@@ -53,7 +53,7 @@ func updateManagementConfig(ndb *v1alpha1.Ndb, data map[string]string, oldRC *Re
 
 // updateMySQLConfig updates the Data map with the
 // default my.cnf if it is specified in the Ndb resource.
-func updateMySQLConfig(ndb *v1alpha1.Ndb, data map[string]string) error {
+func updateMySQLConfig(ndb *v1alpha1.NdbCluster, data map[string]string) error {
 	// Add the cnf, if any, to the data map
 	myCnfValue := ndb.GetMySQLCnf()
 	if len(myCnfValue) > 0 {
@@ -94,7 +94,7 @@ func updateMySQLHelperScripts(data map[string]string) error {
 }
 
 // GetUpdatedConfigMap creates and returns a new config map with updated data
-func GetUpdatedConfigMap(ndb *v1alpha1.Ndb, cm *corev1.ConfigMap, oldRC *ResourceContext) *corev1.ConfigMap {
+func GetUpdatedConfigMap(ndb *v1alpha1.NdbCluster, cm *corev1.ConfigMap, oldRC *ResourceContext) *corev1.ConfigMap {
 	// create a deep copy of the original ConfigMap
 	updatedCm := cm.DeepCopy()
 
@@ -115,7 +115,7 @@ func GetUpdatedConfigMap(ndb *v1alpha1.Ndb, cm *corev1.ConfigMap, oldRC *Resourc
 
 // CreateConfigMap creates a config map object with the
 // information available in the ndb object
-func CreateConfigMap(ndb *v1alpha1.Ndb) *corev1.ConfigMap {
+func CreateConfigMap(ndb *v1alpha1.NdbCluster) *corev1.ConfigMap {
 
 	/*
 		kind: ConfigMap

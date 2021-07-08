@@ -14,7 +14,7 @@ import (
 
 type MysqlV1alpha1Interface interface {
 	RESTClient() rest.Interface
-	NdbsGetter
+	NdbClustersGetter
 }
 
 // MysqlV1alpha1Client is used to interact with features provided by the mysql.oracle.com group.
@@ -22,8 +22,8 @@ type MysqlV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *MysqlV1alpha1Client) Ndbs(namespace string) NdbInterface {
-	return newNdbs(c, namespace)
+func (c *MysqlV1alpha1Client) NdbClusters(namespace string) NdbClusterInterface {
+	return newNdbClusters(c, namespace)
 }
 
 // NewForConfig creates a new MysqlV1alpha1Client for the given config.

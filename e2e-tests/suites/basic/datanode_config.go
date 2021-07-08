@@ -22,7 +22,7 @@ import (
 var _ = ndbtest.DescribeFeature("Datanode configuration", func() {
 	var ns string
 	var c clientset.Interface
-	var testNdb *v1alpha1.Ndb
+	var testNdb *v1alpha1.NdbCluster
 
 	ginkgo.BeforeEach(func() {
 		ginkgo.By("extracting values from framework")

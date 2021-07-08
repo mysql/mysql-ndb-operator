@@ -57,7 +57,7 @@ func KubectlDeleteNdbYaml(clientset kubernetes.Interface, namespace, ndbName, pa
 
 // KubectlApplyNdbObj creates a Ndb K8s object from the given Ndb object
 // and waits for the ndb operator to setup the MySQL Cluster
-func KubectlApplyNdbObj(clientset kubernetes.Interface, ndb *v1alpha1.Ndb) {
+func KubectlApplyNdbObj(clientset kubernetes.Interface, ndb *v1alpha1.NdbCluster) {
 	klog.V(2).Infof("creating/updating Ndb resource from %s", ndb.Namespace)
 
 	yamlContent := yaml_utils.MarshalNdb(ndb)
@@ -70,7 +70,7 @@ func KubectlApplyNdbObj(clientset kubernetes.Interface, ndb *v1alpha1.Ndb) {
 
 // KubectlDeleteNdbObj deletes an Ndb K8s object from the given Ndb object
 // and waits for MySQL Cluster to shutdown
-func KubectlDeleteNdbObj(clientset kubernetes.Interface, ndb *v1alpha1.Ndb) {
+func KubectlDeleteNdbObj(clientset kubernetes.Interface, ndb *v1alpha1.NdbCluster) {
 	klog.V(2).Infof("Deleting Ndb resource from %s", ndb.Namespace)
 
 	yamlContent := yaml_utils.MarshalNdb(ndb)

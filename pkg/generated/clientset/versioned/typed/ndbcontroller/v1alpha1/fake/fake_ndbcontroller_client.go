@@ -16,8 +16,8 @@ type FakeMysqlV1alpha1 struct {
 	*testing.Fake
 }
 
-func (c *FakeMysqlV1alpha1) Ndbs(namespace string) v1alpha1.NdbInterface {
-	return &FakeNdbs{c, namespace}
+func (c *FakeMysqlV1alpha1) NdbClusters(namespace string) v1alpha1.NdbClusterInterface {
+	return &FakeNdbClusters{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

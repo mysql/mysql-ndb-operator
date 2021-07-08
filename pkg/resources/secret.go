@@ -32,7 +32,7 @@ func generateRandomPassword(n int) string {
 
 // NewBasicAuthSecretWithRandomPassword creates and returns a new
 // basic authentication secret with a random password
-func newBasicAuthSecretWithRandomPassword(ndb *v1alpha1.Ndb,
+func newBasicAuthSecretWithRandomPassword(ndb *v1alpha1.NdbCluster,
 	secretName string, secretLabelPrefix string) *v1.Secret {
 	// Generate a random password of length 16
 	rootPassword := generateRandomPassword(16)
@@ -55,7 +55,7 @@ func newBasicAuthSecretWithRandomPassword(ndb *v1alpha1.Ndb,
 
 // GetMySQLRootPasswordSecretName returns the name of the root password secret
 // and a bool flag to specify if it is a custom secret created by the user
-func GetMySQLRootPasswordSecretName(ndb *v1alpha1.Ndb) (string, bool) {
+func GetMySQLRootPasswordSecretName(ndb *v1alpha1.NdbCluster) (string, bool) {
 	if ndb.Spec.Mysqld.RootPasswordSecretName != "" {
 		return ndb.Spec.Mysqld.RootPasswordSecretName, true
 	}
@@ -63,7 +63,7 @@ func GetMySQLRootPasswordSecretName(ndb *v1alpha1.Ndb) (string, bool) {
 }
 
 // NewMySQLRootPasswordSecret creates and returns a new root password secret
-func NewMySQLRootPasswordSecret(ndb *v1alpha1.Ndb) *v1.Secret {
+func NewMySQLRootPasswordSecret(ndb *v1alpha1.NdbCluster) *v1.Secret {
 	secretName, _ := GetMySQLRootPasswordSecretName(ndb)
 	return newBasicAuthSecretWithRandomPassword(ndb, secretName, mysqldRootPassword)
 }

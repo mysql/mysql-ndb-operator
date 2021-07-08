@@ -35,7 +35,7 @@ func deploymentComplete(deployment *appsv1.Deployment) bool {
 type DeploymentControlInterface interface {
 	GetTypeName() string
 	EnsureDeployment(ctx context.Context, sc *SyncContext) (*appsv1.Deployment, bool, error)
-	ReconcileDeployment(ndb *v1alpha1.Ndb,
+	ReconcileDeployment(ndb *v1alpha1.NdbCluster,
 		deployment *appsv1.Deployment, rc *resources.ResourceContext, handleScaleDown bool) syncResult
 }
 
@@ -107,7 +107,7 @@ func (mdc *mysqlDeploymentController) patchDeployment(
 //        the Servers are shutdown before a possible reduction in the
 //        number of API sections in the config.
 func (mdc *mysqlDeploymentController) ReconcileDeployment(
-	ndb *v1alpha1.Ndb, deployment *appsv1.Deployment, rc *resources.ResourceContext, handleScaleDown bool) syncResult {
+	ndb *v1alpha1.NdbCluster, deployment *appsv1.Deployment, rc *resources.ResourceContext, handleScaleDown bool) syncResult {
 
 	// Nothing to reconcile if there is no existing deployment
 	if deployment == nil {

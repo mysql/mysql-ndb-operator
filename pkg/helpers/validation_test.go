@@ -12,15 +12,15 @@ import (
 )
 
 type validationCase struct {
-	spec       *v1alpha1.NdbSpec
-	oldSpec    *v1alpha1.NdbSpec
+	spec       *v1alpha1.NdbClusterSpec
+	oldSpec    *v1alpha1.NdbClusterSpec
 	shouldFail bool
 	explain    string
 }
 
 func nodeNumberTests(redundancy, dnc, mysqldc int32, fail bool, short string) *validationCase {
 	return &validationCase{
-		spec: &v1alpha1.NdbSpec{
+		spec: &v1alpha1.NdbClusterSpec{
 			RedundancyLevel: redundancy,
 			NodeCount:       dnc,
 			Mysqld: &v1alpha1.NdbMysqldSpec{
@@ -35,7 +35,7 @@ func nodeNumberTests(redundancy, dnc, mysqldc int32, fail bool, short string) *v
 
 func mysqldRootPasswordSecretNameTests(secretName string, fail bool, short string) *validationCase {
 	return &validationCase{
-		spec: &v1alpha1.NdbSpec{
+		spec: &v1alpha1.NdbClusterSpec{
 			RedundancyLevel: 1,
 			NodeCount:       1,
 			Mysqld: &v1alpha1.NdbMysqldSpec{
@@ -52,14 +52,14 @@ func ndbUpdateTests(redundancy, dnc, mysqldCount,
 	oldRedundancy, oldDnc, oldMysqldCount int32,
 	fail bool, short string) *validationCase {
 	return &validationCase{
-		spec: &v1alpha1.NdbSpec{
+		spec: &v1alpha1.NdbClusterSpec{
 			RedundancyLevel: redundancy,
 			NodeCount:       dnc,
 			Mysqld: &v1alpha1.NdbMysqldSpec{
 				NodeCount: mysqldCount,
 			},
 		},
-		oldSpec: &v1alpha1.NdbSpec{
+		oldSpec: &v1alpha1.NdbClusterSpec{
 			RedundancyLevel: oldRedundancy,
 			NodeCount:       oldDnc,
 			Mysqld: &v1alpha1.NdbMysqldSpec{
@@ -99,13 +99,13 @@ func Test_InvalidValues(t *testing.T) {
 
 	for _, vc := range vcs {
 
-		ndb := &v1alpha1.Ndb{
+		ndb := &v1alpha1.NdbCluster{
 			Spec: *vc.spec,
 		}
 
-		var oldNdb *v1alpha1.Ndb
+		var oldNdb *v1alpha1.NdbCluster
 		if vc.oldSpec != nil {
-			oldNdb = &v1alpha1.Ndb{
+			oldNdb = &v1alpha1.NdbCluster	{
 				Spec: *vc.oldSpec,
 			}
 		}

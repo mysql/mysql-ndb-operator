@@ -6,10 +6,10 @@
 
 package v1alpha1
 
-// NdbListerExpansion allows custom methods to be added to
-// NdbLister.
-type NdbListerExpansion interface{}
+// NdbClusterListerExpansion allows custom methods to be added to
+// NdbClusterLister.
+type NdbClusterListerExpansion interface{}
 
-// NdbNamespaceListerExpansion allows custom methods to be added to
-// NdbNamespaceLister.
-type NdbNamespaceListerExpansion interface{}
+// NdbClusterNamespaceListerExpansion allows custom methods to be added to
+// NdbClusterNamespaceLister.
+type NdbClusterNamespaceListerExpansion interface{}

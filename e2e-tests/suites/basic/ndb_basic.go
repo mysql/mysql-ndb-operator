@@ -91,10 +91,10 @@ var _ = ndbtest.DescribeFeature("Ndb basic", func() {
 			var err error
 
 			ndbobj := crd_utils.NewTestNdbCrd(ns, "test-ndb", 1, 2, 2)
-			_, err = ndbclient.MysqlV1alpha1().Ndbs(ns).Create(context.TODO(), ndbobj, metav1.CreateOptions{})
+			_, err = ndbclient.MysqlV1alpha1().NdbClusters(ns).Create(context.TODO(), ndbobj, metav1.CreateOptions{})
 			framework.ExpectNoError(err)
 
-			err = ndbclient.MysqlV1alpha1().Ndbs(ns).Delete(context.TODO(), "test-ndb", metav1.DeleteOptions{})
+			err = ndbclient.MysqlV1alpha1().NdbClusters(ns).Delete(context.TODO(), "test-ndb", metav1.DeleteOptions{})
 			framework.ExpectNoError(err)
 		})
 

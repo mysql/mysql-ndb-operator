@@ -7,7 +7,7 @@ stringData:
   password: wordpresspass
 ---
 apiVersion: mysql.oracle.com/v1alpha1
-kind: Ndb
+kind: NdbCluster
 metadata:
   name: wordpress-ndb
 spec:

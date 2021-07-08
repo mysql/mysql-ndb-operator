@@ -13,7 +13,7 @@ import (
 )
 
 // NewPVC returns a new PVC based on the given spec
-func NewPVC(ndb *v1alpha1.Ndb, pvcName string, pvcSpec *v1.PersistentVolumeClaimSpec) *v1.PersistentVolumeClaim {
+func NewPVC(ndb *v1alpha1.NdbCluster, pvcName string, pvcSpec *v1.PersistentVolumeClaimSpec) *v1.PersistentVolumeClaim {
 	// Labels for the resource
 	pvcLabels := ndb.GetCompleteLabels(map[string]string{
 		constants.ClusterResourceTypeLabel: "ndb-pvc",

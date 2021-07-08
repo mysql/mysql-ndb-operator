@@ -24,14 +24,15 @@ import (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Redundancy Level",type=string,JSONPath=`.spec.redundancyLevel`
+// +kubebuilder:resource:shortName=ndb;ndbc
 
-// Ndb is the Schema for the Ndb CRD API
-type Ndb struct {
+// NdbCluster is the Schema for the Ndb CRD API
+type NdbCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   NdbSpec   `json:"spec"`
-	Status NdbStatus `json:"status,omitempty"`
+	Spec   NdbClusterSpec   `json:"spec"`
+	Status NdbClusterStatus `json:"status,omitempty"`
 }
 
 // NdbMysqldSpec is the specification of MySQL Servers to be run as an SQL Frontend
@@ -50,8 +51,8 @@ type NdbMysqldSpec struct {
 	MyCnf string `json:"myCnf,omitempty"`
 }
 
-// NdbSpec defines the desired state of MySQL Ndb Cluster
-type NdbSpec struct {
+// NdbClusterSpec defines the desired state of MySQL Ndb Cluster
+type NdbClusterSpec struct {
 	// The number of data replicas or copies of data stored in Ndb Cluster.
 	// Supported and allowed values are 1, 2, 3, and 4.
 	// A redundancy level of 1 creates a sharded cluster providing
@@ -111,8 +112,8 @@ type NdbSpec struct {
 	Mysqld *NdbMysqldSpec `json:"mysqld,omitempty"`
 }
 
-// NdbStatus is the status for a Ndb resource
-type NdbStatus struct {
+// NdbClusterStatus is the status for a Ndb resource
+type NdbClusterStatus struct {
 	// ProcessedGeneration holds the latest generation of the
 	// Ndb resource whose specs have been successfully applied
 	// to the MySQL Cluster running inside K8s.
@@ -126,49 +127,49 @@ type NdbStatus struct {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// NdbList contains a list of Ndb resources
+// NdbClusterList contains a list of Ndb resources
 // +kubebuilder:object:root=true
-type NdbList struct {
+type NdbClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []Ndb `json:"items"`
+	Items []NdbCluster `json:"items"`
 }
 
-func (ndb *Ndb) GetLabels() map[string]string {
+func (nc *NdbCluster) GetLabels() map[string]string {
 	// Ndb main label ...
 	l := map[string]string{
-		constants.ClusterLabel: ndb.Name,
+		constants.ClusterLabel: nc.Name,
 	}
 	return l
 }
 
 // GetCompleteLabels returns a complete list of labels by merging
 // the given map of resourceLabels with the Ndb labels
-func (ndb *Ndb) GetCompleteLabels(resourceLabels map[string]string) map[string]string {
-	return labels.Merge(ndb.GetLabels(), resourceLabels)
+func (nc *NdbCluster) GetCompleteLabels(resourceLabels map[string]string) map[string]string {
+	return labels.Merge(nc.GetLabels(), resourceLabels)
 }
 
 // GetServiceName returns the Service name of a given resource
-func (ndb *Ndb) GetServiceName(resource string) string {
-	return fmt.Sprintf("%s-%s", ndb.Name, resource)
+func (nc *NdbCluster) GetServiceName(resource string) string {
+	return fmt.Sprintf("%s-%s", nc.Name, resource)
 }
 
-func (ndb *Ndb) GetConfigMapName() string {
-	return ndb.Name + "-config"
+func (nc *NdbCluster) GetConfigMapName() string {
+	return nc.Name + "-config"
 }
 
 // GetPodDisruptionBudgetName returns the PDB name of a given resource
-func (ndb *Ndb) GetPodDisruptionBudgetName(resource string) string {
-	return fmt.Sprintf("%s-pdb-%s", ndb.Name, resource)
+func (nc *NdbCluster) GetPodDisruptionBudgetName(resource string) string {
+	return fmt.Sprintf("%s-pdb-%s", nc.Name, resource)
 }
 
 // CalculateNewConfigHash Calculate a hash of the current Spec
 /* TODO - not quite clear if its deterministic
 there is no documented guarantee that reflect used in Marshal
 has a guaranteed order of fields in the struct or if e.g. compiler could change it */
-func (ndb *Ndb) CalculateNewConfigHash() (string, error) {
-	jsonNdb, err := json.Marshal(ndb.Spec)
+func (nc *NdbCluster) CalculateNewConfigHash() (string, error) {
+	jsonNdb, err := json.Marshal(nc.Spec)
 	if err != nil {
 		return "", err
 	}
@@ -181,16 +182,16 @@ func (ndb *Ndb) CalculateNewConfigHash() (string, error) {
 
 // IsConfigHashEqual calculates the new hash of the Spec and
 // compares it with the stored hash
-func (ndb *Ndb) IsConfigHashEqual() (string, bool, error) {
+func (nc *NdbCluster) IsConfigHashEqual() (string, bool, error) {
 
-	configHash, err := ndb.CalculateNewConfigHash()
+	configHash, err := nc.CalculateNewConfigHash()
 	if err != nil {
 		return "", false, err
 	}
-	if ndb.Status.ReceivedConfigHash == "" {
+	if nc.Status.ReceivedConfigHash == "" {
 		return configHash, false, nil
 	}
-	if ndb.Status.ReceivedConfigHash != configHash {
+	if nc.Status.ReceivedConfigHash != configHash {
 		return configHash, false, nil
 	}
 	return configHash, true, nil
@@ -198,8 +199,8 @@ func (ndb *Ndb) IsConfigHashEqual() (string, bool, error) {
 
 // GetManagementNodeCount returns the number of
 // management servers based on the redundancy levels
-func (ndb *Ndb) GetManagementNodeCount() int32 {
-	if ndb.Spec.RedundancyLevel == 1 {
+func (nc *NdbCluster) GetManagementNodeCount() int32 {
+	if nc.Spec.RedundancyLevel == 1 {
 		return 1
 	}
 	return 2
@@ -207,23 +208,23 @@ func (ndb *Ndb) GetManagementNodeCount() int32 {
 
 // GetMySQLServerNodeCount returns the number MySQL Servers
 // connected to the NDB Cluster as an SQL frontend
-func (ndb *Ndb) GetMySQLServerNodeCount() int32 {
-	if ndb.Spec.Mysqld == nil {
+func (nc *NdbCluster) GetMySQLServerNodeCount() int32 {
+	if nc.Spec.Mysqld == nil {
 		return 0
 	}
 
-	return ndb.Spec.Mysqld.NodeCount
+	return nc.Spec.Mysqld.NodeCount
 }
 
 // GetConnectstring returns the connect string of cluster represented by Ndb resource
-func (ndb *Ndb) GetConnectstring() string {
-	dnsZone := fmt.Sprintf("%s.svc.cluster.local", ndb.Namespace)
+func (nc *NdbCluster) GetConnectstring() string {
+	dnsZone := fmt.Sprintf("%s.svc.cluster.local", nc.Namespace)
 	port := "1186"
 
 	connectstring := ""
-	mgmdPodNamePrefix := ndb.Name + "-mgmd"
-	mgmdServiceName := ndb.GetServiceName("mgmd")
-	for i := int32(0); i < ndb.GetManagementNodeCount(); i++ {
+	mgmdPodNamePrefix := nc.Name + "-mgmd"
+	mgmdServiceName := nc.GetServiceName("mgmd")
+	for i := int32(0); i < nc.GetManagementNodeCount(); i++ {
 		if i > 0 {
 			connectstring += ","
 		}
@@ -236,21 +237,21 @@ func (ndb *Ndb) GetConnectstring() string {
 
 // GetOwnerReferences returns a slice of OwnerReferences to
 // be set to the resources owned by Ndb resource
-func (ndb *Ndb) GetOwnerReferences() []metav1.OwnerReference {
+func (nc *NdbCluster) GetOwnerReferences() []metav1.OwnerReference {
 	return []metav1.OwnerReference{
-		*metav1.NewControllerRef(ndb,
+		*metav1.NewControllerRef(nc,
 			schema.GroupVersionKind{
 				Group:   SchemeGroupVersion.Group,
 				Version: SchemeGroupVersion.Version,
-				Kind:    "Ndb",
+				Kind:    "NdbCluster",
 			})}
 }
 
 // GetMySQLCnf returns any specified additional MySQL Server cnf
-func (ndb *Ndb) GetMySQLCnf() string {
-	if ndb.Spec.Mysqld == nil {
+func (nc *NdbCluster) GetMySQLCnf() string {
+	if nc.Spec.Mysqld == nil {
 		return ""
 	}
 
-	return ndb.Spec.Mysqld.MyCnf
+	return nc.Spec.Mysqld.MyCnf
 }

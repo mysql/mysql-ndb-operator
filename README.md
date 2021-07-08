@@ -154,5 +154,5 @@ kubectl delete -f docs/examples/example-ndb.yaml
 
 You can clean up the created CustomResourceDefinition with:
 
-    kubectl delete crd ndbs.ndbcontroller.k8s.io
+    kubectl delete crd ndbclusters.ndbcontroller.k8s.io
 

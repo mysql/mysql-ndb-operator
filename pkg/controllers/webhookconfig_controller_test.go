@@ -89,7 +89,7 @@ func generateExpectedPatch(
 
 func Test_ValidatingWebhook_UpdateWebhookConfigCertificate(t *testing.T) {
 	// Create fixture and start informers
-	f := newFixture(t, &v1alpha1.Ndb{})
+	f := newFixture(t, &v1alpha1.NdbCluster{})
 	defer f.close()
 	f.start()
 

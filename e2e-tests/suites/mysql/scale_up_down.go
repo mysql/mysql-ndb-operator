@@ -23,7 +23,7 @@ var _ = ndbtest.DescribeFeature("MySQL Servers scaling up and down", func() {
 	var ns string
 	var c clientset.Interface
 	var ndbName, mysqlRootSecretName string
-	var testNdb *v1alpha1.Ndb
+	var testNdb *v1alpha1.NdbCluster
 
 	ginkgo.BeforeEach(func() {
 		ginkgo.By("extracting values from framework")

@@ -12,8 +12,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// Ndbs returns a NdbInformer.
-	Ndbs() NdbInformer
+	// NdbClusters returns a NdbClusterInformer.
+	NdbClusters() NdbClusterInformer
 }
 
 type version struct {
@@ -27,7 +27,7 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// Ndbs returns a NdbInformer.
-func (v *version) Ndbs() NdbInformer {
-	return &ndbInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// NdbClusters returns a NdbClusterInformer.
+func (v *version) NdbClusters() NdbClusterInformer {
+	return &ndbClusterInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

@@ -30,7 +30,7 @@ spec:
     path: "/mnt/data2"
 ---
 apiVersion: mysql.oracle.com/v1alpha1
-kind: Ndb
+kind: NdbCluster
 metadata:
   name: example-ndb
 spec:

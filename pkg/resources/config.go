@@ -59,7 +59,7 @@ NodeId={{$nodeId}}
 //
 // It is important to note that GetConfigString uses the Spec in its
 // actual and consistent state and does not rely on any Status field.
-func GetConfigString(ndb *v1alpha1.Ndb, oldResourceContext *ResourceContext) (string, error) {
+func GetConfigString(ndb *v1alpha1.NdbCluster, oldResourceContext *ResourceContext) (string, error) {
 
 	var (
 		// Variable that keeps track of the first free data node, mgmd node ids

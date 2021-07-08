@@ -17,7 +17,7 @@ import (
 )
 
 // IsValidConfig validates the Ndb resource and returns an ErrorList with all invalid field values
-func IsValidConfig(newNdb *ndbv1alpha1.Ndb, oldNdb *ndbv1alpha1.Ndb) field.ErrorList {
+func IsValidConfig(newNdb *ndbv1alpha1.NdbCluster, oldNdb *ndbv1alpha1.NdbCluster) field.ErrorList {
 
 	spec := newNdb.Spec
 

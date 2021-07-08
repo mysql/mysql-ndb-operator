@@ -12,7 +12,7 @@ import (
 )
 
 // NewService builds and returns a new headless or a load balancer Service for the nodes with the given nodeTypeSelector
-func NewService(ndb *v1alpha1.Ndb, port int32, nodeTypeSelector string, createLoadBalancer bool) *corev1.Service {
+func NewService(ndb *v1alpha1.NdbCluster, port int32, nodeTypeSelector string, createLoadBalancer bool) *corev1.Service {
 
 	// default headless service details
 	serviceName := ndb.GetServiceName(nodeTypeSelector)

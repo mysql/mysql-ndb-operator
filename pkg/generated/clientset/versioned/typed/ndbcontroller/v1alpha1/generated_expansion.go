@@ -6,4 +6,4 @@
 
 package v1alpha1
 
-type NdbExpansion interface{}
+type NdbClusterExpansion interface{}
