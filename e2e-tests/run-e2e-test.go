@@ -20,9 +20,11 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -82,6 +84,7 @@ type provider interface {
 	setupK8sCluster(t *testRunner) bool
 	getKubeConfig() string
 	teardownK8sCluster(t *testRunner)
+	runGinkgoTestsInsideCluster(t *testRunner) bool
 }
 
 // local implements a provider to connect to an existing K8s cluster
@@ -120,6 +123,12 @@ func (l *local) getKubeConfig() string {
 // teardownK8sCluster is a no-op for local provider
 // TODO: Maybe verify all the test resources are cleaned up here?
 func (l *local) teardownK8sCluster(*testRunner) {}
+
+// runGingoTestsInsideCluster is a no-op for local provider
+func (l *local) runGinkgoTestsInsideCluster(*testRunner) bool {
+	log.Fatal("❌ Running ginkgo tests inside cluster not supported for local provider.")
+	return false
+}
 
 // kind implements a provider to control k8s clusters in KinD
 type kind struct {
@@ -258,6 +267,73 @@ func (k *kind) isPodRunning(namespace string, podName string) (bool, error) {
 		// return false, nil by default,
 		// indicating pod is in 'Pending' phase
 		return false, nil
+}
+
+// runGinkgoTestInsideCluster runs all tests as a pod inside kind cluster
+// It returns true if tests run successfully
+func (k *kind) runGinkgoTestsInsideCluster(t *testRunner) bool {
+	e2eArtifacts := filepath.Join(t.testDir, "_config", "k8s-deployment")
+	// Build kubectl command to create kubernetes resources to run e2e-tests,
+	// using e2e artifacts
+	createE2eTestK8sResources := []string{
+		"kubectl", "apply", "-f",
+		// e2e-tests artifacts
+		e2eArtifacts,
+		// context that kubectl runs against
+		"--context=kind-ndb-e2e-test",
+		// kubeconfig
+		"--kubeconfig="+k.kubeconfig,
+	}
+	if !t.execCommand(createE2eTestK8sResources, "kubectl apply", false, true) {
+		log.Println("❌ Failed to create kubernetes resources using e2e-test artifacts")
+		return false
+	}
+
+	// Read the config from kubeconfig
+	config, err := clientcmd.BuildConfigFromFlags("", k.kubeconfig)
+	if err != nil {
+		log.Printf("❌ Error loading kubeconfig from '%s': %s", k.kubeconfig, err)
+		return false
+	}
+
+	// Create the clientset
+	k.clientset, err = kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Printf("❌ Error building kubernetes clientset: %s", err)
+		return false
+	}
+
+	// poll every second for 60 seconds to check if e2e-tests pod's are running
+	err = wait.PollImmediate(1*time.Second, 60*time.Second,
+		func() (done bool, err error) {
+			return k.isPodRunning("default", "e2e-tests")
+		})
+	if err != nil {
+		log.Printf("❌ Error running e2e-tests pod: %s", err)
+		return false
+	}
+
+	// build kubectl command to print e2e-tests pod logs onto console
+	e2eTestPodLogs := []string{
+		"kubectl", "logs", "-f",
+		// 'e2e-tests' pod
+		"e2e-tests",
+		// context that kubectl runs against
+		"--context=kind-ndb-e2e-test",
+
+		"--kubeconfig=" + k.kubeconfig,
+	}
+	if !t.execCommand(e2eTestPodLogs, "kubectl logs", false, true) {
+		log.Println("❌ Failed to get e2e-tests pod logs.")
+		return false
+	}
+
+	if !k.hasPodSucceeded("default", "e2e-tests") {
+		log.Println("❌ There are test failures!")
+		return false
+	}
+	log.Println("😊 All tests ran successfully!")
+	return true
 }
 
 // teardownK8sCluster deletes the KinD cluster
@@ -460,7 +536,14 @@ func (t *testRunner) run() {
 	}
 
 	// Run the tests
-	t.runGinkgoTests()
+	if options.inCluster {
+		// run tests as K8s pods inside kind cluster
+		log.Printf("Running tests inside cluster!")
+		p.runGinkgoTestsInsideCluster(t)
+	} else {
+		// run tests as external go application
+		t.runGinkgoTests()
+	}
 
 	// Cleanup resources and return
 	p.teardownK8sCluster(t)
