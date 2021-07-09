@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"os"
@@ -20,6 +21,8 @@ import (
 	"sync"
 	"syscall"
 
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -124,6 +127,8 @@ type kind struct {
 	kubeconfig string
 	// cluster name
 	clusterName string
+	// kubernetes clientset
+	clientset *kubernetes.Clientset
 }
 
 // newKindProvider returns a new kind provider
@@ -212,6 +217,47 @@ func (k *kind) loadImageToKindCluster(image string, t *testRunner) bool {
 // getKubeConfig returns the Kubeconfig to connect to the cluster
 func (k *kind) getKubeConfig() string {
 	return k.kubeconfig
+}
+
+// getPodPhase returns a pod's phase in a given namespace
+func (k *kind) getPodPhase(namespace string, podName string) (v1.PodPhase, error) {
+	pod, err := k.clientset.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	return pod.Status.Phase, nil
+}
+
+// hasPodSucceeded checks if a given pod in a given namespace,
+// has succeeded its execution.
+// It returns true if pod has reached 'Succeeded' phase
+func (k *kind) hasPodSucceeded(namespace string, podName string) bool {
+	podPhase, err := k.getPodPhase(namespace, podName)
+	if err != nil {
+		log.Printf("❌ Error getting '%s' pod's phase: %s", podName, err)
+		return false
+	}
+
+	if podPhase == v1.PodSucceeded  {
+		return true
+	}
+	return false
+}
+
+// isPodRunning checks if a given pod in a given namespace
+// returns true, if pod is running
+func (k *kind) isPodRunning(namespace string, podName string) (bool, error) {
+		podPhase, err := k.getPodPhase(namespace, podName)
+		if err != nil {
+			return false, err
+		}
+
+		if podPhase == v1.PodRunning {
+			return true, nil
+		}
+		// return false, nil by default,
+		// indicating pod is in 'Pending' phase
+		return false, nil
 }
 
 // teardownK8sCluster deletes the KinD cluster
