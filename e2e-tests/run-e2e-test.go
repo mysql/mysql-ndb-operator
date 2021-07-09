@@ -49,25 +49,34 @@ var (
 	kindCmd = []string{"go", "run", "sigs.k8s.io/kind"}
 )
 
+// buildKubernetesClientSetFromConfig builds a kubernetes clientset
+// returns clientset if successfully built
+func buildClientsetFromConfig(kubeconfig string) *kubernetes.Clientset {
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		log.Printf("❌ Error loading kubeconfig from '%s': %s", kubeconfig, err)
+		return nil
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Printf("❌ Error building kubernetes clientset: %s", err)
+		return nil
+	}
+	return clientset
+}
+
 // validateKubeConfig validates the config passed to --kubeconfig
 // and verifies that the K8s cluster is running
 func validateKubeConfig(kubeconfig string) bool {
-	// Read the config from kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	if err != nil {
-		log.Printf(" ❌ Error loading kubeconfig from '%s': %s", kubeconfig, err)
+	// build clientset to verify k8sversion
+	clientset := buildClientsetFromConfig(kubeconfig)
+	if clientset == nil {
 		return false
 	}
-
-	// Create the clientset
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		log.Printf(" ❌ Error creating clientset from kubeconfig at '%s': %s", kubeconfig, err)
-		return false
-	}
-
 	// Retrieve version and verify
 	var k8sVersion *version.Info
+	var err error
 	if k8sVersion, err = clientset.ServerVersion(); err != nil {
 		log.Printf(" ❌ Error finding out the version of the K8s cluster : %s", err)
 		return false
@@ -289,22 +298,14 @@ func (k *kind) runGinkgoTestsInsideCluster(t *testRunner) bool {
 		return false
 	}
 
-	// Read the config from kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", k.kubeconfig)
-	if err != nil {
-		log.Printf("❌ Error loading kubeconfig from '%s': %s", k.kubeconfig, err)
-		return false
-	}
-
-	// Create the clientset
-	k.clientset, err = kubernetes.NewForConfig(config)
-	if err != nil {
-		log.Printf("❌ Error building kubernetes clientset: %s", err)
+	// create clientset to monitor pod phases
+	k.clientset = buildClientsetFromConfig(k.kubeconfig)
+	if k.clientset == nil {
 		return false
 	}
 
 	// poll every second for 60 seconds to check if e2e-tests pod's are running
-	err = wait.PollImmediate(1*time.Second, 60*time.Second,
+	err := wait.PollImmediate(1*time.Second, 60*time.Second,
 		func() (done bool, err error) {
 			return k.isPodRunning("default", "e2e-tests")
 		})
