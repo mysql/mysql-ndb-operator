@@ -122,6 +122,8 @@ func (l *local) teardownK8sCluster(*testRunner) {}
 type kind struct {
 	// kubeconfig is the kubeconfig of the cluster
 	kubeconfig string
+	// cluster name
+	clusterName string
 }
 
 // newKindProvider returns a new kind provider
@@ -139,16 +141,37 @@ func (k *kind) setupK8sCluster(t *testRunner) bool {
 	}
 	log.Println("🐳 Docker daemon detected and accessible!")
 
+	if !k.createKindCluster(t) {
+		return false
+	}
+
+	// Load the operator docker image into cluster nodes
+	if !k.loadImageToKindCluster("mysql/ndb-operator:latest", t) {
+		return false
+	}
+
+	if options.inCluster {
+		// Load e2e-tests docker image into cluster nodes
+		if !k.loadImageToKindCluster("e2e-tests:latest", t) {
+			return false
+		}
+	}
+	return true
+}
+
+// createKindCluster creates a kind cluster 'ndb-e2e-test'
+// It returns true on success.
+func (k *kind) createKindCluster(t *testRunner) bool {
 	// custom kubeconfig
 	k.kubeconfig = filepath.Join(t.testDir, "_artifacts", ".kubeconfig")
-
+	// kind cluster name
+	k.clusterName = "ndb-e2e-test"
 	// Build KinD command and args
-	clusterName := "ndb-e2e-test"
 	kindCreateCluster := append(kindCmd,
 		// create cluster
 		"create", "cluster",
 		// cluster name
-		"--name="+clusterName,
+		"--name="+k.clusterName,
 		// kubeconfig
 		"--kubeconfig="+k.kubeconfig,
 		// k8s image to be used
@@ -163,40 +186,26 @@ func (k *kind) setupK8sCluster(t *testRunner) bool {
 		return false
 	}
 	log.Println("✅ Successfully started a KinD cluster")
+	return true
+}
 
-	// Load the operator docker image into cluster nodes
-	// kind load docker-image mysql/ndb-operator:latest --name ndb-e2e-test
-	kindLoadNdbOperatorImage := append(kindCmd,
+// loadImageToKindCluster loads docker image to kind cluster
+// It returns true on success.
+func (k *kind) loadImageToKindCluster(image string, t *testRunner) bool {
+	kindLoadImage := append(kindCmd,
 		// load docker-image
-		"load", "docker-image", "mysql/ndb-operator:latest",
+		"load", "docker-image",
+		// image name
+		image,
 		// cluster name
-		"--name="+clusterName,
+		"--name="+k.clusterName,
 	)
-
-	// Run the command to load operator image
-	if !t.execCommand(kindLoadNdbOperatorImage, "kind load docker-image", false, true) {
-		log.Println("❌ Failed to load the ndb operator image into KinD cluster")
+	// Run the command to load docker image
+	if !t.execCommand(kindLoadImage, "kind load docker-image", false, true) {
+		log.Printf("❌ Failed to load '%s' image into KinD cluster", image)
 		return false
 	}
-	log.Println("✅ Successfully loaded ndb-operator image into the KinD cluster")
-
-	if options.inCluster {
-		// Load e2e-tests docker image into cluster nodes
-		// kind load docker-image e2e-tests:latest --name ndb-e2e-test
-		kindLoadE2eTestsImage := append(kindCmd,
-			// load docker-image
-			"load", "docker-image", "e2e-tests:latest",
-			// cluster name
-			"--name="+clusterName,
-		)
-
-		// Run the command to load docker image
-		if !t.execCommand(kindLoadE2eTestsImage, "kind load docker-image", false, true) {
-			log.Println("❌ Failed to load e2e-tests image into KinD cluster")
-			return false
-		}
-		log.Println("✅ Successfully loaded e2e-tests image into the KinD cluster")
-	}
+	log.Printf("✅ Successfully loaded '%s' image into the KinD cluster", image)
 	return true
 }
 
@@ -212,7 +221,7 @@ func (k *kind) teardownK8sCluster(t *testRunner) {
 		// create cluster
 		"delete", "cluster",
 		// cluster name
-		"--name=ndb-e2e-test",
+		"--name="+k.clusterName,
 		// kubeconfig
 		"--kubeconfig="+k.kubeconfig,
 	)
