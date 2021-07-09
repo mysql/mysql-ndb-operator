@@ -29,6 +29,7 @@ import (
 var options struct {
 	useKind    bool
 	kubeconfig string
+	inCluster bool
 }
 
 // Constants for the test runner and providers
@@ -402,6 +403,9 @@ func init() {
 	defaultKubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
 	flag.StringVar(&options.kubeconfig, "kubeconfig", defaultKubeconfig,
 		"Kubeconfig of the existing K8s cluster to run tests on.\nThis will not be used if '--use-kind' is enabled.")
+
+	flag.BoolVar(&options.inCluster, "in-cluster", false,
+		"Run tests as K8s pod inside cluster.")
 }
 
 func main() {
