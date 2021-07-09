@@ -165,20 +165,38 @@ func (k *kind) setupK8sCluster(t *testRunner) bool {
 	log.Println("✅ Successfully started a KinD cluster")
 
 	// Load the operator docker image into cluster nodes
-	// kind load docker-image ndb-operator:latest --name ndb-e2e-test
+	// kind load docker-image mysql/ndb-operator:latest --name ndb-e2e-test
 	kindLoadNdbOperatorImage := append(kindCmd,
 		// load docker-image
-		"load", "docker-image", "ndb-operator:latest",
+		"load", "docker-image", "mysql/ndb-operator:latest",
 		// cluster name
 		"--name="+clusterName,
 	)
 
-	// Run the command to load the image
+	// Run the command to load operator image
 	if !t.execCommand(kindLoadNdbOperatorImage, "kind load docker-image", false, true) {
 		log.Println("❌ Failed to load the ndb operator image into KinD cluster")
 		return false
 	}
 	log.Println("✅ Successfully loaded ndb-operator image into the KinD cluster")
+
+	if options.inCluster {
+		// Load e2e-tests docker image into cluster nodes
+		// kind load docker-image e2e-tests:latest --name ndb-e2e-test
+		kindLoadE2eTestsImage := append(kindCmd,
+			// load docker-image
+			"load", "docker-image", "e2e-tests:latest",
+			// cluster name
+			"--name="+clusterName,
+		)
+
+		// Run the command to load docker image
+		if !t.execCommand(kindLoadE2eTestsImage, "kind load docker-image", false, true) {
+			log.Println("❌ Failed to load e2e-tests image into KinD cluster")
+			return false
+		}
+		log.Println("✅ Successfully loaded e2e-tests image into the KinD cluster")
+	}
 	return true
 }
 
