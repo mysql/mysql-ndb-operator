@@ -35,15 +35,15 @@ var options struct {
 	useKind    bool
 	kubeconfig string
 	inCluster bool
+	kindK8sVersion string
 }
 
-// Constants for the test runner and providers
-const (
-	// K8s image used by KinD to bring up cluster
-	// The k8s 1.20.2 image built for KinD 0.10.0 is used
-	// https://github.com/kubernetes-sigs/kind/releases/tag/v0.10.0
-	kindK8sImage = "kindest/node:v1.20.2@sha256:8f7ea6e7642c0da54f04a7ee10431549c0257315b3a634f6ef2fecaaedb19bab"
-)
+// K8s image used by KinD to bring up cluster
+// https://github.com/kubernetes-sigs/kind/releases
+var kindK8sNodeImages = map[string]string {
+	"1.19": "kindest/node:v1.19.11@sha256:7664f21f9cb6ba2264437de0eb3fe99f201db7a3ac72329547ec4373ba5f5911",
+	"1.20": "kindest/node:v1.20.7@sha256:e645428988191fc824529fd0bb5c94244c12401cf5f5ea3bd875eb0a787f0fe9",
+}
 
 var (
 	kindCmd = []string{"go", "run", "sigs.k8s.io/kind"}
@@ -189,6 +189,8 @@ func (k *kind) createKindCluster(t *testRunner) bool {
 	k.kubeconfig = filepath.Join(t.testDir, "_artifacts", ".kubeconfig")
 	// kind cluster name
 	k.clusterName = "ndb-e2e-test"
+	// KinD k8s image used to run tests
+	kindK8sNodeImage := kindK8sNodeImages[options.kindK8sVersion]
 	// Build KinD command and args
 	kindCreateCluster := append(kindCmd,
 		// create cluster
@@ -197,8 +199,8 @@ func (k *kind) createKindCluster(t *testRunner) bool {
 		"--name="+k.clusterName,
 		// kubeconfig
 		"--kubeconfig="+k.kubeconfig,
-		// k8s image to be used
-		"--image="+kindK8sImage,
+		// kind k8s node image to be used
+		"--image="+kindK8sNodeImage,
 		// cluster configuration
 		"--config="+filepath.Join(t.testDir, "_config", "kind-3-node-cluster.yaml"),
 	)
@@ -563,10 +565,32 @@ func init() {
 
 	flag.BoolVar(&options.inCluster, "in-cluster", false,
 		"Run tests as K8s pod inside cluster.")
+
+	// use v1.20 as default kind k8s version
+	flag.StringVar(&options.kindK8sVersion, "kind-k8s-version", "1.20",
+		"Kind k8s version used to run tests. Example usage: --kind-k8s-version=1.20")
+
+}
+
+// validatesCommandlineArgs validates if command line arguments,
+// have been provided acceptable values.
+// It exits program execution with status code 1 if validation fails.
+// Currently, validates only --kind-k8s-version command line argument.
+func validateCommandlineArgs() {
+	_, exists := kindK8sNodeImages[options.kindK8sVersion]
+	if !exists {
+		var supportedKindK8sVersions string
+		for key := range kindK8sNodeImages {
+			supportedKindK8sVersions += ", " + key
+		}
+		log.Printf("❌ KinD version %s not supported. Supported KinD versions are%s", options.kindK8sVersion, supportedKindK8sVersions)
+		os.Exit(1)
+	}
 }
 
 func main() {
 	flag.Parse()
+	validateCommandlineArgs()
 	t := testRunner{}
 	t.init()
 	t.run()
