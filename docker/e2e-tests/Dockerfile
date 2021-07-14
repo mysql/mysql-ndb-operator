@@ -5,7 +5,8 @@
 FROM oraclelinux:8-slim
 
 # install go
-RUN microdnf install go-toolset
+RUN echo "[main]" > /etc/dnf/dnf.conf && \
+    microdnf install go-toolset
 
 # install kubectl
 ENV KUBECTL_BASE_URL https://dl.k8s.io/release
