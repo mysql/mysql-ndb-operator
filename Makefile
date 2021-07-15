@@ -65,8 +65,8 @@ e2e:
 	go run e2e-tests/run-e2e-test.go
 
 .PHONY: e2e-kind
-e2e-kind:
-	go run e2e-tests/run-e2e-test.go --use-kind
+e2e-kind: operator-image e2e-tests-image
+	go run e2e-tests/run-e2e-test.go -use-kind -in-cluster
 
 # Run all unit tests and e2e test. Requires a minikube running
 # with the tunnel open and the operator image to be available in it
