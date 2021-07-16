@@ -355,8 +355,6 @@ func (k *kind) teardownK8sCluster(t *testRunner) {
 	t.execCommand(kindCmdAndArgs, "kind delete cluster", false, true)
 }
 
-//go run sigs.k8s.io/kind delete cluster --kubeconfig=/tmp/kubeconfig --name=ndb-e2e-test
-
 // testRunner is the struct used to run the e2e test
 type testRunner struct {
 	// testDir is the absolute path of e2e test directory
@@ -380,7 +378,7 @@ type testRunner struct {
 	runDone chan bool
 }
 
-// init sets up the the testRunner
+// init sets up the testRunner
 func (t *testRunner) init() {
 	// Update log to print only line numbers
 	log.SetFlags(log.Lshortfile)
@@ -493,7 +491,8 @@ func (t *testRunner) execCommand(
 }
 
 // runGinkgoTests runs all the tests using ginkgo
-func (t *testRunner) runGinkgoTests() {
+// It returns true if all tests ran successfully
+func (t *testRunner) runGinkgoTests() bool {
 	// The ginkgo test command
 	ginkgoTest := []string{
 		"go", "run", "github.com/onsi/ginkgo/ginkgo",
@@ -511,11 +510,16 @@ func (t *testRunner) runGinkgoTests() {
 	log.Println("🔨 Running tests using ginkgo : " + strings.Join(ginkgoTest, " "))
 	if t.execCommand(ginkgoTest, "ginkgo", false, true) {
 		log.Println("😊 All tests ran successfully!")
+		return true
 	}
+
+	log.Println("❌ There are test failures!")
+	return false
 }
 
 // run executes the complete e2e test
-func (t *testRunner) run() {
+// It returns true if all tests run successfully
+func (t *testRunner) run() bool {
 	// Choose a provider
 	var p provider
 	if options.useKind {
@@ -532,25 +536,30 @@ func (t *testRunner) run() {
 	// Setup the K8s cluster
 	if !p.setupK8sCluster(t) {
 		// Failed to setup cluster.
-		// Cleanup resources and exit.
+		// Cleanup resources and return.
 		p.teardownK8sCluster(t)
 		t.stopSignalHandler()
-		os.Exit(1)
+		return false
 	}
 
+	// testStatus is true when all tests run successfully, and
+	// false if there are any test failures
+	var testStatus bool
 	// Run the tests
 	if options.inCluster {
 		// run tests as K8s pods inside kind cluster
-		log.Printf("Running tests inside cluster!")
-		p.runGinkgoTestsInsideCluster(t)
+		log.Printf("🔨 Running tests from inside the KinD cluster")
+		testStatus = p.runGinkgoTestsInsideCluster(t)
 	} else {
 		// run tests as external go application
-		t.runGinkgoTests()
+		testStatus = t.runGinkgoTests()
 	}
 
 	// Cleanup resources and return
 	p.teardownK8sCluster(t)
 	t.stopSignalHandler()
+
+	return testStatus
 }
 
 func init() {
@@ -593,5 +602,8 @@ func main() {
 	validateCommandlineArgs()
 	t := testRunner{}
 	t.init()
-	t.run()
+	if !t.run() {
+		// exit with status code 1 on cluster setup failure or test failures
+		os.Exit(1)
+	}
 }
