@@ -11,7 +11,6 @@ import (
 	"time"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
-	apps "k8s.io/api/apps/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	coreapi "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -34,7 +33,6 @@ import (
 )
 
 var (
-	alwaysReady        = func() bool { return true }
 	noResyncPeriodFunc = func() time.Duration { return 0 }
 )
 
@@ -51,9 +49,9 @@ type fixture struct {
 	k8If kubeinformers.SharedInformerFactory
 
 	// Objects to put in the store.
-	ndbLister        []*ndbcontroller.NdbCluster
-	deploymentLister []*apps.Deployment
-	configMapLister  []*coreapi.ConfigMap
+	ndbLister []*ndbcontroller.NdbCluster
+	// deploymentLister []*apps.Deployment
+	configMapLister []*coreapi.ConfigMap
 
 	// Actions expected to happen on the client.
 	kubeactions []core.Action
@@ -132,22 +130,21 @@ func (f *fixture) newController() {
 		f.sif.Mysql().V1alpha1().NdbClusters())
 
 	for _, n := range f.ndbLister {
-		f.sif.Mysql().V1alpha1().NdbClusters().Informer().GetIndexer().Add(n)
+		if err := f.sif.Mysql().V1alpha1().NdbClusters().Informer().GetIndexer().Add(n); err != nil {
+			f.t.Fatal("Unexpected error :", err)
+		}
 	}
 
 	for _, d := range f.configMapLister {
-		f.k8If.Core().V1().ConfigMaps().Informer().GetIndexer().Add(d)
+		if err := f.k8If.Core().V1().ConfigMaps().Informer().GetIndexer().Add(d); err != nil {
+			f.t.Fatal("Unexpected error :", err)
+		}
 	}
 }
 
 func (f *fixture) run(fooName string) {
 	f.setupController(fooName, true)
 	f.runController(fooName, false, nil)
-}
-
-func (f *fixture) runExpectError(fooName string) {
-	f.setupController(fooName, true)
-	f.runController(fooName, true, nil)
 }
 
 func (f *fixture) setupController(fooName string, startInformers bool) {
@@ -409,10 +406,6 @@ func (f *fixture) expectCreateAction(ns string, group, version, resource string,
 	f.kubeactions = append(f.kubeactions, core.NewCreateAction(grpVersionResource, ns, o))
 }
 
-func (f *fixture) expectUpdateAction(ns string, resource string, o runtime.Object) {
-	f.kubeactions = append(f.kubeactions, core.NewUpdateAction(schema.GroupVersionResource{Resource: resource}, ns, o))
-}
-
 // expectPatchAction adds an expected patch action.
 // checkAction will validate the patch action and compare sent patch with the expPatch.
 // To skip the patch comparison, pass nil for expPatch
@@ -424,13 +417,6 @@ func (f *fixture) expectPatchAction(ns string, resource string, name string, pt 
 func (f *fixture) expectUpdateNdbAction(ns string, o runtime.Object) {
 	grpVersionResource := schema.GroupVersionResource{Group: "mysql.oracle.com", Version: "v1alpha1", Resource: "ndbclusters"}
 	action := core.NewUpdateAction(grpVersionResource, ns, o)
-	f.actions = append(f.actions, action)
-}
-
-func (f *fixture) expectUpdatendbclusterstatusAction(ns string, ndb *ndbcontroller.NdbCluster) {
-	grpVersionResource := schema.GroupVersionResource{Group: "mysql.oracle.com", Version: "v1alpha1", Resource: "ndbclusters"}
-	action := core.NewUpdateAction(grpVersionResource, ns, ndb)
-	// TODO: before #38113 was merged, we can't use Subresource
 	f.actions = append(f.actions, action)
 }
 

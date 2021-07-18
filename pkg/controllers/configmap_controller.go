@@ -59,33 +59,35 @@ func (rcmc *ConfigMapControl) ExtractConfig(cm *corev1.ConfigMap) (string, error
 	return resources.GetConfigFromConfigMapObject(cm)
 }
 
-// EnsureConfigMap creates a new config map if no config map for this ndb cluster exists
-// it generations the configuration file and stores it in the config map
-// EnsureConfigMap returns
-//   the config map
-//   true if it existed
-//   an error if something went wrong
-func (rcmc *ConfigMapControl) EnsureConfigMap(sc *SyncContext) (*corev1.ConfigMap, bool, error) {
+// EnsureConfigMap creates a config map for the NdbCluster resource if one does not exist already
+func (rcmc *ConfigMapControl) EnsureConfigMap(sc *SyncContext) (cm *corev1.ConfigMap, exists bool, err error) {
 
 	ndb := sc.ndb
+	configMapName := ndb.GetConfigMapName()
+	configMapInterface := rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace)
 
-	// Get the StatefulSet with the name specified in Ndb.spec, fetching from client not cache
-	cm, err := rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Get(context.TODO(), ndb.GetConfigMapName(), metav1.GetOptions{})
+	// Get the configmap with the name specified in Ndb.spec, fetching from client not cache
+	cm, err = configMapInterface.Get(context.TODO(), configMapName, metav1.GetOptions{})
 
 	if err == nil {
+		// configmap already exists
 		return cm, true, nil
 	}
 
 	if !errors.IsNotFound(err) {
+		// failed to lookup the config map
 		return nil, false, err
 	}
 
-	// If the resource doesn't exist, we'll create it
-	klog.Infof("Creating ConfigMap %s/%s", ndb.Namespace, ndb.GetConfigMapName())
-
+	// configmap doesn't exist; create it.
+	klog.Infof("Creating ConfigMap %s/%s", ndb.Namespace, configMapName)
 	cm = resources.CreateConfigMap(ndb)
-	cm, err = rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Create(context.TODO(), cm, metav1.CreateOptions{})
+	cm, err = configMapInterface.Create(context.TODO(), cm, metav1.CreateOptions{})
+	if err != nil {
+		klog.Errorf("Failed to create config map %s/%s : %s", ndb.Namespace, configMapName, err)
+	}
 
+	// success
 	return cm, false, nil
 }
 
@@ -135,11 +137,4 @@ func (rcmc *ConfigMapControl) PatchConfigMap(ndb *v1alpha1.NdbCluster, rc *resou
 	})
 
 	return result, updateErr
-}
-
-// DeleteConfigMap -
-// TODO make functions
-func (rcmc *ConfigMapControl) DeleteConfigMap(ndb *v1alpha1.NdbCluster) error {
-	panic("DeleteConfigMap not implemented yet")
-	return nil
 }

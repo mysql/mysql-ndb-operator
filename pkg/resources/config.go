@@ -101,15 +101,12 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldResourceContext *ResourceConte
 			case "mgmd":
 				startNodeId = &ndbdMgmdStartNodeId
 				numberOfNodes = ndb.GetManagementNodeCount()
-				break
 			case "ndbd":
 				startNodeId = &ndbdMgmdStartNodeId
 				numberOfNodes = ndb.Spec.NodeCount
-				break
 			case "api":
 				startNodeId = &apiStartNodeId
 				numberOfNodes = requiredNumOfAPISlots
-				break
 			default:
 				panic("Unrecognised node type")
 			}

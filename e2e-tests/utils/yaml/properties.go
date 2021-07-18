@@ -20,7 +20,6 @@ func replaceAll(values *interface{}, key string, newValue string) {
 		for _, v := range (*values).([]interface{}) {
 			replaceAll(&v, key, newValue)
 		}
-		break
 
 	case map[interface{}]interface{}:
 		valuesMap := (*values).(map[interface{}]interface{})
@@ -31,7 +30,6 @@ func replaceAll(values *interface{}, key string, newValue string) {
 				replaceAll(&v, key, newValue)
 			}
 		}
-		break
 
 	default:
 		// likely "just" the value, iteration endpoint
@@ -72,7 +70,7 @@ func ReplaceAllProperties(content string, key string, newValue string) (string, 
 		out, _ := yaml.Marshal(value)
 
 		if len(result) > 0 {
-			result += fmt.Sprintf("\n---\n")
+			result += "\n---\n"
 		}
 		result += string(out)
 	}

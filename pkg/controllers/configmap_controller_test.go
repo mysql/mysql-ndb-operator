@@ -63,7 +63,10 @@ func Test_TestThingsRelatedToConfigMaps(t *testing.T) {
 	}
 
 	var patchedCM map[string]map[string]string
-	json.Unmarshal(patchBytes, &patchedCM)
+	err = json.Unmarshal(patchBytes, &patchedCM)
+	if err != nil {
+		t.Error(err)
+	}
 
 	// Verify that patching worked as expected
 	if len(patchedCM) != 1 || len(patchedCM["data"]) != 1 ||
@@ -92,16 +95,16 @@ func validateMgmtConfig(t *testing.T, cm *corev1.ConfigMap, ndb *v1alpha1.NdbClu
 	}
 
 	// Parse the config.ini in the ConfigMap into a ConfigIni
-	config, err := helpers.ParseString(cm.Data["config.ini"])
+	cfg, err := helpers.ParseString(cm.Data["config.ini"])
 	if err != nil {
 		t.Errorf("Parsing of config.ini from config map failed: %s", err)
 		return
 	}
 
 	// Validate the number of sections
-	validateConfigIniSectionCount(t, config, "ndb_mgmd", int(ndb.GetManagementNodeCount()))
-	validateConfigIniSectionCount(t, config, "ndbd", int(ndb.Spec.NodeCount))
-	validateConfigIniSectionCount(t, config, "mysqld", int(ndb.GetMySQLServerNodeCount())+1)
+	validateConfigIniSectionCount(t, cfg, "ndb_mgmd", int(ndb.GetManagementNodeCount()))
+	validateConfigIniSectionCount(t, cfg, "ndbd", int(ndb.Spec.NodeCount))
+	validateConfigIniSectionCount(t, cfg, "mysqld", int(ndb.GetMySQLServerNodeCount())+1)
 }
 
 func TestCreateConfigMap(t *testing.T) {
@@ -126,10 +129,10 @@ func TestCreateConfigMap(t *testing.T) {
 	f.expectCreateAction(ndb.GetNamespace(), "", "v1", "configmaps", cm)
 
 	if err != nil {
-		t.Errorf("Unexpected error EnsuringConfigMap: %v", err)
+		t.Fatalf("Unexpected error EnsuringConfigMap: %v", err)
 	}
 	if cm == nil {
-		t.Errorf("Unexpected error EnsuringConfigMap: return null pointer")
+		t.Fatalf("Unexpected error EnsuringConfigMap: return null pointer")
 	}
 	if existed {
 		t.Errorf("Unexpected error EnsuringConfigMap: should not have existed")
@@ -151,6 +154,9 @@ func TestCreateConfigMap(t *testing.T) {
 	// Patch cmget and verify
 	ndb.Spec.Mysqld.NodeCount = 12
 	patchedCm, err := cmc.PatchConfigMap(ndb, nil)
+	if err != nil {
+		t.Fatal("Unexpected error patching config map :", err)
+	}
 	// Passing nil as expected patch to skip comparing the expected and original patches
 	f.expectPatchAction(ndb.GetNamespace(), "configmaps",
 		cm.GetName(), types.StrategicMergePatchType, nil)

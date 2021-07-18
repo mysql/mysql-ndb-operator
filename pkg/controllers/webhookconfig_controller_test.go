@@ -76,12 +76,12 @@ func generateExpectedPatch(
 	// Generate the patch for the change
 	patch, err := json.Marshal(diff)
 	if err != nil {
-		t.Error("Failed to marshal diff : ", err)
+		t.Fatal("Failed to marshal diff :", err)
 	}
 
 	// Re-marshal to sort all the json keys
 	var ifce interface{}
-	json.Unmarshal(patch, &ifce)
+	_ = json.Unmarshal(patch, &ifce)
 	patch, _ = json.Marshal(ifce)
 
 	return patch

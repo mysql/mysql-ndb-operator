@@ -174,7 +174,10 @@ func (nc *NdbCluster) CalculateNewConfigHash() (string, error) {
 		return "", err
 	}
 	hash := md5.New()
-	io.WriteString(hash, string(jsonNdb))
+	_, err = io.WriteString(hash, string(jsonNdb))
+	if err != nil {
+		return "", err
+	}
 	h := hash.Sum(nil)
 
 	return base64.StdEncoding.EncodeToString(h), nil
