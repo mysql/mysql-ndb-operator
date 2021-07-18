@@ -27,15 +27,11 @@ type NdbError struct {
 	// code is the unique error identifying number
 	code int
 
-	// reason is the description of why this bug occurs - e.g. illegal config
+	// reason is the machine-readable description of why this error occurred.
 	reason string
 
-	// details is the message given to the user / ui / log
-	// e.g. number of nodes configured does not fit level of reduncancy
+	// details is the human-readable description of the error.
 	details string
-
-	// mitigation gives a possibly counter measure to fix the problem
-	mitigation string
 }
 
 // Ensure that NdbError implements error interface

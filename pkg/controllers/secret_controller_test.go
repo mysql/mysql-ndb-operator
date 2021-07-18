@@ -43,7 +43,7 @@ func TestMysqlRootPasswordSecretInterface_EnsureSecret(t *testing.T) {
 	customSecretName := "custom-mysqld-root-password"
 	ndb.Spec.Mysqld.RootPasswordSecretName = customSecretName
 	// Ensuring should fail
-	secret, err = sci.EnsureSecret(context.TODO(), ndb)
+	_, err = sci.EnsureSecret(context.TODO(), ndb)
 	if err == nil {
 		t.Errorf("Expected '%s' secret not found error but got no error", customSecretName)
 	} else if !errors.IsNotFound(err) {

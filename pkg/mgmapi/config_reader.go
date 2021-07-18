@@ -65,11 +65,11 @@ const (
 
 // Config entry value types used by readEntry
 const (
-	CfgEntryTypeInvalid = 0
-	CfgEntryTypeInt     = 1
-	CfgEntryTypeString  = 2
-	CfgEntryTypeSection = 3
-	CfgEntryTypeInt64   = 4
+	// CfgEntryTypeInvalid = 0
+	CfgEntryTypeInt    = 1
+	CfgEntryTypeString = 2
+	// CfgEntryTypeSection = 3
+	CfgEntryTypeInt64 = 4
 )
 
 // readEntry reads an entry from the data at the current offset
@@ -106,13 +106,13 @@ func (cr *configReader) readEntry() (uint32, configValue) {
 type cfgSectionType int
 
 const (
-	cfgSectionTypeInvalid cfgSectionType = iota
-	cfgSectionTypeNDB
-	cfgSectionTypeAPI
-	cfgSectionTypeMGM
-	cfgSectionTypeTCP
-	cfgSectionTypeSHM
-	cfgSectionTypeSystem
+	// cfgSectionTypeInvalid cfgSectionType = 0
+	cfgSectionTypeNDB cfgSectionType = 1
+	// cfgSectionTypeAPI cfgSectionType = 2
+	cfgSectionTypeMGM cfgSectionType = 3
+	// cfgSectionTypeTCP cfgSectionType = 4
+	// cfgSectionTypeSHM cfgSectionType = 5
+	cfgSectionTypeSystem cfgSectionType = 6
 )
 
 // readEntryFromSection reads a section from the config and extracts

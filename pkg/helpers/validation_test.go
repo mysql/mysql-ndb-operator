@@ -105,7 +105,7 @@ func Test_InvalidValues(t *testing.T) {
 
 		var oldNdb *v1alpha1.NdbCluster
 		if vc.oldSpec != nil {
-			oldNdb = &v1alpha1.NdbCluster	{
+			oldNdb = &v1alpha1.NdbCluster{
 				Spec: *vc.oldSpec,
 			}
 		}

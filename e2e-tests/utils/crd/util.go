@@ -35,11 +35,10 @@ func NewTestNdbCrd(namespace string, name string, datanodes, replicas, mysqlnode
 }
 
 func LoadClientset() (*ndbclientset.Clientset, error) {
-
 	config, err := framework.LoadConfig()
 	if err != nil {
 		return nil, fmt.Errorf("error creating ndb client: %v", err.Error())
 	}
-	ndbc, err := ndbclientset.NewForConfig(config)
+	ndbc, _ := ndbclientset.NewForConfig(config)
 	return ndbc, nil
 }
