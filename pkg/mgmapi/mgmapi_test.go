@@ -112,7 +112,7 @@ func TestMgmClientImpl_sendCommand(t *testing.T) {
 // parseReplyAndExpectToFail calls parseReply on a reply with
 // wrong format and verifies that it either panics or fails.
 func parseReplyAndExpectToFail(
-	t *testing.T, mci *mgmClientImpl, desc, command string, reply []byte,
+	t *testing.T, mci *mgmClientImpl, desc string, reply []byte,
 	expectedDetails []string, expectedError string) {
 
 	// the function is expected to panic in debug builds
@@ -123,7 +123,7 @@ func parseReplyAndExpectToFail(
 		}
 	}()
 
-	values, err := mci.parseReply(command, reply, expectedDetails)
+	values, err := mci.parseReply(reply, expectedDetails)
 	if err != nil {
 		if !strings.Contains(err.Error(), expectedError) {
 			t.Errorf("parseReply with '%s' failed with unexpected error : %s", desc, err)
@@ -194,12 +194,11 @@ func TestMgmClientImpl_parseReply(t *testing.T) {
 		if reply == nil {
 			reply = getSessionReply
 		}
-		parseReplyAndExpectToFail(t, mci, tc.desc, tc.command, reply, tc.expectedDetails, tc.expectedError)
+		parseReplyAndExpectToFail(t, mci, tc.desc, reply, tc.expectedDetails, tc.expectedError)
 	}
 
 	// test successful parsing
-	values, err := mci.parseReply(
-		"get session", getSessionReply,
+	values, err := mci.parseReply(getSessionReply,
 		[]string{"get session reply", "id", "m_stopSelf", "m_stop"})
 	if err != nil {
 		t.Errorf("expected parseReply to succeed but failed. error : %s", err)
