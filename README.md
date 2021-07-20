@@ -1,9 +1,8 @@
 # ndb-operator
 
-This repository implements a simple controller for watching Ndb resources as
-defined with a CustomResourceDefinition (CRD). 
+The MySQL NDB Operator is a Kubernetes operator for managing a MySQL Cluster setup inside a Kubernetes Cluster.
 
-This is in preview state - mostly prototyping for testing concepts.
+This is in preview state - DO NOT USE FOR PRODUCTION.
 
 ## License
 
@@ -50,6 +49,8 @@ To build the ndb-operator run,
 # Build ndb-operator 
 make build
 ```
+
+By default the operator is built in release mode. It is also possible to build the operator in debug mode by setting WITH_DEBUG environment variable to 1/ON. The debug mode can be more useful during development.
 
 Once the operator is built, a docker image can be built by running,
 

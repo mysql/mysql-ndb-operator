@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"k8s.io/klog"
+
+	"github.com/mysql/ndb-operator/config/debug"
 )
 
 // MgmClient defines an interface that communicates with MySQL Cluster.
@@ -47,7 +49,7 @@ func NewMgmClient(connectstring string, desiredNodeId ...int) (*mgmClientImpl, e
 		// connect to the given desired nodeId
 		err = client.connectToNodeId(connectstring, desiredNodeId[0])
 	default:
-		panic("wrong usage of optional desiredNodeId parameter")
+		err = debug.InternalError("wrong usage of optional desiredNodeId parameter")
 	}
 
 	if err != nil {
@@ -156,7 +158,7 @@ func (mci *mgmClientImpl) sendCommand(
 	command string, args map[string]interface{}, slowCommand bool) ([]byte, error) {
 
 	if mci.connection == nil {
-		panic("MgmClient is not connected to Management server")
+		return nil, debug.InternalError("MgmClient is not connected to Management server")
 	}
 
 	// Build the command and args
@@ -233,8 +235,7 @@ func (mci *mgmClientImpl) parseReply(
 	scanner := bufio.NewScanner(bytes.NewReader(reply))
 
 	// read and verify the header
-	// note : most parse errors are development errors.
-	//        so, panic to help faster debugging
+	// note : most parse errors are development errors, so panic in debug builds
 	if scanner.Scan() {
 		header := scanner.Text()
 
@@ -247,18 +248,18 @@ func (mci *mgmClientImpl) parseReply(
 		} {
 			if strings.HasPrefix(header, "result: "+err) {
 				// protocol usage error
-				panic("sendCommand failed : " + err)
+				return nil, debug.InternalError("sendCommand failed : " + err)
 			}
 		}
 
 		// check if it has the expected reply header
 		if len(expectedReplyDetails) == 0 {
-			panic("expectedReplyDetails is empty")
+			return nil, debug.InternalError("expectedReplyDetails is empty")
 		}
 		if header != expectedReplyDetails[0] {
 			klog.Errorf("Expected header : %s, Actual header : %s",
 				expectedReplyDetails[0], header)
-			panic("unexpected header in reply")
+			return nil, debug.InternalError("unexpected header in reply")
 		}
 	}
 
@@ -298,7 +299,7 @@ func (mci *mgmClientImpl) parseReply(
 			// Usage issue or MySQL Cluster has updated its wire protocol.
 			// In any case, panic to bring in early attention.
 			klog.Error("reply has unexpected format : ", replyLine)
-			panic("missing colon(:) in reply detail")
+			return nil, debug.InternalError("missing colon(:) in reply detail")
 		}
 
 		// store it
@@ -325,7 +326,7 @@ func (mci *mgmClientImpl) parseReply(
 		if _, exists := replyDetails[expectedDetail]; !exists {
 			// expected detail not present
 			klog.Errorf("Expected detail '%s' not found in reply", expectedDetail)
-			panic("expected detail not found in reply")
+			return nil, debug.InternalError("expected detail not found in reply")
 		}
 	}
 
@@ -401,7 +402,7 @@ func (mci *mgmClientImpl) GetStatus() (ClusterStatus, error) {
 	nodeCount, err := strconv.Atoi(reply["nodes"])
 	if err != nil {
 		klog.Error("failed to parse nodes value in node status reply : ", err)
-		panic("'nodes' value in node status reply unexpected format")
+		return nil, debug.InternalError("'nodes' value in node status reply unexpected format")
 	}
 	delete(reply, "nodes")
 
@@ -411,13 +412,13 @@ func (mci *mgmClientImpl) GetStatus() (ClusterStatus, error) {
 		// the key is of form node.3.version
 		keyTokens := strings.SplitN(aggregateKey, ".", 3)
 		if len(keyTokens) != 3 || keyTokens[0] != "node" {
-			panic("node status reply has unexpected format")
+			return nil, debug.InternalError("node status reply has unexpected format")
 		}
 
 		// extract node id and the actual key
 		nodeId, err := strconv.Atoi(keyTokens[1])
 		if err != nil {
-			panic("node status reply has unexpected format")
+			return nil, debug.InternalError("node status reply has unexpected format")
 		}
 		key := keyTokens[2]
 
@@ -450,14 +451,14 @@ func (mci *mgmClientImpl) GetStatus() (ClusterStatus, error) {
 					nodeGroupKey := fmt.Sprintf("node.%d.node_group", nodeId)
 					ns.NodeGroup, err = strconv.Atoi(reply[nodeGroupKey])
 					if err != nil {
-						panic("node_group in node status reply has unexpected format")
+						return nil, debug.InternalError("node_group in node status reply has unexpected format")
 					}
 				} else {
 					// NodeGroup is not set in reply as the node is not connected yet.
 					// Retrieve the NodeGroup using 'get config' command
 					nodeGroupValue, err := mci.getConfig(nodeId, cfgSectionTypeNDB, dbCfgNodegroup, true)
 					if err != nil {
-						panic("node_group was not found in data node config " + keyTokens[1])
+						return nil, debug.InternalError("node_group was not found in data node config " + keyTokens[1])
 					}
 					ns.NodeGroup = int(nodeGroupValue.(uint32))
 				}
@@ -466,7 +467,7 @@ func (mci *mgmClientImpl) GetStatus() (ClusterStatus, error) {
 		case "version":
 			versionNumber, err := strconv.Atoi(value)
 			if err != nil {
-				panic("version in node status reply has unexpected format")
+				return nil, debug.InternalError("version in node status reply has unexpected format")
 			}
 			ns.SoftwareVersion = getMySQLVersionString(versionNumber)
 		}
@@ -586,10 +587,15 @@ func (mci *mgmClientImpl) getConfig(
 
 	if reply["Content-Type"] != "ndbconfig/octet-stream" ||
 		reply["Content-Transfer-Encoding"] != "base64" {
-		panic("unexpected content in get config reply")
+		return nil, debug.InternalError("unexpected content in get config reply")
 	}
 
-	return readConfigFromBase64EncodedData(reply["config"], sectionFilter, uint32(nodeId), configKey), nil
+	value := readConfigFromBase64EncodedData(reply["config"], sectionFilter, uint32(nodeId), configKey)
+	if value == nil {
+		return nil, debug.InternalError("getConfig failed")
+	}
+
+	return value, nil
 }
 
 // GetConfigVersion returns the config version of the node with nodeId. If nodeId
@@ -602,7 +608,7 @@ func (mci *mgmClientImpl) GetConfigVersion(nodeId ...int) (uint32, error) {
 
 	if len(nodeId) > 1 {
 		// nodeId is meant to be an optional argument and not var args
-		panic("wrong usage of GetConfigVersion arguments")
+		return 0, debug.InternalError("wrong usage of GetConfigVersion arguments")
 	}
 
 	value, err := mci.getConfig(fromNodeId, cfgSectionTypeSystem, sysCfgConfigGenerationNumber, false)

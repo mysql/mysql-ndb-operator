@@ -4,7 +4,10 @@
 
 package mgmapi
 
-import "sort"
+import (
+	"github.com/mysql/ndb-operator/config/debug"
+	"sort"
+)
 
 // NodeTypeEnum identifies the node type used in NodeStatus object
 // there are more types defined in c-code, but they are not used here
@@ -28,7 +31,8 @@ func (t NodeTypeEnum) toString() string {
 	case NodeTypeAPI:
 		return "API"
 	default:
-		panic("unrecognized node type")
+		debug.Panic("unrecognized node type")
+		return ""
 	}
 }
 
@@ -74,7 +78,7 @@ func (ns *NodeStatus) setNodeTypeFromTLA(TLA string) {
 	case "API":
 		ns.NodeType = NodeTypeAPI
 	default:
-		panic("unsupported node type : " + TLA)
+		debug.Panic("unsupported node type : " + TLA)
 	}
 }
 
@@ -144,7 +148,8 @@ func (cs ClusterStatus) GetNodesGroupedByNodegroup() [][]int {
 		}
 		if !node.IsConnected {
 			// data node not connected
-			panic("should be called only when the cluster is healthy")
+			debug.Panic("should be called only when the cluster is healthy")
+			return nil
 		}
 		nodegroup := node.NodeGroup
 		if nodegroup == 65536 || nodegroup == -256 {

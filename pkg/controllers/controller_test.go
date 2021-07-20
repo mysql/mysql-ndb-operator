@@ -491,9 +491,4 @@ func TestCreatesCluster(t *testing.T) {
 	//f.expectUpdateNdbStatusAction(ns, ndb)
 
 	f.run(getKey(ndb, t))
-
-	// run again;
-	// only error allowed is "connection refused" as mgmd is not running
-	expectedErrors := []string{"connection refused"}
-	f.runController(getKey(ndb, t), true, expectedErrors)
 }

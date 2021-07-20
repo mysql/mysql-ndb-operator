@@ -109,22 +109,28 @@ func TestMgmClientImpl_sendCommand(t *testing.T) {
 	}
 }
 
-// parseReplyAndExpectToPanic calls parseReply on a reply with
-// wrong format and verifies that it panics.
-func parseReplyAndExpectToPanic(
+// parseReplyAndExpectToFail calls parseReply on a reply with
+// wrong format and verifies that it either panics or fails.
+func parseReplyAndExpectToFail(
 	t *testing.T, mci *mgmClientImpl, desc, command string, reply []byte,
 	expectedDetails []string, expectedError string) {
 
-	// the function is expected to panic
+	// the function is expected to panic in debug builds
 	defer func() {
 		err := recover()
-		if err != nil && err != expectedError {
+		if err != nil && !strings.Contains(err.(string), expectedError) {
 			t.Errorf("parseReply with '%s' panicked with unexpected error : %s", desc, err)
 		}
 	}()
 
-	values, _ := mci.parseReply(command, reply, expectedDetails)
-	t.Errorf("expected parseReply with '%s' to panic but succeeded. values : %#v", desc, values)
+	values, err := mci.parseReply(command, reply, expectedDetails)
+	if err != nil {
+		if !strings.Contains(err.Error(), expectedError) {
+			t.Errorf("parseReply with '%s' failed with unexpected error : %s", desc, err)
+		}
+	} else {
+		t.Errorf("expected parseReply with '%s' to fail but succeeded. values : %#v", desc, values)
+	}
 }
 
 func TestMgmClientImpl_parseReply(t *testing.T) {
@@ -188,7 +194,7 @@ func TestMgmClientImpl_parseReply(t *testing.T) {
 		if reply == nil {
 			reply = getSessionReply
 		}
-		parseReplyAndExpectToPanic(t, mci, tc.desc, tc.command, reply, tc.expectedDetails, tc.expectedError)
+		parseReplyAndExpectToFail(t, mci, tc.desc, tc.command, reply, tc.expectedDetails, tc.expectedError)
 	}
 
 	// test successful parsing
@@ -221,7 +227,7 @@ func executeCommandAndExpectToFail(
 	// the function is expected to panic
 	defer func() {
 		err := recover()
-		if err != nil && err != expectedError {
+		if err != nil && !strings.Contains(err.(string), expectedError) {
 			t.Errorf("executeCommand with '%s' panicked with unexpected error : %s", desc, err)
 		}
 	}()
@@ -229,7 +235,7 @@ func executeCommandAndExpectToFail(
 	// test the command
 	reply, err := mci.executeCommand(command, args, false, expectedReplyDetails)
 	if err != nil {
-		if err.Error() != expectedError {
+		if !strings.Contains(err.Error(), expectedError) {
 			t.Errorf("executeCommand with '%s' failed with unexpected error : %s", desc, err)
 		}
 	} else {
@@ -382,7 +388,10 @@ func TestMgmClientImpl_StopNodes(t *testing.T) {
 		return
 	}
 
-	if err := mci.StopNodes([]int{dataNodeId}); err != nil {
+	err := mci.StopNodes([]int{dataNodeId})
+	// Allow 'Node shutdown would cause system crash' error
+	if err != nil &&
+		!strings.Contains(err.Error(), "Node shutdown would cause system crash") {
 		t.Errorf("stop failed : %s\n", err)
 		return
 	}

@@ -7,6 +7,7 @@ package mgmapi
 import (
 	"encoding/base64"
 	"encoding/binary"
+	"github.com/mysql/ndb-operator/config/debug"
 )
 
 type configValue interface{}
@@ -29,7 +30,8 @@ func getNewConfigReader(base64EncodedData string) *configReader {
 	// decode the string
 	decodedData, err := base64.StdEncoding.DecodeString(base64EncodedData)
 	if err != nil {
-		panic("failed to decode config string : " + err.Error())
+		debug.Panic("failed to decode config string : " + err.Error())
+		return nil
 	}
 
 	return &configReader{data: decodedData}
@@ -44,11 +46,11 @@ func (cr *configReader) readUint32() uint32 {
 
 // readString reads a string from the data at the current offset
 func (cr *configReader) readString() string {
-	// Extract the length of the string first - null character
-	// is present at the end and should not be read.
-	strLen := cr.readUint32() - 1
-	//
-	s := string(cr.data[cr.offset : cr.offset+strLen])
+	// Extract the length of the string
+	strLen := cr.readUint32()
+	// Extract the string.
+	// Null character is present at the end and should not be read.
+	s := string(cr.data[cr.offset : cr.offset+strLen-1])
 	// update offset
 	strLen = strLen + ((4 - (strLen & 3)) & 3)
 	cr.offset += strLen
@@ -97,6 +99,8 @@ func (cr *configReader) readEntry() (uint32, configValue) {
 		{
 			value = cr.readString()
 		}
+	default:
+		debug.Panic("unsupported keyType in readEntry()")
 	}
 
 	return key, value
@@ -172,10 +176,11 @@ func (cr *configReader) readEntryFromSection(
 	// Node Section
 	sectionNodeId := configValues[nodeCfgNodeId]
 	if sectionNodeId == nil {
-		panic("nodeId not found in section")
+		debug.Panic("nodeId not found in section")
+		return true
 	}
 
-	if nodeIdFilter != 0 && nodeIdFilter != sectionNodeId {
+	if nodeIdFilter != 0 && nodeIdFilter != sectionNodeId.(uint32) {
 		// Caller not interested in this node
 		return false
 	}
@@ -220,9 +225,10 @@ func (cr *configReader) readConfig(sectionTypeFilter cfgSectionType, fromNodeId,
 
 	cr.totalLengthInWords = cr.readUint32()
 	cr.version = cr.readUint32()
-	// panic if the version is not what we expect
+	// configReader can handle only version 2
 	if cr.version != 2 {
-		panic("unexpected version in get config reply")
+		debug.Panic("unexpected version in get config reply")
+		return nil
 	}
 
 	cr.numOfDefaultSections = cr.readUint32()
@@ -264,7 +270,8 @@ func (cr *configReader) readConfig(sectionTypeFilter cfgSectionType, fromNodeId,
 	}
 
 	// control should never reach here if the method is used right
-	panic("failed to find the desired config key")
+	debug.Panic("failed to find the desired config key")
+	return nil
 }
 
 // readConfigFromBase64EncodedData extracts and returns the config value
@@ -273,5 +280,9 @@ func readConfigFromBase64EncodedData(
 	base64EncodedData string, sectionTypeFilter cfgSectionType, fromNodeId, configKey uint32) configValue {
 	// create a config reader and read the data
 	cr := getNewConfigReader(base64EncodedData)
+	if cr == nil {
+		return nil
+	}
+
 	return cr.readConfig(sectionTypeFilter, fromNodeId, configKey)
 }
