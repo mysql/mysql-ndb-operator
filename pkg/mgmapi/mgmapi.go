@@ -230,7 +230,7 @@ func (mci *mgmClientImpl) sendCommand(
 // cases to use executeCommand rather than directly calling
 // sendCommand and parseReply
 func (mci *mgmClientImpl) parseReply(
-	command string, reply []byte, expectedReplyDetails []string) (map[string]string, error) {
+	reply []byte, expectedReplyDetails []string) (map[string]string, error) {
 	// create a scanner and start parsing reply
 	scanner := bufio.NewScanner(bytes.NewReader(reply))
 
@@ -345,7 +345,7 @@ func (mci *mgmClientImpl) executeCommand(
 	}
 
 	// parse the reply and return
-	return mci.parseReply(command, reply, expectedReplyDetails)
+	return mci.parseReply(reply, expectedReplyDetails)
 }
 
 // getConnectedMgmdNodeId returns the nodeId of the mgmd
