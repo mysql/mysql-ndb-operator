@@ -5,7 +5,7 @@
 package mgmapi
 
 // Config parameters with the same ids as specified in
-// storage/ndb/include/mgmapi/mgmapi_config_parematers.h
+// storage/ndb/include/mgmapi/mgmapi_config_parameters.h
 // in MySQL Cluster source code.
 
 // System config param ids

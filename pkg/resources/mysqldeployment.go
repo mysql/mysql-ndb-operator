@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mysql/ndb-operator/config/debug"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
@@ -232,10 +233,15 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.NdbCluster, oldC
 		"--datadir="+mysqldDataDir,
 		// Disable binlogging as these MySQL Servers won't be acting as replication sources
 		"--skip-log-bin",
-		// Enable maximum verbosity for development debugging
-		"--ndb-extra-logging=99",
-		"--log-error-verbosity=3",
 	)
+
+	if debug.Enabled {
+		args = append(args,
+			// Enable maximum verbosity for development debugging
+			"--ndb-extra-logging=99",
+			"--log-error-verbosity=3",
+		)
+	}
 
 	entryPointArgs := strings.Join(args, " ")
 

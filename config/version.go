@@ -4,6 +4,8 @@
 
 package config
 
+import "github.com/mysql/ndb-operator/config/debug"
+
 var version string
 var gitCommit string
 
@@ -12,5 +14,10 @@ func GetBuildVersion() string {
 	if version == "" || gitCommit == "" {
 		panic("version or git commit was not set during build")
 	}
-	return version + "-" + gitCommit
+	buildVersion := version + "-" + gitCommit
+	if debug.Enabled {
+		buildVersion += "-debug"
+	}
+
+	return buildVersion
 }

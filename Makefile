@@ -10,6 +10,9 @@
 ARCH ?= amd64
 OS   ?= linux
 
+# Set this to 1 or ON to build operator in debug mode
+WITH_DEBUG ?= OFF
+
 # End of configurable variables
 
 .PHONY: all
@@ -32,7 +35,7 @@ manifests: $(INSTALL_ARTIFACT)
 
 .PHONY: build
 build: manifests
-	ARCH=$(ARCH) OS=$(OS) ./hack/build.sh
+	ARCH=$(ARCH) OS=$(OS) WITH_DEBUG=$(WITH_DEBUG) ./hack/build.sh
 
 .PHONY: run
 run:
@@ -57,7 +60,7 @@ e2e-tests-image:
 
 .PHONY: unit-test
 unit-test:
-	go test -v --count=1 ./pkg/...
+	go test -tags debug -v --count=1 ./pkg/...
 
 # Run e2e tests against a local K8s Cluster
 .PHONY: e2e
