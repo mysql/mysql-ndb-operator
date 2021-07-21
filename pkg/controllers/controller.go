@@ -34,7 +34,6 @@ import (
 	"k8s.io/klog"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/mysql/ndb-operator/pkg/constants"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	ndbscheme "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/scheme"
 	ndbinformers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
@@ -266,45 +265,6 @@ func NewController(
 				klog.Infof("Unkown deleted object ignored")
 			}
 		},
-	})
-
-	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			pod := obj.(*corev1.Pod)
-			ls := labels.Set(pod.Labels)
-			if !ls.Has(constants.ClusterLabel) {
-				return
-			}
-			//s, _ := json.MarshalIndent(pod.Status, "", "  ")
-			//klog.Infof("%s", string(s))
-			klog.Infof("pod new %s: phase= %s, ip=%s", pod.Name, pod.Status.Phase, pod.Status.PodIP)
-		},
-		UpdateFunc: func(old, new interface{}) {
-			newPod := new.(*corev1.Pod)
-			ls := labels.Set(newPod.Labels)
-			if !ls.Has(constants.ClusterLabel) {
-				return
-			}
-
-			//oldPod := old.(*corev1.Pod)
-			//s, _ := json.MarshalIndent(newPod.Status, "", "  ")
-			klog.Infof("pod upd %s: phase= %s, ip=%s", newPod.Name, newPod.Status.Phase, newPod.Status.PodIP)
-		},
-		DeleteFunc: func(obj interface{}) {
-		},
-	})
-
-	statefulSetInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: controller.handleObject,
-		UpdateFunc: func(old, new interface{}) {
-			newStatefulSet := new.(*appsv1.StatefulSet)
-			oldStatefulSet := old.(*appsv1.StatefulSet)
-			if newStatefulSet.ResourceVersion == oldStatefulSet.ResourceVersion {
-				return
-			}
-			controller.handleObject(new)
-		},
-		DeleteFunc: controller.handleObject,
 	})
 
 	return controller
@@ -1307,47 +1267,4 @@ func (c *Controller) enqueueNdb(obj interface{}) {
 	}
 	klog.Infof("Processing Ndb: %s", key)
 	c.workqueue.Add(key)
-}
-
-/*
-   handleObject will take any resource implementing metav1.Object and attempt
-   to find the Ndb resource that 'owns' it. It does this by looking at the
-   objects metadata.ownerReferences field for an appropriate OwnerReference.
-   It then enqueues that Foo resource to be processed. If the object does not
-   have an appropriate OwnerReference, it will simply be skipped.
-*/
-func (c *Controller) handleObject(obj interface{}) {
-	var object metav1.Object
-	var ok bool
-	if object, ok = obj.(metav1.Object); !ok {
-		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			utilruntime.HandleError(fmt.Errorf("error decoding object, invalid type"))
-			return
-		}
-		object, ok = tombstone.Obj.(metav1.Object)
-		if !ok {
-			utilruntime.HandleError(fmt.Errorf("error decoding object tombstone, invalid type"))
-			return
-		}
-		klog.V(4).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
-	}
-	klog.Infof("Processing object: %s", object.GetName())
-	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
-		// If this object is not owned by a Ndb, we should not do anything more
-		// with it.
-		if ownerRef.Kind != "NdbCluster" {
-			return
-		}
-
-		ndb, err := c.ndbsLister.NdbClusters(object.GetNamespace()).Get(ownerRef.Name)
-		if err != nil {
-			klog.Infof("ignoring orphaned object '%s' of ndb '%s'", object.GetSelfLink(), ownerRef.Name)
-			return
-		}
-
-		klog.Infof("Ignoring object: %s", ndb.GetName())
-		//c.enqueueNdb(ndb)
-		return
-	}
 }
