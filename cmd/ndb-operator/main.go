@@ -61,7 +61,7 @@ func main() {
 	k8If := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	ndbOpIf := informers.NewSharedInformerFactory(ndbClient, time.Second*30)
 
-	ctx := controllers.NewControllerContext(kubeClient, ndbClient, runningInsideK8s)
+	ctx := controllers.NewControllerContext(kubeClient, ndbClient, runningInsideK8s, config.WatchNamespace)
 
 	controller := controllers.NewController(
 		ctx,

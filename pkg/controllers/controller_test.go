@@ -120,7 +120,7 @@ func (f *fixture) close() {
 
 func (f *fixture) newController() {
 
-	cc := NewControllerContext(f.kubeclient, f.client, false)
+	cc := NewControllerContext(f.kubeclient, f.client, false, "")
 	f.c = NewController(cc,
 		f.k8If.Apps().V1().StatefulSets(),
 		f.k8If.Apps().V1().Deployments(),
