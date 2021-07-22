@@ -13,7 +13,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -86,6 +85,10 @@ type ControllerContext struct {
 
 	// runningInsideK8s is set to true if the operator is running inside a K8s cluster.
 	runningInsideK8s bool
+
+	// scope information of the operator
+	namespaceScoped bool
+	watchNamespace  string
 }
 
 // SyncContext stores all information collected in/for a single run of syncHandler
@@ -160,16 +163,41 @@ type Controller struct {
 	recorder events.EventRecorder
 }
 
+// skipHandlingNdbCluster returns true if the controller doesn't
+// have to handle the changes made to the given NdbCluster object.
+func (c *Controller) skipHandlingNdbCluster(nc *v1alpha1.NdbCluster) (skip bool) {
+	if c.controllerContext.namespaceScoped &&
+		c.controllerContext.watchNamespace != nc.Namespace {
+		// operator is namespace scoped and the current NdbCluster
+		// resource was created in a different namespace.
+		return true
+	}
+
+	return false
+}
+
+// getNdbClusterKey returns a key for the
+// given NdbCluster of form <namespace>/<name>.
+func (c *Controller) getNdbClusterKey(nc *v1alpha1.NdbCluster) string {
+	return nc.Namespace + "/" + nc.Name
+}
+
 // NewControllerContext returns a new controller context object
 func NewControllerContext(
 	kubeclient kubernetes.Interface,
 	ndbclient ndbclientset.Interface,
 	runningInsideK8s bool,
+	watchNamesapce string,
 ) *ControllerContext {
 	ctx := &ControllerContext{
 		kubeClientset:    kubeclient,
 		ndbClientset:     ndbclient,
 		runningInsideK8s: runningInsideK8s,
+	}
+
+	if watchNamesapce != "" {
+		ctx.namespaceScoped = true
+		ctx.watchNamespace = watchNamesapce
 	}
 
 	return ctx
@@ -221,49 +249,63 @@ func NewController(
 		recorder:                recorder,
 	}
 
+	// Set up event handler for NdbCluster resource changes
 	klog.Info("Setting up event handlers")
-	// Set up an event handler for when Ndb resources change
 	ndbInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: controller.enqueueNdb,
+
+		AddFunc: func(obj interface{}) {
+			ndb := obj.(*v1alpha1.NdbCluster)
+			if controller.skipHandlingNdbCluster(ndb) {
+				return
+			}
+			ndbKey := controller.getNdbClusterKey(ndb)
+			klog.Infof("New NdbCluster resource added : %s", ndbKey)
+			controller.workqueue.Add(ndbKey)
+		},
+
 		UpdateFunc: func(old, new interface{}) {
 			oldNdb := old.(*v1alpha1.NdbCluster)
+			if controller.skipHandlingNdbCluster(oldNdb) {
+				return
+			}
+			ndbKey := controller.getNdbClusterKey(oldNdb)
+
 			newNdb := new.(*v1alpha1.NdbCluster)
-
-			if oldNdb.ResourceVersion == newNdb.ResourceVersion {
-				// we don't do anything here - just log
-				// this can happen e.g. if the timer kicks in - desireable to check state once in the while
+			if oldNdb.Generation != newNdb.Generation {
+				// Spec of the NdbCluster resource was updated.
+				klog.Infof("Spec of the NdbCluster resource '%s' was updated", ndbKey)
+				klog.Infof("Generation updated from %d -> %d",
+					oldNdb.Generation, newNdb.Generation)
+				klog.Infof("Resource version updated from %s -> %s",
+					oldNdb.ResourceVersion, newNdb.ResourceVersion)
+			} else if oldNdb.ResourceVersion != newNdb.ResourceVersion {
+				// Spec was not updated but the ResourceVersion changed => Status update
+				klog.Infof("Status of the NdbCluster resource '%s' was updated", ndbKey)
+				klog.Infof("Resource version updated from %s -> %s",
+					oldNdb.ResourceVersion, newNdb.ResourceVersion)
+				klog.Info("Nothing to do as only the status was updated.")
+				return
 			} else {
-				klog.Infof("Resource version: %s -> %s", oldNdb.ResourceVersion, newNdb.ResourceVersion)
+				// NdbCluster resource was not updated and this is a resync/requeue.
+				klog.Infof("No updates to NdbCluster resource '%s'", ndbKey)
+				if oldNdb.Generation != oldNdb.Status.ProcessedGeneration {
+					// Controller is midway applying the previous change to NdbCluster resource.
+					klog.Infof("Continuing reconciliation with generation %d", oldNdb.Generation)
+				}
 			}
-
-			klog.Infof("Generation: %d -> %d", oldNdb.ObjectMeta.Generation, newNdb.ObjectMeta.Generation)
-			if !equality.Semantic.DeepEqual(oldNdb.Spec, newNdb.Spec) {
-				klog.Infof("Difference in spec: %d : %d", oldNdb.Spec.NodeCount, newNdb.Spec.NodeCount)
-			} else if !equality.Semantic.DeepEqual(oldNdb.Status, newNdb.Status) {
-				klog.Infof("Difference in status")
-			} else {
-				klog.Infof("No difference in spec and status")
-				//diff.ObjectGoPrintSideBySide(oldNdb, newNdb))
-			}
-
-			controller.enqueueNdb(newNdb)
+			controller.workqueue.Add(ndbKey)
 		},
-		DeleteFunc: func(obj interface{}) {
-			var ndb *v1alpha1.NdbCluster
-			switch objType := obj.(type) {
-			case *v1alpha1.NdbCluster:
-				ndb = objType
-			case cache.DeletedFinalStateUnknown:
-				del := obj.(cache.DeletedFinalStateUnknown).Obj
-				ndb = del.(*v1alpha1.NdbCluster)
-			}
 
-			if ndb != nil {
-				klog.Infof("Delete object received and queued %s/%s", ndb.Namespace, ndb.Name)
-				controller.enqueueNdb(ndb)
-			} else {
-				klog.Infof("Unkown deleted object ignored")
+		DeleteFunc: func(obj interface{}) {
+			ndb := obj.(*v1alpha1.NdbCluster)
+			if controller.skipHandlingNdbCluster(ndb) {
+				return
 			}
+			// Various K8s resources created and maintained for this NdbCluster
+			// resource will have proper owner resources setup. Due to that, this
+			// delete will automatically be cascaded to all those resources and
+			// the controller doesn't have to do anything.
+			klog.Infof("NdbCluster resource '%s' was deleted", controller.getNdbClusterKey(ndb))
 		},
 	})
 
@@ -1250,21 +1292,4 @@ func (sc *SyncContext) updateNdbClusterStatus(hasPendingConfigChanges bool) erro
 		corev1.EventTypeNormal, ReasonSyncSuccess, ActionSynced, MessageSyncSuccess)
 
 	return nil
-}
-
-/*
-	enqueueNdb takes a Ndb resource and converts it into a namespace/name
-   	string which is then put onto the work queue. This method should *not* be
-   	passed resources of any type other than Ndb.
-*/
-func (c *Controller) enqueueNdb(obj interface{}) {
-	var key string
-	var err error
-
-	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
-		utilruntime.HandleError(err)
-		return
-	}
-	klog.Infof("Processing Ndb: %s", key)
-	c.workqueue.Add(key)
 }
