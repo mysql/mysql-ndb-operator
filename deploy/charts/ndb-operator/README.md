@@ -17,7 +17,9 @@ License information can be found in the LICENSE file. This distribution may incl
 To install the chart with the release name `ndbop`:
 
 ```bash
-helm install ndbop deploy/charts/ndb-operator
+helm install \
+  --namespace=ndb-operator --create-namespace \
+  ndbop deploy/charts/ndb-operator
 ```
 
 The command creates the Ndb CRD, deploys the NDB Operator and the webhook server to the Kubernetes cluster with the default configuration. The [configuration](#configuration) section lists the parameters that can be configured during installation.

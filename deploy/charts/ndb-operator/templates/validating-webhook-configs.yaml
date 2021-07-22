@@ -12,7 +12,7 @@ webhooks:
       # caBundle will be filled in by the webhook server
       service:
         name: {{ template "webhook-service.name" }}
-        namespace: {{ .Values.operator.namespace }}
+        namespace: {{.Release.Namespace}}
         path: /validate-ndb
         port: {{ template "webhook-service.port" }}
     failurePolicy: Fail
