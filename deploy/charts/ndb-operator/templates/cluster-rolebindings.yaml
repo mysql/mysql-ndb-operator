@@ -3,7 +3,7 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ndb-operator-webhook-crb
-  namespace: {{.Values.operator.namespace}}
+  namespace: {{.Release.Namespace}}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -11,14 +11,14 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: ndb-operator-webhook-sa
-    namespace: {{.Values.operator.namespace}}
+    namespace: {{.Release.Namespace}}
 ---
 # Ndb operator
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ndb-operator-crb
-  namespace:  {{ if and (.Values.operator.global) (eq .Values.operator.namespace "ndb-operator") }}ndb-operator{{ else }}{{ .Values.operator.namespace}}{{ end }}
+  namespace: {{.Release.Namespace}}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -26,4 +26,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: ndb-operator-sa
-  namespace:  {{ if and (.Values.operator.global) (eq .Values.operator.namespace "ndb-operator") }}ndb-operator{{ else }}{{ .Values.operator.namespace}}{{ end }}
+  namespace: {{.Release.Namespace}}

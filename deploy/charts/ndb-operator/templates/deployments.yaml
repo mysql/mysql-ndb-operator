@@ -3,7 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ndb-operator-webhook-server
-  namespace: {{.Values.operator.namespace}}
+  namespace: {{.Release.Namespace}}
   labels:
     release: {{.Chart.AppVersion}}
     app: ndb-operator-webhook-deployment
@@ -32,7 +32,7 @@ spec:
           command:
             - ndb-operator-webhook
           args:
-            - -namespace={{.Values.operator.namespace}}
+            - -namespace={{.Release.Namespace}}
             - -service={{template "webhook-service.name"}}
           readinessProbe:
             httpGet:
@@ -45,7 +45,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ndb-operator
-  namespace:  {{ if and (.Values.operator.global) (eq .Values.operator.namespace "ndb-operator") }}ndb-operator{{ else }}{{ .Values.operator.namespace}}{{ end }}
+  namespace: {{.Release.Namespace}}
   labels:
     release: {{.Chart.AppVersion}}
     app: ndb-operator
@@ -58,9 +58,6 @@ spec:
     metadata:
       labels:
         app: ndb-operator
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8080"
     spec:
       serviceAccountName: ndb-operator-sa
       {{- if .Values.imagePullSecretName }}

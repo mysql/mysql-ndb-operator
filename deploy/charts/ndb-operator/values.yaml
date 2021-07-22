@@ -4,7 +4,3 @@
 image: mysql/ndb-operator:latest
 imagePullPolicy: IfNotPresent
 imagePullSecretName:
-
-operator:
-  namespace: default
-  global: true

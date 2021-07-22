@@ -292,7 +292,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: ndb-operator-webhook-cr
-  namespace: default
 rules:
 - apiGroups:
   - ""
@@ -312,7 +311,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: ndb-operator-cr
-  namespace: default
 rules:
 - apiGroups:
   - ""
@@ -479,9 +477,6 @@ spec:
       app: ndb-operator
   template:
     metadata:
-      annotations:
-        prometheus.io/port: "8080"
-        prometheus.io/scrape: "true"
       labels:
         app: ndb-operator
     spec:
