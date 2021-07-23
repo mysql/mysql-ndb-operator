@@ -2,6 +2,12 @@
 
 This chart installs the Ndb CRD, deploys the Ndb Operator and the webhook server in the Kubernetes cluster.
 
+## License
+
+Copyright (c) 2021, Oracle and/or its affiliates.
+
+License information can be found in the LICENSE file. This distribution may include materials developed by third parties. For license and attribution notices for these materials, please refer to the LICENSE file.
+
 ## Prerequisites
 
 - Kubernetes 1.19+

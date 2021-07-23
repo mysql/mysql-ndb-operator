@@ -2,6 +2,12 @@
 
 This folder contains test suites written in gingko and a tool to run the e2e tests.
 
+### License
+
+Copyright (c) 2021, Oracle and/or its affiliates.
+
+License information can be found in the LICENSE file. This distribution may include materials developed by third parties. For license and attribution notices for these materials, please refer to the LICENSE file.
+
 ### The run-e2e-test.go tool
 
 This tool can be used to run complete end to end tests.

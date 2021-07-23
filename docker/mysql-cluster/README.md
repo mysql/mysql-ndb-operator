@@ -2,6 +2,12 @@
 
 Ndb operator uses the public images available in dockerhub. By default, the mysql/mysql-cluster:latest image is used. A custom MySQL Cluster image can also be built and used with the operator. The docker files and scripts required for building a MySQL Cluster image are included in this directory.
 
+### License
+
+Copyright (c) 2021, Oracle and/or its affiliates.
+
+License information can be found in the LICENSE file. This distribution may include materials developed by third parties. For license and attribution notices for these materials, please refer to the LICENSE file.
+
 ### Build image from source code
 
 To compile and build a custom image from source code run,

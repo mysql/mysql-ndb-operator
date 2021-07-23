@@ -3,7 +3,13 @@
 This repository implements a simple controller for watching Ndb resources as
 defined with a CustomResourceDefinition (CRD). 
 
-This is pre-alpha - mostly prototyping for testing concepts.
+This is in preview state - mostly prototyping for testing concepts.
+
+## License
+
+Copyright (c) 2021, Oracle and/or its affiliates.
+
+License information can be found in the LICENSE file. This distribution may include materials developed by third parties. For license and attribution notices for these materials, please refer to the LICENSE file.
 
 ## Details
 

@@ -3,6 +3,12 @@
 Contains resource files to run a wordpress app in K8s utilizing ndb resources
 created using ndb-operator.
 
+## License
+
+Copyright (c) 2021, Oracle and/or its affiliates.
+
+License information can be found in the LICENSE file. This distribution may include materials developed by third parties. For license and attribution notices for these materials, please refer to the LICENSE file.
+
 ## Resource files details
 
 ### **wordpress-ndb.yaml**
