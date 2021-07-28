@@ -48,3 +48,10 @@ The following table has the configurable parameters supported by the chart and t
 | `image`               | NDB Operator image name with tag    | `mysql/ndb-operator:latest` |
 | `imagePullPolicy`     | NDB Operator image pull policy      | `IfNotPresent`              |
 | `imagePullSecretName` | NDB Operator image pull secret name |                             |
+| `clusterScoped`       | Scope of the Ndb Operator.<br>If `true`, the operator is cluster-scoped and will watch for changes to any NdbCluster resource across all namespaces.<br>If `false`, the operator is namespace-scoped and will only watch for changes in the namespace it is released into. | `true`|
+
+These options can be set using the '–set' argument of the helm CLI. For example,
+```bash
+helm install --set imagePullPolicy=Always ndbop deploy/charts/ndb-operator
+```
+
