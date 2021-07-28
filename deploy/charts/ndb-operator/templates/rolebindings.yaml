@@ -1,5 +1,8 @@
+# Use ClusterRoleBinding if the operator is cluster-scoped
+# and RoleBinding if the operator is namespace-scoped.
+{{ $bindingKind := ternary "ClusterRoleBinding" "RoleBinding" .Values.clusterScoped -}}
 # Webhook Server
-kind: ClusterRoleBinding
+kind: {{$bindingKind}}
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ndb-operator-webhook-crb
@@ -14,7 +17,7 @@ subjects:
     namespace: {{.Release.Namespace}}
 ---
 # Ndb operator
-kind: ClusterRoleBinding
+kind: {{$bindingKind}}
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ndb-operator-crb

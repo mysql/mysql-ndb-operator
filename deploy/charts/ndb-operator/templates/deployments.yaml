@@ -68,5 +68,11 @@ spec:
         - name: ndb-operator-controller
           image: {{.Values.image}}
           imagePullPolicy: {{.Values.imagePullPolicy}}
+          command:
+            - ndb-operator
+          {{if not .Values.clusterScoped -}}
+          args:
+            - -watch-namespace={{.Release.Namespace}}
+          {{- end }}
           ports:
             - containerPort: 1186

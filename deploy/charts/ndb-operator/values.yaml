@@ -4,3 +4,9 @@
 image: mysql/ndb-operator:latest
 imagePullPolicy: IfNotPresent
 imagePullSecretName:
+
+# The operator is by default cluster-scoped.
+# If this value is set to false, the operator will be namespace-scoped and
+# will be watching for NdbCluster resource changes only in the namespace
+# it is released into (controlled by helm's --namespace option).
+clusterScoped: true

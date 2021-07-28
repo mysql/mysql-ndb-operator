@@ -481,7 +481,9 @@ spec:
         app: ndb-operator
     spec:
       containers:
-      - image: mysql/ndb-operator:latest
+      - command:
+        - ndb-operator
+        image: mysql/ndb-operator:latest
         imagePullPolicy: IfNotPresent
         name: ndb-operator-controller
         ports:
