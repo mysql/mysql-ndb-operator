@@ -432,7 +432,7 @@ kind: Deployment
 metadata:
   labels:
     app: ndb-operator-webhook-deployment
-    release: 0.1.0
+    release: 8.0.26-0.1.0
   name: ndb-operator-webhook-server
   namespace: default
 spec:
@@ -467,7 +467,7 @@ kind: Deployment
 metadata:
   labels:
     app: ndb-operator
-    release: 0.1.0
+    release: 8.0.26-0.1.0
   name: ndb-operator
   namespace: default
 spec:
