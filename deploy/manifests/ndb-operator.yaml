@@ -277,16 +277,21 @@ status:
   storedVersions: []
 ---
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: ndb-operator
+---
+apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ndb-operator-webhook-sa
-  namespace: default
+  namespace: ndb-operator
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ndb-operator-sa
-  namespace: default
+  namespace: ndb-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -392,7 +397,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: ndb-operator-webhook-crb
-  namespace: default
+  namespace: ndb-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -400,13 +405,13 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: ndb-operator-webhook-sa
-  namespace: default
+  namespace: ndb-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: ndb-operator-crb
-  namespace: default
+  namespace: ndb-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -414,13 +419,13 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: ndb-operator-sa
-  namespace: default
+  namespace: ndb-operator
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: ndbop-webhook-service
-  namespace: default
+  namespace: ndb-operator
 spec:
   ports:
   - port: 9443
@@ -434,7 +439,7 @@ metadata:
     app: ndb-operator-webhook-deployment
     release: 8.0.26-0.1.0
   name: ndb-operator-webhook-server
-  namespace: default
+  namespace: ndb-operator
 spec:
   selector:
     matchLabels:
@@ -446,7 +451,7 @@ spec:
     spec:
       containers:
       - args:
-        - -namespace=default
+        - -namespace=ndb-operator
         - -service=ndbop-webhook-service
         command:
         - ndb-operator-webhook
@@ -469,7 +474,7 @@ metadata:
     app: ndb-operator
     release: 8.0.26-0.1.0
   name: ndb-operator
-  namespace: default
+  namespace: ndb-operator
 spec:
   replicas: 1
   selector:
@@ -502,7 +507,7 @@ webhooks:
   clientConfig:
     service:
       name: ndbop-webhook-service
-      namespace: default
+      namespace: ndb-operator
       path: /validate-ndb
       port: 9443
   failurePolicy: Fail
