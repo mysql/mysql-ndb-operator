@@ -75,8 +75,10 @@ Ndb operator uses the public images available in dockerhub. By default, the mysq
 Ndb operator comes with a helm chart that can install the CRDs and deploy the operator and webhooks in the K8s cluster.
 
 ```sh
-# Install the ndb operator and other resources in the default namespace
-helm install ndb-operator deploy/charts/ndb-operator
+# Install the ndb operator and other resources in the 'ndb-operator' namespace
+helm install \
+--namespace=ndb-operator --create-namespace \
+ndb-operator deploy/charts/ndb-operator
 ```
 More information on using the helm chart is available at [deploy/charts/ndb-operator/README.md](deploy/charts/ndb-operator/README.md)
 
@@ -85,14 +87,10 @@ More information on using the helm chart is available at [deploy/charts/ndb-oper
 Create custom resource definitions, the roles and deploy the ndb operator by applying the single YAML file - deploy/manifests/ndb-operator.yaml
 
 ```sh
-# To create all the K8s resources in the default namespace
+# To create all the K8s resources in namespace 'ndb-operator'
 kubectl apply -f deploy/manifests/ndb-operator.yaml
-
-# To create all the K8s resources in a custom namespace, say example-ns, run
-sed -r "s/([ ]*namespace\: )default/\1example-ns/" \
-  deploy/manifests/ndb-operator.yaml | kubectl apply -f -
-
 ```
+The operator can be run in a different namespace by making modifications to the manifest file.
 
 Once installed, either using helm or using the yaml file, the ndb-operator and the webhook will be running in the K8s server.
 

@@ -22,12 +22,19 @@ ${CONTROLLER_GEN_CMD} ${CRD_GEN_OPTS} paths=${CRD_GEN_INPUT_PATH} output:crd:art
 # remove it as a workaround
 sed -i.crd.bak "/\ \ creationTimestamp\:\ null/d" ${CRD_GEN_OUTPUT}/* && rm ${CRD_GEN_OUTPUT}/*.crd.bak
 
-# Generate a single ndb-operator yaml file for deploying the CRD and the ndb operator
+# Generate a single ndb-operator yaml file for deploying the CRD and the ndb operator in namespace 'ndb-operator'
 INSTALL_ARTIFACT="deploy/manifests/ndb-operator.yaml"
 echo "Generating install artifact..."
 # Copy in the Ndb CRD
 cp ${CRD_FULL_PATH} ${INSTALL_ARTIFACT}
+# Copy yaml to create 'ndb-operator' namespace
+echo "---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ndb-operator
+---" >> ${INSTALL_ARTIFACT}
 # Generate and append the resources from helm templates
-helm template ${HELM_CHART_PATH} >> ${INSTALL_ARTIFACT}
+helm template ${HELM_CHART_PATH} --namespace=ndb-operator >> ${INSTALL_ARTIFACT}
 # Prettify the yaml file
 go run hack/prettify-yaml.go --yaml=${INSTALL_ARTIFACT}
