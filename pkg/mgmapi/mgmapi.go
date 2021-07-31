@@ -9,8 +9,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -144,9 +144,6 @@ const (
 	// For most other cases like a config lookup or node status lookup,
 	// the defaultReadWriteTimeout should be sufficient.
 	delayedReplyTimeout = 300 * time.Second
-
-	// maxReadRetries is the maximum times reply read will be retried
-	maxReadRetries = 6
 )
 
 // sendCommand sends the given command and args to the
@@ -170,7 +167,7 @@ func (mci *mgmClientImpl) sendCommand(
 	// mark end of command and args
 	fmt.Fprint(&cmdWithArgs, "\n")
 
-	// Set a write deadline
+	// Set write deadline
 	err := mci.connection.SetWriteDeadline(time.Now().Add(defaultReadWriteTimeout))
 	if err != nil {
 		klog.Error("SetWriteDeadline failed : ", err)
@@ -183,45 +180,57 @@ func (mci *mgmClientImpl) sendCommand(
 		return nil, err
 	}
 
-	// Set a reply read deadline
+	// Pick a timeout for the read
 	replyReadTimeout := defaultReadWriteTimeout
 	if slowCommand {
 		replyReadTimeout = delayedReplyTimeout
 	}
-	err = mci.connection.SetReadDeadline(time.Now().Add(replyReadTimeout))
-	if err != nil {
-		klog.Error("SetReadDeadline failed : ", err)
-		return nil, err
-	}
+	// In certain cases, using a single SetReadDeadline call
+	// with the full replyReadTimeout might cause the Read
+	// call to hang once it has read all the reply. So, the
+	// total timeout is divided into shorter timeouts over
+	// which the read is done.
+	timeoutPerRead := 200 * time.Millisecond
 
-	// Read back the reply
-	// TODO: check if retry is needed?
-	retries := 0
+	// Start reading the reply
 	var reply []byte
-	buffer := make([]byte, 64)
-	for {
-		if retries > 0 {
-			klog.Infof("read retry # %d", retries)
+	buffer := make([]byte, 256)
+	for elapsedTime := time.Duration(0); elapsedTime < replyReadTimeout; {
+		err = mci.connection.SetReadDeadline(time.Now().Add(timeoutPerRead))
+		if err != nil {
+			klog.Error("SetReadDeadline failed : ", err)
+			return nil, err
 		}
-
-		n, err := mci.connection.Read(buffer)
+		numBytesRead, err := mci.connection.Read(buffer)
 		if err != nil {
 			// Error occurred during read
-			if retries > maxReadRetries || err == io.EOF {
-				// no more retries or the connection closed
-				return nil, err
+			if errors.Is(err, os.ErrDeadlineExceeded) {
+				// Read timed out.
+				if len(reply) == 0 {
+					// The read has not begun.
+					// Retry after updating the elapsed time.
+					elapsedTime += timeoutPerRead
+					continue
+				}
+				// Timeout occurring after the read has begun,
+				// i.e. len(reply) > 0, indicates that there
+				// is nothing more to read. Return the reply.
+				return reply, nil
 			}
-			retries++
-			continue
+
+			// Unexpected error
+			return nil, err
 		}
 
 		// append the read bytes to reply
-		reply = append(reply, buffer[:n]...)
-		if n < 64 {
+		reply = append(reply, buffer[:numBytesRead]...)
+		if numBytesRead < len(buffer) {
 			// done reading reply
 			return reply, nil
 		}
 	}
+	// Timed out as management Server never sent back any reply
+	return nil, errors.New("no reply received from the Management Server")
 }
 
 // parseReply parses the reply sent by the management server,
