@@ -23,7 +23,7 @@ func IsValidConfig(newNdb *ndbv1alpha1.NdbCluster, oldNdb *ndbv1alpha1.NdbCluste
 
 	var errList field.ErrorList
 	specPath := field.NewPath("spec")
-
+	mysqldPath := specPath.Child("mysqld")
 	if oldNdb != nil {
 		// this is an update - do not allow updating Spec.NodeCount and Spec.RedundancyLevel.
 		if oldNdb.Spec.NodeCount != newNdb.Spec.NodeCount {
@@ -41,6 +41,13 @@ func IsValidConfig(newNdb *ndbv1alpha1.NdbCluster, oldNdb *ndbv1alpha1.NdbCluste
 			errList = append(errList,
 				field.Invalid(specPath.Child("redundancyLevel"), newNdb.Spec.RedundancyLevel,
 					"spec.redundancyLevel cannot be updated once MySQL Cluster has been started"))
+		}
+
+		// do not allow updating Spec.Mysqld.RootHost
+		if newNdb.Spec.Mysqld != nil && (oldNdb.Spec.Mysqld.RootHost != newNdb.Spec.Mysqld.RootHost) {
+			errList = append(errList,
+				field.Invalid(mysqldPath.Child("rootHost"), newNdb.Spec.Mysqld.RootHost,
+					"spec.mysqld.rootHost cannot be updated once MySQL Cluster has been started"))
 		}
 	}
 
@@ -65,7 +72,6 @@ func IsValidConfig(newNdb *ndbv1alpha1.NdbCluster, oldNdb *ndbv1alpha1.NdbCluste
 	}
 
 	// validate the MySQL Root password secret name
-	mysqldPath := specPath.Child("mysqld")
 	var rootPasswordSecret string
 	if newNdb.Spec.Mysqld != nil {
 		rootPasswordSecret = newNdb.Spec.Mysqld.RootPasswordSecretName

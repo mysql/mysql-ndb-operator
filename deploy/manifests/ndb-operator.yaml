@@ -205,6 +205,13 @@ spec:
                       in MySQL Cluster
                     format: int32
                     type: integer
+                  rootHost:
+                    default: '%'
+                    description: RootHost is the host or hosts from which the root
+                      user can connect to the MySQL Server. If unspecified, root user
+                      will be able to connect from any host that can access the MySQL
+                      Server.
+                    type: string
                   rootPasswordSecretName:
                     description: The name of the Secret that holds the password to
                       be set for the MySQL root accounts. The Secret should have a

@@ -301,9 +301,8 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.NdbCluster, oldC
 			// There are neither updated nor consumed during further deployment updates
 			{
 				// Host from which the root user can be accessed
-				// TODO: This should be configurable during the initial start
 				Name:  "MYSQL_CLUSTER_ROOT_HOST",
-				Value: "%",
+				Value: ndb.Spec.Mysqld.RootHost,
 			},
 			{
 				// Expected replicas during initial setup

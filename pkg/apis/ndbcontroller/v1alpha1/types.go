@@ -46,6 +46,12 @@ type NdbMysqldSpec struct {
 	// name of format "<ndb-resource-name>-mysqld-root-password"
 	// +optional
 	RootPasswordSecretName string `json:"rootPasswordSecretName,omitempty"`
+	// RootHost is the host or hosts from which the root user
+	// can connect to the MySQL Server. If unspecified, root user
+	// will be able to connect from any host that can access the MySQL Server.
+	// +kubebuilder:default="%"
+	// +optional
+	RootHost string `json:"rootHost,omitempty"`
 	// Configuration options to pass to the MySQL Server when it is started.
 	// +optional
 	MyCnf string `json:"myCnf,omitempty"`
