@@ -32,15 +32,15 @@ import (
 
 // Command line options
 var options struct {
-	useKind    bool
-	kubeconfig string
-	inCluster bool
+	useKind        bool
+	kubeconfig     string
+	inCluster      bool
 	kindK8sVersion string
 }
 
 // K8s image used by KinD to bring up cluster
 // https://github.com/kubernetes-sigs/kind/releases
-var kindK8sNodeImages = map[string]string {
+var kindK8sNodeImages = map[string]string{
 	"1.19": "kindest/node:v1.19.11@sha256:7664f21f9cb6ba2264437de0eb3fe99f201db7a3ac72329547ec4373ba5f5911",
 	"1.20": "kindest/node:v1.20.7@sha256:e645428988191fc824529fd0bb5c94244c12401cf5f5ea3bd875eb0a787f0fe9",
 }
@@ -258,7 +258,7 @@ func (k *kind) hasPodSucceeded(namespace string, podName string) bool {
 		return false
 	}
 
-	if podPhase == v1.PodSucceeded  {
+	if podPhase == v1.PodSucceeded {
 		return true
 	}
 	return false
@@ -267,17 +267,17 @@ func (k *kind) hasPodSucceeded(namespace string, podName string) bool {
 // isPodRunning checks if a given pod in a given namespace
 // returns true, if pod is running
 func (k *kind) isPodRunning(namespace string, podName string) (bool, error) {
-		podPhase, err := k.getPodPhase(namespace, podName)
-		if err != nil {
-			return false, err
-		}
+	podPhase, err := k.getPodPhase(namespace, podName)
+	if err != nil {
+		return false, err
+	}
 
-		if podPhase == v1.PodRunning {
-			return true, nil
-		}
-		// return false, nil by default,
-		// indicating pod is in 'Pending' phase
-		return false, nil
+	if podPhase == v1.PodRunning {
+		return true, nil
+	}
+	// return false, nil by default,
+	// indicating pod is in 'Pending' phase
+	return false, nil
 }
 
 // runGinkgoTestInsideCluster runs all tests as a pod inside kind cluster
@@ -293,7 +293,7 @@ func (k *kind) runGinkgoTestsInsideCluster(t *testRunner) bool {
 		// context that kubectl runs against
 		"--context=kind-ndb-e2e-test",
 		// kubeconfig
-		"--kubeconfig="+k.kubeconfig,
+		"--kubeconfig=" + k.kubeconfig,
 	}
 	if !t.execCommand(createE2eTestK8sResources, "kubectl apply", false, true) {
 		log.Println("❌ Failed to create kubernetes resources using e2e-test artifacts")
@@ -496,7 +496,7 @@ func (t *testRunner) runGinkgoTests() bool {
 	// The ginkgo test command
 	ginkgoTest := []string{
 		"go", "run", "github.com/onsi/ginkgo/ginkgo",
-		"-r", // recursively run all suites in the given directory
+		"-r",         // recursively run all suites in the given directory
 		"-keepGoing", // keep running all test suites even if one fails
 	}
 
