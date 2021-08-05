@@ -25,9 +25,11 @@ func Connect(clientset kubernetes.Interface, namespace string, ndbName string, d
 	user := "root"
 	// TODO: Auto detect password from Ndb object
 	password := "ndbpass"
-	dataSource := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", user, password, host, port, dbname)
+	dataSource := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?timeout=10s", user, password, host, port, dbname)
 	db, err := sql.Open("mysql", dataSource)
 	framework.ExpectNoError(err)
+	// Verify the DB is connected
+	framework.ExpectNoError(db.Ping())
 
 	// Recommended settings
 	db.SetConnMaxLifetime(time.Minute * 3)
