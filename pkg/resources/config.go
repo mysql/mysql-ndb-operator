@@ -17,6 +17,7 @@ var mgmtConfigTmpl = `{{- /* Template to generate management config ini */ -}}
 # auto generated config.ini - do not edit
 #
 # ConfigHash={{.CalculateNewConfigHash}}
+# NumOfMySQLServers={{.GetMySQLServerNodeCount}}
 
 [system]
 ConfigGenerationNumber={{.GetGeneration}}
@@ -48,7 +49,7 @@ DataDir={{GetDataDir}}
 
 {{end -}}
 {{range $nodeId := GetNodeIds "api" -}}
-[mysqld]
+[api]
 NodeId={{$nodeId}}
 
 {{end -}}
@@ -71,8 +72,8 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldResourceContext *ResourceConte
 	)
 
 	// default number of API slots in the config :
-	// slots required for mysql servers + 1 free slot for others
-	requiredNumOfAPISlots := ndb.GetMySQLServerNodeCount() + 1
+	// slots required for mysql servers + 3 free slot for others
+	requiredNumOfAPISlots := ndb.GetMySQLServerNodeCount() + 3
 
 	if oldResourceContext != nil {
 		// An update has been applied to the Ndb resource.

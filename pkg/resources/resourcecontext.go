@@ -60,7 +60,7 @@ func NewResourceContextFromConfiguration(configStr string) (*ResourceContext, er
 
 	rc.ManagementNodeCount = uint32(config.GetNumberOfSections("ndb_mgmd"))
 
-	rc.NumOfApiSlots = uint32(config.GetNumberOfSections("mysqld"))
+	rc.NumOfApiSlots = uint32(config.GetNumberOfSections("api"))
 
 	return rc, nil
 }
