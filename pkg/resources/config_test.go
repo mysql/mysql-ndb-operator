@@ -35,12 +35,12 @@ func Test_NewResourceContextFromConfiguration(t *testing.T) {
 	[ndbd]
 	[ndb_mgmd]
 	[ndb_mgmd]
-    [mysqld]
-    [mysqld]
-    [mysqld]
-    [mysqld]
-    [mysqld]
-    [mysqld]
+    [api]
+    [api]
+    [api]
+    [api]
+    [api]
+    [api]
 	`
 
 	rc, err := NewResourceContextFromConfiguration(testini)
@@ -70,6 +70,7 @@ func Test_GetConfigString(t *testing.T) {
 	expectedConfigString := `# auto generated config.ini - do not edit
 #
 # ConfigHash=######
+# NumOfMySQLServers=2
 
 [system]
 ConfigGenerationNumber=0
@@ -104,14 +105,20 @@ NodeId=4
 Hostname=example-ndb-ndbd-1.example-ndb-ndbd.default.svc.cluster.local
 DataDir=/var/lib/ndb
 
-[mysqld]
+[api]
 NodeId=145
 
-[mysqld]
+[api]
 NodeId=146
 
-[mysqld]
+[api]
 NodeId=147
+
+[api]
+NodeId=148
+
+[api]
+NodeId=149
 
 `
 	// replace the config hash
