@@ -1168,7 +1168,7 @@ func (sc *SyncContext) sync() error {
 	// If this number of the members on the Cluster does not equal the
 	// current desired replicas on the StatefulSet, we should update the
 	// StatefulSet resource.
-	if sc.resourceContext.GetDataNodeCount() != uint32(*sc.dataNodeSfSet.Spec.Replicas) {
+	if sc.resourceContext.NumOfDataNodes != uint32(*sc.dataNodeSfSet.Spec.Replicas) {
 		klog.Infof("Updating %q: DataNodes=%d statefulSetReplicas=%d",
 			sc.nsName, sc.ndb.Spec.NodeCount, *sc.dataNodeSfSet.Spec.Replicas)
 		if sc.dataNodeSfSet, err = sc.ndbdController.Patch(sc.resourceContext, sc.ndb, sc.dataNodeSfSet); err != nil {

@@ -27,6 +27,7 @@ func Test_NewResourceContextFromConfiguration(t *testing.T) {
 	;
 	;ConfigHash=asdasdlkajhhnxh=?   
 	;               notice this ^
+	;NumOfMySQLServers=3
 	[system]
 	ConfigGenerationNumber=4711
     [ndbd default]
@@ -53,10 +54,11 @@ func Test_NewResourceContextFromConfiguration(t *testing.T) {
 		t.Errorf("Actual 'rc.ConfigHash' value(%s) didn't match the expected value(asdasdlkajhhnxh=?).", rc.ConfigHash)
 	}
 	errorIfNotEqual(t, 4711, rc.ConfigGeneration, "rc.ConfigGeneration")
-	errorIfNotEqual(t, 2, rc.ManagementNodeCount, "rc.ManagementNodeCount")
 	errorIfNotEqual(t, 2, rc.RedundancyLevel, " rc.RedundancyLevel")
-	errorIfNotEqual(t, 1, rc.ConfiguredNodeGroupCount, "rc.ConfiguredNodeGroupCount")
+	errorIfNotEqual(t, 2, rc.NumOfManagementNodes, "rc.NumOfManagementNodes")
+	errorIfNotEqual(t, 2, rc.NumOfDataNodes, "rc.NumOfDataNodes")
 	errorIfNotEqual(t, 6, rc.NumOfApiSlots, "rc.NumOfApiSlots")
+	errorIfNotEqual(t, 3, rc.NumOfMySQLServers, "rc.NumOfMySQLServers")
 }
 
 func Test_GetConfigString(t *testing.T) {
