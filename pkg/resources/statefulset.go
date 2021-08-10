@@ -216,11 +216,11 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 	var replicas int32
 	var volumeClaimTemplates []v1.PersistentVolumeClaim
 	if bss.isMgmd() {
-		replicas = int32(rc.ManagementNodeCount)
+		replicas = int32(rc.NumOfManagementNodes)
 		// Start Management nodes one by one
 		podManagementPolicy = apps.OrderedReadyPodManagement
 	} else {
-		replicas = int32(rc.GetDataNodeCount())
+		replicas = int32(rc.NumOfDataNodes)
 		// Data nodes can be started in parallel
 		podManagementPolicy = apps.ParallelPodManagement
 		// Add VolumeClaimTemplate if data node PVC Spec exists

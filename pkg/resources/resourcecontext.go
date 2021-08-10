@@ -14,24 +14,21 @@ import (
 // updation of various K8s resources and also to compare any new incoming
 // Ndb spec change
 type ResourceContext struct {
-
-	// ConfigHash used to create the config map with
+	// ConfigHash is the hash of the Spec the config is based on.
 	ConfigHash string
-	// ConfigGeneration shows the generation the configuration is based on
+	// ConfigGeneration is the generation of the NdbCluster this configuration is based on.
 	ConfigGeneration uint32
-	// NodeGroupCount is the number of node groups in cluster configured in config
-	ConfiguredNodeGroupCount uint32
-	// ManagementNodeCount is the number of management nodes in cluster (1 or 2)
-	ManagementNodeCount uint32
-	// NumOfApiSlots is the number of API slots declared in the config
+	// NumOfManagementNodes is number of Management Nodes (1 or 2).
+	NumOfManagementNodes uint32
+	// NumOfDataNodes is the number of Data Nodes.
+	NumOfDataNodes uint32
+	// NumOfMySQLServers is the number of MySQL Servers
+	// expected to connect to the MySQL Cluster data nodes.
+	NumOfMySQLServers uint32
+	// NumOfApiSlots is the number of sections defined as [api].
 	NumOfApiSlots uint32
-	// RedundancyLevel is the redundancy level configured
+	// RedundancyLevel is the number of replicas of the data stored in MySQL Cluster.
 	RedundancyLevel uint32
-}
-
-// GetDataNodeCount returns the number of data nodes configured
-func (rc *ResourceContext) GetDataNodeCount() uint32 {
-	return rc.RedundancyLevel * rc.ConfiguredNodeGroupCount
 }
 
 // NewResourceContextFromConfiguration creates a new ResourceContext
@@ -55,10 +52,13 @@ func NewResourceContextFromConfiguration(configStr string) (*ResourceContext, er
 	rl, _ := strconv.ParseUint(redundancyLevelStr, 10, 32)
 	rc.RedundancyLevel = uint32(rl)
 
-	numOfDataNodes := config.GetNumberOfSections("ndbd")
-	rc.ConfiguredNodeGroupCount = uint32(uint64(numOfDataNodes) / rl)
+	rc.NumOfDataNodes = uint32(config.GetNumberOfSections("ndbd"))
 
-	rc.ManagementNodeCount = uint32(config.GetNumberOfSections("ndb_mgmd"))
+	rc.NumOfManagementNodes = uint32(config.GetNumberOfSections("ndb_mgmd"))
+
+	buffer := config.GetValueFromSection("header", "NumOfMySQLServers")
+	numOfMySQLServers, _ := strconv.ParseUint(buffer, 10, 32)
+	rc.NumOfMySQLServers = uint32(numOfMySQLServers)
 
 	rc.NumOfApiSlots = uint32(config.GetNumberOfSections("api"))
 

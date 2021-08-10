@@ -125,8 +125,8 @@ func (rssc *realStatefulSetControl) EnsureStatefulSet(sc *SyncContext) (*apps.St
 		sc.ndb.Namespace,
 		rssc.statefulSetType.GetName(),
 		rc.RedundancyLevel,
-		rc.ConfiguredNodeGroupCount*rc.RedundancyLevel,
-		rc.ManagementNodeCount)
+		rc.NumOfDataNodes,
+		rc.NumOfManagementNodes)
 
 	sfset = rssc.statefulSetType.NewStatefulSet(rc, sc.ndb)
 	sfset, err = rssc.client.AppsV1().StatefulSets(sc.ndb.Namespace).Create(context.TODO(), sfset, metav1.CreateOptions{})

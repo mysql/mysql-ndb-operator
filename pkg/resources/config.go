@@ -71,13 +71,10 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldResourceContext *ResourceConte
 		apiStartNodeId = 145
 	)
 
-	// default number of API slots in the config :
-	// slots required for mysql servers + 3 free slot for others
-	requiredNumOfAPISlots := ndb.GetMySQLServerNodeCount() + 3
-
+	// API Slots required for the MySQL Servers
+	requiredNumOfSlotsForMySQLServer := ndb.GetMySQLServerNodeCount()
 	if oldResourceContext != nil {
 		// An update has been applied to the Ndb resource.
-		// Calculate the number of API slots to be set in the config.
 		// If the new update has requested for more MySQL Servers,
 		// increase the slots if required, but if a scale down has
 		// been requested, do not decrease the slots. This is to
@@ -85,12 +82,16 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldResourceContext *ResourceConte
 		// Servers after the scale down might have mismatching NodeIds
 		// with the ones specified in the config file causing the
 		// setup to go into a degraded state.
-		existingNumOfAPISlots := int32(oldResourceContext.NumOfApiSlots)
-		if requiredNumOfAPISlots < existingNumOfAPISlots {
-			// Scale down requested - retain the existingNumOfSlots
-			requiredNumOfAPISlots = existingNumOfAPISlots
+		existingNumOfSlotsForMySQLServer := int32(oldResourceContext.NumOfMySQLServers)
+		if requiredNumOfSlotsForMySQLServer < existingNumOfSlotsForMySQLServer {
+			// Scale down requested - retain the existingNumOfSlotsForMySQLServer
+			requiredNumOfSlotsForMySQLServer = existingNumOfSlotsForMySQLServer
 		}
 	}
+
+	// Calculate the total number of API slots to be set in the config.
+	// slots required for mysql servers + 3 free slot for other NDBAPi apps
+	requiredNumOfAPISlots := requiredNumOfSlotsForMySQLServer + 3
 
 	tmpl := template.New("config.ini")
 	tmpl.Funcs(template.FuncMap{
