@@ -53,6 +53,7 @@ const (
 	RootPasswordSecret = ndbcontroller.GroupName + "/root-password-secret"
 )
 
+// getContainerFromDeployment returns the container with the given name from the deployment
 func getContainerFromDeployment(containerName string, deployment *apps.Deployment) *v1.Container {
 	for _, container := range deployment.Spec.Template.Spec.Containers {
 		if container.Name == containerName {
