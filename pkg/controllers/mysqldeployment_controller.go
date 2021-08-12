@@ -31,12 +31,20 @@ func deploymentComplete(deployment *appsv1.Deployment) bool {
 		deployment.Status.ObservedGeneration >= deployment.Generation
 }
 
+// deploymentHasConfig returns true if the given deployment has the expected config generation
+func deploymentHasConfig(deployment *appsv1.Deployment, expectedConfigGeneration uint32) bool {
+	// Get the last applied Config Generation
+	annotations := deployment.Spec.Template.GetAnnotations()
+	existingConfigGeneration, _ := strconv.ParseUint(annotations[resources.LastAppliedConfigGeneration], 10, 64)
+	return uint32(existingConfigGeneration) == expectedConfigGeneration
+}
+
 // DeploymentControlInterface is the interface for deployment controllers
 type DeploymentControlInterface interface {
 	GetTypeName() string
-	EnsureDeployment(ctx context.Context, sc *SyncContext) (*appsv1.Deployment, bool, error)
-	ReconcileDeployment(ndb *v1alpha1.NdbCluster,
-		deployment *appsv1.Deployment, rc *resources.ResourceContext, handleScaleDown bool) syncResult
+	GetDeployment(ctx context.Context, nc *v1alpha1.NdbCluster) (*appsv1.Deployment, error)
+	HandleScaleDown(ctx context.Context, sc *SyncContext) syncResult
+	ReconcileDeployment(ctx context.Context, sc *SyncContext) syncResult
 }
 
 type mysqlDeploymentController struct {
@@ -52,42 +60,107 @@ func NewMySQLDeploymentController(client kubernetes.Interface, nc *v1alpha1.NdbC
 	}
 }
 
+// deploymentInterface returns a typed/apps/v1.DeploymentInterface
+func (mdc *mysqlDeploymentController) deploymentInterface(namespace string) typedappsv1.DeploymentInterface {
+	return mdc.client.AppsV1().Deployments(namespace)
+}
+
 // GetTypeName returns the type of the resource being
 // controlled by the DeploymentControlInterface
 func (mdc *mysqlDeploymentController) GetTypeName() string {
 	return mdc.mysqlServerDeployment.GetTypeName()
 }
 
-// deploymentInterface returns a typed/apps/v1.DeploymentInterface
-func (mdc *mysqlDeploymentController) deploymentInterface(namespace string) typedappsv1.DeploymentInterface {
-	return mdc.client.AppsV1().Deployments(namespace)
+// GetDeployment retrieves the MySQL deployment for the given NdbCluster resource
+func (mdc *mysqlDeploymentController) GetDeployment(
+	ctx context.Context, nc *v1alpha1.NdbCluster) (*appsv1.Deployment, error) {
+	deployment, err := mdc.deploymentInterface(nc.Namespace).Get(
+		ctx, mdc.mysqlServerDeployment.GetName(), metav1.GetOptions{})
+
+	if err != nil && !errors.IsNotFound(err) {
+		klog.Errorf("Failed to retrieve the deployment for NdbCluster %q : %s", nc.Name, err)
+		return nil, err
+	}
+
+	if errors.IsNotFound(err) {
+		return nil, nil
+	}
+
+	return deployment, nil
 }
 
-// createDeployment takes the representation of a deployment and creates it
-func (mdc *mysqlDeploymentController) createDeployment(deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
-	return mdc.deploymentInterface(deployment.Namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
+// createDeployment ensures the MySQL Server root password and then creates the deployment of MySQL Servers.
+func (mdc *mysqlDeploymentController) createDeployment(ctx context.Context, sc *SyncContext) error {
+
+	// First ensure that a root password secret exists
+	secretClient := NewMySQLRootPasswordSecretInterface(mdc.client)
+	if _, err := secretClient.Ensure(ctx, sc.ndb); err != nil {
+		klog.Errorf("Failed to ensure root password secret for deployment %q : %s", mdc.mysqlServerDeployment.GetName(), err)
+		return err
+	}
+
+	// Create deployment
+	deployment := mdc.mysqlServerDeployment.NewDeployment(sc.ndb, sc.resourceContext, nil)
+	_, err := mdc.deploymentInterface(deployment.Namespace).Create(ctx, deployment, metav1.CreateOptions{})
+	if err != nil {
+		// Creating deployment failed
+		klog.Errorf("Failed to create deployment %q : %s", deployment.Name, err)
+		return err
+	}
+
+	// New deployment was successfully created
+	return nil
+
+}
+
+// DeleteDeployment deletes the given deployment and any associated secret created by the operator
+func (mdc *mysqlDeploymentController) deleteDeployment(
+	ctx context.Context, deployment *appsv1.Deployment, nc *v1alpha1.NdbCluster) error {
+	// Delete the secret before deleting the deployment
+	annotations := deployment.GetAnnotations()
+	secretName := annotations[resources.RootPasswordSecret]
+	secretClient := NewMySQLRootPasswordSecretInterface(mdc.client)
+	if secretClient.IsControlledBy(ctx, secretName, nc) {
+		// The given NdbCluster is set as the Owner of the secret,
+		// which implies that this was created by the operator.
+		err := secretClient.Delete(ctx, deployment.Namespace, secretName)
+		if err != nil {
+			klog.Errorf("Failed to delete MySQL Root pass secret %q : %s", secretName, err)
+			return err
+		}
+	}
+
+	// delete the deployment
+	err := mdc.deploymentInterface(deployment.Namespace).Delete(
+		context.TODO(), deployment.Name, metav1.DeleteOptions{})
+	if err != nil {
+		klog.Errorf("Failed to delete the deployment %q : %s", deployment.Name, err)
+		return err
+	}
+	klog.Errorf("Deleted the deployment %q", deployment.Name)
+	return nil
 }
 
 // patchDeployment generates and applies the patch to the deployment
 func (mdc *mysqlDeploymentController) patchDeployment(
-	existingDeployment *appsv1.Deployment, updatedDeployment *appsv1.Deployment) (*appsv1.Deployment, error) {
+	existingDeployment *appsv1.Deployment, updatedDeployment *appsv1.Deployment) syncResult {
 	// JSON encode both deployments
 	existingJSON, err := json.Marshal(existingDeployment)
 	if err != nil {
 		klog.Errorf("Failed to encode existing deployment: %v", err)
-		return nil, err
+		return errorWhileProcssing(err)
 	}
 	updatedJSON, err := json.Marshal(updatedDeployment)
 	if err != nil {
 		klog.Errorf("Failed to encode updated deployment: %v", err)
-		return nil, err
+		return errorWhileProcssing(err)
 	}
 
 	// Generate the patch to be applied
 	patch, err := strategicpatch.CreateTwoWayMergePatch(existingJSON, updatedJSON, appsv1.Deployment{})
 	if err != nil {
 		klog.Errorf("Failed to generate the patch to be applied: %v", err)
-		return nil, err
+		return errorWhileProcssing(err)
 	}
 
 	// klog.Infof("Patching deployments.\nExisting : %v\n. Modified : %v\nPatch : %v", string(existingJSON), string(updatedJSON), string(patch))
@@ -97,122 +170,96 @@ func (mdc *mysqlDeploymentController) patchDeployment(
 	deployment, err := deploymentInterface.Patch(
 		context.TODO(), existingDeployment.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
 	if err != nil {
-		klog.Errorf("Failed to apply the patch to the deployment '%s': %v", existingDeployment.Name, err)
-		return nil, err
-	}
-
-	// successfully applied the patch
-	klog.Infof("Deployment '%s' has been patched successfully", deployment.Name)
-	return deployment, nil
-}
-
-// ReconcileDeployment compares the MySQL Server spec defined
-// in Ndb resource and makes changes to the deployment if required
-//
-// Note : This function is called twice by the sync function.
-//        Once before the config version is ensured in the management
-//        and data nodes and once after they are ensured. During the
-//        first pass, only scale down, if any, is handled. Any other
-//        changes to the template and scaling up are handled during
-//        the second pass. This is to ensure that during a scale down,
-//        the Servers are shutdown before a possible reduction in the
-//        number of API sections in the config.
-func (mdc *mysqlDeploymentController) ReconcileDeployment(
-	ndb *v1alpha1.NdbCluster, deployment *appsv1.Deployment, rc *resources.ResourceContext, handleScaleDown bool) syncResult {
-
-	// Nothing to reconcile if there is no existing deployment
-	if deployment == nil {
-		// TODO interesting case - we should not never be here
-		// if there is no deployment then it hasn't been created
-		// should it be created even if replicas == 0 in MysqldSpec?
-		klog.Warningf("MySQL Server deployment does not exist")
-		return continueProcessing()
-	}
-
-	if !deploymentComplete(deployment) {
-		// Previous deployment not complete yet. Return and requeue.
-		return requeueInSeconds(1)
-	}
-
-	// Get the last applied Config Generation
-	annotations := deployment.Spec.Template.GetAnnotations()
-	existingConfigGeneration, _ := strconv.ParseUint(annotations[resources.LastAppliedConfigGeneration], 10, 64)
-	if uint32(existingConfigGeneration) == rc.ConfigGeneration {
-		// Deployment upto date with the current config
-		return continueProcessing()
-	}
-
-	// Handle spec/config change
-	var updatedDeployment *appsv1.Deployment
-	mysqldNodeCount := ndb.GetMySQLServerNodeCount()
-	if handleScaleDown {
-		// First pass - handle only the scale down, if any
-		if deployment.Status.Replicas <= mysqldNodeCount {
-			// No scale down requested or it has been processed already
-			// Continue processing rest of sync loop
-			return continueProcessing()
-		}
-		// scale down requested
-		// create a new deployment with updated replica to patch the original deployment
-		// Note : the annotation 'last-applied-config-generation' will be updated only
-		//        during the second pass.
-		updatedDeployment = deployment.DeepCopy()
-		updatedDeployment.Spec.Replicas = &mysqldNodeCount
-	} else {
-		// Second pass - patch in the any other spec changes and scale up
-		updatedDeployment = mdc.mysqlServerDeployment.NewDeployment(ndb, rc, deployment)
-	}
-
-	patchedDeployment, err := mdc.patchDeployment(deployment, updatedDeployment)
-	if err != nil {
-		klog.Errorf("Failed to patch MySQL Server deployment")
+		klog.Errorf("Failed to apply the patch to the deployment %q : %s", existingDeployment.Name, err)
 		return errorWhileProcssing(err)
 	}
 
-	// If any change has been done to the spec of the deployment, exit and continue later
-	if !deploymentComplete(patchedDeployment) {
+	// successfully applied the patch
+	klog.Infof("Deployment %q has been patched successfully", deployment.Name)
+	return requeueInSeconds(5)
+}
+
+// HandleScaleDown scales down the MySQL deployment if it has been requested in the NdbCluster spec.
+// This method is called before the config version is ensured in the management and data nodes,
+// i.e., before any new config is applied to the management and data nodes. This is to ensure that
+// during a scale down, the MySQL Servers are shutdown before a possible reduction in the number of
+// API sections in the config.
+func (mdc *mysqlDeploymentController) HandleScaleDown(ctx context.Context, sc *SyncContext) syncResult {
+
+	ndbCluster := sc.ndb
+	deployment := sc.mysqldDeployment
+
+	if deployment == nil {
+		// Nothing to scale down
+		return continueProcessing()
+	}
+
+	// Deployment exists
+	if !deploymentComplete(deployment) {
+		// Previous deployment not complete yet. Return and requeue.
 		return requeueInSeconds(5)
 	}
 
-	// No change to deployment spec - continue processing
-	return continueProcessing()
+	// Handle any scale down
+	mysqldNodeCount := int32(sc.resourceContext.NumOfMySQLServers)
+	if deployment.Status.Replicas <= mysqldNodeCount {
+		// No scale down requested or, it has been processed already
+		// Continue processing rest of sync loop
+		return continueProcessing()
+	}
+
+	// scale down requested
+	if mysqldNodeCount == 0 {
+		// scale down to 0 servers; delete the deployment
+		if err := mdc.deleteDeployment(ctx, deployment, ndbCluster); err != nil {
+			return errorWhileProcssing(err)
+		}
+		return requeueInSeconds(1)
+	}
+
+	// create a new deployment with updated replica to patch the original deployment
+	// Note : the annotation 'last-applied-config-generation' will be updated only
+	//        during ReconcileDeployment
+	updatedDeployment := deployment.DeepCopy()
+	updatedDeployment.Spec.Replicas = &mysqldNodeCount
+	return mdc.patchDeployment(deployment, updatedDeployment)
+
 }
 
-// EnsureDeployment checks if the MySQLServerDeployment already
-// exists. If not, it creates a new deployment.
-func (mdc *mysqlDeploymentController) EnsureDeployment(
-	ctx context.Context, sc *SyncContext) (*appsv1.Deployment, bool, error) {
+// ReconcileDeployment compares the MySQL Server spec defined in NdbCluster resource
+// and applies any changes to the deployment if required. This method is called after
+// the new config has been ensured in both Management and Data Nodes.
+func (mdc *mysqlDeploymentController) ReconcileDeployment(ctx context.Context, sc *SyncContext) syncResult {
+	deployment := sc.mysqldDeployment
+	rc := sc.resourceContext
+	ndbCluster := sc.ndb
 
-	// Get the deployment in the namespace of Ndb resource
-	// with the name matching that of MySQLServerDeployment
-	deployment, err := mdc.deploymentInterface(sc.ndb.Namespace).Get(
-		ctx, mdc.mysqlServerDeployment.GetName(), metav1.GetOptions{})
+	if deployment == nil {
+		// deployment doesn't exist yet
+		if rc.NumOfMySQLServers == 0 {
+			// the current state is in sync with expectation
+			return continueProcessing()
+		}
 
-	// Return if the deployment exists already or
-	// if listing failed due to some other error than not found
-	if err == nil || !errors.IsNotFound(err) {
-		return deployment, err == nil, err
+		// create a deployment
+		if err := mdc.createDeployment(ctx, sc); err != nil {
+			return errorWhileProcssing(err)
+		}
+
+		// deployment was created successfully.
+		// Wait for it to become ready
+		return requeueInSeconds(5)
 	}
 
-	numberOfMySQLServers := sc.ndb.GetMySQLServerNodeCount()
-
-	// Deployment doesn't exist
-	// First ensure that a root password secret exists
-    secretClient := NewMySQLRootPasswordSecretInterface(mdc.client)
-	if _, err = secretClient.Ensure(ctx, sc.ndb); err != nil {
-		return nil, false, err
+	// At this point the deployment exists and has already been verified
+	// to be complete (i.e. no previous updates still being applied) by HandleScaleDown.
+	// Check if it has the recent config generation.
+	if deploymentHasConfig(deployment, rc.ConfigGeneration) {
+		// Deployment upto date
+		return continueProcessing()
 	}
 
-	// Create deployment
-	klog.Infof("Creating a deployment of '%d' MySQL Servers", numberOfMySQLServers)
-	deployment = mdc.mysqlServerDeployment.NewDeployment(sc.ndb, sc.resourceContext, nil)
-	if _, err = mdc.createDeployment(deployment); err != nil {
-		// Creating deployment failed
-		klog.Errorf("Failed to create deployment of '%d' MySQL Servers with error: %s",
-			numberOfMySQLServers, err)
-		return nil, false, err
-	}
-
-	// New deployment was successfully created
-	return deployment, false, nil
+	// Deployment has to be patched
+	updatedDeployment := mdc.mysqlServerDeployment.NewDeployment(ndbCluster, rc, deployment)
+	return mdc.patchDeployment(deployment, updatedDeployment)
 }

@@ -55,6 +55,7 @@ rules:
     verbs:
       - get
       - create
+      - delete
 
   - apiGroups: ["events.k8s.io"]
     resources: ["events"]
@@ -69,8 +70,8 @@ rules:
       - get
       - list
       - patch
-      - update
       - watch
+      - delete
 
   - apiGroups: ["policy"]
     resources: ["poddisruptionbudgets"]

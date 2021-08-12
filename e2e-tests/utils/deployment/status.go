@@ -11,6 +11,7 @@ import (
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 )
@@ -25,9 +26,17 @@ func ExpectHasLabel(c clientset.Interface, namespace, deploymentName string, lab
 
 // ExpectHasReplicas expects that the deployment has the given number of replicas.
 func ExpectHasReplicas(c clientset.Interface, namespace, deploymentName string, replicas int) {
-	ginkgo.By(fmt.Sprintf("verifying the statefulset has %d number of replicas", replicas))
+	ginkgo.By(fmt.Sprintf("verifying the deployment has %d number of replicas", replicas))
 	deployment, err := c.AppsV1().Deployments(namespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 
 	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 	gomega.ExpectWithOffset(1, int(deployment.Status.Replicas)).To(gomega.Equal(replicas))
+}
+
+// ExpectToBeNil expects that the deployment to be empty.
+func ExpectToBeNil(c clientset.Interface, namespace, deploymentName string) {
+	ginkgo.By("verifying that the deployment doesn't exist")
+	_, err := c.AppsV1().Deployments(namespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+
+	gomega.ExpectWithOffset(1, errors.IsNotFound(err)).To(gomega.BeTrue())
 }

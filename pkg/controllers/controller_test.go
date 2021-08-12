@@ -495,13 +495,5 @@ func TestCreatesCluster(t *testing.T) {
 	omd.Name = "test-ndbd"
 	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
 
-	omd.Name = "test-mysqld-root-password"
-	f.expectCreateAction(ns, "", "v1", "secrets", &corev1.Secret{ObjectMeta: *omd})
-
-	omd.Name = "test-mysqld"
-	f.expectCreateAction(ns, "apps", "v1", "deployments", &appsv1.Deployment{ObjectMeta: *omd})
-
-	//f.expectUpdateNdbStatusAction(ns, ndb)
-
 	f.run(getKey(ndb, t))
 }
