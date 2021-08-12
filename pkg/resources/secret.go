@@ -55,7 +55,7 @@ func newBasicAuthSecretWithRandomPassword(ndb *v1alpha1.NdbCluster,
 
 // GetMySQLRootPasswordSecretName returns the name of the root password secret
 // and a bool flag to specify if it is a custom secret created by the user
-func GetMySQLRootPasswordSecretName(ndb *v1alpha1.NdbCluster) (string, bool) {
+func GetMySQLRootPasswordSecretName(ndb *v1alpha1.NdbCluster) (secretName string, customSecret bool) {
 	if ndb.Spec.Mysqld.RootPasswordSecretName != "" {
 		return ndb.Spec.Mysqld.RootPasswordSecretName, true
 	}

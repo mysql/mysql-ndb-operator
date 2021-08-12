@@ -281,6 +281,7 @@ func extractObjectMetaData(actual core.Action, extO, actO runtime.Object, t *tes
 // checkAction verifies that expected and actual actions are equal and both have
 // same attached resources
 func checkAction(expected, actual core.Action, t *testing.T) {
+	// TODO: Compare the complete GroupVersionResource rather than just Resource
 	if !(expected.Matches(actual.GetVerb(), actual.GetResource().Resource) && actual.GetSubresource() == expected.GetSubresource()) {
 		t.Errorf("Expected\n\t%#v\ngot\n\t%#v", expected, actual)
 		return
@@ -349,6 +350,13 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 			//				t.Errorf("Action %s %s has wrong patch\nDiff:\n %s",
 			//				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expPatch, patch))
 		}
+
+	case core.DeleteActionImpl:
+		e, _ := expected.(core.DeleteActionImpl)
+		if e.Name != a.Name {
+			t.Errorf("Expected delete action on object %q but actual delete was on object %q", e.Name, a.Name)
+		}
+
 	default:
 		t.Errorf("Uncaptured Action %s %s, you should explicitly add a case to capture it",
 			actual.GetVerb(), actual.GetResource().Resource)
@@ -412,6 +420,11 @@ func (f *fixture) expectCreateAction(ns string, group, version, resource string,
 func (f *fixture) expectPatchAction(ns string, resource string, name string, pt types.PatchType, expPatch []byte) {
 	f.kubeactions = append(f.kubeactions,
 		core.NewPatchAction(schema.GroupVersionResource{Resource: resource}, ns, name, pt, expPatch))
+}
+
+func (f *fixture) expectDeleteAction(ns, group, version, resource, name string) {
+	grpVersionResource := schema.GroupVersionResource{Group: group, Version: version, Resource: resource}
+	f.kubeactions = append(f.kubeactions, core.NewDeleteAction(grpVersionResource, ns, name))
 }
 
 func (f *fixture) expectUpdateNdbAction(ns string, o runtime.Object) {

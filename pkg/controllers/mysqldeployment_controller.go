@@ -186,8 +186,8 @@ func (mdc *mysqlDeploymentController) EnsureDeployment(
 
 	// Deployment doesn't exist
 	// First ensure that a root password secret exists
-	sci := NewMySQLRootPasswordSecretInterface(mdc.client, sc.ndb.GetNamespace())
-	if _, err = sci.EnsureSecret(ctx, sc.ndb); err != nil {
+	sci := NewMySQLRootPasswordSecretInterface(mdc.client)
+	if _, err = sci.Ensure(ctx, sc.ndb); err != nil {
 		return nil, false, err
 	}
 

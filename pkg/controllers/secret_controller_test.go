@@ -15,7 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestMysqlRootPasswordSecretInterface_EnsureSecret(t *testing.T) {
+func TestMysqlRootPasswordSecrets(t *testing.T) {
 
 	ns := metav1.NamespaceDefault
 	ndb := testutils.NewTestNdb(ns, "test", 2)
@@ -25,10 +25,10 @@ func TestMysqlRootPasswordSecretInterface_EnsureSecret(t *testing.T) {
 	defer f.close()
 	f.start()
 
-	sci := NewMySQLRootPasswordSecretInterface(f.kubeclient, ns)
+	sci := NewMySQLRootPasswordSecretInterface(f.kubeclient)
 
 	// Test the secret control interface for default random password
-	secret, err := sci.EnsureSecret(context.TODO(), ndb)
+	secret, err := sci.Ensure(context.TODO(), ndb)
 	if err != nil {
 		t.Errorf("Error ensuring secret : %v", err)
 	}
@@ -43,7 +43,7 @@ func TestMysqlRootPasswordSecretInterface_EnsureSecret(t *testing.T) {
 	customSecretName := "custom-mysqld-root-password"
 	ndb.Spec.Mysqld.RootPasswordSecretName = customSecretName
 	// Ensuring should fail
-	_, err = sci.EnsureSecret(context.TODO(), ndb)
+	_, err = sci.Ensure(context.TODO(), ndb)
 	if err == nil {
 		t.Errorf("Expected '%s' secret not found error but got no error", customSecretName)
 	} else if !errors.IsNotFound(err) {
@@ -59,10 +59,10 @@ func TestMysqlRootPasswordSecretInterface_EnsureSecret(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error creating custom secret : %v", err)
 	}
-	f.expectCreateAction(ns, "", "v1", "secrets", secret)
+	f.expectCreateAction(ns, "core", "v1", "secrets", secret)
 
 	// Now ensuring should pass
-	secret, err = sci.EnsureSecret(context.TODO(), ndb)
+	secret, err = sci.Ensure(context.TODO(), ndb)
 	if err != nil {
 		t.Errorf("Error ensuring custom secret '%s' : %v", customSecretName, err)
 	}
@@ -70,6 +70,13 @@ func TestMysqlRootPasswordSecretInterface_EnsureSecret(t *testing.T) {
 		t.Error("Error ensuring custom secret : secret is nil")
 	}
 	// No action is expected
+
+	// Delete it and expect a delete action
+	err = sci.Delete(context.Background(), ns, secret.Name)
+	if err != nil {
+		t.Errorf("Error deleting secret %q : %s", secret.Name, err)
+	}
+	f.expectDeleteAction(ns, "core", "v1", "secrets", secret.Name)
 
 	// Validate all the actions
 	f.checkActions()
