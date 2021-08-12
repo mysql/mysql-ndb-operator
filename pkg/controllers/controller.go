@@ -551,7 +551,7 @@ func (sc *SyncContext) ensureManagementServerStatefulSet() (*appsv1.StatefulSet,
 	if !metav1.IsControlledBy(sfset, sc.ndb) {
 		msg := fmt.Sprintf(MessageResourceExists, sfset.Name)
 		sc.recorder.Eventf(sc.ndb, nil,
-			corev1.EventTypeWarning, ReasonResourceExists, ActionNone, MessageResourceExists)
+			corev1.EventTypeWarning, ReasonResourceExists, ActionNone, msg)
 		return nil, existed, fmt.Errorf(msg)
 	}
 
@@ -587,33 +587,34 @@ func (sc *SyncContext) ensureDataNodeStatefulSet() (*appsv1.StatefulSet, bool, e
 	return sfset, existed, err
 }
 
-// ensureMySQLServerDeployment creates a deployment of MySQL Servers if doesn't exist
-// returns
-//    true if the deployment exists
-//    or returns an error if something went wrong
-func (sc *SyncContext) ensureMySQLServerDeployment() (*appsv1.Deployment, bool, error) {
+// validateMySQLServerDeployment retrieves the MySQL Server deployment from K8s.
+// If the deployment exists, it verifies if it is owned by the NdbCluster resource.
+func (sc *SyncContext) validateMySQLServerDeployment(ctx context.Context) (*appsv1.Deployment, error) {
 
-	deployment, existed, err := sc.mysqldController.EnsureDeployment(context.TODO(), sc)
+	nc := sc.ndb
+	deployment, err := sc.mysqldController.GetDeployment(ctx, nc)
 	if err != nil {
 		// Failed to ensure the deployment
-		return deployment, existed, err
+		return nil, err
 	}
 
 	if deployment == nil {
-		// didn't exist and wasn't created wither
-		return nil, existed, nil
+		// Deployment doesn't exist yet.
+		// This is OK as it might be created later during sync.
+		return nil, nil
 	}
 
 	// If the deployment is not controlled by Ndb resource,
 	// log a warning to the event recorder and return the error message.
 	if !metav1.IsControlledBy(deployment, sc.ndb) {
-		msg := fmt.Sprintf(MessageResourceExists, deployment.Name)
+		err = fmt.Errorf(MessageResourceExists, deployment.Name)
 		sc.recorder.Eventf(sc.ndb, nil,
-			corev1.EventTypeWarning, ReasonResourceExists, ActionNone, msg)
-		return deployment, existed, fmt.Errorf(msg)
+			corev1.EventTypeWarning, ReasonResourceExists, ActionNone, err.Error())
+		return nil, err
 	}
 
-	return deployment, existed, nil
+	// deployment exists and is owned by NdbCluster
+	return deployment, nil
 }
 
 // ensurePodDisruptionBudget creates a PDB if it doesn't exist
@@ -989,8 +990,9 @@ func (sc *SyncContext) ensureAllResources() (bool, error) {
 		return false, err
 	}
 
-	// create the mysql deployment if it doesn't exist
-	if sc.mysqldDeployment, (*sc.resourceMap)["mysqldeployment"], err = sc.ensureMySQLServerDeployment(); err != nil {
+	// MySQL Server deployment will be created only if required.
+	// For now, just verify that if it exists, it is indeed owned by the NdbCluster resource.
+	if sc.mysqldDeployment, err = sc.validateMySQLServerDeployment(context.TODO()); err != nil {
 		return false, err
 	}
 
@@ -1089,10 +1091,10 @@ func (c *Controller) syncHandler(key string) error {
 
 	syncContext := c.newSyncContext(ndb)
 
-	return syncContext.sync()
+	return syncContext.sync(context.TODO())
 }
 
-func (sc *SyncContext) sync() error {
+func (sc *SyncContext) sync(ctx context.Context) error {
 
 	// Multiple resources are required to start
 	// and run the MySQL Cluster in K8s. Create
@@ -1146,7 +1148,7 @@ func (sc *SyncContext) sync() error {
 	// If any scale down was requested, it will be handled in this pass.
 	// This is done separately to ensure that the MySQL Servers are shut
 	// down before possibly reducing the number of API sections in config.
-	if sr := sc.mysqldController.ReconcileDeployment(sc.ndb, sc.mysqldDeployment, sc.resourceContext, true); sr.finished() {
+	if sr := sc.mysqldController.HandleScaleDown(ctx, sc); sr.finished() {
 		return sr.getError()
 	}
 
@@ -1176,7 +1178,7 @@ func (sc *SyncContext) sync() error {
 
 	// Second pass of MySQL Server reconciliation
 	// Reconcile the rest of spec/config change in MySQL Server Deployment
-	if sr := sc.mysqldController.ReconcileDeployment(sc.ndb, sc.mysqldDeployment, sc.resourceContext, false); sr.finished() {
+	if sr := sc.mysqldController.ReconcileDeployment(ctx, sc); sr.finished() {
 		return sr.getError()
 	}
 
