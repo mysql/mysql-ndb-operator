@@ -49,6 +49,8 @@ const (
 
 	// LastAppliedConfigGeneration is the annotation key that holds the last applied config generation
 	LastAppliedConfigGeneration = ndbcontroller.GroupName + "/last-applied-config-generation"
+	// RootPasswordSecret is the name of the secret that holds the password for the root account
+	RootPasswordSecret = ndbcontroller.GroupName + "/root-password-secret"
 )
 
 func getContainerFromDeployment(containerName string, deployment *apps.Deployment) *v1.Container {
@@ -354,6 +356,9 @@ func (msd *MySQLServerDeployment) NewDeployment(
 	mysqlNodeCount := ndb.GetMySQLServerNodeCount()
 	podLabels := msd.getPodLabels(ndb)
 
+	// Root password secret
+	rootPasswordSecret, _ := GetMySQLRootPasswordSecretName(ndb)
+
 	// Define the deployment
 	mysqldDeployment := &apps.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -363,6 +368,9 @@ func (msd *MySQLServerDeployment) NewDeployment(
 			Labels:    msd.getDeploymentLabels(ndb),
 			// Owner reference pointing to the Ndb resource
 			OwnerReferences: ndb.GetOwnerReferences(),
+			Annotations: map[string]string{
+				RootPasswordSecret: rootPasswordSecret,
+			},
 		},
 		Spec: apps.DeploymentSpec{
 			// The desired spec of the deployment
