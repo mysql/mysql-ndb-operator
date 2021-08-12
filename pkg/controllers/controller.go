@@ -1018,11 +1018,7 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
 				statefulSetType:   mgmdSfSet}
 	}
 	if c.mysqldController == nil {
-		c.mysqldController = &mysqlDeploymentController{
-			client:                c.controllerContext.kubeClientset,
-			deploymentLister:      c.deploymentLister,
-			mysqlServerDeployment: resources.NewMySQLServerDeployment(ndb),
-		}
+		c.mysqldController = NewMySQLDeploymentController(c.controllerContext.kubeClientset, ndb)
 	}
 
 	resourceMap := make(map[string]bool)

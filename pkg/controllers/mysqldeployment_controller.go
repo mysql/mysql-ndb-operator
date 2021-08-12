@@ -18,7 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/kubernetes"
-	appslisters "k8s.io/client-go/listers/apps/v1"
+	typedappsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	"k8s.io/klog"
 )
 
@@ -41,8 +41,15 @@ type DeploymentControlInterface interface {
 
 type mysqlDeploymentController struct {
 	client                kubernetes.Interface
-	deploymentLister      appslisters.DeploymentLister
 	mysqlServerDeployment *resources.MySQLServerDeployment
+}
+
+// NewMySQLDeploymentController returns a new mysqlDeploymentController
+func NewMySQLDeploymentController(client kubernetes.Interface, nc *v1alpha1.NdbCluster) DeploymentControlInterface {
+	return &mysqlDeploymentController{
+		client:                client,
+		mysqlServerDeployment: resources.NewMySQLServerDeployment(nc),
+	}
 }
 
 // GetTypeName returns the type of the resource being
@@ -51,10 +58,14 @@ func (mdc *mysqlDeploymentController) GetTypeName() string {
 	return mdc.mysqlServerDeployment.GetTypeName()
 }
 
+// deploymentInterface returns a typed/apps/v1.DeploymentInterface
+func (mdc *mysqlDeploymentController) deploymentInterface(namespace string) typedappsv1.DeploymentInterface {
+	return mdc.client.AppsV1().Deployments(namespace)
+}
+
 // createDeployment takes the representation of a deployment and creates it
 func (mdc *mysqlDeploymentController) createDeployment(deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
-	return mdc.client.AppsV1().Deployments(deployment.Namespace).Create(
-		context.TODO(), deployment, metav1.CreateOptions{})
+	return mdc.deploymentInterface(deployment.Namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
 }
 
 // patchDeployment generates and applies the patch to the deployment
@@ -82,7 +93,7 @@ func (mdc *mysqlDeploymentController) patchDeployment(
 	// klog.Infof("Patching deployments.\nExisting : %v\n. Modified : %v\nPatch : %v", string(existingJSON), string(updatedJSON), string(patch))
 
 	// Patch the deployment
-	deploymentInterface := mdc.client.AppsV1().Deployments(existingDeployment.Namespace)
+	deploymentInterface := mdc.deploymentInterface(existingDeployment.Namespace)
 	deployment, err := deploymentInterface.Patch(
 		context.TODO(), existingDeployment.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
 	if err != nil {
@@ -174,7 +185,8 @@ func (mdc *mysqlDeploymentController) EnsureDeployment(
 
 	// Get the deployment in the namespace of Ndb resource
 	// with the name matching that of MySQLServerDeployment
-	deployment, err := mdc.deploymentLister.Deployments(sc.ndb.Namespace).Get(mdc.mysqlServerDeployment.GetName())
+	deployment, err := mdc.deploymentInterface(sc.ndb.Namespace).Get(
+		ctx, mdc.mysqlServerDeployment.GetName(), metav1.GetOptions{})
 
 	// Return if the deployment exists already or
 	// if listing failed due to some other error than not found
@@ -186,8 +198,8 @@ func (mdc *mysqlDeploymentController) EnsureDeployment(
 
 	// Deployment doesn't exist
 	// First ensure that a root password secret exists
-	sci := NewMySQLRootPasswordSecretInterface(mdc.client)
-	if _, err = sci.Ensure(ctx, sc.ndb); err != nil {
+    secretClient := NewMySQLRootPasswordSecretInterface(mdc.client)
+	if _, err = secretClient.Ensure(ctx, sc.ndb); err != nil {
 		return nil, false, err
 	}
 
