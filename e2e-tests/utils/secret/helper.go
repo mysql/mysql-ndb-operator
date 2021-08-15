@@ -6,6 +6,12 @@ package secret
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/resources"
+	"github.com/onsi/gomega"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -34,4 +40,20 @@ func CreateSecretForMySQLRootAccount(clientset kubernetes.Interface, secretName,
 func DeleteSecret(clientset kubernetes.Interface, secretName, namespace string) {
 	err := clientset.CoreV1().Secrets(namespace).Delete(context.TODO(), secretName, metav1.DeleteOptions{})
 	framework.ExpectNoError(err, "failed to delete the custom secret")
+}
+
+// GetMySQLRootPassword returns the root password for the MySQL Servers maintained by the given NdbCluster.
+func GetMySQLRootPassword(ctx context.Context, clientset kubernetes.Interface, nc *v1alpha1.NdbCluster) string {
+	gomega.Expect(nc.GetMySQLServerNodeCount()).NotTo(
+		gomega.BeZero(), fmt.Sprintf("No MySQL Servers configured for NdbCluster %q", nc.Name))
+	// Retrieve the Secret
+	secretName, _ := resources.GetMySQLRootPasswordSecretName(nc)
+	secret, err := clientset.CoreV1().Secrets(nc.Namespace).Get(ctx, secretName, metav1.GetOptions{})
+	framework.ExpectNoError(err, "failed to retrieve the MySQL root password secret")
+
+	// Extract the password
+	password := secret.Data[v1.BasicAuthPasswordKey]
+	gomega.Expect(password).NotTo(
+		gomega.BeEmpty(), "MySQL root password was not found in secret")
+	return string(password)
 }

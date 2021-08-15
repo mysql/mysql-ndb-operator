@@ -64,7 +64,7 @@ var _ = ndbtest.DescribeFeature("MySQL Servers scaling up and down", func() {
 
 			ginkgo.By("verifying the initial MySQL Server node count and running queries", func() {
 				deployment.ExpectHasReplicas(c, testNdb.Namespace, ndbName+"-mysqld", 2)
-				db := mysql.Connect(c, ns, ndbName, "")
+				db := mysql.Connect(c, testNdb, "")
 				_, err := db.Exec("create database test")
 				framework.ExpectNoError(err, "create database test failed")
 				_, err = db.Exec("create table test.t1 (id int, value char(10)) engine ndb")
@@ -78,7 +78,7 @@ var _ = ndbtest.DescribeFeature("MySQL Servers scaling up and down", func() {
 
 			ginkgo.By("verifying the MySQL Server node count after scale up and running queries", func() {
 				deployment.ExpectHasReplicas(c, testNdb.Namespace, ndbName+"-mysqld", 5)
-				db := mysql.Connect(c, ns, ndbName, "test")
+				db := mysql.Connect(c, testNdb, "test")
 				result, err := db.Exec("insert into t1 values (1, 'ndb'), (2, 'operator')")
 				framework.ExpectNoError(err, "insert into t1 failed")
 				gomega.Expect(result.RowsAffected()).To(gomega.Equal(int64(2)))
@@ -91,7 +91,7 @@ var _ = ndbtest.DescribeFeature("MySQL Servers scaling up and down", func() {
 
 			ginkgo.By("verifying the MySQL Server node count after scale up and running queries", func() {
 				deployment.ExpectHasReplicas(c, testNdb.Namespace, ndbName+"-mysqld", 1)
-				db := mysql.Connect(c, ns, ndbName, "test")
+				db := mysql.Connect(c, testNdb, "test")
 				row := db.QueryRow("select value from t1 where id = 2")
 				var value string
 				framework.ExpectNoError(row.Scan(&value), "select value from t1 failed")
