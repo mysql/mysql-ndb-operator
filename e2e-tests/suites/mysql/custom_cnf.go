@@ -61,7 +61,7 @@ var _ = ndbtest.DescribeFeature("MySQL Custom cnf", func() {
 		})
 
 		ginkgo.It("should start the server with those values as the defaults", func() {
-			db := mysql.Connect(c, ns, ndbName, "performance_schema")
+			db := mysql.Connect(c, testNdb, "performance_schema")
 
 			ginkgo.By("verifying that max_user_connections is properly set in server", func() {
 				row := db.QueryRow(
