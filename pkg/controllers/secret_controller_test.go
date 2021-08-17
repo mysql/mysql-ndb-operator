@@ -67,7 +67,7 @@ func TestMysqlRootPasswordSecrets(t *testing.T) {
 		t.Errorf("Error ensuring custom secret '%s' : %v", customSecretName, err)
 	}
 	if secret == nil {
-		t.Error("Error ensuring custom secret : secret is nil")
+		t.Fatal("Error ensuring custom secret : secret is nil")
 	}
 	// No action is expected
 
