@@ -29,22 +29,21 @@ const (
 type StatefulSetInterface interface {
 	GetTypeName() string
 	NewStatefulSet(rc *ResourceContext, cluster *v1alpha1.NdbCluster) *apps.StatefulSet
-	GetName() string
+	GetName(nc *v1alpha1.NdbCluster) string
 }
 
 type baseStatefulSet struct {
-	typeName    string
-	clusterName string
+	typeName string
 }
 
 // NewMgmdStatefulSet returns a new baseStatefulSet for management nodes
-func NewMgmdStatefulSet(cluster *v1alpha1.NdbCluster) *baseStatefulSet {
-	return &baseStatefulSet{typeName: sfsetTypeMgmd, clusterName: cluster.Name}
+func NewMgmdStatefulSet() *baseStatefulSet {
+	return &baseStatefulSet{typeName: sfsetTypeMgmd}
 }
 
 // NewNdbdStatefulSet returns a new baseStatefulSet for data nodes
-func NewNdbdStatefulSet(cluster *v1alpha1.NdbCluster) *baseStatefulSet {
-	return &baseStatefulSet{typeName: sfsetTypeNdbd, clusterName: cluster.Name}
+func NewNdbdStatefulSet() *baseStatefulSet {
+	return &baseStatefulSet{typeName: sfsetTypeNdbd}
 }
 
 // isMgmd returns if the baseStatefulSet represents a management node
@@ -58,8 +57,8 @@ func (bss *baseStatefulSet) isNdbd() bool {
 }
 
 // getEmptyDirectoryVolumeName returns the name of the empty directory volume
-func (bss *baseStatefulSet) getEmptyDirVolumeName() string {
-	return bss.clusterName + bss.typeName + "-volume"
+func (bss *baseStatefulSet) getEmptyDirVolumeName(nc *v1alpha1.NdbCluster) string {
+	return nc.Name + "-" + bss.typeName + "-volume"
 }
 
 // getPodVolumes returns the named volume available in the Pods
@@ -72,7 +71,7 @@ func (bss *baseStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) []v1.Volume 
 		// (b) this is a ndbd pod whose PVC Spec was not specified as a part
 		//     of Ndb spec and it will use this volume as the data directory
 		podVolumes = append(podVolumes, v1.Volume{
-			Name: bss.getEmptyDirVolumeName(),
+			Name: bss.getEmptyDirVolumeName(ndb),
 			VolumeSource: v1.VolumeSource{
 				EmptyDir: &v1.EmptyDirVolumeSource{},
 			},
@@ -111,7 +110,7 @@ func (bss *baseStatefulSet) getVolumeMounts(ndb *v1alpha1.NdbCluster) []v1.Volum
 		// Use the volumeClaimTemplate name for the data node
 		volumeName = volumeClaimTemplateName
 	} else {
-		volumeName = bss.getEmptyDirVolumeName()
+		volumeName = bss.getEmptyDirVolumeName(ndb)
 	}
 
 	// volume mount for the data directory/config directory
@@ -135,8 +134,8 @@ func (bss *baseStatefulSet) getVolumeMounts(ndb *v1alpha1.NdbCluster) []v1.Volum
 }
 
 // GetName returns the name of the baseStatefulSet
-func (bss *baseStatefulSet) GetName() string {
-	return bss.clusterName + "-" + bss.typeName
+func (bss *baseStatefulSet) GetName(nc *v1alpha1.NdbCluster) string {
+	return nc.Name + "-" + bss.typeName
 }
 
 // GetTypeName returns the type name of baseStatefulSet
@@ -249,7 +248,7 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 
 	ss := &apps.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   bss.GetName(),
+			Name:   bss.GetName(ndb),
 			Labels: bss.getStatefulSetLabels(ndb),
 			// Owner reference pointing to the Ndb resource
 			OwnerReferences: ndb.GetOwnerReferences(),
@@ -266,7 +265,7 @@ func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.Nd
 			Replicas: &replicas,
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        bss.GetName(),
+					Name:        bss.GetName(ndb),
 					Labels:      podLabels,
 					Annotations: map[string]string{},
 				},

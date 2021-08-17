@@ -56,7 +56,7 @@ type mysqlDeploymentController struct {
 func NewMySQLDeploymentController(client kubernetes.Interface, nc *v1alpha1.NdbCluster) DeploymentControlInterface {
 	return &mysqlDeploymentController{
 		client:                client,
-		mysqlServerDeployment: resources.NewMySQLServerDeployment(nc),
+		mysqlServerDeployment: resources.NewMySQLServerDeployment(),
 	}
 }
 
@@ -75,7 +75,7 @@ func (mdc *mysqlDeploymentController) GetTypeName() string {
 func (mdc *mysqlDeploymentController) GetDeployment(
 	ctx context.Context, nc *v1alpha1.NdbCluster) (*appsv1.Deployment, error) {
 	deployment, err := mdc.deploymentInterface(nc.Namespace).Get(
-		ctx, mdc.mysqlServerDeployment.GetName(), metav1.GetOptions{})
+		ctx, mdc.mysqlServerDeployment.GetName(nc), metav1.GetOptions{})
 
 	if err != nil && !errors.IsNotFound(err) {
 		klog.Errorf("Failed to retrieve the deployment for NdbCluster %q : %s", nc.Name, err)
@@ -95,7 +95,8 @@ func (mdc *mysqlDeploymentController) createDeployment(ctx context.Context, sc *
 	// First ensure that a root password secret exists
 	secretClient := NewMySQLRootPasswordSecretInterface(mdc.client)
 	if _, err := secretClient.Ensure(ctx, sc.ndb); err != nil {
-		klog.Errorf("Failed to ensure root password secret for deployment %q : %s", mdc.mysqlServerDeployment.GetName(), err)
+		klog.Errorf("Failed to ensure root password secret for deployment %q : %s",
+			mdc.mysqlServerDeployment.GetName(sc.ndb), err)
 		return err
 	}
 

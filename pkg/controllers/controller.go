@@ -1001,21 +1001,13 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
 
 	//TODO: should probably create controller earlier
 	if c.ndbdController == nil {
-		ndbdSfSet := resources.NewNdbdStatefulSet(ndb)
-		c.ndbdController =
-			&realStatefulSetControl{
-				client:            c.controllerContext.kubeClientset,
-				statefulSetLister: c.statefulSetLister,
-				statefulSetType:   ndbdSfSet}
+		c.ndbdController = NewRealStatefulSetControl(c.controllerContext.kubeClientset,
+			c.statefulSetLister, resources.NewNdbdStatefulSet())
 	}
 	// create the management stateful set if it doesn't exist
 	if c.mgmdController == nil {
-		mgmdSfSet := resources.NewMgmdStatefulSet(ndb)
-		c.mgmdController =
-			&realStatefulSetControl{
-				client:            c.controllerContext.kubeClientset,
-				statefulSetLister: c.statefulSetLister,
-				statefulSetType:   mgmdSfSet}
+		c.mgmdController = NewRealStatefulSetControl(c.controllerContext.kubeClientset,
+			c.statefulSetLister, resources.NewMgmdStatefulSet())
 	}
 	if c.mysqldController == nil {
 		c.mysqldController = NewMySQLDeploymentController(c.controllerContext.kubeClientset, ndb)
