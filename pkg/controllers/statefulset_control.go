@@ -39,8 +39,15 @@ type realStatefulSetControl struct {
 
 // NewRealStatefulSetControl creates a concrete implementation of the
 // StatefulSetControlInterface.
-func NewRealStatefulSetControl(client kubernetes.Interface, statefulSetLister appslisters.StatefulSetLister) StatefulSetControlInterface {
-	return &realStatefulSetControl{client: client, statefulSetLister: statefulSetLister}
+func NewRealStatefulSetControl(
+	client kubernetes.Interface,
+	statefulSetLister appslisters.StatefulSetLister,
+	statefulSetType resources.StatefulSetInterface) StatefulSetControlInterface {
+	return &realStatefulSetControl{
+		client:            client,
+		statefulSetLister: statefulSetLister,
+		statefulSetType:   statefulSetType,
+	}
 }
 
 // GetTypeName returns the type of the statefulSetInterface
@@ -92,7 +99,7 @@ func (rssc *realStatefulSetControl) Patch(rc *resources.ResourceContext, ndb *v1
 
 	klog.Infof("Patch stateful set %s/%s Replicas: %d, DataNodes: %d",
 		ndb.Namespace,
-		rssc.statefulSetType.GetName(),
+		rssc.statefulSetType.GetName(ndb),
 		ndb.Spec.RedundancyLevel,
 		ndb.Spec.NodeCount)
 
@@ -109,7 +116,7 @@ func (rssc *realStatefulSetControl) Patch(rc *resources.ResourceContext, ndb *v1
 func (rssc *realStatefulSetControl) EnsureStatefulSet(sc *SyncContext) (*apps.StatefulSet, bool, error) {
 
 	// Get the StatefulSet with the name specified in Ndb.spec
-	sfset, err := rssc.statefulSetLister.StatefulSets(sc.ndb.Namespace).Get(rssc.statefulSetType.GetName())
+	sfset, err := rssc.statefulSetLister.StatefulSets(sc.ndb.Namespace).Get(rssc.statefulSetType.GetName(sc.ndb))
 	if err == nil {
 		return sfset, true, nil
 	}
@@ -123,7 +130,7 @@ func (rssc *realStatefulSetControl) EnsureStatefulSet(sc *SyncContext) (*apps.St
 	// If the resource doesn't exist, we'll create it
 	klog.Infof("Creating stateful set %s/%s Replicas: %d, Data Nodes: %d, Mgm Nodes: %d",
 		sc.ndb.Namespace,
-		rssc.statefulSetType.GetName(),
+		rssc.statefulSetType.GetName(sc.ndb),
 		rc.RedundancyLevel,
 		rc.NumOfDataNodes,
 		rc.NumOfManagementNodes)
@@ -134,7 +141,7 @@ func (rssc *realStatefulSetControl) EnsureStatefulSet(sc *SyncContext) (*apps.St
 	if err != nil {
 		// re-queue if something went wrong
 		klog.Errorf("Failed to create stateful set %s/%s replicas: %d with error: %s",
-			sc.ndb.Namespace, rssc.statefulSetType.GetName(),
+			sc.ndb.Namespace, rssc.statefulSetType.GetName(sc.ndb),
 			sc.ndb.Spec.NodeCount, err)
 
 		return nil, false, err

@@ -64,13 +64,12 @@ func getContainerFromDeployment(containerName string, deployment *apps.Deploymen
 }
 
 // MySQLServerDeployment is a deployment of MySQL Servers running as clients to the NDB
-type MySQLServerDeployment struct {
-	name string
-}
+// TODO: Group all the methods inside a package rather than using this struct
+type MySQLServerDeployment struct{}
 
 // GetName returns the name of the MySQLServerDeployment
-func (msd *MySQLServerDeployment) GetName() string {
-	return msd.name
+func (msd *MySQLServerDeployment) GetName(nc *v1alpha1.NdbCluster) string {
+	return nc.Name + "-" + mysqldClientName
 }
 
 // GetTypeName returns the constants.ClusterNodeTypeLabel
@@ -402,8 +401,6 @@ func (msd *MySQLServerDeployment) NewDeployment(
 }
 
 // NewMySQLServerDeployment creates a new MySQLServerDeployment
-func NewMySQLServerDeployment(ndb *v1alpha1.NdbCluster) *MySQLServerDeployment {
-	return &MySQLServerDeployment{
-		name: ndb.Name + "-" + mysqldClientName,
-	}
+func NewMySQLServerDeployment() *MySQLServerDeployment {
+	return &MySQLServerDeployment{}
 }
