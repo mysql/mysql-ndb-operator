@@ -17,8 +17,6 @@ import (
 var config struct {
 	// K8s service
 	serviceName string
-	// Namespace of the k8s resources
-	namespace string
 	// K8s config for out of cluster run
 	masterURL, kubeconfig string
 }
@@ -32,17 +30,12 @@ func mandatoryParam(param string, value string) {
 
 func validateCommandLineArgs() {
 	// Check required arguments
-	mandatoryParam("namespace", config.namespace)
 	mandatoryParam("service", config.serviceName)
 }
 
 func init() {
 	// klog arguments
 	klog.InitFlags(nil)
-
-	// namespace of all the k8s resources
-	flag.StringVar(&config.namespace, "namespace", "",
-		"Namespace of the K8s service that will be mapped to the webhook server (Required)")
 
 	// argument to get the k8s service name
 	flag.StringVar(&config.serviceName, "service", "",

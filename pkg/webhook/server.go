@@ -14,6 +14,7 @@ import (
 	"net/http"
 
 	"github.com/mysql/ndb-operator/pkg/controllers"
+	"github.com/mysql/ndb-operator/pkg/helpers"
 
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -135,8 +136,13 @@ func initWebhookServer(ws *http.Server) {
 
 // setWebhookServerTLSCerts configures the server to use the TLS certificates
 func setWebhookServerTLSCerts(ws *http.Server) {
+	namespace, err := helpers.GetCurrentNamespace()
+	if err != nil {
+		klog.Fatalf("Could not get current namespace : %s", err)
+	}
+
 	// Create a new certificate
-	td := createCertificate(config.serviceName, config.namespace)
+	td := createCertificate(config.serviceName, namespace)
 
 	// get k8s clientset
 	clientset := getK8sClientset()

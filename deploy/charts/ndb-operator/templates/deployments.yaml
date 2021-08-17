@@ -32,7 +32,6 @@ spec:
           command:
             - ndb-operator-webhook
           args:
-            - -namespace={{.Release.Namespace}}
             - -service={{template "webhook-service.name"}}
           readinessProbe:
             httpGet:
@@ -70,9 +69,7 @@ spec:
           imagePullPolicy: {{.Values.imagePullPolicy}}
           command:
             - ndb-operator
-          {{if not .Values.clusterScoped -}}
           args:
-            - -watch-namespace={{.Release.Namespace}}
-          {{- end }}
+            - -cluster-scoped={{.Values.clusterScoped}}
           ports:
             - containerPort: 1186
