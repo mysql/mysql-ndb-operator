@@ -36,6 +36,14 @@ func main() {
 	if runningInsideK8s {
 		// Operator is running inside K8s Pods
 		cfg, err = restclient.InClusterConfig()
+		if !config.ClusterScoped {
+			// Operator is namespace-scoped.
+			// Use the namespace it is deployed in to watch for changes.
+			config.WatchNamespace, err = helpers.GetCurrentNamespace()
+			if err != nil {
+				klog.Fatalf("Could not get current namespace : %s", err)
+			}
+		}
 	} else {
 		if config.Kubeconfig == "" && config.MasterURL == "" {
 			// Operator is not running inside K8s and kubeconfig/masterURL are not specified.
@@ -43,6 +51,11 @@ func main() {
 				"Please specify kubeconfig or masterURL.")
 		}
 		cfg, err = clientcmd.BuildConfigFromFlags(config.MasterURL, config.Kubeconfig)
+		// WatchNamespace is mandatory for operator running in namescoped mode out-of-cluster.
+		if !config.ClusterScoped && config.WatchNamespace == "" {
+			klog.Fatal("For operator running in namescoped mode out-of-cluster, " +
+				"'-watch-namespace' argument needs to be provided.")
+		}
 	}
 	if err != nil {
 		klog.Fatalf("Error getting kubeconfig: %s", err.Error())
@@ -61,7 +74,7 @@ func main() {
 	k8If := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	ndbOpIf := informers.NewSharedInformerFactory(ndbClient, time.Second*30)
 
-	ctx := controllers.NewControllerContext(kubeClient, ndbClient, runningInsideK8s, config.WatchNamespace)
+	ctx := controllers.NewControllerContext(kubeClient, ndbClient, runningInsideK8s, config.WatchNamespace, config.ClusterScoped)
 
 	controller := controllers.NewController(
 		ctx,

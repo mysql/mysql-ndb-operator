@@ -87,8 +87,8 @@ type ControllerContext struct {
 	runningInsideK8s bool
 
 	// scope information of the operator
-	namespaceScoped bool
-	watchNamespace  string
+	clusterScoped  bool
+	watchNamespace string
 }
 
 // SyncContext stores all information collected in/for a single run of syncHandler
@@ -166,7 +166,7 @@ type Controller struct {
 // skipHandlingNdbCluster returns true if the controller doesn't
 // have to handle the changes made to the given NdbCluster object.
 func (c *Controller) skipHandlingNdbCluster(nc *v1alpha1.NdbCluster) (skip bool) {
-	if c.controllerContext.namespaceScoped &&
+	if !c.controllerContext.clusterScoped &&
 		c.controllerContext.watchNamespace != nc.Namespace {
 		// operator is namespace scoped and the current NdbCluster
 		// resource was created in a different namespace.
@@ -187,17 +187,15 @@ func NewControllerContext(
 	kubeclient kubernetes.Interface,
 	ndbclient ndbclientset.Interface,
 	runningInsideK8s bool,
-	watchNamesapce string,
+	watchNamespace string,
+	clusterScoped bool,
 ) *ControllerContext {
 	ctx := &ControllerContext{
 		kubeClientset:    kubeclient,
 		ndbClientset:     ndbclient,
 		runningInsideK8s: runningInsideK8s,
-	}
-
-	if watchNamesapce != "" {
-		ctx.namespaceScoped = true
-		ctx.watchNamespace = watchNamesapce
+		watchNamespace:   watchNamespace,
+		clusterScoped:    clusterScoped,
 	}
 
 	return ctx

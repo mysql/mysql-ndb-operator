@@ -5,6 +5,7 @@
 package helpers
 
 import (
+	"io/ioutil"
 	corev1 "k8s.io/api/core/v1"
 	"os"
 )
@@ -62,4 +63,13 @@ func GetServiceAddressAndPort(service *corev1.Service) (string, int32) {
 	default:
 		panic("service type not supported by GetServiceAddress yet")
 	}
+}
+
+// GetCurrentNamespace returns the current namespace value,
+// on failure to fetch current namespace value it returns error.
+func GetCurrentNamespace() (string, error) {
+	// Default namespace to be used by containers are placed in,
+	// "/var/run/secrets/kubernetes.io/serviceaccount/namespace" file in each container
+	namespace, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	return string(namespace), err
 }

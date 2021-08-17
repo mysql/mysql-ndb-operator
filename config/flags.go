@@ -23,9 +23,9 @@ var (
 	Kubeconfig string
 
 	// WatchNamespace is the namespace which needs to be watched by the operator.
-	// If the argument is not set, the operator will watch for changes across
-	// the K8s cluster. i.e., it will be cluster-scoped.
 	WatchNamespace string
+	// ClusterScoped if set, operator will watch the entire cluster
+	ClusterScoped bool
 )
 
 func InitFlags() {
@@ -36,6 +36,8 @@ func InitFlags() {
 	flag.StringVar(&MasterURL, "master", "",
 		"The address of the Kubernetes API server. Overrides any value in kubeconfig. Only required if out-of-cluster.")
 	flag.StringVar(&WatchNamespace, "watch-namespace", "",
-		"The namespace to be watched by the operator for NdbCluster resource changes. "+
-			"If the option is not set, the operator will be cluster-scoped.")
+		"The namespace to be watched by the operator for NdbCluster resource changes."+
+			"Only required if out-of-cluster.")
+	flag.BoolVar(&ClusterScoped, "cluster-scoped", true, ""+
+		"When set, operator looks for NdbCluster resource changes across K8s cluster.")
 }
