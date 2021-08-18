@@ -1,4 +1,4 @@
-# Cluster roles for Webhook server
+# ClusterRoles for the WebHook Server to access the non cluster-scoped resources
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -10,6 +10,13 @@ rules:
       - secrets
     verbs:
       - get
+---
+# ClusterRoles for the WebHook Server to access the cluster-scoped resources
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ndb-operator-webhook-vwc-cr
+rules:
   - apiGroups:
       - admissionregistration.k8s.io
     resources:

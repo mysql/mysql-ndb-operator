@@ -304,6 +304,12 @@ rules:
   - secrets
   verbs:
   - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ndb-operator-webhook-vwc-cr
+rules:
 - apiGroups:
   - admissionregistration.k8s.io
   resources:
@@ -393,6 +399,20 @@ rules:
   - patch
   - update
   - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ndb-operator-webhook-vwc-crb
+  namespace: ndb-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ndb-operator-webhook-vwc-cr
+subjects:
+- kind: ServiceAccount
+  name: ndb-operator-webhook-sa
+  namespace: ndb-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
