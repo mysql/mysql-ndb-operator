@@ -17,7 +17,7 @@ import (
 	"github.com/mysql/ndb-operator/config"
 	"github.com/mysql/ndb-operator/pkg/controllers"
 	clientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
-	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
+	ndbinformers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
 	"github.com/mysql/ndb-operator/pkg/helpers"
 	"github.com/mysql/ndb-operator/pkg/signals"
 )
@@ -66,8 +66,20 @@ func main() {
 		klog.Fatalf("Error building ndb clientset: %s", err.Error())
 	}
 
-	k8If := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
-	ndbOpIf := informers.NewSharedInformerFactory(ndbClient, time.Second*30)
+	if config.ClusterScoped {
+		klog.Info("Running NDB Operator with cluster-scope")
+	} else {
+		klog.Info("Running NDB Operator with namespace-scope")
+		klog.Infof("Watching for changes in namespace %q", config.WatchNamespace)
+	}
+
+	// Create a SharedInformerFactory and limit it to config.WatchNamespace.
+	// For cluster-scoped mode, config.WatchNamespace will be empty
+	// and the SharedInformer will not be limited to any namespace.
+	k8If := kubeinformers.NewSharedInformerFactoryWithOptions(
+		kubeClient, time.Second*30, kubeinformers.WithNamespace(config.WatchNamespace))
+	ndbIf := ndbinformers.NewSharedInformerFactoryWithOptions(
+		ndbClient, time.Second*30, ndbinformers.WithNamespace(config.WatchNamespace))
 
 	ctx := controllers.NewControllerContext(kubeClient, ndbClient, runningInsideK8s, config.WatchNamespace, config.ClusterScoped)
 
@@ -78,12 +90,12 @@ func main() {
 		k8If.Core().V1().Services(),
 		k8If.Core().V1().Pods(),
 		k8If.Core().V1().ConfigMaps(),
-		ndbOpIf.Mysql().V1alpha1().NdbClusters())
+		ndbIf.Mysql().V1alpha1().NdbClusters())
 
 	// notice that there is no need to run Start methods in a separate goroutine. (i.e. go kubeInformerFactory.Start(stopCh)
 	// Start method is non-blocking and runs all registered informers in a dedicated goroutine.
 	k8If.Start(stopCh)
-	ndbOpIf.Start(stopCh)
+	ndbIf.Start(stopCh)
 
 	if err = controller.Run(2, stopCh); err != nil {
 		klog.Fatalf("Error running controller: %s", err.Error())

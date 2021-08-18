@@ -1,7 +1,26 @@
+# Webhook Server
+# ClusterRoleBinding to give the WebhookServer
+# cluster-scoped access to ValidatingWebhookConfigurations
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ndb-operator-webhook-vwc-crb
+  namespace: {{.Release.Namespace}}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ndb-operator-webhook-vwc-cr
+subjects:
+  - kind: ServiceAccount
+    name: ndb-operator-webhook-sa
+    namespace: {{.Release.Namespace}}
+---
+# Other RBAC bindings are based on the scope of the Operator.
 # Use ClusterRoleBinding if the operator is cluster-scoped
 # and RoleBinding if the operator is namespace-scoped.
 {{ $bindingKind := ternary "ClusterRoleBinding" "RoleBinding" .Values.clusterScoped -}}
-# Webhook Server
+---
+# Other RBACs for the WebHook Server
 kind: {{$bindingKind}}
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
