@@ -6,6 +6,8 @@ package config
 
 import (
 	"flag"
+	"github.com/mysql/ndb-operator/pkg/helpers"
+	"k8s.io/klog"
 )
 
 const (
@@ -28,6 +30,35 @@ var (
 	ClusterScoped bool
 )
 
+func ValidateFlags() {
+
+	runningInsideK8s := helpers.IsAppRunningInsideK8s()
+	if runningInsideK8s && WatchNamespace != "" {
+		// Ignore WatchNamespace if operator is running inside cluster
+		klog.Warning("Ignoring option 'watch-namespace' as operator is running inside K8s Cluster")
+		WatchNamespace = ""
+	} else if ClusterScoped && WatchNamespace != "" {
+		// Ignore WatchNamespace if operator is cluster-scoped
+		klog.Warning("Ignoring option 'watch-namespace' as 'cluster-scoped' is enabled")
+		WatchNamespace = ""
+	}
+
+	if !runningInsideK8s {
+		if Kubeconfig == "" && MasterURL == "" {
+			// Operator is running out of K8s Cluster but kubeconfig/masterURL are not specified.
+			klog.Fatal("Ndb operator cannot connect to the Kubernetes Server.\n" +
+				"Please specify kubeconfig or masterURL.")
+		}
+
+		// WatchNamespace is required for operator running in namespace-scoped mode out-of-cluster.
+		if !ClusterScoped && WatchNamespace == "" {
+			klog.Fatal("For operator running in namespace-scoped mode out-of-cluster, " +
+				"'-watch-namespace' argument needs to be provided.")
+		}
+	}
+
+}
+
 func InitFlags() {
 	flag.StringVar(&ScriptsDir, "scripts_dir", DefaultScriptsDir,
 		"The location of scripts to be deployed by the operator in the pods. Only required if out-of-cluster.")
@@ -39,5 +70,5 @@ func InitFlags() {
 		"The namespace to be watched by the operator for NdbCluster resource changes."+
 			"Only required if out-of-cluster.")
 	flag.BoolVar(&ClusterScoped, "cluster-scoped", true, ""+
-		"When set, operator looks for NdbCluster resource changes across K8s cluster.")
+		"When enabled, operator looks for NdbCluster resource changes across K8s cluster.")
 }
