@@ -81,7 +81,7 @@ func main() {
 	ndbIf := ndbinformers.NewSharedInformerFactoryWithOptions(
 		ndbClient, time.Second*30, ndbinformers.WithNamespace(config.WatchNamespace))
 
-	ctx := controllers.NewControllerContext(kubeClient, ndbClient, runningInsideK8s, config.WatchNamespace, config.ClusterScoped)
+	ctx := controllers.NewControllerContext(kubeClient, ndbClient, runningInsideK8s)
 
 	controller := controllers.NewController(
 		ctx,

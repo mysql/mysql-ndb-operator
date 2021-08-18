@@ -85,10 +85,6 @@ type ControllerContext struct {
 
 	// runningInsideK8s is set to true if the operator is running inside a K8s cluster.
 	runningInsideK8s bool
-
-	// scope information of the operator
-	clusterScoped  bool
-	watchNamespace string
 }
 
 // SyncContext stores all information collected in/for a single run of syncHandler
@@ -163,19 +159,6 @@ type Controller struct {
 	recorder events.EventRecorder
 }
 
-// skipHandlingNdbCluster returns true if the controller doesn't
-// have to handle the changes made to the given NdbCluster object.
-func (c *Controller) skipHandlingNdbCluster(nc *v1alpha1.NdbCluster) (skip bool) {
-	if !c.controllerContext.clusterScoped &&
-		c.controllerContext.watchNamespace != nc.Namespace {
-		// operator is namespace scoped and the current NdbCluster
-		// resource was created in a different namespace.
-		return true
-	}
-
-	return false
-}
-
 // getNdbClusterKey returns a key for the
 // given NdbCluster of form <namespace>/<name>.
 func (c *Controller) getNdbClusterKey(nc *v1alpha1.NdbCluster) string {
@@ -187,15 +170,11 @@ func NewControllerContext(
 	kubeclient kubernetes.Interface,
 	ndbclient ndbclientset.Interface,
 	runningInsideK8s bool,
-	watchNamespace string,
-	clusterScoped bool,
 ) *ControllerContext {
 	ctx := &ControllerContext{
 		kubeClientset:    kubeclient,
 		ndbClientset:     ndbclient,
 		runningInsideK8s: runningInsideK8s,
-		watchNamespace:   watchNamespace,
-		clusterScoped:    clusterScoped,
 	}
 
 	return ctx
@@ -253,9 +232,6 @@ func NewController(
 
 		AddFunc: func(obj interface{}) {
 			ndb := obj.(*v1alpha1.NdbCluster)
-			if controller.skipHandlingNdbCluster(ndb) {
-				return
-			}
 			ndbKey := controller.getNdbClusterKey(ndb)
 			klog.Infof("New NdbCluster resource added : %s", ndbKey)
 			controller.workqueue.Add(ndbKey)
@@ -263,9 +239,6 @@ func NewController(
 
 		UpdateFunc: func(old, new interface{}) {
 			oldNdb := old.(*v1alpha1.NdbCluster)
-			if controller.skipHandlingNdbCluster(oldNdb) {
-				return
-			}
 			ndbKey := controller.getNdbClusterKey(oldNdb)
 
 			newNdb := new.(*v1alpha1.NdbCluster)
@@ -295,14 +268,11 @@ func NewController(
 		},
 
 		DeleteFunc: func(obj interface{}) {
-			ndb := obj.(*v1alpha1.NdbCluster)
-			if controller.skipHandlingNdbCluster(ndb) {
-				return
-			}
 			// Various K8s resources created and maintained for this NdbCluster
 			// resource will have proper owner resources setup. Due to that, this
 			// delete will automatically be cascaded to all those resources and
 			// the controller doesn't have to do anything.
+			ndb := obj.(*v1alpha1.NdbCluster)
 			klog.Infof("NdbCluster resource '%s' was deleted", controller.getNdbClusterKey(ndb))
 		},
 	})
