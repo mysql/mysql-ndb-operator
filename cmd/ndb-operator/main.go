@@ -24,18 +24,22 @@ import (
 
 func main() {
 	flag.Parse()
+	config.ValidateFlags()
 
 	// set up signal handlers
 	stopCh := signals.SetupSignalHandler()
 
 	klog.Infof("Starting ndb-operator with build version %s", config.GetBuildVersion())
 
+	// K8s client configuration
 	var cfg *restclient.Config
 	var err error
+
 	runningInsideK8s := helpers.IsAppRunningInsideK8s()
 	if runningInsideK8s {
 		// Operator is running inside K8s Pods
 		cfg, err = restclient.InClusterConfig()
+
 		if !config.ClusterScoped {
 			// Operator is namespace-scoped.
 			// Use the namespace it is deployed in to watch for changes.
@@ -45,17 +49,8 @@ func main() {
 			}
 		}
 	} else {
-		if config.Kubeconfig == "" && config.MasterURL == "" {
-			// Operator is not running inside K8s and kubeconfig/masterURL are not specified.
-			klog.Fatal("Ndb operator cannot connect to the Kubernetes Server.\n" +
-				"Please specify kubeconfig or masterURL.")
-		}
+		// Operator is running outside K8s cluster
 		cfg, err = clientcmd.BuildConfigFromFlags(config.MasterURL, config.Kubeconfig)
-		// WatchNamespace is mandatory for operator running in namescoped mode out-of-cluster.
-		if !config.ClusterScoped && config.WatchNamespace == "" {
-			klog.Fatal("For operator running in namescoped mode out-of-cluster, " +
-				"'-watch-namespace' argument needs to be provided.")
-		}
 	}
 	if err != nil {
 		klog.Fatalf("Error getting kubeconfig: %s", err.Error())
