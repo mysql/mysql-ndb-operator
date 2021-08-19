@@ -32,6 +32,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
+	"github.com/mysql/ndb-operator/config/debug"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	ndbscheme "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/scheme"
@@ -302,9 +303,14 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	}
 
 	klog.Info("Starting workers")
-	// Launch two workers to process Ndb resources
+	// Launch worker go routines to process Ndb resources
 	for i := 0; i < threadiness; i++ {
-		go wait.Until(c.runWorker, time.Second, stopCh)
+		go wait.Until(func() {
+			// The workers continue processing work items
+			// available in the work queue until they are shutdown
+			for c.processNextWorkItem() {
+			}
+		}, time.Second, stopCh)
 	}
 
 	klog.Info("Started workers")
@@ -314,67 +320,47 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	return nil
 }
 
-// runWorker is a long-running function that will continually call the
-// processNextWorkItem function in order to read and process a message on the
-// workqueue.
-func (c *Controller) runWorker() {
-	for c.processNextWorkItem() {
-	}
-}
-
-// processNextWorkItem will read a single work item off the workqueue and
-// attempt to process it, by calling the syncHandler.
-func (c *Controller) processNextWorkItem() bool {
-	obj, shutdown := c.workqueue.Get()
-
+// processNextWorkItem reads a single work item off the
+// workqueue and processes it, by calling the syncHandler.
+func (c *Controller) processNextWorkItem() (continueProcessing bool) {
+	// Wait until there is a new item in the queue.
+	// Get() also blocks other worker threads from
+	// processing the 'item' until Done() is called on it.
+	item, shutdown := c.workqueue.Get()
 	if shutdown {
 		return false
 	}
 
-	// We wrap this block in a func so we can defer c.workqueue.Done.
-	err := func(obj interface{}) error {
-		// We call Done here so the workqueue knows we have finished
-		// processing this item. We also must remember to call Forget if we
-		// do not want this work item being re-queued. For example, we do
-		// not call Forget if a transient error occurs, instead the item is
-		// put back on the workqueue and attempted again after a back-off
-		// period.
-		defer c.workqueue.Done(obj)
-		var key string
-		var ok bool
-		// We expect strings to come off the workqueue. These are of the
-		// form namespace/name. We do this as the delayed nature of the
-		// workqueue means the items in the informer cache may actually be
-		// more up to date that when the item was initially put onto the
-		// workqueue.
-		if key, ok = obj.(string); !ok {
-			// As the item in the workqueue is actually invalid, we call
-			// Forget here else we'd go into a loop of attempting to
-			// process a work item that is invalid.
-			c.workqueue.Forget(obj)
-			utilruntime.HandleError(fmt.Errorf("expected string in workqueue but got %#v", obj))
-			return nil
-		}
-		klog.Infof("Working on '%s'", key)
-		// Run the syncHandler, passing it the namespace/name string of the
-		// Foo resource to be synced.
-		if err := c.syncHandler(key); err != nil {
-			// Put the item back on the workqueue to handle any transient errors.
-			c.workqueue.AddRateLimited(key)
-			return fmt.Errorf("error syncing '%s': %s, requeuing", key, err.Error())
-		}
-		// Finally, if no error occurs we Forget this item so it does not
-		// get queued again until another change happens.
-		c.workqueue.Forget(obj)
-		klog.Infof("Successfully synced '%s'", key)
-		return nil
-	}(obj)
+	// Setup defer to call Done on the item to unblock it from other workers.
+	defer c.workqueue.Done(item)
 
-	if err != nil {
-		utilruntime.HandleError(err)
+	// The item is a string key of the NdbCluster
+	// resource object. It is of the form 'namespace/name'.
+	key, ok := item.(string)
+	if !ok {
+		// item was not a string. Internal error.
+		// Forget the item to avoid looping on it.
+		c.workqueue.Forget(item)
+		klog.Error(debug.InternalError(fmt.Errorf("expected string in workqueue but got %#v", item)))
 		return true
 	}
 
+	klog.Infof("Working on NdbCluster resource '%s'", key)
+
+	// Run the syncHandler for the extracted key.
+	if err := c.syncHandler(key); err != nil {
+		klog.Infof("Error processing resource %q : %v", key, err)
+		// The sync failed. It will be retried.
+		klog.Info("Re-queuing resource to retry sync")
+		c.workqueue.AddRateLimited(key)
+		return true
+
+	} else {
+		klog.Infof("Successfully processed %q", key)
+	}
+
+	// The item was successfully processed. Clear rateLimiter.
+	c.workqueue.Forget(item)
 	return true
 }
 
@@ -754,6 +740,7 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 
 		version, err := mgmClient.GetConfigVersion()
 		if err != nil {
+			klog.Error("GetConfigVersion failed :", err)
 			return errorWhileProcssing(err)
 		}
 
@@ -1035,8 +1022,7 @@ func (c *Controller) syncHandler(key string) error {
 	ndbOrg, err := c.ndbsLister.NdbClusters(namespace).Get(name)
 	if err != nil {
 		klog.Infof("Ndb does not exist as resource, %s", name)
-		// The Ndb resource may no longer exist, in which case we stop
-		// processing.
+		// Stop processing if the NdbCluster resource no longer exists
 		if apierrors.IsNotFound(err) {
 			utilruntime.HandleError(fmt.Errorf("ndb '%s' in work queue no longer exists", key))
 			return nil
