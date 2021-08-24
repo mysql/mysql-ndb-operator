@@ -472,7 +472,6 @@ spec:
     spec:
       containers:
       - args:
-        - -namespace=ndb-operator
         - -service=ndbop-webhook-service
         command:
         - ndb-operator-webhook
@@ -507,7 +506,9 @@ spec:
         app: ndb-operator
     spec:
       containers:
-      - command:
+      - args:
+        - -cluster-scoped=true
+        command:
         - ndb-operator
         image: mysql/ndb-operator:latest
         imagePullPolicy: IfNotPresent
