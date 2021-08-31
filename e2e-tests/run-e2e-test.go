@@ -36,6 +36,7 @@ var options struct {
 	kubeconfig     string
 	inCluster      bool
 	kindK8sVersion string
+	suites         string
 }
 
 // K8s image used by KinD to bring up cluster
@@ -306,8 +307,18 @@ func (k *kind) runGinkgoTestsInsideCluster(t *testRunner) bool {
 		return false
 	}
 
+	// 'e2e-tests/suites' is the path to testsuite directory, in e2e-tests image
+	// Append ginkgo command to run specific test suites
+	ginkgoTestCmd := t.getGinkgoTestCommand("e2e-tests/suites")
+
+	// create e2e-tests-pod
+	_, err := k.clientset.CoreV1().Pods("default").Create(context.TODO(), k.createE2eTestsPod(ginkgoTestCmd), metav1.CreateOptions{})
+	if err != nil {
+		log.Printf("Error creating e2e-tests pod: %s", err)
+	}
+
 	// poll every second for 60 seconds to check if e2e-tests pod's are running
-	err := wait.PollImmediate(1*time.Second, 60*time.Second,
+	err = wait.PollImmediate(1*time.Second, 60*time.Second,
 		func() (done bool, err error) {
 			return k.isPodRunning("default", "e2e-tests")
 		})
@@ -337,6 +348,40 @@ func (k *kind) runGinkgoTestsInsideCluster(t *testRunner) bool {
 	}
 	log.Println("😊 All tests ran successfully!")
 	return true
+}
+
+// createE2eTestsPod creates a new e2e-tests pod and returns the Pod object.
+// So created pod will run specific test suites.
+func (k *kind) createE2eTestsPod(cmd []string) *v1.Pod {
+	// e2e-tests container to be run inside the pod
+	e2eTestsContainer := v1.Container{
+		// Container name, image used and image pull policy
+		Name:            "e2e-tests",
+		Image:           "e2e-tests",
+		ImagePullPolicy: v1.PullNever,
+		// Command that will be run by the container
+		Command: cmd,
+	}
+
+	e2eTestsPod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			// Pod name and namespace
+			Name:      "e2e-tests",
+			Namespace: "default",
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{e2eTestsContainer},
+			// Service account with necessary RBAC authorization
+			ServiceAccountName: "e2e-tests-service-account",
+			RestartPolicy:      v1.RestartPolicyNever,
+		},
+	}
+
+	return e2eTestsPod
 }
 
 // teardownK8sCluster deletes the KinD cluster
@@ -490,25 +535,43 @@ func (t *testRunner) execCommand(
 	return true
 }
 
-// runGinkgoTests runs all the tests using ginkgo
-// It returns true if all tests ran successfully
-func (t *testRunner) runGinkgoTests() bool {
+// getGinkgoTestCommand builds and returns the ginkgo test command
+// that will be executed by the testrunner.
+func (t *testRunner) getGinkgoTestCommand(suiteDir string) []string {
 	// The ginkgo test command
-	ginkgoTest := []string{
+	ginkgoTestCmd := []string{
 		"go", "run", "github.com/onsi/ginkgo/ginkgo",
 		"-r",         // recursively run all suites in the given directory
 		"-keepGoing", // keep running all test suites even if one fails
 	}
 
-	// Append the ginkgo directory to run the test on
-	ginkgoTest = append(ginkgoTest, filepath.Join(t.testDir, "suites"))
+	if options.suites == "" {
+		// Run all test suites
+		ginkgoTestCmd = append(ginkgoTestCmd, suiteDir)
+	} else {
+		// Append ginkgo test suite directories, to run specific testsuites
+		for _, suite := range strings.Split(options.suites, ",") {
+			ginkgoTestCmd = append(ginkgoTestCmd,
+				filepath.Join(suiteDir, suite))
+		}
+	}
+
+	return ginkgoTestCmd
+}
+
+// runGinkgoTests runs all the tests using ginkgo
+// It returns true if all tests ran successfully
+func (t *testRunner) runGinkgoTests() bool {
+	suiteDir := filepath.Join(t.testDir, "suites")
+	// get ginkgo command to run specific test suites
+	ginkgoTestCmd := t.getGinkgoTestCommand(suiteDir)
 
 	// Append arguments to pass to the testcases
-	ginkgoTest = append(ginkgoTest, "--", "--kubeconfig="+t.p.getKubeConfig())
+	ginkgoTestCmd = append(ginkgoTestCmd, "--", "--kubeconfig="+t.p.getKubeConfig())
 
 	// Execute it
-	log.Println("🔨 Running tests using ginkgo : " + strings.Join(ginkgoTest, " "))
-	if t.execCommand(ginkgoTest, "ginkgo", false, true) {
+	log.Println("🔨 Running tests using ginkgo : " + strings.Join(ginkgoTestCmd, " "))
+	if t.execCommand(ginkgoTestCmd, "ginkgo", false, true) {
 		log.Println("😊 All tests ran successfully!")
 		return true
 	}
@@ -579,13 +642,16 @@ func init() {
 	flag.StringVar(&options.kindK8sVersion, "kind-k8s-version", "1.20",
 		"Kind k8s version used to run tests. Example usage: --kind-k8s-version=1.20")
 
+	// test suites to be run.
+	flag.StringVar(&options.suites, "suites", "",
+		"Test suites that needs to be run. Example usage: --suites=mysql,basic")
 }
 
 // validatesCommandlineArgs validates if command line arguments,
 // have been provided acceptable values.
 // It exits program execution with status code 1 if validation fails.
-// Currently, validates only --kind-k8s-version command line argument.
 func validateCommandlineArgs() {
+	// validate supported kind K8s version
 	_, exists := kindK8sNodeImages[options.kindK8sVersion]
 	if !exists {
 		var supportedKindK8sVersions string
@@ -594,6 +660,20 @@ func validateCommandlineArgs() {
 		}
 		log.Printf("❌ KinD version %s not supported. Supported KinD versions are%s", options.kindK8sVersion, supportedKindK8sVersions)
 		os.Exit(1)
+	}
+
+	// validate if test suites exist
+	// Deduce test root directory
+	_, currentFilePath, _, _ := runtime.Caller(0)
+	testDir := filepath.Dir(currentFilePath)
+	suitesDir := filepath.Join(testDir, "suites")
+	for _, suite := range strings.Split(options.suites, ",") {
+		suite = filepath.Join(suitesDir, suite)
+		if _, err := os.Stat(suite); os.IsNotExist(err) {
+			log.Printf("❌ Test suite %s doesn't exist.", suite)
+			log.Printf("Please find available test suites in %s.", suitesDir)
+			os.Exit(1)
+		}
 	}
 }
 
