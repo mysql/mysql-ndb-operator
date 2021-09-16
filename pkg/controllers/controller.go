@@ -11,19 +11,16 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	eventsv1 "k8s.io/api/events/v1"
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsinformers "k8s.io/client-go/informers/apps/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -35,47 +32,11 @@ import (
 	"github.com/mysql/ndb-operator/config/debug"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
-	ndbscheme "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/scheme"
 	ndbinformers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
 	ndblisters "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/helpers"
 	"github.com/mysql/ndb-operator/pkg/mgmapi"
 	"github.com/mysql/ndb-operator/pkg/resources"
-)
-
-const controllerName = "ndb-controller"
-
-const (
-	// ReasonResourceExists is the reason used for an Event when the
-	// operator fails to sync the Ndb object with MySQL Cluster due to
-	// some resource of the same name already existing but not owned by
-	// the Ndb object.
-	ReasonResourceExists = "ResourceExists"
-	// ReasonSyncSuccess is the reason used for an Event when
-	// the MySQL Cluster is successfully synced with the Ndb object.
-	ReasonSyncSuccess = "SyncSuccess"
-	// ReasonInSync is the reason used for an Event when the MySQL Cluster
-	// is already in sync with the spec of the Ndb object.
-	ReasonInSync = "InSync"
-
-	// ActionNone is the action used for an Event when the operator does nothing.
-	ActionNone = "None"
-	// ActionSynced is the action used for an Event when the operator
-	// makes changes to the MySQL Cluster and successfully syncs it with
-	// the Ndb object.
-	ActionSynced = "Synced"
-
-	// MessageResourceExists is the message used for an Event when the
-	// operator fails to sync the Ndb object with MySQL Cluster due to
-	// some resource of the same name already existing but not owned by
-	// the Ndb object.
-	MessageResourceExists = "Resource %q already exists and is not managed by Ndb"
-	// MessageSyncSuccess is the message used for an Event when
-	// the MySQL Cluster is successfully synced with the Ndb object.
-	MessageSyncSuccess = "MySQL Cluster was successfully synced up to match the spec"
-	// MessageInSync is the message used for an Event when the MySQL Cluster
-	// is already in sync with the spec of the Ndb object.
-	MessageInSync = "MySQL Cluster is in sync with the Ndb object"
 )
 
 // ControllerContext summarizes the context in which it is running
@@ -191,25 +152,6 @@ func NewController(
 	configMapInformer coreinformers.ConfigMapInformer,
 	ndbInformer ndbinformers.NdbClusterInformer) *Controller {
 
-	// Add ndb-controller types to the default Kubernetes Scheme
-	// so Events can be logged for ndb-controller types.
-	utilruntime.Must(ndbscheme.AddToScheme(scheme.Scheme))
-	// Create event broadcaster
-	klog.V(4).Info("Creating event broadcaster")
-	eventBroadcaster := events.NewBroadcaster(
-		&events.EventSinkImpl{
-			Interface: controllerContext.kubeClientset.EventsV1(),
-		})
-	eventBroadcaster.StartRecordingToSink(make(chan struct{}))
-	// setup additional logging for events
-	eventBroadcaster.StartEventWatcher(func(event runtime.Object) {
-		e := event.(*eventsv1.Event)
-		klog.Infof("Event(%#v): type: '%s' action: '%s' reason: '%s' %s",
-			e.Regarding, e.Type, e.Action, e.Reason, e.Note)
-	})
-	// create a new recorder to send events to the broadcaster
-	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, controllerName)
-
 	controller := &Controller{
 		controllerContext:       controllerContext,
 		ndbsLister:              ndbInformer.Lister(),
@@ -224,7 +166,7 @@ func NewController(
 		podListerSynced:         podInformer.Informer().HasSynced,
 		configMapController:     NewConfigMapControl(controllerContext.kubeClientset, configMapInformer),
 		workqueue:               workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Ndbs"),
-		recorder:                recorder,
+		recorder:                newEventRecorder(controllerContext.kubeClientset),
 	}
 
 	// Set up event handler for NdbCluster resource changes
