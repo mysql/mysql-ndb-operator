@@ -4,7 +4,8 @@
 
 // Tool to run end to end tests using Kubetest2 and Ginkgo
 
-//+build ignore
+//go:build ignore
+// +build ignore
 
 package main
 
