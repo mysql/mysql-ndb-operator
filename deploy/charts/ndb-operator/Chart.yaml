@@ -9,6 +9,7 @@ keywords:
   - MySQL Cluster
   - NDB
   - Ndbcluster
+home: https://github.com/mysql/mysql-ndb-operator
 maintainers:
   - name: Lakshmi Narayanan Sreethar
     email: lakshmi.narayanan.sreethar@oracle.com
