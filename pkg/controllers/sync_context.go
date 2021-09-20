@@ -41,8 +41,7 @@ type SyncContext struct {
 
 	clusterState mgmapi.ClusterStatus
 
-	ndb    *v1alpha1.NdbCluster
-	nsName string
+	ndb *v1alpha1.NdbCluster
 
 	// controller handling creation and changes of resources
 	mysqldController    DeploymentControlInterface
@@ -57,7 +56,7 @@ type SyncContext struct {
 	recorder events.EventRecorder
 
 	// resource map stores the name of the resources already created and if they were created
-	resourceMap *map[string]bool
+	resourceMap map[string]bool
 }
 
 func (sc *SyncContext) kubeClientset() kubernetes.Interface {
@@ -549,7 +548,7 @@ func (sc *SyncContext) retrieveClusterStatus() (mgmapi.ClusterStatus, error) {
 func (sc *SyncContext) allResourcesExisted() bool {
 
 	retExisted := true
-	for res, existed := range *sc.resourceMap {
+	for res, existed := range sc.resourceMap {
 		if existed {
 			klog.Infof("Resource %s: existed", res)
 		} else {
@@ -585,7 +584,7 @@ func (sc *SyncContext) ensureAllResources() (bool, error) {
 	// TODO - not sure if we need a cluster level label on the CRD
 	//      causes an update event looping us in here again
 	var err error
-	if _, (*sc.resourceMap)["labels"], err = sc.ensureClusterLabel(); err != nil {
+	if _, sc.resourceMap["labels"], err = sc.ensureClusterLabel(); err != nil {
 		return false, err
 	}
 
@@ -593,18 +592,18 @@ func (sc *SyncContext) ensureAllResources() (bool, error) {
 	// with respect to idempotency and atomicy service creation is always safe as it
 	// only uses the immutable CRD name
 	// service needs to be created and present when creating stateful sets
-	if _, (*sc.resourceMap)["services"], err = sc.ensureServices(); err != nil {
+	if _, sc.resourceMap["services"], err = sc.ensureServices(); err != nil {
 		return false, err
 	}
 
 	// create pod disruption budgets
-	if _, (*sc.resourceMap)["poddisruptionservice"], err = sc.ensurePodDisruptionBudget(); err != nil {
+	if _, sc.resourceMap["poddisruptionservice"], err = sc.ensurePodDisruptionBudget(); err != nil {
 		return false, err
 	}
 
 	// create config map if not exist
 	var cm *corev1.ConfigMap
-	if cm, (*sc.resourceMap)["configmap"], err = sc.configMapController.EnsureConfigMap(sc); err != nil {
+	if cm, sc.resourceMap["configmap"], err = sc.configMapController.EnsureConfigMap(sc); err != nil {
 		return false, err
 	}
 
@@ -632,12 +631,12 @@ func (sc *SyncContext) ensureAllResources() (bool, error) {
 	// resources already exist because we can then continue
 
 	// create the management stateful set if it doesn't exist
-	if _, (*sc.resourceMap)["mgmstatefulset"], err = sc.ensureManagementServerStatefulSet(); err != nil {
+	if _, sc.resourceMap["mgmstatefulset"], err = sc.ensureManagementServerStatefulSet(); err != nil {
 		return false, err
 	}
 
 	// create the data node stateful set if it doesn't exist
-	if sc.dataNodeSfSet, (*sc.resourceMap)["datanodestatefulset"], err = sc.ensureDataNodeStatefulSet(); err != nil {
+	if sc.dataNodeSfSet, sc.resourceMap["datanodestatefulset"], err = sc.ensureDataNodeStatefulSet(); err != nil {
 		return false, err
 	}
 
@@ -727,8 +726,8 @@ func (sc *SyncContext) sync(ctx context.Context) error {
 	// current desired replicas on the StatefulSet, we should update the
 	// StatefulSet resource.
 	if sc.resourceContext.NumOfDataNodes != uint32(*sc.dataNodeSfSet.Spec.Replicas) {
-		klog.Infof("Updating %q: DataNodes=%d statefulSetReplicas=%d",
-			sc.nsName, sc.ndb.Spec.NodeCount, *sc.dataNodeSfSet.Spec.Replicas)
+		klog.Infof("Updating '%s/%s': DataNodes=%d statefulSetReplicas=%d",
+			sc.ndb.Namespace, sc.ndb.Name, sc.ndb.Spec.NodeCount, *sc.dataNodeSfSet.Spec.Replicas)
 		if sc.dataNodeSfSet, err = sc.ndbdController.Patch(sc.resourceContext, sc.ndb, sc.dataNodeSfSet); err != nil {
 			// Requeue the item so we can attempt processing again later.
 			// This could have been caused by a temporary network failure etc.

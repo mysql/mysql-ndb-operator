@@ -10,7 +10,6 @@ import (
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsinformers "k8s.io/client-go/informers/apps/v1"
@@ -283,19 +282,16 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
 		c.mysqldController = NewMySQLDeploymentController(c.controllerContext.kubeClientset, ndb)
 	}
 
-	resourceMap := make(map[string]bool)
-	namespaceName := types.NamespacedName{Namespace: ndb.GetNamespace(), Name: ndb.GetName()}.String()
 	return &SyncContext{
 		mgmdController:      c.mgmdController,
 		ndbdController:      c.ndbdController,
 		mysqldController:    c.mysqldController,
 		configMapController: c.configMapController,
 		ndb:                 ndb,
-		resourceMap:         &resourceMap,
+		resourceMap:         make(map[string]bool),
 		controllerContext:   c.controllerContext,
 		ndbsLister:          c.ndbsLister,
 		recorder:            c.recorder,
-		nsName:              namespaceName,
 	}
 }
 
