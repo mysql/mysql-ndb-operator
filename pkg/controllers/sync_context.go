@@ -307,7 +307,7 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 
 	mgmClient, err := sc.connectToManagementServer()
 	if err != nil {
-		return errorWhileProcssing(err)
+		return errorWhileProcessing(err)
 	}
 	defer mgmClient.Disconnect()
 
@@ -321,7 +321,7 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 	nodesGroupedByNodegroups := sc.clusterState.GetNodesGroupedByNodegroup()
 	if nodesGroupedByNodegroups == nil {
 		err := fmt.Errorf("internal error: could not extract nodes and node groups from cluster status")
-		return errorWhileProcssing(err)
+		return errorWhileProcessing(err)
 	}
 
 	// The node ids are sorted within the sub arrays and the array
@@ -341,7 +341,7 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 		for _, nodeID := range candidateNodeIds {
 			nodeConfigGeneration, err := mgmClient.GetConfigVersion(nodeID)
 			if err != nil {
-				return errorWhileProcssing(err)
+				return errorWhileProcessing(err)
 			}
 
 			if wantedGeneration != nodeConfigGeneration {
@@ -358,7 +358,7 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 			err := mgmClient.StopNodes(nodesWithOldConfig)
 			if err != nil {
 				klog.Infof("Error stopping data nodes %v", nodesWithOldConfig)
-				return errorWhileProcssing(err)
+				return errorWhileProcessing(err)
 			}
 
 			// The data nodes have started to stop.
@@ -430,13 +430,13 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 	for nodeID := 1; nodeID <= (int)(sc.ndb.GetManagementNodeCount()); nodeID++ {
 		mgmClient, err := sc.connectToManagementServer(nodeID)
 		if err != nil {
-			return errorWhileProcssing(err)
+			return errorWhileProcessing(err)
 		}
 
 		version, err := mgmClient.GetConfigVersion()
 		if err != nil {
 			klog.Error("GetConfigVersion failed :", err)
-			return errorWhileProcssing(err)
+			return errorWhileProcessing(err)
 		}
 
 		if version == wantedGeneration {
@@ -707,18 +707,18 @@ func (sc *SyncContext) sync(ctx context.Context) error {
 	// If any scale down was requested, it will be handled in this pass.
 	// This is done separately to ensure that the MySQL Servers are shut
 	// down before possibly reducing the number of API sections in config.
-	if sr := sc.mysqldController.HandleScaleDown(ctx, sc); sr.finished() {
+	if sr := sc.mysqldController.HandleScaleDown(ctx, sc); sr.stopSync() {
 		return sr.getError()
 	}
 
 	// make sure management server(s) have the correct config version
-	if sr := sc.ensureManagementServerConfigVersion(); sr.finished() {
+	if sr := sc.ensureManagementServerConfigVersion(); sr.stopSync() {
 		return sr.getError()
 	}
 
 	// make sure all data nodes have the correct config version
 	// data nodes a restarted with respect to
-	if sr := sc.ensureDataNodeConfigVersion(); sr.finished() {
+	if sr := sc.ensureDataNodeConfigVersion(); sr.stopSync() {
 		return sr.getError()
 	}
 
@@ -737,7 +737,7 @@ func (sc *SyncContext) sync(ctx context.Context) error {
 
 	// Second pass of MySQL Server reconciliation
 	// Reconcile the rest of spec/config change in MySQL Server Deployment
-	if sr := sc.mysqldController.ReconcileDeployment(ctx, sc); sr.finished() {
+	if sr := sc.mysqldController.ReconcileDeployment(ctx, sc); sr.stopSync() {
 		return sr.getError()
 	}
 
