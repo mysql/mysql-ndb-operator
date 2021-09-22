@@ -149,19 +149,19 @@ func (mdc *mysqlDeploymentController) patchDeployment(
 	existingJSON, err := json.Marshal(existingDeployment)
 	if err != nil {
 		klog.Errorf("Failed to encode existing deployment: %v", err)
-		return errorWhileProcssing(err)
+		return errorWhileProcessing(err)
 	}
 	updatedJSON, err := json.Marshal(updatedDeployment)
 	if err != nil {
 		klog.Errorf("Failed to encode updated deployment: %v", err)
-		return errorWhileProcssing(err)
+		return errorWhileProcessing(err)
 	}
 
 	// Generate the patch to be applied
 	patch, err := strategicpatch.CreateTwoWayMergePatch(existingJSON, updatedJSON, appsv1.Deployment{})
 	if err != nil {
 		klog.Errorf("Failed to generate the patch to be applied: %v", err)
-		return errorWhileProcssing(err)
+		return errorWhileProcessing(err)
 	}
 
 	// klog.Infof("Patching deployments.\nExisting : %v\n. Modified : %v\nPatch : %v", string(existingJSON), string(updatedJSON), string(patch))
@@ -172,7 +172,7 @@ func (mdc *mysqlDeploymentController) patchDeployment(
 		context.TODO(), existingDeployment.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
 	if err != nil {
 		klog.Errorf("Failed to apply the patch to the deployment %q : %s", existingDeployment.Name, err)
-		return errorWhileProcssing(err)
+		return errorWhileProcessing(err)
 	}
 
 	// successfully applied the patch
@@ -213,7 +213,7 @@ func (mdc *mysqlDeploymentController) HandleScaleDown(ctx context.Context, sc *S
 	if mysqldNodeCount == 0 {
 		// scale down to 0 servers; delete the deployment
 		if err := mdc.deleteDeployment(ctx, deployment, ndbCluster); err != nil {
-			return errorWhileProcssing(err)
+			return errorWhileProcessing(err)
 		}
 		return requeueInSeconds(1)
 	}
@@ -244,7 +244,7 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(ctx context.Context, s
 
 		// create a deployment
 		if err := mdc.createDeployment(ctx, sc); err != nil {
-			return errorWhileProcssing(err)
+			return errorWhileProcessing(err)
 		}
 
 		// deployment was created successfully.
