@@ -105,11 +105,12 @@ func (mdc *mysqlDeploymentController) createDeployment(ctx context.Context, sc *
 	_, err := mdc.deploymentInterface(deployment.Namespace).Create(ctx, deployment, metav1.CreateOptions{})
 	if err != nil {
 		// Creating deployment failed
-		klog.Errorf("Failed to create deployment %q : %s", deployment.Name, err)
+		klog.Errorf("Failed to create deployment %q : %s", getNamespacedName(deployment), err)
 		return err
 	}
 
 	// New deployment was successfully created
+	klog.Errorf("Created the MySQL Server deployment %q", getNamespacedName(deployment))
 	return nil
 
 }
@@ -135,10 +136,10 @@ func (mdc *mysqlDeploymentController) deleteDeployment(
 	err := mdc.deploymentInterface(deployment.Namespace).Delete(
 		context.TODO(), deployment.Name, metav1.DeleteOptions{})
 	if err != nil {
-		klog.Errorf("Failed to delete the deployment %q : %s", deployment.Name, err)
+		klog.Errorf("Failed to delete the deployment %q : %s", getNamespacedName(deployment), err)
 		return err
 	}
-	klog.Errorf("Deleted the deployment %q", deployment.Name)
+	klog.Errorf("Deleted the deployment %q", getNamespacedName(deployment))
 	return nil
 }
 
@@ -171,12 +172,12 @@ func (mdc *mysqlDeploymentController) patchDeployment(
 	deployment, err := deploymentInterface.Patch(
 		context.TODO(), existingDeployment.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
 	if err != nil {
-		klog.Errorf("Failed to apply the patch to the deployment %q : %s", existingDeployment.Name, err)
+		klog.Errorf("Failed to apply the patch to the deployment %q : %s", getNamespacedName(existingDeployment), err)
 		return errorWhileProcessing(err)
 	}
 
 	// successfully applied the patch
-	klog.Infof("Deployment %q has been patched successfully", deployment.Name)
+	klog.Infof("Deployment %q has been patched successfully", getNamespacedName(deployment))
 	return requeueInSeconds(5)
 }
 
@@ -215,7 +216,7 @@ func (mdc *mysqlDeploymentController) HandleScaleDown(ctx context.Context, sc *S
 		if err := mdc.deleteDeployment(ctx, deployment, ndbCluster); err != nil {
 			return errorWhileProcessing(err)
 		}
-		return requeueInSeconds(1)
+		return requeueInSeconds(0)
 	}
 
 	// create a new deployment with updated replica to patch the original deployment

@@ -156,7 +156,8 @@ func (f *fixture) setupController(fooName string, startInformers bool) {
 
 func (f *fixture) runController(fooName string, expectError bool, expectedErrors []string) {
 
-	err := f.c.syncHandler(fooName)
+	sr := f.c.syncHandler(fooName)
+	err := sr.getError()
 
 	if expectError {
 		if err == nil {

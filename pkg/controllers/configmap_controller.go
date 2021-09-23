@@ -136,5 +136,6 @@ func (rcmc *ConfigMapControl) PatchConfigMap(ndb *v1alpha1.NdbCluster, rc *resou
 		return true, nil
 	})
 
+	klog.Infof("Successfully patched config map %q", getNamespacedName(cmChg))
 	return result, updateErr
 }
