@@ -247,22 +247,28 @@ func (c *Controller) processNextWorkItem() (continueProcessing bool) {
 		return true
 	}
 
-	klog.Infof("Working on NdbCluster resource '%s'", key)
-
 	// Run the syncHandler for the extracted key.
-	if err := c.syncHandler(key); err != nil {
-		klog.Infof("Error processing resource %q : %v", key, err)
+	klog.Infof("Starting a reconciliation cycle for NdbCluster resource %q", key)
+	sr := c.syncHandler(key)
+	klog.Infof("Completed a reconciliation cycle for NdbCluster resource %q", key)
+
+	if err := sr.getError(); err != nil {
+		klog.Infof("Reconciliation of NdbCluster resource %q failed", key)
 		// The sync failed. It will be retried.
-		klog.Info("Re-queuing resource to retry sync")
+		klog.Info("Re-queuing resource to retry reconciliation after error")
 		c.workqueue.AddRateLimited(key)
 		return true
-
-	} else {
-		klog.Infof("Successfully processed %q", key)
 	}
 
-	// The item was successfully processed. Clear rateLimiter.
+	// The reconciliation loop was successful. Clear rateLimiter.
 	c.workqueue.Forget(item)
+
+	// Requeue the item if necessary
+	if requeue, requeueInterval := sr.requeueSync(); requeue {
+		klog.Infof("NdbCluster resource %q will be re-queued for further reconciliation", key)
+		c.workqueue.AddAfter(item, requeueInterval)
+	}
+
 	return true
 }
 
@@ -316,7 +322,7 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
 // 4. only after complete cluster is aligned with configuration file
 //    new changes from Ndb CRD are written to a new version of the config file
 // 5. update status of the CRD
-func (c *Controller) syncHandler(key string) error {
+func (c *Controller) syncHandler(key string) syncResult {
 
 	klog.Infof("Sync handler: %s", key)
 
@@ -324,20 +330,21 @@ func (c *Controller) syncHandler(key string) error {
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("invalid resource key: %s", key))
-		return nil
+		// no need to retry as this is a permanent error
+		return finishProcessing()
 	}
 
-	// Get the Ndb resource with this namespace/name
+	// Get the NdbCluster resource with this namespace/name
 	ndbOrg, err := c.ndbsLister.NdbClusters(namespace).Get(name)
 	if err != nil {
-		klog.Infof("Ndb does not exist as resource, %s", name)
-		// Stop processing if the NdbCluster resource no longer exists
 		if apierrors.IsNotFound(err) {
-			utilruntime.HandleError(fmt.Errorf("ndb '%s' in work queue no longer exists", key))
-			return nil
+			// Stop processing if the NdbCluster resource no longer exists
+			klog.Infof("NdbCluster resource %q does not exist anymore", key)
+			return finishProcessing()
 		}
 
-		return err
+		klog.Infof("Failed to retrieve NdbCluster resource %q", key)
+		return errorWhileProcessing(err)
 	}
 
 	// take a copy and process that for the update at the end

@@ -352,25 +352,27 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 
 		if len(nodesWithOldConfig) > 0 {
 			// Stop all the data nodes that has old config version
-			klog.Infof("Identified %d nodes with wrong version : %v",
+			klog.Infof("Identified %d data node(s) with old config version : %v",
 				len(nodesWithOldConfig), nodesWithOldConfig)
 
 			err := mgmClient.StopNodes(nodesWithOldConfig)
 			if err != nil {
-				klog.Infof("Error stopping data nodes %v", nodesWithOldConfig)
+				klog.Infof("Error stopping data nodes %v : %v", nodesWithOldConfig, err)
 				return errorWhileProcessing(err)
 			}
 
 			// The data nodes have started to stop.
 			// Exit here and allow them to be restarted by the statefulset controllers.
 			// Continue syncing once they are up, in a later reconciliation loop.
-			return finishProcessing()
+			klog.Infof("The data nodes %v, identified with old config version, are being restarted", nodesWithOldConfig)
+			return requeueInSeconds(5)
 		}
 
-		klog.Infof("The data nodes%v have desired config version %d", candidateNodeIds, wantedGeneration)
+		klog.Infof("The data nodes %v have desired config version %d", candidateNodeIds, wantedGeneration)
 	}
 
 	// All data nodes have the desired config version. Continue with rest of the sync process.
+	klog.Info("All data nodes have the desired config version")
 	return continueProcessing()
 }
 
@@ -402,7 +404,7 @@ func (sc *SyncContext) connectToManagementServer(managementNodeId ...int) (mgmap
 			return nil, err
 		}
 		connectstring = fmt.Sprintf("%s:%d", pod.Status.PodIP, 1186)
-		klog.Infof("Using pod %s/%s for management server with node id %d", sc.ndb.Namespace, podName, nodeId)
+		klog.V(2).Infof("Using pod %s/%s for management server with node id %d", sc.ndb.Namespace, podName, nodeId)
 	} else {
 		// Operator is running from outside K8s.
 		// Connect to the Management server via load balancer.
@@ -424,7 +426,7 @@ func (sc *SyncContext) connectToManagementServer(managementNodeId ...int) (mgmap
 
 func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 	wantedGeneration := sc.resourceContext.ConfigGeneration
-	klog.Infof("Ensuring Management Server has correct config version %d", wantedGeneration)
+	klog.Infof("Ensuring Management Server(s) have the desired config version, %d", wantedGeneration)
 
 	// Management servers have the first one/two node ids
 	for nodeID := 1; nodeID <= (int)(sc.ndb.GetManagementNodeCount()); nodeID++ {
@@ -439,17 +441,17 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 			return errorWhileProcessing(err)
 		}
 
+		klog.Infof("Config version of the Management server(nodeId=%d) : %d", nodeID, version)
+
 		if version == wantedGeneration {
-			klog.Infof("Management server with node id %d has desired version %d",
-				nodeID, version)
+			klog.Infof("Management server(nodeId=%d) has the desired config version", nodeID)
 
 			// This Management Server already has the desired config version.
 			mgmClient.Disconnect()
 			continue
 		}
 
-		klog.Infof("Management server with node id %d has different version %d than desired %d",
-			nodeID, version, wantedGeneration)
+		klog.Infof("Management server(nodeId=%d) does not have desired config version", nodeID)
 
 		// The Management Server does not have the desired config version.
 		// Stop it and let the statefulset controller start the server with the correct, recent config.
@@ -462,11 +464,13 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 
 		// Management Server has been stopped. Trigger only one restart
 		// at a time and handle the rest in later reconciliations.
-		return finishProcessing()
+		klog.Infof("Management server(nodeId=%d) is being restarted with the desired configuration", nodeID)
+		return requeueInSeconds(5)
 	}
 
 	// All Management Servers have the latest config.
 	// Continue further processing and sync.
+	klog.Info("All management nodes have the desired config version")
 	return continueProcessing()
 }
 
@@ -653,14 +657,15 @@ func (sc *SyncContext) ensureAllResources() (bool, error) {
 // the K8s Cluster based on the NdbCluster spec. This is the
 // core reconciliation loop, and the complete sync takes place
 // over multiple calls.
-func (sc *SyncContext) sync(ctx context.Context) error {
+func (sc *SyncContext) sync(ctx context.Context) syncResult {
 
 	// Multiple resources are required to start
 	// and run the MySQL Cluster in K8s. Create
 	// them if they do not exist yet.
 	existed, err := sc.ensureAllResources()
 	if err != nil {
-		return err
+		klog.Errorf("Failed to ensure that all the required resources exist. Error : %v", err)
+		return errorWhileProcessing(err)
 	}
 
 	// TODO: Update ndb.Status with a creationTimestamp?
@@ -671,7 +676,8 @@ func (sc *SyncContext) sync(ctx context.Context) error {
 		// All or some resources did not exist before this sync loop
 		// and were created just now. Do not take any further action
 		// as the resources like pods will need some time to get ready.
-		return nil
+		klog.Infof("Some resources were just created. So, wait for them to become ready.")
+		return requeueInSeconds(5)
 	}
 
 	// All resources already exist or were created in a previous reconciliation loop.
@@ -679,16 +685,26 @@ func (sc *SyncContext) sync(ctx context.Context) error {
 	if ready, _ := sc.checkPodStatus(); !ready {
 		// Pods are not ready => The MySQL Cluster is not fully up yet.
 		// Any further config changes cannot be processed until the pods are ready.
-		klog.Infof("Cluster has not all pods ready - exit sync and return later")
-		return nil
+		klog.Infof("Some of the pods running MySQL Cluster nodes are not ready yet")
+		return requeueInSeconds(5)
 	}
 
 	// Resources exist and the pods(MySQL Cluster nodes) are ready.
 	// Continue further only if the MySQL Cluster is healthy.
+	// (i.e.) Only if all MySQL Cluster nodes are connected and running.
 	// TODO: Check if this is redundant once the Readiness probes for ndbd/mgmd are implemented
-	if clusterState, err := sc.retrieveClusterStatus(); err != nil || !clusterState.IsHealthy() {
-		klog.Infof("Cluster is not reported to be fully running - exit sync and return here later")
-		return err
+	clusterState, err := sc.retrieveClusterStatus()
+	if err != nil {
+		// An error occurred when attempting to retrieve MySQL Cluster
+		// status. The error would have been printed to log already,
+		// so, just return the error.
+		return errorWhileProcessing(err)
+	}
+
+	if !clusterState.IsHealthy() {
+		// All/Some MySQL Cluster nodes are not ready yet. Requeue sync.
+		klog.Infof("Some MySQL Cluster nodes are not ready yet")
+		return requeueInSeconds(5)
 	}
 
 	// Resources, pods are ready and the MySQL Cluster is healthy.
@@ -708,62 +724,62 @@ func (sc *SyncContext) sync(ctx context.Context) error {
 	// This is done separately to ensure that the MySQL Servers are shut
 	// down before possibly reducing the number of API sections in config.
 	if sr := sc.mysqldController.HandleScaleDown(ctx, sc); sr.stopSync() {
-		return sr.getError()
+		return sr
 	}
 
 	// make sure management server(s) have the correct config version
 	if sr := sc.ensureManagementServerConfigVersion(); sr.stopSync() {
-		return sr.getError()
+		return sr
 	}
 
 	// make sure all data nodes have the correct config version
 	// data nodes a restarted with respect to
 	if sr := sc.ensureDataNodeConfigVersion(); sr.stopSync() {
-		return sr.getError()
+		return sr
 	}
 
 	// If this number of the members on the Cluster does not equal the
 	// current desired replicas on the StatefulSet, we should update the
 	// StatefulSet resource.
+	// TODO : Check if this is necessary as this case is
+	//        probably covered already by the previous step.
 	if sc.resourceContext.NumOfDataNodes != uint32(*sc.dataNodeSfSet.Spec.Replicas) {
-		klog.Infof("Updating '%s/%s': DataNodes=%d statefulSetReplicas=%d",
-			sc.ndb.Namespace, sc.ndb.Name, sc.ndb.Spec.NodeCount, *sc.dataNodeSfSet.Spec.Replicas)
+		klog.Infof("Updating NdbCluster resource %q : DataNodes=%d statefulSetReplicas=%d",
+			getNamespacedName(sc.ndb), sc.ndb.Spec.NodeCount, *sc.dataNodeSfSet.Spec.Replicas)
 		if sc.dataNodeSfSet, err = sc.ndbdController.Patch(sc.resourceContext, sc.ndb, sc.dataNodeSfSet); err != nil {
 			// Requeue the item so we can attempt processing again later.
 			// This could have been caused by a temporary network failure etc.
-			return err
+			return errorWhileProcessing(err)
 		}
 	}
 
 	// Second pass of MySQL Server reconciliation
 	// Reconcile the rest of spec/config change in MySQL Server Deployment
 	if sr := sc.mysqldController.ReconcileDeployment(ctx, sc); sr.stopSync() {
-		return sr.getError()
+		return sr
 	}
 
 	// At this point, the MySQL Cluster is in sync with the configuration in the config map.
 	// The configuration in the config map has to be checked to see if it is still the
 	// desired config specified in the Ndb object.
-	klog.Infof("Config in config map config is \"%s\", generation: \"%d\"",
-		sc.resourceContext.ConfigHash, sc.resourceContext.ConfigGeneration)
+	klog.Infof("The generation of the config in config map : \"%d\"", sc.resourceContext.ConfigGeneration)
 
 	// calculate the hash of the new config
 	newConfigHash, err := sc.ndb.CalculateNewConfigHash()
 	if err != nil {
 		klog.Errorf("Error calculating hash of incoming Ndb resource.")
-		return err
+		return errorWhileProcessing(err)
 	}
 
 	// Check if configuration in config map is still the desired from the Ndb CRD
 	hasPendingConfigChanges := sc.resourceContext.ConfigHash != newConfigHash
 	if hasPendingConfigChanges {
 		// The Ndb object spec has changed - patch the config map
-		klog.Infof("Config received is different from existing config map config. config map: \"%s\", new: \"%s\"",
-			sc.resourceContext.ConfigHash, newConfigHash)
+		klog.Info("Config in NdbCluster spec is different from existing config in config map")
 		_, err := sc.configMapController.PatchConfigMap(sc.ndb, sc.resourceContext)
 		if err != nil {
 			klog.Infof("Failed to patch config map: %s", err)
-			return err
+			return errorWhileProcessing(err)
 		}
 	}
 
@@ -771,12 +787,16 @@ func (sc *SyncContext) sync(ctx context.Context) error {
 	err = sc.updateNdbClusterStatus(hasPendingConfigChanges)
 	if err != nil {
 		klog.Errorf("Updating status failed: %v", err)
-		return err
+		return errorWhileProcessing(err)
 	}
 
-	klog.V(4).Infof("Returning from syncHandler")
+	if hasPendingConfigChanges {
+		// Only the config map was updated during this loop.
+		// The config changes still need to be applied to the MySQL Cluster.
+		return requeueInSeconds(0)
+	}
 
-	return nil
+	return finishProcessing()
 }
 
 // updateNdbClusterStatus updates the status of the NdbCluster object and
@@ -797,6 +817,8 @@ func (sc *SyncContext) updateNdbClusterStatus(hasPendingConfigChanges bool) erro
 			// All the config changes except the one received in this
 			// loop has been handled but the status is not updated yet.
 			// Bump up the ProcessedGeneration to reflect this.
+			klog.Infof("Updating the NdbCluster resource %q processed generation from %d to %d",
+				getNamespacedName(sc.ndb), ndb.Status.ProcessedGeneration, ndb.ObjectMeta.Generation-1)
 			ndb.Status.ProcessedGeneration = ndb.ObjectMeta.Generation - 1
 		}
 	} else {
@@ -810,6 +832,8 @@ func (sc *SyncContext) updateNdbClusterStatus(hasPendingConfigChanges bool) erro
 		} else {
 			// The last change was successfully applied.
 			// Update status to reflect this
+			klog.Infof("Updating the NdbCluster resource %q processed generation from %d to %d",
+				getNamespacedName(sc.ndb), ndb.Status.ProcessedGeneration, ndb.ObjectMeta.Generation)
 			ndb.Status.ProcessedGeneration = ndb.ObjectMeta.Generation
 		}
 	}
@@ -818,12 +842,9 @@ func (sc *SyncContext) updateNdbClusterStatus(hasPendingConfigChanges bool) erro
 	ndb.Status.LastUpdate = metav1.NewTime(time.Now())
 	ndbClusterInterface := sc.ndbClientset().MysqlV1alpha1().NdbClusters(ndb.Namespace)
 
-	updateErr := wait.ExponentialBackoff(retry.DefaultBackoff, func() (ok bool, err error) {
+	updateErr := wait.ExponentialBackoff(retry.DefaultBackoff, func() (done bool, err error) {
 
-		klog.Infof("Updating ndb cluster status: from process gen %d to %d",
-			ndb.Status.ProcessedGeneration, ndb.ObjectMeta.Generation)
-
-		_, err = ndbClusterInterface.UpdateStatus(context.TODO(), ndb, metav1.UpdateOptions{})
+		ndb, err = ndbClusterInterface.UpdateStatus(context.TODO(), ndb, metav1.UpdateOptions{})
 		if err == nil {
 			return true, nil
 		}
@@ -833,7 +854,7 @@ func (sc *SyncContext) updateNdbClusterStatus(hasPendingConfigChanges bool) erro
 
 		updated, err := ndbClusterInterface.Get(context.TODO(), ndb.Name, metav1.GetOptions{})
 		if err != nil {
-			klog.Errorf("failed to get Ndb %s/%s: %v", ndb.Namespace, ndb.Name, err)
+			klog.Errorf("Failed to get NdbCluster resource %q: %v", getNamespacedName(sc.ndb), err)
 			return false, err
 		}
 		ndb = updated.DeepCopy()
@@ -841,13 +862,13 @@ func (sc *SyncContext) updateNdbClusterStatus(hasPendingConfigChanges bool) erro
 	})
 
 	if updateErr != nil {
-		klog.Errorf("failed to update Ndb %s/%s: %v", ndb.Namespace, ndb.Name, updateErr)
+		klog.Errorf("Failed to update NdbCluster resource %q : %v", getNamespacedName(sc.ndb), updateErr)
 		return updateErr
 	}
 
 	// Record an SyncSuccess event as the MySQL Cluster specification has been
 	// successfully synced with the spec of Ndb object and the status has been updated.
-	sc.recorder.Eventf(sc.ndb, nil,
+	sc.recorder.Eventf(ndb, nil,
 		corev1.EventTypeNormal, ReasonSyncSuccess, ActionSynced, MessageSyncSuccess)
 
 	return nil
