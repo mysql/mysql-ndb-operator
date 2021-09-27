@@ -13,6 +13,7 @@ import (
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog"
 )
 
@@ -69,7 +70,8 @@ func (bss *baseStatefulSet) getEmptyDirPodVolume() *v1.Volume {
 
 // createContainers creates a new container for the stateful set.
 func (bss *baseStatefulSet) createContainers(
-	nc *v1alpha1.NdbCluster, commandAndArgs []string, volumeMounts []v1.VolumeMount) []v1.Container {
+	nc *v1alpha1.NdbCluster, commandAndArgs []string, volumeMounts []v1.VolumeMount,
+	startupProbe, readinessProbe *v1.Probe) []v1.Container {
 
 	klog.Infof("Creating %q container from image %s", bss.typeName, nc.Spec.Image)
 	return []v1.Container{
@@ -84,8 +86,10 @@ func (bss *baseStatefulSet) createContainers(
 					ContainerPort: 1186,
 				},
 			},
-			VolumeMounts: volumeMounts,
-			Command:      []string{"/bin/bash", "-ecx", strings.Join(commandAndArgs, " ")},
+			VolumeMounts:   volumeMounts,
+			Command:        []string{"/bin/bash", "-ecx", strings.Join(commandAndArgs, " ")},
+			StartupProbe:   startupProbe,
+			ReadinessProbe: readinessProbe,
 		},
 	}
 }
@@ -215,7 +219,27 @@ func (mss *mgmdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 	}
 
 	volumeMounts := mss.getVolumeMounts()
-	return mss.createContainers(nc, cmdAndArgs, volumeMounts)
+
+	// Health probe handler for management node
+	portCheckHandler := v1.Handler{
+		TCPSocket: &v1.TCPSocketAction{
+			Port: intstr.FromInt(1186),
+		},
+	}
+
+	// Startup probe - expects mgmd to get ready within a minute
+	startupProbe := &v1.Probe{
+		Handler:          portCheckHandler,
+		PeriodSeconds:    1,
+		FailureThreshold: 60,
+	}
+
+	// Readiness probe
+	readinessProbe := &v1.Probe{
+		Handler: portCheckHandler,
+	}
+
+	return mss.createContainers(nc, cmdAndArgs, volumeMounts, startupProbe, readinessProbe)
 }
 
 // NewStatefulSet returns the StatefulSet specification to start and manage the Management nodes.
@@ -300,7 +324,7 @@ func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 	}
 
 	volumeMounts := nss.getVolumeMounts(nc)
-	return nss.createContainers(nc, cmdAndArgs, volumeMounts)
+	return nss.createContainers(nc, cmdAndArgs, volumeMounts, nil, nil)
 }
 
 // NewStatefulSet returns the StatefulSet specification to start and manage the Data nodes.
