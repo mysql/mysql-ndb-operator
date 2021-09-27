@@ -5,11 +5,11 @@
 package resources
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
+
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,6 +23,8 @@ const (
 	sfsetTypeNdbd = "ndbd"
 	// statefulset generated PVC name prefix
 	volumeClaimTemplateName = "ndb-pvc"
+	// config-volume for the management pods
+	mgmdConfigMapVolumeName = sfsetTypeMgmd + "-config-volume"
 )
 
 // StatefulSetInterface is the interface for a statefulset of NDB management or data nodes
@@ -36,101 +38,99 @@ type baseStatefulSet struct {
 	typeName string
 }
 
-// NewMgmdStatefulSet returns a new baseStatefulSet for management nodes
-func NewMgmdStatefulSet() *baseStatefulSet {
-	return &baseStatefulSet{typeName: sfsetTypeMgmd}
+// getStatefulSetLabels returns the labels of the StatefulSet
+func (bss *baseStatefulSet) getStatefulSetLabels(nc *v1alpha1.NdbCluster) map[string]string {
+	return nc.GetCompleteLabels(map[string]string{
+		constants.ClusterResourceTypeLabel: bss.typeName + "-statefulset",
+	})
 }
 
-// NewNdbdStatefulSet returns a new baseStatefulSet for data nodes
-func NewNdbdStatefulSet() *baseStatefulSet {
-	return &baseStatefulSet{typeName: sfsetTypeNdbd}
+// getPodLabels generates the labels of the pods controlled by the StatefulSets
+func (bss *baseStatefulSet) getPodLabels(nc *v1alpha1.NdbCluster) map[string]string {
+	return nc.GetCompleteLabels(map[string]string{
+		constants.ClusterNodeTypeLabel: bss.typeName,
+	})
 }
 
-// isMgmd returns if the baseStatefulSet represents a management node
-func (bss *baseStatefulSet) isMgmd() bool {
-	return bss.typeName == sfsetTypeMgmd
+// getEmptyDirVolumeName returns the name of the empty directory volume
+func (bss *baseStatefulSet) getEmptyDirVolumeName() string {
+	return bss.typeName + "-empty-dir-volume"
 }
 
-// isMgmd returns if the baseStatefulSet represents a data node
-func (bss *baseStatefulSet) isNdbd() bool {
-	return bss.typeName == sfsetTypeNdbd
-}
-
-// getEmptyDirectoryVolumeName returns the name of the empty directory volume
-func (bss *baseStatefulSet) getEmptyDirVolumeName(nc *v1alpha1.NdbCluster) string {
-	return nc.Name + "-" + bss.typeName + "-volume"
-}
-
-// getPodVolumes returns the named volume available in the Pods
-func (bss *baseStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) []v1.Volume {
-
-	var podVolumes []v1.Volume
-	if bss.isMgmd() || ndb.Spec.DataNodePVCSpec == nil {
-		// Use an empty directory volume if,
-		// (a) this is a mgmd pod and it will use this volume to store config (or)
-		// (b) this is a ndbd pod whose PVC Spec was not specified as a part
-		//     of Ndb spec and it will use this volume as the data directory
-		podVolumes = append(podVolumes, v1.Volume{
-			Name: bss.getEmptyDirVolumeName(ndb),
-			VolumeSource: v1.VolumeSource{
-				EmptyDir: &v1.EmptyDirVolumeSource{},
-			},
-		})
-	}
-
-	if bss.isMgmd() {
-		// Add the configmap's config.ini as a volume to the Management pods
-		podVolumes = append(podVolumes, v1.Volume{
-			Name: "config-volume",
-			VolumeSource: v1.VolumeSource{
-				ConfigMap: &v1.ConfigMapVolumeSource{
-					LocalObjectReference: v1.LocalObjectReference{
-						Name: ndb.GetConfigMapName(),
-					},
-					// Load only the config.ini key
-					Items: []v1.KeyToPath{
-						{
-							Key:  configIniKey,
-							Path: configIniKey,
-						},
-					},
-				},
-			},
-		})
-	}
-
-	return podVolumes
-}
-
-// getVolumeMounts returns the volumes to be mounted to the container
-func (bss *baseStatefulSet) getVolumeMounts(ndb *v1alpha1.NdbCluster) []v1.VolumeMount {
-
-	var volumeName string
-	if bss.isNdbd() && ndb.Spec.DataNodePVCSpec != nil {
-		// Use the volumeClaimTemplate name for the data node
-		volumeName = volumeClaimTemplateName
-	} else {
-		volumeName = bss.getEmptyDirVolumeName(ndb)
-	}
-
-	// volume mount for the data directory/config directory
-	volumeMounts := []v1.VolumeMount{
-		{
-			Name:      volumeName,
-			MountPath: constants.DataDir,
+// getEmptyDirPodVolumes returns an empty directory pod volume
+func (bss *baseStatefulSet) getEmptyDirPodVolume() *v1.Volume {
+	return &v1.Volume{
+		Name: bss.getEmptyDirVolumeName(),
+		VolumeSource: v1.VolumeSource{
+			EmptyDir: &v1.EmptyDirVolumeSource{},
 		},
 	}
+}
 
-	if bss.isMgmd() {
-		// Mount the config map volume holding the
-		// cluster configuration into the management container
-		volumeMounts = append(volumeMounts, v1.VolumeMount{
-			Name:      "config-volume",
-			MountPath: constants.DataDir + "/config",
-		})
+// createContainers creates a new container for the stateful set.
+func (bss *baseStatefulSet) createContainers(
+	nc *v1alpha1.NdbCluster, commandAndArgs []string, volumeMounts []v1.VolumeMount) []v1.Container {
+
+	klog.Infof("Creating %q container from image %s", bss.typeName, nc.Spec.Image)
+	return []v1.Container{
+		{
+			Name: bss.GetTypeName() + "-container",
+			// Use the image provided in spec
+			Image:           nc.Spec.Image,
+			ImagePullPolicy: nc.Spec.ImagePullPolicy,
+			// Expose the port 1186 for both mgmd and ndbd containers
+			Ports: []v1.ContainerPort{
+				{
+					ContainerPort: 1186,
+				},
+			},
+			VolumeMounts: volumeMounts,
+			Command:      []string{"/bin/bash", "-ecx", strings.Join(commandAndArgs, " ")},
+		},
+	}
+}
+
+// newStatefulSet defines a new StatefulSet that will be
+// used by the mgmd and ndbd StatefulSets
+func (bss *baseStatefulSet) newStatefulSet(nc *v1alpha1.NdbCluster) *apps.StatefulSet {
+
+	// Fill in the podSpec with any provided ImagePullSecrets
+	var podSpec v1.PodSpec
+	imagePullSecretName := nc.Spec.ImagePullSecretName
+	if imagePullSecretName != "" {
+		podSpec.ImagePullSecrets = []v1.LocalObjectReference{
+			{
+				Name: imagePullSecretName,
+			},
+		}
 	}
 
-	return volumeMounts
+	// Labels to be used for the statefulset pods
+	podLabels := bss.getPodLabels(nc)
+
+	return &apps.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   bss.GetName(nc),
+			Labels: bss.getStatefulSetLabels(nc),
+			// Owner reference pointing to the Ndb resource
+			OwnerReferences: nc.GetOwnerReferences(),
+		},
+		Spec: apps.StatefulSetSpec{
+			Selector: &metav1.LabelSelector{
+				// Use the pods labels as the selector
+				MatchLabels: podLabels,
+			},
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: podLabels,
+				},
+				Spec: podSpec,
+			},
+			// The services must exist before the StatefulSet,
+			// and is responsible for the network identity of the set.
+			ServiceName: nc.GetServiceName(bss.typeName),
+		},
+	}
 }
 
 // GetName returns the name of the baseStatefulSet
@@ -143,140 +143,199 @@ func (bss *baseStatefulSet) GetTypeName() string {
 	return bss.typeName
 }
 
-// getStatefulSetLabels returns the labels of the statefulset
-func (bss *baseStatefulSet) getStatefulSetLabels(ndb *v1alpha1.NdbCluster) map[string]string {
-	return ndb.GetCompleteLabels(map[string]string{
-		constants.ClusterResourceTypeLabel: bss.typeName + "-statefulset",
-	})
+// mgmdStatefulSet implements the StatefulSetInterface to control a set of management nodes
+type mgmdStatefulSet struct {
+	baseStatefulSet
 }
 
-// getPodLabels generates the labels of the pods controlled by the statefulsets
-func (bss *baseStatefulSet) getPodLabels(ndb *v1alpha1.NdbCluster) map[string]string {
-	return ndb.GetCompleteLabels(map[string]string{
-		constants.ClusterNodeTypeLabel: bss.typeName,
+// getPodVolumes returns a slice of volumes to be
+// made available to the management server pods.
+func (mss *mgmdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []v1.Volume {
+
+	// Management Server pods have an empty directory volume
+	// for storing local config cache and a config map
+	// volume that has the MySQL Cluster configuration.
+	var podVolumes []v1.Volume
+	podVolumes = append(podVolumes, *mss.getEmptyDirPodVolume())
+
+	// Append the configmap's config.ini as a volume to the Management pods
+	podVolumes = append(podVolumes, v1.Volume{
+		Name: mgmdConfigMapVolumeName,
+		VolumeSource: v1.VolumeSource{
+			ConfigMap: &v1.ConfigMapVolumeSource{
+				LocalObjectReference: v1.LocalObjectReference{
+					Name: nc.GetConfigMapName(),
+				},
+				// Load only the config.ini key
+				Items: []v1.KeyToPath{
+					{
+						Key:  configIniKey,
+						Path: configIniKey,
+					},
+				},
+			},
+		},
 	})
+
+	return podVolumes
 }
 
-// getContainers returns the container to run the NDB node represented by the baseStatefulSet
-func (bss *baseStatefulSet) getContainers(ndb *v1alpha1.NdbCluster) []v1.Container {
-	// Set type specific values
-	var cmd string
-	var args []string
-	if bss.isMgmd() {
-		// Mgmd specific details
-		cmd = "/usr/sbin/ndb_mgmd"
-		args = []string{
-			"-f", "/var/lib/ndb/config/config.ini",
-			"--configdir=" + constants.DataDir,
-			"--initial",
-			"--nodaemon",
-			"--config-cache=0",
-			"-v",
-		}
-	} else {
-		// Ndbd specific details
-		cmd = "/usr/sbin/ndbmtd"
-		args = []string{
-			"-c", ndb.GetConnectstring(),
-			"--nodaemon",
-			"-v",
-		}
+// getVolumeMounts returns the volumes to be mounted to the mgmd containers
+func (mss *mgmdStatefulSet) getVolumeMounts() []v1.VolumeMount {
+
+	var volumeMounts []v1.VolumeMount
+
+	// Append the empty dir volume mount to be used as a config directory
+	volumeMounts = append(volumeMounts, v1.VolumeMount{
+		Name:      mss.getEmptyDirVolumeName(),
+		MountPath: constants.DataDir,
+	})
+
+	// Mount the config map volume holding the MySQL Cluster configuration
+	volumeMounts = append(volumeMounts, v1.VolumeMount{
+		Name:      mgmdConfigMapVolumeName,
+		MountPath: constants.DataDir + "/config",
+	})
+
+	return volumeMounts
+}
+
+// getContainers returns the containers to run a Management Node
+func (mss *mgmdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Container {
+
+	// Command and args to run the management server
+	cmdAndArgs := []string{
+		"/usr/sbin/ndb_mgmd",
+		"-f", "/var/lib/ndb/config/config.ini",
+		"--configdir=" + constants.DataDir,
+		"--initial",
+		"--nodaemon",
+		"--config-cache=0",
+		"-v",
 	}
 
-	// Build the command
-	cmdArgs := fmt.Sprintf("%s %s", cmd, strings.Join(args, " "))
+	volumeMounts := mss.getVolumeMounts()
+	return mss.createContainers(nc, cmdAndArgs, volumeMounts)
+}
 
-	// Use the image provided in spec
-	imageName := ndb.Spec.Image
-	klog.Infof("Creating %s container from image %s", bss.typeName, imageName)
+// NewStatefulSet returns the StatefulSet specification to start and manage the Management nodes.
+func (mss *mgmdStatefulSet) NewStatefulSet(rc *ResourceContext, nc *v1alpha1.NdbCluster) *apps.StatefulSet {
+	statefulSet := mss.newStatefulSet(nc)
+	statefulSetSpec := &statefulSet.Spec
 
-	return []v1.Container{
+	// Fill in mgmd specific values
+	replicas := int32(rc.NumOfManagementNodes)
+	statefulSetSpec.Replicas = &replicas
+	// Set pod management policy to start Management nodes one by one
+	statefulSetSpec.PodManagementPolicy = apps.OrderedReadyPodManagement
+
+	// Update template pod spec
+	podSpec := &statefulSetSpec.Template.Spec
+	podSpec.Containers = mss.getContainers(nc)
+	podSpec.Volumes = mss.getPodVolumes(nc)
+
+	return statefulSet
+}
+
+// NewMgmdStatefulSet returns a new StatefulSetInterface for management nodes
+func NewMgmdStatefulSet() StatefulSetInterface {
+	return &mgmdStatefulSet{
+		baseStatefulSet{
+			typeName: sfsetTypeMgmd,
+		},
+	}
+}
+
+// ndbdStatefulSet implements the StatefulSetInterface to control a set of data nodes
+type ndbdStatefulSet struct {
+	baseStatefulSet
+}
+
+// getPodVolumes returns a slice of volumes to be
+// made available to the data node pods.
+func (nss *ndbdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []v1.Volume {
+	// An empty directory volume needs to be provided
+	// to the data node pods if the NdbCluster resource
+	// doesn't have any PVCs defined to be used with
+	// the data nodes.
+	if nc.Spec.DataNodePVCSpec == nil {
+		return []v1.Volume{*nss.getEmptyDirPodVolume()}
+	}
+
+	// Data node pod spec has a PVC defined.
+	return nil
+}
+
+// getVolumeMounts returns the volumes to be mounted to the ndbd containers
+func (nss *ndbdStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []v1.VolumeMount {
+
+	var dataDirVolumeName string
+	if nc.Spec.DataNodePVCSpec == nil {
+		// NdbCluster doesn't have a PVC spec defined for the data nodes.
+		// Use the empty dir volume mount as the data directory
+		dataDirVolumeName = nss.getEmptyDirVolumeName()
+	} else {
+		// Use the volumeClaimTemplate name for the data node
+		dataDirVolumeName = volumeClaimTemplateName
+	}
+
+	// return volume mount for the data directory
+	return []v1.VolumeMount{
 		{
-			Name:  bss.GetTypeName() + "-container",
-			Image: imageName,
-			Ports: []v1.ContainerPort{
-				{
-					ContainerPort: 1186,
-				},
-			},
-			VolumeMounts:    bss.getVolumeMounts(ndb),
-			Command:         []string{"/bin/bash", "-ecx", cmdArgs},
-			ImagePullPolicy: ndb.Spec.ImagePullPolicy,
+			Name:      dataDirVolumeName,
+			MountPath: constants.DataDir,
 		},
 	}
 }
 
-// NewStatefulSet creates a new StatefulSet for the given Cluster.
-func (bss *baseStatefulSet) NewStatefulSet(rc *ResourceContext, ndb *v1alpha1.NdbCluster) *apps.StatefulSet {
+// getContainers returns the containers to run a data Node
+func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Container {
 
-	// Build the new stateful set and return
-	podLabels := bss.getPodLabels(ndb)
-	var podManagementPolicy apps.PodManagementPolicyType
-	var replicas int32
-	var volumeClaimTemplates []v1.PersistentVolumeClaim
-	if bss.isMgmd() {
-		replicas = int32(rc.NumOfManagementNodes)
-		// Start Management nodes one by one
-		podManagementPolicy = apps.OrderedReadyPodManagement
-	} else {
-		replicas = int32(rc.NumOfDataNodes)
-		// Data nodes can be started in parallel
-		podManagementPolicy = apps.ParallelPodManagement
-		// Add VolumeClaimTemplate if data node PVC Spec exists
-		if ndb.Spec.DataNodePVCSpec != nil {
-			volumeClaimTemplates = []v1.PersistentVolumeClaim{
-				// This PVC will be used as a template and an actual PVC will be created by the
-				// statefulset controller with name "<volumeClaimTemplateName>-<ndb-name>-<pod-name>"
-				*NewPVC(ndb, volumeClaimTemplateName, ndb.Spec.DataNodePVCSpec),
-			}
+	// Command and args to run the management server
+	cmdAndArgs := []string{
+		"/usr/sbin/ndbmtd",
+		"-c", nc.GetConnectstring(),
+		"--nodaemon",
+		"-v",
+	}
+
+	volumeMounts := nss.getVolumeMounts(nc)
+	return nss.createContainers(nc, cmdAndArgs, volumeMounts)
+}
+
+// NewStatefulSet returns the StatefulSet specification to start and manage the Data nodes.
+func (nss *ndbdStatefulSet) NewStatefulSet(rc *ResourceContext, nc *v1alpha1.NdbCluster) *apps.StatefulSet {
+	statefulSet := nss.newStatefulSet(nc)
+	statefulSetSpec := &statefulSet.Spec
+
+	// Fill in ndbd specific values
+	replicas := int32(rc.NumOfDataNodes)
+	statefulSetSpec.Replicas = &replicas
+	// Set pod management policy to start Data nodes in parallel
+	statefulSetSpec.PodManagementPolicy = apps.ParallelPodManagement
+
+	// Add VolumeClaimTemplate if data node PVC Spec exists
+	if nc.Spec.DataNodePVCSpec != nil {
+		statefulSetSpec.VolumeClaimTemplates = []v1.PersistentVolumeClaim{
+			// This PVC will be used as a template and an actual PVC will be created by the
+			// statefulset controller with name "<volumeClaimTemplateName>-<ndb-name>-<pod-name>"
+			*NewPVC(nc, volumeClaimTemplateName, nc.Spec.DataNodePVCSpec),
 		}
 	}
 
-	podSpec := v1.PodSpec{
-		Containers: bss.getContainers(ndb),
-		Volumes:    bss.getPodVolumes(ndb),
-	}
+	// Update template pod spec
+	podSpec := &statefulSetSpec.Template.Spec
+	podSpec.Containers = nss.getContainers(nc)
+	podSpec.Volumes = nss.getPodVolumes(nc)
 
-	imagePullSecretName := ndb.Spec.ImagePullSecretName
-	if imagePullSecretName != "" {
-		podSpec.ImagePullSecrets = []v1.LocalObjectReference{
-			{
-				Name: imagePullSecretName,
-			},
-		}
-	}
+	return statefulSet
+}
 
-	ss := &apps.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   bss.GetName(ndb),
-			Labels: bss.getStatefulSetLabels(ndb),
-			// Owner reference pointing to the Ndb resource
-			OwnerReferences: ndb.GetOwnerReferences(),
-		},
-		Spec: apps.StatefulSetSpec{
-			UpdateStrategy: apps.StatefulSetUpdateStrategy{
-				// we want to be able to control ndbd node restarts directly
-				Type: apps.OnDeleteStatefulSetStrategyType,
-			},
-			Selector: &metav1.LabelSelector{
-				// must match templates labels
-				MatchLabels: podLabels,
-			},
-			Replicas: &replicas,
-			Template: v1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        bss.GetName(ndb),
-					Labels:      podLabels,
-					Annotations: map[string]string{},
-				},
-				Spec: podSpec,
-			},
-			// service must exist before the StatefulSet, and is responsible for
-			// the network identity of the set.
-			ServiceName:          ndb.GetServiceName(bss.typeName),
-			PodManagementPolicy:  podManagementPolicy,
-			VolumeClaimTemplates: volumeClaimTemplates,
+// NewNdbdStatefulSet returns a new StatefulSetInterface for data nodes
+func NewNdbdStatefulSet() StatefulSetInterface {
+	return &ndbdStatefulSet{
+		baseStatefulSet{
+			typeName: sfsetTypeNdbd,
 		},
 	}
-	return ss
 }
