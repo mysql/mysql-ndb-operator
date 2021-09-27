@@ -474,35 +474,54 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 	return continueProcessing()
 }
 
-// checkPodStatus returns false if any container in pod is not ready
-// TODO - should also look out for hanging or weird states
-func (sc *SyncContext) checkPodStatus() (bool, error) {
+// checkPodsReadiness checks if all the pods owned the NdbCluster
+// resource are ready. The sync will continue only if all the pods are ready.
+func (sc *SyncContext) checkPodsReadiness(ctx context.Context) syncResult {
 
-	klog.Infof("check Pod status in namespace %s", sc.ndb.Namespace)
+	podInterface := sc.kubeClientset().CoreV1().Pods(sc.ndb.Namespace)
 
+	// List all pods owned by NdbCluster resource
 	listOptions := metav1.ListOptions{
 		LabelSelector: labels.Set(sc.ndb.GetLabels()).String(),
 		Limit:         256,
 	}
-	pods, err := sc.kubeClientset().CoreV1().Pods(sc.ndb.Namespace).List(context.TODO(), listOptions)
-	if err != nil {
-		return false, apierrors.NewNotFound(v1alpha1.Resource("Pod"), listOptions.LabelSelector)
-	}
 
-	for _, pod := range pods.Items {
-		status := pod.Status
-		statuses := status.ContainerStatuses
-		for _, status := range statuses {
-			if status.Name != "ndbd" && status.Name != "mgmd" {
-				continue
-			}
-			if !status.Ready {
-				return false, nil
+	for {
+		// List the pods
+		pods, err := podInterface.List(ctx, listOptions)
+		if err != nil {
+			klog.Errorf("Failed to list pods with selector %q. Error : %v",
+				listOptions.LabelSelector, err)
+			return errorWhileProcessing(err)
+		}
+
+		// Check if all the returned pods are ready
+		for _, pod := range pods.Items {
+			for _, condition := range pod.Status.Conditions {
+				if condition.Type == corev1.PodReady {
+					klog.V(2).Infof("Pod : %q Ready : %q",
+						getNamespacedName(pod.GetObjectMeta()), condition.Status)
+					if condition.Status != corev1.ConditionTrue {
+						klog.Infof("Some pods owned by the NdbCluster resource %q are not ready yet",
+							getNamespacedName(sc.ndb))
+						// Stop syncing and requeue soon
+						return requeueInSeconds(5)
+					}
+				}
 			}
 		}
-	}
 
-	return true, nil
+		// Check if there are more pods
+		if pods.Continue == "" {
+			// no more pods and the pods retrieved so far are ready
+			klog.Infof("All pods owned by the NdbCluster resource %q are ready", getNamespacedName(sc.ndb))
+			// Allow sync to continue further
+			return continueProcessing()
+		}
+
+		// update listOptions to retrieve the next set of pods
+		listOptions.Continue = pods.Continue
+	}
 }
 
 // Ensure that the required labels are set on the cluster.
@@ -682,11 +701,10 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 
 	// All resources already exist or were created in a previous reconciliation loop.
 	// Continue further only if all the pods are ready.
-	if ready, _ := sc.checkPodStatus(); !ready {
+	if sr := sc.checkPodsReadiness(ctx); sr.stopSync() {
 		// Pods are not ready => The MySQL Cluster is not fully up yet.
 		// Any further config changes cannot be processed until the pods are ready.
-		klog.Infof("Some of the pods running MySQL Cluster nodes are not ready yet")
-		return requeueInSeconds(5)
+		return sr
 	}
 
 	// Resources exist and the pods(MySQL Cluster nodes) are ready.
