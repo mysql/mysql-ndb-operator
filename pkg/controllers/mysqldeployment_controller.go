@@ -53,7 +53,7 @@ type mysqlDeploymentController struct {
 }
 
 // NewMySQLDeploymentController returns a new mysqlDeploymentController
-func NewMySQLDeploymentController(client kubernetes.Interface, nc *v1alpha1.NdbCluster) DeploymentControlInterface {
+func NewMySQLDeploymentController(client kubernetes.Interface) DeploymentControlInterface {
 	return &mysqlDeploymentController{
 		client:                client,
 		mysqlServerDeployment: resources.NewMySQLServerDeployment(),
