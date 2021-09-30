@@ -67,34 +67,6 @@ func (sc *SyncContext) ndbClientset() ndbclientset.Interface {
 	return sc.controllerContext.ndbClientset
 }
 
-func (sc *SyncContext) updateClusterLabels() error {
-
-	ndb := sc.ndb.DeepCopy()
-	lbls := sc.ndb.GetLabels()
-
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		ndb.Labels = labels.Merge(ndb.Labels, lbls)
-		_, updateErr :=
-			sc.ndbClientset().MysqlV1alpha1().NdbClusters(ndb.Namespace).Update(context.TODO(), ndb, metav1.UpdateOptions{})
-		if updateErr == nil {
-			return nil
-		}
-
-		key := fmt.Sprintf("%s/%s", ndb.GetNamespace(), ndb.GetName())
-		klog.V(4).Infof("Conflict updating Cluster labels. Getting updated Cluster %s from cache...", key)
-
-		updated, err := sc.ndbClientset().MysqlV1alpha1().NdbClusters(ndb.Namespace).Get(context.TODO(), ndb.Name, metav1.GetOptions{})
-		if err != nil {
-			klog.Errorf("Error getting updated Cluster %q: %v", key, err)
-			return err
-		}
-
-		// Copy the Cluster so we don't mutate the cache.
-		ndb = updated.DeepCopy()
-		return updateErr
-	})
-}
-
 // ensureService creates a services if it doesn't exist
 // returns
 //    service existing or created
@@ -524,27 +496,6 @@ func (sc *SyncContext) checkPodsReadiness(ctx context.Context) syncResult {
 	}
 }
 
-// Ensure that the required labels are set on the cluster.
-//
-// Labels are placed on the ndb resource based on the name.
-func (sc *SyncContext) ensureClusterLabel() (*labels.Set, bool, error) {
-
-	sel4ndb := labels.SelectorFromSet(sc.ndb.GetLabels())
-	set := labels.Set(sc.ndb.Labels)
-	if sel4ndb.Matches(set) {
-		return &set, true, nil
-	}
-
-	klog.Infof("Setting labels on cluster %s", sel4ndb.String())
-	err := sc.updateClusterLabels()
-	if err != nil {
-		return nil, false, err
-	}
-
-	return &set, false, nil
-
-}
-
 // retrieveClusterStatus gets the cluster status from the
 // Management Server and stores it in the SyncContext
 func (sc *SyncContext) retrieveClusterStatus() (mgmapi.ClusterStatus, error) {
@@ -602,19 +553,11 @@ func (sc *SyncContext) allResourcesExisted() bool {
 // the source of the truth during the entire creation process. Only after all resources once
 // successfully created changes to the ndb.Spec will be considered by the syncHandler.
 func (sc *SyncContext) ensureAllResources() (bool, error) {
-
-	// create labels on ndb resource
-	// TODO - not sure if we need a cluster level label on the CRD
-	//      causes an update event looping us in here again
-	var err error
-	if _, sc.resourceMap["labels"], err = sc.ensureClusterLabel(); err != nil {
-		return false, err
-	}
-
 	// create services for management server and data node statefulsets
 	// with respect to idempotency and atomicy service creation is always safe as it
 	// only uses the immutable CRD name
 	// service needs to be created and present when creating stateful sets
+	var err error
 	if _, sc.resourceMap["services"], err = sc.ensureServices(); err != nil {
 		return false, err
 	}
