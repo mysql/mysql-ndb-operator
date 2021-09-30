@@ -428,12 +428,6 @@ func (f *fixture) expectDeleteAction(ns, group, version, resource, name string) 
 	f.kubeactions = append(f.kubeactions, core.NewDeleteAction(grpVersionResource, ns, name))
 }
 
-func (f *fixture) expectUpdateNdbAction(ns string, o runtime.Object) {
-	grpVersionResource := schema.GroupVersionResource{Group: "mysql.oracle.com", Version: "v1alpha1", Resource: "ndbclusters"}
-	action := core.NewUpdateAction(grpVersionResource, ns, o)
-	f.actions = append(f.actions, action)
-}
-
 func getKey(foo *ndbcontroller.NdbCluster, t *testing.T) string {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(foo)
 	if err != nil {
@@ -467,9 +461,6 @@ func TestCreatesCluster(t *testing.T) {
 
 	f := newFixture(t, ndb)
 	defer f.close()
-
-	// update labels will happen first sync run
-	f.expectUpdateNdbAction(ns, ndb)
 
 	// two services for ndbd and mgmds
 	omd := getObjectMetadata("test-mgmd", ndb, t)
