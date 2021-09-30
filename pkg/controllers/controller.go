@@ -106,11 +106,13 @@ func NewController(
 	configMapInformer coreinformers.ConfigMapInformer,
 	ndbInformer ndbinformers.NdbClusterInformer) *Controller {
 
+	statefulSetLister := statefulSetInformer.Lister()
+
 	controller := &Controller{
 		controllerContext:       controllerContext,
 		ndbsLister:              ndbInformer.Lister(),
 		ndbsSynced:              ndbInformer.Informer().HasSynced,
-		statefulSetLister:       statefulSetInformer.Lister(),
+		statefulSetLister:       statefulSetLister,
 		statefulSetListerSynced: statefulSetInformer.Informer().HasSynced,
 		deploymentLister:        deploymentInformer.Lister(),
 		deploymentListerSynced:  deploymentInformer.Informer().HasSynced,
@@ -121,6 +123,12 @@ func NewController(
 		configMapController:     NewConfigMapControl(controllerContext.kubeClientset, configMapInformer),
 		workqueue:               workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Ndbs"),
 		recorder:                newEventRecorder(controllerContext.kubeClientset),
+
+		mgmdController: NewRealStatefulSetControl(
+			controllerContext.kubeClientset, statefulSetLister, resources.NewMgmdStatefulSet()),
+		ndbdController: NewRealStatefulSetControl(
+			controllerContext.kubeClientset, statefulSetLister, resources.NewNdbdStatefulSet()),
+		mysqldController: NewMySQLDeploymentController(controllerContext.kubeClientset),
 	}
 
 	// Set up event handler for NdbCluster resource changes
@@ -273,21 +281,6 @@ func (c *Controller) processNextWorkItem() (continueProcessing bool) {
 }
 
 func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
-
-	//TODO: should probably create controller earlier
-	if c.ndbdController == nil {
-		c.ndbdController = NewRealStatefulSetControl(c.controllerContext.kubeClientset,
-			c.statefulSetLister, resources.NewNdbdStatefulSet())
-	}
-	// create the management stateful set if it doesn't exist
-	if c.mgmdController == nil {
-		c.mgmdController = NewRealStatefulSetControl(c.controllerContext.kubeClientset,
-			c.statefulSetLister, resources.NewMgmdStatefulSet())
-	}
-	if c.mysqldController == nil {
-		c.mysqldController = NewMySQLDeploymentController(c.controllerContext.kubeClientset, ndb)
-	}
-
 	return &SyncContext{
 		mgmdController:      c.mgmdController,
 		ndbdController:      c.ndbdController,
