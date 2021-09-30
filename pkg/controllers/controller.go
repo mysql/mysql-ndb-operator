@@ -287,7 +287,6 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
 		mysqldController:    c.mysqldController,
 		configMapController: c.configMapController,
 		ndb:                 ndb,
-		resourceMap:         make(map[string]bool),
 		controllerContext:   c.controllerContext,
 		ndbsLister:          c.ndbsLister,
 		recorder:            c.recorder,

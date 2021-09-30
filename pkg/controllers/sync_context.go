@@ -54,9 +54,6 @@ type SyncContext struct {
 
 	// recorder is an event recorder for recording Event resources to the Kubernetes API.
 	recorder events.EventRecorder
-
-	// resource map stores the name of the resources already created and if they were created
-	resourceMap map[string]bool
 }
 
 func (sc *SyncContext) kubeClientset() kubernetes.Interface {
@@ -518,101 +515,90 @@ func (sc *SyncContext) retrieveClusterStatus() (mgmapi.ClusterStatus, error) {
 	return cs, nil
 }
 
-// allResourcesExisted returns falls if any resource map is false (resource was created)
-func (sc *SyncContext) allResourcesExisted() bool {
+// ensureAllResources creates all K8s resources required for running the
+// MySQL Cluster if they do no exist already. Resource creation needs to
+// be idempotent just like any other step in the syncHandler. The config
+// in the config map is used by this step rather than the spec of the
+// NdbCluster resource to ensure a consistent setup across multiple
+// reconciliation loops.
+func (sc *SyncContext) ensureAllResources() syncResult {
 
-	retExisted := true
-	for res, existed := range sc.resourceMap {
-		if existed {
-			klog.Infof("Resource %s: existed", res)
-		} else {
-			klog.Infof("Resource %s: created", res)
-			retExisted = false
+	// bool to track if any resource was created as a part of this step
+	allResourcesExist := true
+
+	// helper method to report and handle the status of the resource
+	handleResourceStatus := func(resourceExists bool, resourceName string) {
+		if !resourceExists {
+			klog.Infof("Created resource : %s", resourceName)
+			allResourcesExist = false
 		}
 	}
-	return retExisted
-}
 
-// ensureAllResources creates all resources if they do not exist
-// the SyncContext struct will be filled with resource objects newly created or fetched
-// it returns
-//   false if any resource did not exist
-//   an error if such occurs during processing
-//
-// Resource creation as all other steps in syncHandler need to be idempotent.
-//
-// However, creation of multiple resources is obviously not one large atomic operation.
-// ndb.Status updates based on resources created can't be done atomically either.
-// The creation processes could any time be disrupted by crashes, termination or (temp) errors.
-//
-// The goal is to create a consistent setup.
-// The cluster configuration (file) in config map needs to match e.g. the no of replicas
-// the in stateful sets even though ndb.Spec could change between config map and sfset creation.
-//
-// In order to solve these issues the configuration store in the config file is considered
-// the source of the truth during the entire creation process. Only after all resources once
-// successfully created changes to the ndb.Spec will be considered by the syncHandler.
-func (sc *SyncContext) ensureAllResources() (bool, error) {
-	// create services for management server and data node statefulsets
-	// with respect to idempotency and atomicy service creation is always safe as it
-	// only uses the immutable CRD name
-	// service needs to be created and present when creating stateful sets
 	var err error
-	if _, sc.resourceMap["services"], err = sc.ensureServices(); err != nil {
-		return false, err
+	var resourceExists bool
+
+	// create all services required by the StatefulSets running the
+	// MySQL Cluster nodes and to expose the services offered by those nodes.
+	if _, resourceExists, err = sc.ensureServices(); err != nil {
+		return errorWhileProcessing(err)
 	}
+	handleResourceStatus(resourceExists, "Services")
 
 	// create pod disruption budgets
-	if _, sc.resourceMap["poddisruptionservice"], err = sc.ensurePodDisruptionBudget(); err != nil {
-		return false, err
+	if _, resourceExists, err = sc.ensurePodDisruptionBudget(); err != nil {
+		return errorWhileProcessing(err)
 	}
+	handleResourceStatus(resourceExists, "Pod Disruption Budgets")
 
-	// create config map if not exist
+	// enusure config map
 	var cm *corev1.ConfigMap
-	if cm, sc.resourceMap["configmap"], err = sc.configMapController.EnsureConfigMap(sc); err != nil {
-		return false, err
+	if cm, resourceExists, err = sc.configMapController.EnsureConfigMap(sc); err != nil {
+		return errorWhileProcessing(err)
+	}
+	handleResourceStatus(resourceExists, "Config Map")
+
+	// Create a new ResourceContext
+	configAsString, err := resources.GetConfigFromConfigMapObject(cm)
+	if err != nil {
+		// less likely to happen as the config value cannot go missing at this point
+		return errorWhileProcessing(err)
 	}
 
-	// get config string from config
-	// this and following step could be avoided since we in most cases just created the config map
-	// however, resource creation (happens once) or later modification as such is probably the unlikely case
-	// much more likely in all cases is that the config map already existed
-	if cm != nil {
-		// resource was created or existed
-		configString, err := sc.configMapController.ExtractConfig(cm)
-		if err != nil {
-			// less likely to happen as the config value cannot go missing at this point
-			return false, err
-		}
-
-		sc.resourceContext, err = resources.NewResourceContextFromConfiguration(configString)
-		if err != nil {
-			// less likely to happen the only possible error is a config
-			// parse error, and the configString was generated by the operator
-			return false, err
-		}
+	if sc.resourceContext, err = resources.NewResourceContextFromConfiguration(configAsString); err != nil {
+		// less likely to happen as the only possible error is a config
+		// parse error, and the configString was generated by the operator
+		return errorWhileProcessing(err)
 	}
-
-	// even if config is invalid following functions should still test if
-	// resources already exist because we can then continue
 
 	// create the management stateful set if it doesn't exist
-	if _, sc.resourceMap["mgmstatefulset"], err = sc.ensureManagementServerStatefulSet(); err != nil {
-		return false, err
+	if _, resourceExists, err = sc.ensureManagementServerStatefulSet(); err != nil {
+		return errorWhileProcessing(err)
 	}
+	handleResourceStatus(resourceExists, "StatefulSet for Management Nodes")
 
 	// create the data node stateful set if it doesn't exist
-	if sc.dataNodeSfSet, sc.resourceMap["datanodestatefulset"], err = sc.ensureDataNodeStatefulSet(); err != nil {
-		return false, err
+	if sc.dataNodeSfSet, resourceExists, err = sc.ensureDataNodeStatefulSet(); err != nil {
+		return errorWhileProcessing(err)
 	}
+	handleResourceStatus(resourceExists, "StatefulSet for Data Nodes")
 
 	// MySQL Server deployment will be created only if required.
 	// For now, just verify that if it exists, it is indeed owned by the NdbCluster resource.
 	if sc.mysqldDeployment, err = sc.validateMySQLServerDeployment(context.TODO()); err != nil {
-		return false, err
+		return errorWhileProcessing(err)
 	}
 
-	return sc.allResourcesExisted(), nil
+	if allResourcesExist {
+		// All resources already existed before this sync loop
+		klog.Infof("All resources exist already")
+		return continueProcessing()
+	}
+
+	// All or some resources did not exist before this sync loop
+	// and were created just now. Do not take any further action
+	// as the resources like pods will need some time to get ready.
+	klog.Infof("Some resources were just created. So, wait for them to become ready.")
+	return requeueInSeconds(5)
 }
 
 // sync updates the MySQL Cluster configuration running inside
@@ -624,22 +610,14 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 	// Multiple resources are required to start
 	// and run the MySQL Cluster in K8s. Create
 	// them if they do not exist yet.
-	existed, err := sc.ensureAllResources()
-	if err != nil {
-		klog.Errorf("Failed to ensure that all the required resources exist. Error : %v", err)
-		return errorWhileProcessing(err)
-	}
-
 	// TODO: Update ndb.Status with a creationTimestamp?
 	//       All subsequent sync loop could just check that and skip ensuring resources
 	//       Handle individual resources getting deleted.
-	// All resources either exist or were created
-	if !existed {
-		// All or some resources did not exist before this sync loop
-		// and were created just now. Do not take any further action
-		// as the resources like pods will need some time to get ready.
-		klog.Infof("Some resources were just created. So, wait for them to become ready.")
-		return requeueInSeconds(5)
+	if sr := sc.ensureAllResources(); sr.stopSync() {
+		if err := sr.getError(); err != nil {
+			klog.Errorf("Failed to ensure that all the required resources exist. Error : %v", err)
+		}
+		return sr
 	}
 
 	// All resources already exist or were created in a previous reconciliation loop.
