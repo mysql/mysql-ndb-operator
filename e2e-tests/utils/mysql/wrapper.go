@@ -34,6 +34,14 @@ func Connect(clientset kubernetes.Interface, nc *v1alpha1.NdbCluster, dbname str
 	dataSource := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?timeout=10s", user, password, host, port, dbname)
 	db, err := sql.Open("mysql", dataSource)
 	framework.ExpectNoError(err)
+	// Use retry to connect to the server as
+	// the connection initially fails sometimes.
+	retry := 20
+	retryInterval := 50 * time.Microsecond
+	for db.Ping() != nil && retry > 0 {
+		time.Sleep(retryInterval)
+		retry--
+	}
 	// Verify the DB is connected
 	framework.ExpectNoError(db.Ping())
 
