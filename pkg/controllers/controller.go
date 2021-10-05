@@ -131,20 +131,20 @@ func NewController(
 		mysqldController: NewMySQLDeploymentController(controllerContext.kubeClientset),
 	}
 
-	// Set up event handler for NdbCluster resource changes
 	klog.Info("Setting up event handlers")
+	// Set up event handler for NdbCluster resource changes
 	ndbInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 
 		AddFunc: func(obj interface{}) {
 			ndb := obj.(*v1alpha1.NdbCluster)
-			ndbKey := controller.getNdbClusterKey(ndb)
+			ndbKey := getNdbClusterKey(ndb)
 			klog.Infof("New NdbCluster resource added : %s", ndbKey)
 			controller.workqueue.Add(ndbKey)
 		},
 
 		UpdateFunc: func(old, new interface{}) {
 			oldNdb := old.(*v1alpha1.NdbCluster)
-			ndbKey := controller.getNdbClusterKey(oldNdb)
+			ndbKey := getNdbClusterKey(oldNdb)
 
 			newNdb := new.(*v1alpha1.NdbCluster)
 			if oldNdb.Generation != newNdb.Generation {
@@ -178,17 +178,11 @@ func NewController(
 			// delete will automatically be cascaded to all those resources and
 			// the controller doesn't have to do anything.
 			ndb := obj.(*v1alpha1.NdbCluster)
-			klog.Infof("NdbCluster resource '%s' was deleted", controller.getNdbClusterKey(ndb))
+			klog.Infof("NdbCluster resource '%s' was deleted", getNdbClusterKey(ndb))
 		},
 	})
 
 	return controller
-}
-
-// getNdbClusterKey returns a key for the
-// given NdbCluster of form <namespace>/<name>.
-func (c *Controller) getNdbClusterKey(nc *v1alpha1.NdbCluster) string {
-	return nc.Namespace + "/" + nc.Name
 }
 
 // Run will set up the event handlers for types we are interested in, as well
