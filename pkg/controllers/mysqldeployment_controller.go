@@ -22,15 +22,6 @@ import (
 	"k8s.io/klog"
 )
 
-// deploymentComplete considers a deployment to be complete once all of its desired replicas
-// are updated and available, and no old pods are running.
-func deploymentComplete(deployment *appsv1.Deployment) bool {
-	return deployment.Status.UpdatedReplicas == *(deployment.Spec.Replicas) &&
-		deployment.Status.Replicas == *(deployment.Spec.Replicas) &&
-		deployment.Status.AvailableReplicas == *(deployment.Spec.Replicas) &&
-		deployment.Status.ObservedGeneration >= deployment.Generation
-}
-
 // deploymentHasConfig returns true if the given deployment has the expected config generation
 func deploymentHasConfig(deployment *appsv1.Deployment, expectedConfigGeneration uint32) bool {
 	// Get the last applied Config Generation
@@ -178,7 +169,9 @@ func (mdc *mysqlDeploymentController) patchDeployment(
 
 	// successfully applied the patch
 	klog.Infof("Deployment %q has been patched successfully", getNamespacedName(deployment))
-	return requeueInSeconds(5)
+	// Finish processing. Reconciliation will
+	// continue once the deployment is complete.
+	return finishProcessing()
 }
 
 // HandleScaleDown scales down the MySQL deployment if it has been requested in the NdbCluster spec.
@@ -198,8 +191,10 @@ func (mdc *mysqlDeploymentController) HandleScaleDown(ctx context.Context, sc *S
 
 	// Deployment exists
 	if !deploymentComplete(deployment) {
-		// Previous deployment not complete yet. Return and requeue.
-		return requeueInSeconds(5)
+		// Previous deployment is not complete yet.
+		// Finish processing. Reconciliation will
+		// continue once the deployment is complete.
+		return finishProcessing()
 	}
 
 	// Handle any scale down
@@ -216,7 +211,8 @@ func (mdc *mysqlDeploymentController) HandleScaleDown(ctx context.Context, sc *S
 		if err := mdc.deleteDeployment(ctx, deployment, ndbCluster); err != nil {
 			return errorWhileProcessing(err)
 		}
-		return requeueInSeconds(0)
+		// reconciliation will continue once the deployment has been deleted
+		return finishProcessing()
 	}
 
 	// create a new deployment with updated replica to patch the original deployment
@@ -248,9 +244,10 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(ctx context.Context, s
 			return errorWhileProcessing(err)
 		}
 
-		// deployment was created successfully.
-		// Wait for it to become ready
-		return requeueInSeconds(5)
+		// Deployment was created successfully.
+		// Finish processing. Reconciliation will
+		// continue once the deployment is complete.
+		return finishProcessing()
 	}
 
 	// At this point the deployment exists and has already been verified

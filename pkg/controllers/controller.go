@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsinformers "k8s.io/client-go/informers/apps/v1"
@@ -24,6 +26,7 @@ import (
 
 	"github.com/mysql/ndb-operator/config/debug"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/constants"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	ndbinformers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
 	ndblisters "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
@@ -182,7 +185,58 @@ func NewController(
 		},
 	})
 
+	// Set up event handlers for deployment resource changes
+	deploymentInformer.Informer().AddEventHandlerWithResyncPeriod(
+
+		cache.FilteringResourceEventHandler{
+			FilterFunc: func(obj interface{}) bool {
+				// Filter out all deployments not owned by any
+				// NdbCluster resources. The deployment labels
+				// will have the names of their respective
+				// NdbCluster owners.
+				deployment := obj.(*appsv1.Deployment)
+				_, clusterLabelExists := deployment.GetLabels()[constants.ClusterLabel]
+				return clusterLabelExists
+			},
+
+			Handler: cache.ResourceEventHandlerFuncs{
+				// When a deployment owned by a NdbCluster resource
+				// is complete, add the NdbCluster resource to the
+				// workqueue to start the next reconciliation loop.
+				UpdateFunc: func(oldObj, newObj interface{}) {
+					deployment := newObj.(*appsv1.Deployment)
+					if deploymentComplete(deployment) {
+						klog.Infof("Deployment %q is complete", getNamespacedName(deployment))
+						controller.extractAndEnqueueNdbCluster(deployment)
+					}
+				},
+
+				// When a deployment owned by a NdbCluster resource
+				// is deleted, add the NdbCluster resource to the
+				// workqueue to start the next reconciliation loop.
+				DeleteFunc: func(obj interface{}) {
+					deployment := obj.(*appsv1.Deployment)
+					klog.Infof("Deployment %q is deleted", getNamespacedName(deployment))
+					controller.extractAndEnqueueNdbCluster(deployment)
+				},
+			},
+		},
+
+		// Set resyncPeriod to 0 to ignore all re-sync events
+		0,
+	)
+
 	return controller
+}
+
+// extractAndEnqueueNdbCluster extracts the key of NdbCluster that owns
+// the given Workload object (i.e. a deployment or a statefulset) and
+// then adds it to the controller's workqueue for reconciliation.
+func (c *Controller) extractAndEnqueueNdbCluster(obj metav1.Object) {
+	ndbClusterName := obj.GetLabels()[constants.ClusterLabel]
+	key := obj.GetNamespace() + Separator + ndbClusterName
+	klog.Infof("NdbCluster resource %q is re-queued for further reconciliation", key)
+	c.workqueue.Add(key)
 }
 
 // Run will set up the event handlers for types we are interested in, as well
