@@ -226,6 +226,38 @@ func NewController(
 		0,
 	)
 
+	// Set up event handlers for StatefulSet resource changes
+	statefulSetInformer.Informer().AddEventHandlerWithResyncPeriod(
+
+		cache.FilteringResourceEventHandler{
+			FilterFunc: func(obj interface{}) bool {
+				// Filter out all StatefulSets not owned by any
+				// NdbCluster resources. The StatefulSet labels
+				// will have the names of their respective
+				// NdbCluster owners.
+				statefulset := obj.(*appsv1.StatefulSet)
+				_, clusterLabelExists := statefulset.GetLabels()[constants.ClusterLabel]
+				return clusterLabelExists
+			},
+
+			Handler: cache.ResourceEventHandlerFuncs{
+				// When a StatefulSet owned by a NdbCluster resource
+				// is ready, add the NdbCluster resource to the
+				// workqueue to start the next reconciliation loop.
+				UpdateFunc: func(oldObj, newObj interface{}) {
+					statefulset := newObj.(*appsv1.StatefulSet)
+					if statefulsetReady(statefulset) {
+						klog.Infof("StatefulSet %q is ready", getNamespacedName(statefulset))
+						controller.extractAndEnqueueNdbCluster(statefulset)
+					}
+				},
+			},
+		},
+
+		// Set resyncPeriod to 0 to ignore all re-sync events
+		0,
+	)
+
 	return controller
 }
 

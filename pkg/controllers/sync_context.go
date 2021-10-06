@@ -334,7 +334,9 @@ func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 			// Exit here and allow them to be restarted by the statefulset controllers.
 			// Continue syncing once they are up, in a later reconciliation loop.
 			klog.Infof("The data nodes %v, identified with old config version, are being restarted", nodesWithOldConfig)
-			return requeueInSeconds(5)
+			// Stop processing. Reconciliation will continue
+			// once the StatefulSet is fully ready again.
+			return finishProcessing()
 		}
 
 		klog.Infof("The data nodes %v have desired config version %d", candidateNodeIds, wantedGeneration)
@@ -434,7 +436,9 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 		// Management Server has been stopped. Trigger only one restart
 		// at a time and handle the rest in later reconciliations.
 		klog.Infof("Management server(nodeId=%d) is being restarted with the desired configuration", nodeID)
-		return requeueInSeconds(5)
+		// Stop processing. Reconciliation will continue
+		// once the StatefulSet is fully ready again.
+		return finishProcessing()
 	}
 
 	// All Management Servers have the latest config.
