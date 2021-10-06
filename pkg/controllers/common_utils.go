@@ -35,3 +35,14 @@ func deploymentComplete(deployment *appsv1.Deployment) bool {
 		deployment.Status.AvailableReplicas == *(deployment.Spec.Replicas) &&
 		deployment.Status.ObservedGeneration >= deployment.Generation
 }
+
+// statefulsetReady considers a StatefulSet to be ready once any ongoing
+// rolling upgrade is complete and all the updated pods are ready.
+func statefulsetReady(statefulset *appsv1.StatefulSet) bool {
+	// CurrentReplicas is set to UpdatedReplicas and they both are equal
+	// to statefulset.Spec.Replicas once rolling update is complete.
+	return statefulset.Status.UpdatedReplicas == *(statefulset.Spec.Replicas) &&
+		statefulset.Status.CurrentReplicas == *(statefulset.Spec.Replicas) &&
+		statefulset.Status.ReadyReplicas == *(statefulset.Spec.Replicas) &&
+		statefulset.Status.ObservedGeneration >= statefulset.Generation
+}
