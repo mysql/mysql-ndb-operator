@@ -477,8 +477,10 @@ func (sc *SyncContext) checkPodsReadiness(ctx context.Context) syncResult {
 					if condition.Status != corev1.ConditionTrue {
 						klog.Infof("Some pods owned by the NdbCluster resource %q are not ready yet",
 							getNamespacedName(sc.ndb))
-						// Stop syncing and requeue soon
-						return requeueInSeconds(5)
+						// Stop syncing. NdbCluster resource will be later re-queued
+						// once the deployment or the statefulset that controls this
+						// pod becomes ready.
+						return finishProcessing()
 					}
 				}
 			}
@@ -599,10 +601,12 @@ func (sc *SyncContext) ensureAllResources() syncResult {
 	}
 
 	// All or some resources did not exist before this sync loop
-	// and were created just now. Do not take any further action
-	// as the resources like pods will need some time to get ready.
+	// and were created just now.
 	klog.Infof("Some resources were just created. So, wait for them to become ready.")
-	return requeueInSeconds(5)
+	// Do not take any further action as the resources like pods
+	// will need some time to get ready. Reconciliation will
+	// continue once all the pods are ready.
+	return finishProcessing()
 }
 
 // sync updates the MySQL Cluster configuration running inside
