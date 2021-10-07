@@ -71,7 +71,14 @@ rules:
       - patch
 
   - apiGroups: ["apps"]
-    resources: ["statefulsets", "deployments"]
+    resources: ["statefulsets"]
+    verbs:
+      - create
+      - list
+      - watch
+
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
     verbs:
       - create
       - get

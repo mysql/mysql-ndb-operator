@@ -6,146 +6,95 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/resources"
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/strategicpatch"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/klog"
 )
 
-/* StatefulSetControlInterface defines the interface that the
-   wraps around the creation and update of StatefulSets for node types. It
-   is implemented as an interface to enable testing. */
-
+// StatefulSetControlInterface defines the interface that
+// wraps around the create and update of StatefulSets for node types
 type StatefulSetControlInterface interface {
 	GetTypeName() string
-	EnsureStatefulSet(sc *SyncContext) (*apps.StatefulSet, bool, error)
-	Patch(rc *resources.ResourceContext, ndb *v1alpha1.NdbCluster, old *apps.StatefulSet) (*apps.StatefulSet, error)
+	EnsureStatefulSet(ctx context.Context, sc *SyncContext) (*apps.StatefulSet, bool, error)
 }
 
-type realStatefulSetControl struct {
-	client            kubernetes.Interface
-	statefulSetLister appslisters.StatefulSetLister
-	statefulSetType   resources.StatefulSetInterface
+// ndbNodeStatefulSetImpl implements the StatefulSetControlInterface to manage MySQL Cluster data nodes
+type ndbNodeStatefulSetImpl struct {
+	client             kubernetes.Interface
+	statefulSetLister  appslisters.StatefulSetLister
+	ndbNodeStatefulset resources.StatefulSetInterface
 }
 
-// NewRealStatefulSetControl creates a concrete implementation of the
-// StatefulSetControlInterface.
-func NewRealStatefulSetControl(
+// NewNdbNodesStatefulSetControlInterface creates a new ndbNodeStatefulSetImpl
+func NewNdbNodesStatefulSetControlInterface(
 	client kubernetes.Interface,
 	statefulSetLister appslisters.StatefulSetLister,
-	statefulSetType resources.StatefulSetInterface) StatefulSetControlInterface {
-	return &realStatefulSetControl{
-		client:            client,
-		statefulSetLister: statefulSetLister,
-		statefulSetType:   statefulSetType,
+	ndbNodeStatefulset resources.StatefulSetInterface) StatefulSetControlInterface {
+	return &ndbNodeStatefulSetImpl{
+		client:             client,
+		statefulSetLister:  statefulSetLister,
+		ndbNodeStatefulset: ndbNodeStatefulset,
 	}
 }
 
 // GetTypeName returns the type of the statefulSetInterface
 // being controlled by the StatefulSetControlInterface
-func (rssc *realStatefulSetControl) GetTypeName() string {
-	return rssc.statefulSetType.GetTypeName()
+func (ndbSfset *ndbNodeStatefulSetImpl) GetTypeName() string {
+	return ndbSfset.ndbNodeStatefulset.GetTypeName()
 }
 
-// PatchStatefulSet performs a direct patch update for the specified StatefulSet.
-func patchStatefulSet(client kubernetes.Interface, oldData *apps.StatefulSet, newData *apps.StatefulSet) (*apps.StatefulSet, error) {
-	originalJSON, err := json.Marshal(oldData)
-	if err != nil {
-		return nil, err
-	}
+// EnsureStatefulSet creates a StatefulSet for the MySQL Cluster nodes if one doesn't exist already.
+func (ndbSfset *ndbNodeStatefulSetImpl) EnsureStatefulSet(
+	ctx context.Context, sc *SyncContext) (sfset *apps.StatefulSet, existed bool, err error) {
 
-	//klog.Infof("Patching StatefulSet old: %s", string(originalJSON))
-
-	updatedJSON, err := json.Marshal(newData)
-	if err != nil {
-		return nil, err
-	}
-
-	//klog.Infof("Patching StatefulSet new: %s", string(updatedJSON))
-
-	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(
-		originalJSON, updatedJSON, apps.StatefulSet{})
-	if err != nil {
-		return nil, err
-	}
-	klog.Infof("Patching StatefulSet %q: %s", types.NamespacedName{
-		Namespace: oldData.Namespace,
-		Name:      oldData.Name}, string(patchBytes))
-
-	result, err := client.AppsV1().StatefulSets(oldData.Namespace).Patch(context.TODO(), oldData.Name,
-		types.StrategicMergePatchType,
-		patchBytes, metav1.PatchOptions{})
-
-	if err != nil {
-		klog.Errorf("Failed to patch StatefulSet: %v", err)
-		return nil, err
-	}
-
-	return result, nil
-}
-
-func (rssc *realStatefulSetControl) Patch(rc *resources.ResourceContext, ndb *v1alpha1.NdbCluster, old *apps.StatefulSet) (*apps.StatefulSet, error) {
-
-	oldCopy := old.DeepCopy()
-
-	klog.Infof("Patch stateful set %s/%s Replicas: %d, DataNodes: %d",
-		ndb.Namespace,
-		rssc.statefulSetType.GetName(ndb),
-		ndb.Spec.RedundancyLevel,
-		ndb.Spec.NodeCount)
-
-	sfset := rssc.statefulSetType.NewStatefulSet(rc, ndb)
-
-	return patchStatefulSet(rssc.client, oldCopy, sfset)
-}
-
-// EnsureStatefulSet creates a statefulset if there is none
-// returns
-//   the statefull set if created or already existing
-//   true if it already existed
-//   error is such occured
-func (rssc *realStatefulSetControl) EnsureStatefulSet(sc *SyncContext) (*apps.StatefulSet, bool, error) {
-
-	// Get the StatefulSet with the name specified in Ndb.spec
-	sfset, err := rssc.statefulSetLister.StatefulSets(sc.ndb.Namespace).Get(rssc.statefulSetType.GetName(sc.ndb))
+	// Get the StatefulSet from cache using statefulSetLister
+	nc := sc.ndb
+	sfsetName := ndbSfset.ndbNodeStatefulset.GetName(nc)
+	sfset, err = ndbSfset.statefulSetLister.StatefulSets(nc.Namespace).Get(sfsetName)
 	if err == nil {
+		// The statefulSet already exists. Verify that
+		// this is owned by the right NdbCluster resource.
+		if err = sc.isOwnedByNdbCluster(sfset); err != nil {
+			// StatefulSet is not owned by the NdbCluster resource.
+			return nil, false, err
+		}
+
+		// StatefulSet exists and is owned by the NdbCluster resource
 		return sfset, true, nil
 	}
 
 	if !errors.IsNotFound(err) {
+		// Error retrieving the StatefulSet
+		klog.Errorf("Failed to retrieve the StatefulSet %q for NdbCluster %q : %s", sfsetName, nc.Name, err)
 		return nil, false, err
 	}
 
-	rc := sc.resourceContext
-
-	// If the resource doesn't exist, we'll create it
-	klog.Infof("Creating stateful set %s/%s Replicas: %d, Data Nodes: %d, Mgm Nodes: %d",
-		sc.ndb.Namespace,
-		rssc.statefulSetType.GetName(sc.ndb),
-		rc.RedundancyLevel,
-		rc.NumOfDataNodes,
-		rc.NumOfManagementNodes)
-
-	sfset = rssc.statefulSetType.NewStatefulSet(rc, sc.ndb)
-	sfset, err = rssc.client.AppsV1().StatefulSets(sc.ndb.Namespace).Create(context.TODO(), sfset, metav1.CreateOptions{})
+	// StatefulSet doesn't exist. Create it.
+	sfset = ndbSfset.ndbNodeStatefulset.NewStatefulSet(sc.resourceContext, nc)
+	klog.Infof("Creating StatefulSet \"%s/%s\" of type %q with Replica = %d",
+		nc.Namespace, sfsetName, ndbSfset.ndbNodeStatefulset.GetTypeName(), *sfset.Spec.Replicas)
+	sfsetInterface := ndbSfset.client.AppsV1().StatefulSets(nc.Namespace)
+	sfset, err = sfsetInterface.Create(ctx, sfset, metav1.CreateOptions{})
 
 	if err != nil {
-		// re-queue if something went wrong
-		klog.Errorf("Failed to create stateful set %s/%s replicas: %d with error: %s",
-			sc.ndb.Namespace, rssc.statefulSetType.GetName(sc.ndb),
-			sc.ndb.Spec.NodeCount, err)
+		if errors.IsAlreadyExists(err) {
+			// The StatefulSet was created already but the cache
+			// didn't have it yet. This also implies that the
+			// statefulset is not ready yet. Return existed = false
+			// to make the sync handler stop processing. The sync
+			// will continue when the statefulset becomes ready.
+			return nil, false, nil
+		}
 
+		// Unexpected error. Failed to create the resource.
+		klog.Errorf("Failed to create StatefulSet \"%s/%s\" : %s", nc.Namespace, sfsetName, err)
 		return nil, false, err
 	}
 
-	return sfset, false, err
+	return sfset, false, nil
 }

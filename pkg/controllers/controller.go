@@ -127,9 +127,9 @@ func NewController(
 		workqueue:               workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Ndbs"),
 		recorder:                newEventRecorder(controllerContext.kubeClientset),
 
-		mgmdController: NewRealStatefulSetControl(
+		mgmdController: NewNdbNodesStatefulSetControlInterface(
 			controllerContext.kubeClientset, statefulSetLister, resources.NewMgmdStatefulSet()),
-		ndbdController: NewRealStatefulSetControl(
+		ndbdController: NewNdbNodesStatefulSetControlInterface(
 			controllerContext.kubeClientset, statefulSetLister, resources.NewNdbdStatefulSet()),
 		mysqldController: NewMySQLDeploymentController(controllerContext.kubeClientset),
 	}
