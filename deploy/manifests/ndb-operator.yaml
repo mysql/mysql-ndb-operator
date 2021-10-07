@@ -378,6 +378,13 @@ rules:
   - apps
   resources:
   - statefulsets
+  verbs:
+  - create
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
   - deployments
   verbs:
   - create

@@ -64,6 +64,20 @@ func (sc *SyncContext) ndbClientset() ndbclientset.Interface {
 	return sc.controllerContext.ndbClientset
 }
 
+// isOwnedByNdbCluster returns an error if the given
+// object is not owned by the NdbCluster resource being synced.
+func (sc *SyncContext) isOwnedByNdbCluster(object metav1.Object) error {
+	if !metav1.IsControlledBy(object, sc.ndb) {
+		// The object is not owned by the NdbCluster resource being synced.
+		// Record a warning and return an error.
+		err := fmt.Errorf(MessageResourceExists, getNamespacedName(object))
+		sc.recorder.Eventf(sc.ndb, nil,
+			corev1.EventTypeWarning, ReasonResourceExists, ActionNone, err.Error())
+		return err
+	}
+	return nil
+}
+
 // ensureService creates a services if it doesn't exist
 // returns
 //    service existing or created
@@ -147,62 +161,18 @@ func (sc *SyncContext) ensureServices() (*[]*corev1.Service, bool, error) {
 	return &svcs, retExisted, nil
 }
 
-// ensureManagementServerStatefulSet creates the stateful set for management servers if it doesn't exist
-// returns
-//    new or existing statefulset
-//    reports true if it existed
-//    or returns an error if something went wrong
-func (sc *SyncContext) ensureManagementServerStatefulSet() (*appsv1.StatefulSet, bool, error) {
-
-	sfset, existed, err := sc.mgmdController.EnsureStatefulSet(sc)
-	if err != nil {
-		return nil, existed, err
-	}
-
-	if sfset == nil {
-		// didn't exist and wasn't created wither
-		return nil, existed, nil
-	}
-
-	// If the StatefulSet is not controlled by this Ndb resource, we should log
-	// a warning to the event recorder and return error msg.
-	if !metav1.IsControlledBy(sfset, sc.ndb) {
-		msg := fmt.Sprintf(MessageResourceExists, sfset.Name)
-		sc.recorder.Eventf(sc.ndb, nil,
-			corev1.EventTypeWarning, ReasonResourceExists, ActionNone, msg)
-		return nil, existed, fmt.Errorf(msg)
-	}
-
-	return sfset, existed, err
+// ensureManagementServerStatefulSet creates the StatefulSet for
+// Management Server in the K8s Server if they don't exist yet.
+func (sc *SyncContext) ensureManagementServerStatefulSet(
+	ctx context.Context) (mgmdStatefulSet *appsv1.StatefulSet, existed bool, err error) {
+	return sc.mgmdController.EnsureStatefulSet(ctx, sc)
 }
 
-// ensureDataNodeStatefulSet creates the stateful set for data node if it doesn't exist
-// returns
-//    new or existing statefulset
-//    reports true if it existed
-//    or returns an error if something went wrong
-func (sc *SyncContext) ensureDataNodeStatefulSet() (*appsv1.StatefulSet, bool, error) {
-
-	sfset, existed, err := sc.ndbdController.EnsureStatefulSet(sc)
-	if err != nil {
-		return nil, existed, err
-	}
-
-	if sfset == nil {
-		// didn't exist and wasn't created wither
-		return nil, existed, nil
-	}
-
-	// If the StatefulSet is not controlled by this Ndb resource, we should log
-	// a warning to the event recorder and return error msg.
-	if !metav1.IsControlledBy(sfset, sc.ndb) {
-		msg := fmt.Sprintf(MessageResourceExists, sfset.Name)
-		sc.recorder.Eventf(sc.ndb, nil,
-			corev1.EventTypeWarning, ReasonResourceExists, ActionNone, msg)
-		return nil, existed, fmt.Errorf(msg)
-	}
-
-	return sfset, existed, err
+// ensureDataNodeStatefulSet creates the StatefulSet for
+// Data Nodes in the K8s Server if they don't exist yet.
+func (sc *SyncContext) ensureDataNodeStatefulSet(
+	ctx context.Context) (ndbdStatefulSet *appsv1.StatefulSet, existed bool, err error) {
+	return sc.ndbdController.EnsureStatefulSet(ctx, sc)
 }
 
 // validateMySQLServerDeployment retrieves the MySQL Server deployment from K8s.
@@ -527,7 +497,7 @@ func (sc *SyncContext) retrieveClusterStatus() (mgmapi.ClusterStatus, error) {
 // in the config map is used by this step rather than the spec of the
 // NdbCluster resource to ensure a consistent setup across multiple
 // reconciliation loops.
-func (sc *SyncContext) ensureAllResources() syncResult {
+func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 
 	// bool to track if any resource was created as a part of this step
 	allResourcesExist := true
@@ -577,13 +547,13 @@ func (sc *SyncContext) ensureAllResources() syncResult {
 	}
 
 	// create the management stateful set if it doesn't exist
-	if _, resourceExists, err = sc.ensureManagementServerStatefulSet(); err != nil {
+	if _, resourceExists, err = sc.ensureManagementServerStatefulSet(ctx); err != nil {
 		return errorWhileProcessing(err)
 	}
 	handleResourceStatus(resourceExists, "StatefulSet for Management Nodes")
 
 	// create the data node stateful set if it doesn't exist
-	if sc.dataNodeSfSet, resourceExists, err = sc.ensureDataNodeStatefulSet(); err != nil {
+	if sc.dataNodeSfSet, resourceExists, err = sc.ensureDataNodeStatefulSet(ctx); err != nil {
 		return errorWhileProcessing(err)
 	}
 	handleResourceStatus(resourceExists, "StatefulSet for Data Nodes")
@@ -621,7 +591,7 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 	// TODO: Update ndb.Status with a creationTimestamp?
 	//       All subsequent sync loop could just check that and skip ensuring resources
 	//       Handle individual resources getting deleted.
-	if sr := sc.ensureAllResources(); sr.stopSync() {
+	if sr := sc.ensureAllResources(ctx); sr.stopSync() {
 		if err := sr.getError(); err != nil {
 			klog.Errorf("Failed to ensure that all the required resources exist. Error : %v", err)
 		}
@@ -683,21 +653,6 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 	// data nodes a restarted with respect to
 	if sr := sc.ensureDataNodeConfigVersion(); sr.stopSync() {
 		return sr
-	}
-
-	// If this number of the members on the Cluster does not equal the
-	// current desired replicas on the StatefulSet, we should update the
-	// StatefulSet resource.
-	// TODO : Check if this is necessary as this case is
-	//        probably covered already by the previous step.
-	if sc.resourceContext.NumOfDataNodes != uint32(*sc.dataNodeSfSet.Spec.Replicas) {
-		klog.Infof("Updating NdbCluster resource %q : DataNodes=%d statefulSetReplicas=%d",
-			getNamespacedName(sc.ndb), sc.ndb.Spec.NodeCount, *sc.dataNodeSfSet.Spec.Replicas)
-		if sc.dataNodeSfSet, err = sc.ndbdController.Patch(sc.resourceContext, sc.ndb, sc.dataNodeSfSet); err != nil {
-			// Requeue the item so we can attempt processing again later.
-			// This could have been caused by a temporary network failure etc.
-			return errorWhileProcessing(err)
-		}
 	}
 
 	// Second pass of MySQL Server reconciliation
