@@ -254,16 +254,32 @@ func (k *kind) getPodPhase(namespace string, podName string) (v1.PodPhase, error
 // has succeeded its execution.
 // It returns true if pod has reached 'Succeeded' phase
 func (k *kind) hasPodSucceeded(namespace string, podName string) bool {
-	podPhase, err := k.getPodPhase(namespace, podName)
+	// poll every second for 60 seconds to check
+	// if the pod either reaches succeeded or failed phase.
+	var podPhase v1.PodPhase
+	err := wait.PollImmediate(1*time.Second, 60*time.Second,
+		func() (done bool, err error) {
+			podPhase, err = k.getPodPhase(namespace, podName)
+			if err != nil {
+				log.Printf("❌ Error getting '%s' pod's phase: %s", podName, err)
+				return false, err
+			}
+
+			switch podPhase {
+			case v1.PodFailed:
+				log.Printf("❌ Pod %q failed", podName)
+				fallthrough
+			case v1.PodSucceeded:
+				return true, nil
+			default:
+				return false, nil
+			}
+		})
+
 	if err != nil {
-		log.Printf("❌ Error getting '%s' pod's phase: %s", podName, err)
 		return false
 	}
-
-	if podPhase == v1.PodSucceeded {
-		return true
-	}
-	return false
+	return podPhase == v1.PodSucceeded
 }
 
 // isPodRunning checks if a given pod in a given namespace
