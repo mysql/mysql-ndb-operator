@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/kubernetes"
 	typedappsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
+	listerappsv1 "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/klog"
 )
 
@@ -33,20 +34,23 @@ func deploymentHasConfig(deployment *appsv1.Deployment, expectedConfigGeneration
 // DeploymentControlInterface is the interface for deployment controllers
 type DeploymentControlInterface interface {
 	GetTypeName() string
-	GetDeployment(ctx context.Context, nc *v1alpha1.NdbCluster) (*appsv1.Deployment, error)
+	GetDeployment(sc *SyncContext) (*appsv1.Deployment, error)
 	HandleScaleDown(ctx context.Context, sc *SyncContext) syncResult
 	ReconcileDeployment(ctx context.Context, sc *SyncContext) syncResult
 }
 
 type mysqlDeploymentController struct {
 	client                kubernetes.Interface
+	deploymentLister      listerappsv1.DeploymentLister
 	mysqlServerDeployment *resources.MySQLServerDeployment
 }
 
 // NewMySQLDeploymentController returns a new mysqlDeploymentController
-func NewMySQLDeploymentController(client kubernetes.Interface) DeploymentControlInterface {
+func NewMySQLDeploymentController(
+	client kubernetes.Interface, deploymentLister listerappsv1.DeploymentLister) DeploymentControlInterface {
 	return &mysqlDeploymentController{
 		client:                client,
+		deploymentLister:      deploymentLister,
 		mysqlServerDeployment: resources.NewMySQLServerDeployment(),
 	}
 }
@@ -63,18 +67,25 @@ func (mdc *mysqlDeploymentController) GetTypeName() string {
 }
 
 // GetDeployment retrieves the MySQL deployment for the given NdbCluster resource
-func (mdc *mysqlDeploymentController) GetDeployment(
-	ctx context.Context, nc *v1alpha1.NdbCluster) (*appsv1.Deployment, error) {
-	deployment, err := mdc.deploymentInterface(nc.Namespace).Get(
-		ctx, mdc.mysqlServerDeployment.GetName(nc), metav1.GetOptions{})
+func (mdc *mysqlDeploymentController) GetDeployment(sc *SyncContext) (*appsv1.Deployment, error) {
+	nc := sc.ndb
+	deploymentName := mdc.mysqlServerDeployment.GetName(nc)
+	deployment, err := mdc.deploymentLister.Deployments(nc.Namespace).Get(deploymentName)
 
 	if err != nil && !errors.IsNotFound(err) {
-		klog.Errorf("Failed to retrieve the deployment for NdbCluster %q : %s", nc.Name, err)
+		klog.Errorf("Failed to retrieve the deployment for NdbCluster %q : %s", getNamespacedName(nc), err)
 		return nil, err
 	}
 
 	if errors.IsNotFound(err) {
+		// Deployment doesn't exist yet
 		return nil, nil
+	}
+
+	// Deployment exists. Verify ownership
+	if err = sc.isOwnedByNdbCluster(deployment); err != nil {
+		// Deployment is not owned by the current NdbCluster resource
+		return nil, err
 	}
 
 	return deployment, nil
@@ -95,6 +106,15 @@ func (mdc *mysqlDeploymentController) createDeployment(ctx context.Context, sc *
 	deployment := mdc.mysqlServerDeployment.NewDeployment(sc.ndb, sc.resourceContext, nil)
 	_, err := mdc.deploymentInterface(deployment.Namespace).Create(ctx, deployment, metav1.CreateOptions{})
 	if err != nil {
+		if errors.IsAlreadyExists(err) {
+			// The Deployment was created already but the cache
+			// didn't have it yet. This also implies that the
+			// Deployment is not ready yet. Return nil to make
+			// the sync handler stop processing. The sync will
+			// continue when the statefulset becomes ready.
+			return nil
+		}
+
 		// Creating deployment failed
 		klog.Errorf("Failed to create deployment %q : %s", getNamespacedName(deployment), err)
 		return err
@@ -117,7 +137,10 @@ func (mdc *mysqlDeploymentController) deleteDeployment(
 		// The given NdbCluster is set as the Owner of the secret,
 		// which implies that this was created by the operator.
 		err := secretClient.Delete(ctx, deployment.Namespace, secretName)
-		if err != nil {
+		if err != nil && errors.IsNotFound(err) {
+			// Delete failed with an error.
+			// Ignore NotFound error as this delete might be a redundant
+			// step, caused by an outdated cache read by GetDeployment.
 			klog.Errorf("Failed to delete MySQL Root pass secret %q : %s", secretName, err)
 			return err
 		}
@@ -126,7 +149,10 @@ func (mdc *mysqlDeploymentController) deleteDeployment(
 	// delete the deployment
 	err := mdc.deploymentInterface(deployment.Namespace).Delete(
 		context.TODO(), deployment.Name, metav1.DeleteOptions{})
-	if err != nil {
+	if err != nil && errors.IsNotFound(err) {
+		// Delete failed with an error.
+		// Ignore NotFound error as this delete might be a redundant
+		// step, caused by an outdated cache read by GetDeployment.
 		klog.Errorf("Failed to delete the deployment %q : %s", getNamespacedName(deployment), err)
 		return err
 	}

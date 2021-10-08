@@ -110,6 +110,7 @@ func NewController(
 	ndbInformer ndbinformers.NdbClusterInformer) *Controller {
 
 	statefulSetLister := statefulSetInformer.Lister()
+	deploymentLister := deploymentInformer.Lister()
 
 	controller := &Controller{
 		controllerContext:       controllerContext,
@@ -117,7 +118,7 @@ func NewController(
 		ndbsSynced:              ndbInformer.Informer().HasSynced,
 		statefulSetLister:       statefulSetLister,
 		statefulSetListerSynced: statefulSetInformer.Informer().HasSynced,
-		deploymentLister:        deploymentInformer.Lister(),
+		deploymentLister:        deploymentLister,
 		deploymentListerSynced:  deploymentInformer.Informer().HasSynced,
 		serviceLister:           serviceInformer.Lister(),
 		serviceListerSynced:     serviceInformer.Informer().HasSynced,
@@ -131,7 +132,7 @@ func NewController(
 			controllerContext.kubeClientset, statefulSetLister, resources.NewMgmdStatefulSet()),
 		ndbdController: NewNdbNodesStatefulSetControlInterface(
 			controllerContext.kubeClientset, statefulSetLister, resources.NewNdbdStatefulSet()),
-		mysqldController: NewMySQLDeploymentController(controllerContext.kubeClientset),
+		mysqldController: NewMySQLDeploymentController(controllerContext.kubeClientset, deploymentLister),
 	}
 
 	klog.Info("Setting up event handlers")
