@@ -388,7 +388,6 @@ rules:
   - deployments
   verbs:
   - create
-  - get
   - list
   - patch
   - watch

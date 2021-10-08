@@ -177,32 +177,8 @@ func (sc *SyncContext) ensureDataNodeStatefulSet(
 
 // validateMySQLServerDeployment retrieves the MySQL Server deployment from K8s.
 // If the deployment exists, it verifies if it is owned by the NdbCluster resource.
-func (sc *SyncContext) validateMySQLServerDeployment(ctx context.Context) (*appsv1.Deployment, error) {
-
-	nc := sc.ndb
-	deployment, err := sc.mysqldController.GetDeployment(ctx, nc)
-	if err != nil {
-		// Failed to ensure the deployment
-		return nil, err
-	}
-
-	if deployment == nil {
-		// Deployment doesn't exist yet.
-		// This is OK as it might be created later during sync.
-		return nil, nil
-	}
-
-	// If the deployment is not controlled by Ndb resource,
-	// log a warning to the event recorder and return the error message.
-	if !metav1.IsControlledBy(deployment, sc.ndb) {
-		err = fmt.Errorf(MessageResourceExists, deployment.Name)
-		sc.recorder.Eventf(sc.ndb, nil,
-			corev1.EventTypeWarning, ReasonResourceExists, ActionNone, err.Error())
-		return nil, err
-	}
-
-	// deployment exists and is owned by NdbCluster
-	return deployment, nil
+func (sc *SyncContext) validateMySQLServerDeployment() (*appsv1.Deployment, error) {
+	return sc.mysqldController.GetDeployment(sc)
 }
 
 // ensurePodDisruptionBudget creates a PDB if it doesn't exist
@@ -560,7 +536,7 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 
 	// MySQL Server deployment will be created only if required.
 	// For now, just verify that if it exists, it is indeed owned by the NdbCluster resource.
-	if sc.mysqldDeployment, err = sc.validateMySQLServerDeployment(context.TODO()); err != nil {
+	if sc.mysqldDeployment, err = sc.validateMySQLServerDeployment(); err != nil {
 		return errorWhileProcessing(err)
 	}
 
