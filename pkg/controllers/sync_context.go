@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog"
@@ -51,6 +52,7 @@ type SyncContext struct {
 
 	controllerContext *ControllerContext
 	ndbsLister        ndblisters.NdbClusterLister
+	podLister         listerscorev1.PodLister
 
 	// recorder is an event recorder for recording Event resources to the Kubernetes API.
 	recorder events.EventRecorder
@@ -314,10 +316,10 @@ func (sc *SyncContext) connectToManagementServer(managementNodeId ...int) (mgmap
 		// Operator is running inside a K8s pod.
 		// Directly connect to the desired management server's pod using its IP
 		podName := fmt.Sprintf("%s-%d", sc.ndb.GetServiceName("mgmd"), nodeId-1)
-		pod, err := sc.kubeClientset().CoreV1().Pods(sc.ndb.Namespace).Get(context.TODO(), podName, metav1.GetOptions{})
+		pod, err := sc.podLister.Pods(sc.ndb.Namespace).Get(podName)
 		if err != nil {
-			klog.Errorf("Management server with node id '%d' and pod '%s/%s' not found",
-				nodeId, sc.ndb.Namespace, podName)
+			klog.Errorf("Failed to find Management server with node id '%d' and pod '%s/%s' : %s",
+				nodeId, sc.ndb.Namespace, podName, err)
 			return nil, err
 		}
 		connectstring = fmt.Sprintf("%s:%d", pod.Status.PodIP, 1186)
@@ -395,54 +397,37 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 
 // checkPodsReadiness checks if all the pods owned the NdbCluster
 // resource are ready. The sync will continue only if all the pods are ready.
-func (sc *SyncContext) checkPodsReadiness(ctx context.Context) syncResult {
-
-	podInterface := sc.kubeClientset().CoreV1().Pods(sc.ndb.Namespace)
+func (sc *SyncContext) checkPodsReadiness() syncResult {
 
 	// List all pods owned by NdbCluster resource
-	listOptions := metav1.ListOptions{
-		LabelSelector: labels.Set(sc.ndb.GetLabels()).String(),
-		Limit:         256,
+	pods, err := sc.podLister.Pods(sc.ndb.Namespace).List(labels.SelectorFromSet(sc.ndb.GetLabels()))
+	if err != nil {
+		klog.Errorf("Failed to list pods with selector %q. Error : %v",
+			labels.Set(sc.ndb.GetLabels()).String(), err)
+		return errorWhileProcessing(err)
 	}
 
-	for {
-		// List the pods
-		pods, err := podInterface.List(ctx, listOptions)
-		if err != nil {
-			klog.Errorf("Failed to list pods with selector %q. Error : %v",
-				listOptions.LabelSelector, err)
-			return errorWhileProcessing(err)
-		}
-
-		// Check if all the returned pods are ready
-		for _, pod := range pods.Items {
-			for _, condition := range pod.Status.Conditions {
-				if condition.Type == corev1.PodReady {
-					klog.V(2).Infof("Pod : %q Ready : %q",
-						getNamespacedName(pod.GetObjectMeta()), condition.Status)
-					if condition.Status != corev1.ConditionTrue {
-						klog.Infof("Some pods owned by the NdbCluster resource %q are not ready yet",
-							getNamespacedName(sc.ndb))
-						// Stop syncing. NdbCluster resource will be later re-queued
-						// once the deployment or the statefulset that controls this
-						// pod becomes ready.
-						return finishProcessing()
-					}
+	// Check if all the pods are ready
+	for _, pod := range pods {
+		for _, condition := range pod.Status.Conditions {
+			if condition.Type == corev1.PodReady {
+				klog.V(2).Infof("Pod : %q Ready : %q",
+					getNamespacedName(pod.GetObjectMeta()), condition.Status)
+				if condition.Status != corev1.ConditionTrue {
+					klog.Infof("Some pods owned by the NdbCluster resource %q are not ready yet",
+						getNamespacedName(sc.ndb))
+					// Stop syncing. NdbCluster resource will be later re-queued
+					// once the deployment or the statefulset that controls this
+					// pod becomes ready.
+					return finishProcessing()
 				}
 			}
 		}
-
-		// Check if there are more pods
-		if pods.Continue == "" {
-			// no more pods and the pods retrieved so far are ready
-			klog.Infof("All pods owned by the NdbCluster resource %q are ready", getNamespacedName(sc.ndb))
-			// Allow sync to continue further
-			return continueProcessing()
-		}
-
-		// update listOptions to retrieve the next set of pods
-		listOptions.Continue = pods.Continue
 	}
+
+	klog.Infof("All pods owned by the NdbCluster resource %q are ready", getNamespacedName(sc.ndb))
+	// Allow sync to continue further
+	return continueProcessing()
 }
 
 // retrieveClusterStatus gets the cluster status from the
@@ -576,7 +561,7 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 
 	// All resources already exist or were created in a previous reconciliation loop.
 	// Continue further only if all the pods are ready.
-	if sr := sc.checkPodsReadiness(ctx); sr.stopSync() {
+	if sr := sc.checkPodsReadiness(); sr.stopSync() {
 		// Pods are not ready => The MySQL Cluster is not fully up yet.
 		// Any further config changes cannot be processed until the pods are ready.
 		return sr

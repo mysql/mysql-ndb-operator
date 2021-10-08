@@ -335,9 +335,7 @@ rules:
   resources:
   - pods
   verbs:
-  - get
   - list
-  - update
   - watch
 - apiGroups:
   - ""
