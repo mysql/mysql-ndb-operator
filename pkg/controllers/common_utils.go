@@ -16,8 +16,8 @@ const (
 
 // getNamespacedName returns the name of the object
 // along with the Namespace of form <namespace>/<name>.
-func getNamespacedName(meta v1.Object) string {
-	return meta.GetNamespace() + Separator + meta.GetName()
+func getNamespacedName(obj v1.Object) string {
+	return obj.GetNamespace() + Separator + obj.GetName()
 }
 
 // getNdbClusterKey returns a key for the

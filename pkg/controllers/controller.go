@@ -371,6 +371,7 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
 		controllerContext:   c.controllerContext,
 		ndbsLister:          c.ndbsLister,
 		podLister:           c.podLister,
+		serviceLister:       c.serviceLister,
 		recorder:            c.recorder,
 	}
 }
