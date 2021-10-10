@@ -40,11 +40,9 @@ rules:
   - apiGroups: [""]
     resources: ["services"]
     verbs:
-      - get
       - list
-      - update
-      - create
       - watch
+      - create
 
   - apiGroups: [""]
     resources: ["configmaps"]

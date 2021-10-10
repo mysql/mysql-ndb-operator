@@ -53,6 +53,7 @@ type SyncContext struct {
 	controllerContext *ControllerContext
 	ndbsLister        ndblisters.NdbClusterLister
 	podLister         listerscorev1.PodLister
+	serviceLister     listerscorev1.ServiceLister
 
 	// recorder is an event recorder for recording Event resources to the Kubernetes API.
 	recorder events.EventRecorder
@@ -80,87 +81,88 @@ func (sc *SyncContext) isOwnedByNdbCluster(object metav1.Object) error {
 	return nil
 }
 
-// ensureService creates a services if it doesn't exist
-// returns
-//    service existing or created
-//    true if services was created
-//    error if any such occurred
-func (sc *SyncContext) ensureService(port int32, selector string, createLoadBalancer bool) (*corev1.Service, bool, error) {
+// ensureService creates a service if it doesn't exist yet
+func (sc *SyncContext) ensureService(
+	ctx context.Context, port int32,
+	selector string, createLoadBalancer bool) (svc *corev1.Service, existed bool, err error) {
 
 	serviceName := sc.ndb.GetServiceName(selector)
 	if createLoadBalancer {
 		serviceName += "-ext"
 	}
 
-	svc, err := sc.kubeClientset().CoreV1().Services(sc.ndb.Namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
+	svc, err = sc.serviceLister.Services(sc.ndb.Namespace).Get(serviceName)
 
 	if err == nil {
+		// Service exists already
+		if err = sc.isOwnedByNdbCluster(svc); err != nil {
+			// But it is not owned by the NdbCluster resource
+			return nil, false, err
+		}
+
+		// Service exists and is owned by the current NdbCluster
 		return svc, true, nil
 	}
+
 	if !apierrors.IsNotFound(err) {
 		return nil, false, err
 	}
 
 	// Service not found - create it
-	klog.Infof("Creating a new Service %s for cluster %q", serviceName,
-		types.NamespacedName{Namespace: sc.ndb.Namespace, Name: sc.ndb.Name})
+	klog.Infof("Creating a new Service %s for cluster %q", serviceName, getNamespacedName(sc.ndb))
 	svc = resources.NewService(sc.ndb, port, selector, createLoadBalancer)
-	svc, err = sc.kubeClientset().CoreV1().Services(sc.ndb.Namespace).Create(context.TODO(), svc, metav1.CreateOptions{})
-	if err != nil {
+	svc, err = sc.kubeClientset().CoreV1().Services(sc.ndb.Namespace).Create(ctx, svc, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		// Create failed. Ignore AlreadyExists error as it might
+		// have been caused due to a previous, outdated, cache read.
 		return nil, false, err
 	}
 	return svc, false, err
 }
 
-// ensure services creates services if they don't exist
-// returns
-//    array with services created
-//    false if any services were created
-//    error if any such occurred
-//
+// ensureServices creates all the necessary services for the
+// MySQL Cluster if they do not exist yet.
 // at this stage of the functionality we can still create resources even if
 // the config is invalid as services are only based on Ndb CRD name
 // which is obviously immutable for each individual Ndb CRD
-func (sc *SyncContext) ensureServices() (*[]*corev1.Service, bool, error) {
-
-	var svcs []*corev1.Service
-	retExisted := true
+func (sc *SyncContext) ensureServices(
+	ctx context.Context) (svcs []*corev1.Service, allServicesExisted bool, err error) {
 
 	// create a headless service for management nodes
-	svc, existed, err := sc.ensureService(1186, sc.mgmdController.GetTypeName(), false)
+	svc, existed, err := sc.ensureService(ctx, 1186, sc.mgmdController.GetTypeName(), false)
 	if err != nil {
 		return nil, false, err
 	}
-	retExisted = retExisted && existed
+	allServicesExisted = existed
 	svcs = append(svcs, svc)
 
 	// create a load balancer service for management servers
-	svc, existed, err = sc.ensureService(1186, sc.mgmdController.GetTypeName(), true)
+	svc, existed, err = sc.ensureService(ctx, 1186, sc.mgmdController.GetTypeName(), true)
 	if err != nil {
 		return nil, false, err
 	}
-	retExisted = retExisted && existed
+	allServicesExisted = allServicesExisted && existed
 	svcs = append(svcs, svc)
 	// store the management IP and port
 	sc.ManagementServerIP, sc.ManagementServerPort = helpers.GetServiceAddressAndPort(svc)
 
 	// create a headless service for data nodes
-	svc, existed, err = sc.ensureService(1186, sc.ndbdController.GetTypeName(), false)
+	svc, existed, err = sc.ensureService(ctx, 1186, sc.ndbdController.GetTypeName(), false)
 	if err != nil {
 		return nil, false, err
 	}
-	retExisted = retExisted && existed
+	allServicesExisted = allServicesExisted && existed
 	svcs = append(svcs, svc)
 
 	// create a loadbalancer for MySQL Servers in the deployment
-	svc, existed, err = sc.ensureService(3306, sc.mysqldController.GetTypeName(), true)
+	svc, existed, err = sc.ensureService(ctx, 3306, sc.mysqldController.GetTypeName(), true)
 	if err != nil {
 		return nil, false, err
 	}
-	retExisted = retExisted && existed
+	allServicesExisted = allServicesExisted && existed
 	svcs = append(svcs, svc)
 
-	return &svcs, retExisted, nil
+	return svcs, allServicesExisted, nil
 }
 
 // ensureManagementServerStatefulSet creates the StatefulSet for
@@ -476,7 +478,7 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 
 	// create all services required by the StatefulSets running the
 	// MySQL Cluster nodes and to expose the services offered by those nodes.
-	if _, resourceExists, err = sc.ensureServices(); err != nil {
+	if _, resourceExists, err = sc.ensureServices(ctx); err != nil {
 		return errorWhileProcessing(err)
 	}
 	handleResourceStatus(resourceExists, "Services")
