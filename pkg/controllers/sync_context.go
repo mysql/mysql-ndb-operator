@@ -11,11 +11,9 @@ import (
 	"github.com/mysql/ndb-operator/pkg/helpers"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
@@ -49,6 +47,7 @@ type SyncContext struct {
 	mgmdController      StatefulSetControlInterface
 	ndbdController      StatefulSetControlInterface
 	configMapController ConfigMapControlInterface
+	pdbController       PodDisruptionBudgetControlInterface
 
 	controllerContext *ControllerContext
 	ndbsLister        ndblisters.NdbClusterLister
@@ -185,36 +184,11 @@ func (sc *SyncContext) validateMySQLServerDeployment() (*appsv1.Deployment, erro
 	return sc.mysqldController.GetDeployment(sc)
 }
 
-// ensurePodDisruptionBudget creates a PDB if it doesn't exist
-// returns
-//    new or existing PDB
-//    reports true if it existed
-//    or returns an error if something went wrong
-//
-// PDB can't be created if Ndb is invalid; it depends on data node count
-func (sc *SyncContext) ensurePodDisruptionBudget() (*policyv1beta1.PodDisruptionBudget, bool, error) {
-
-	// Check if ndbd pod disruption budget is present
-	nodeType := sc.ndbdController.GetTypeName()
-	pdbs := sc.kubeClientset().PolicyV1beta1().PodDisruptionBudgets(sc.ndb.Namespace)
-	pdb, err := pdbs.Get(context.TODO(), sc.ndb.GetPodDisruptionBudgetName(nodeType), metav1.GetOptions{})
-	if err == nil {
-		return pdb, true, nil
-	}
-	if !apierrors.IsNotFound(err) {
-		return nil, false, err
-	}
-
-	klog.Infof("Creating a new PodDisruptionBudget for Data Nodes of Cluster %q",
-		types.NamespacedName{Namespace: sc.ndb.Namespace, Name: sc.ndb.Name})
-	pdb = resources.NewPodDisruptionBudget(sc.ndb, nodeType)
-	pdb, err = pdbs.Create(context.TODO(), pdb, metav1.CreateOptions{})
-
-	if err != nil {
-		return nil, false, err
-	}
-
-	return pdb, false, err
+// ensurePodDisruptionBudgets creates PodDisruptionBudgets for data nodes
+func (sc *SyncContext) ensurePodDisruptionBudget(ctx context.Context) (existed bool, err error) {
+	// ensure ndbd PDB
+	return sc.pdbController.EnsurePodDisruptionBudget(
+		ctx, sc, sc.ndbdController.GetTypeName())
 }
 
 // ensureDataNodeConfigVersion checks if all the data nodes have the desired configuration.
@@ -484,7 +458,7 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 	handleResourceStatus(resourceExists, "Services")
 
 	// create pod disruption budgets
-	if _, resourceExists, err = sc.ensurePodDisruptionBudget(); err != nil {
+	if resourceExists, err = sc.ensurePodDisruptionBudget(ctx); err != nil {
 		return errorWhileProcessing(err)
 	}
 	handleResourceStatus(resourceExists, "Pod Disruption Budgets")

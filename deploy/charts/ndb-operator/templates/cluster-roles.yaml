@@ -83,10 +83,9 @@ rules:
   - apiGroups: ["policy"]
     resources: ["poddisruptionbudgets"]
     verbs:
-      - create
-      - get
       - list
       - watch
+      - create
 
   - apiGroups: ["mysql.oracle.com"]
     resources:
