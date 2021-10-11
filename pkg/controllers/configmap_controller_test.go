@@ -7,6 +7,7 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
 	"path/filepath"
 	"runtime"
@@ -116,7 +117,7 @@ func TestCreateConfigMap(t *testing.T) {
 	f := newFixture(t, ndb)
 	defer f.close()
 
-	cmc := NewConfigMapControl(f.kubeclient, f.k8If.Core().V1().ConfigMaps())
+	cmc := NewConfigMapControl(f.kubeclient)
 
 	f.setupController("ndb-operator", true)
 	sc := f.c.newSyncContext(ndb)
@@ -125,7 +126,7 @@ func TestCreateConfigMap(t *testing.T) {
 	// relative path to scripts directory is ../helpers/scripts
 	config.ScriptsDir = filepath.Join(filepath.Dir(filenameWithFullPath), "..", "helpers", "scripts")
 
-	cm, existed, err := cmc.EnsureConfigMap(sc)
+	cm, existed, err := cmc.EnsureConfigMap(context.TODO(), sc)
 	f.expectCreateAction(ndb.GetNamespace(), "", "v1", "configmaps", cm)
 
 	if err != nil {
@@ -143,7 +144,7 @@ func TestCreateConfigMap(t *testing.T) {
 
 	// Verify that EnsureConfigMap returns properly when the config map exists already
 	// No Action is expected
-	cmget, existed, err := cmc.EnsureConfigMap(sc)
+	cmget, existed, err := cmc.EnsureConfigMap(context.TODO(), sc)
 	if err != nil {
 		t.Errorf("Unexpected error EnsuringConfigMap: %v", err)
 	}
@@ -153,7 +154,7 @@ func TestCreateConfigMap(t *testing.T) {
 
 	// Patch cmget and verify
 	ndb.Spec.Mysqld.NodeCount = 12
-	patchedCm, err := cmc.PatchConfigMap(ndb, nil)
+	patchedCm, err := cmc.PatchConfigMap(context.TODO(), sc)
 	if err != nil {
 		t.Fatal("Unexpected error patching config map :", err)
 	}

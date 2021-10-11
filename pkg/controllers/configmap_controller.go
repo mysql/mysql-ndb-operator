@@ -8,103 +8,104 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/resources"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/util/wait"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog"
-
-	corev1 "k8s.io/api/core/v1"
-	corelisters "k8s.io/client-go/listers/core/v1"
 )
 
 type ConfigMapControlInterface interface {
-	EnsureConfigMap(sc *SyncContext) (*corev1.ConfigMap, bool, error)
-	PatchConfigMap(ndb *v1alpha1.NdbCluster, rc *resources.ResourceContext) (*corev1.ConfigMap, error)
-	ExtractConfig(cm *corev1.ConfigMap) (string, error)
-	DeleteConfigMap(ndb *v1alpha1.NdbCluster) error
+	EnsureConfigMap(ctx context.Context, sc *SyncContext) (*corev1.ConfigMap, bool, error)
+	PatchConfigMap(ctx context.Context, sc *SyncContext) (*corev1.ConfigMap, error)
 }
 
-type ConfigMapControl struct {
-	ConfigMapControlInterface
-
-	k8client kubernetes.Interface
-
-	configMapLister       corelisters.ConfigMapLister
-	configMapListerSynced cache.InformerSynced
+type configMapControl struct {
+	k8sClient kubernetes.Interface
 }
 
 // NewConfigMapControl creates a new ConfigMapControl
-func NewConfigMapControl(client kubernetes.Interface,
-	configMapInformer coreinformers.ConfigMapInformer) ConfigMapControlInterface {
-
-	configMapControl := &ConfigMapControl{
-		k8client:              client,
-		configMapLister:       configMapInformer.Lister(),
-		configMapListerSynced: configMapInformer.Informer().HasSynced,
+func NewConfigMapControl(client kubernetes.Interface) ConfigMapControlInterface {
+	return &configMapControl{
+		k8sClient: client,
 	}
-
-	return configMapControl
 }
 
-// ExtractConfig extracts the configuration file string from an existing config map
-func (rcmc *ConfigMapControl) ExtractConfig(cm *corev1.ConfigMap) (string, error) {
-	return resources.GetConfigFromConfigMapObject(cm)
+func (cmc *configMapControl) getConfigMapInterface(namespace string) typedcorev1.ConfigMapInterface {
+	return cmc.k8sClient.CoreV1().ConfigMaps(namespace)
+}
+
+// getConfigMap retrieves the ConfigMap from the API Server
+func (cmc *configMapControl) getConfigMap(
+	ctx context.Context, namespace, name string) (*corev1.ConfigMap, error) {
+	// Cache is not used as it might be outdated and all
+	// other resources depend on the ConfigMap being right.
+	configMapInterface := cmc.getConfigMapInterface(namespace)
+	return configMapInterface.Get(ctx, name, metav1.GetOptions{})
+
 }
 
 // EnsureConfigMap creates a config map for the NdbCluster resource if one does not exist already
-func (rcmc *ConfigMapControl) EnsureConfigMap(sc *SyncContext) (cm *corev1.ConfigMap, exists bool, err error) {
+func (cmc *configMapControl) EnsureConfigMap(
+	ctx context.Context, sc *SyncContext) (cm *corev1.ConfigMap, existed bool, err error) {
 
-	ndb := sc.ndb
-	configMapName := ndb.GetConfigMapName()
-	configMapInterface := rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace)
-
-	// Get the configmap with the name specified in Ndb.spec, fetching from client not cache
-	cm, err = configMapInterface.Get(context.TODO(), configMapName, metav1.GetOptions{})
+	// Retrieve the ConfigMap directly from the K8s API Server and not from cache.
+	nc := sc.ndb
+	configMapName := nc.GetConfigMapName()
+	cm, err = cmc.getConfigMap(ctx, nc.Namespace, configMapName)
 
 	if err == nil {
-		// configmap already exists
+		// ConfigMap already exists
+		if err = sc.isOwnedByNdbCluster(cm); err != nil {
+			// But is not owned by NdbCluster resource
+			return nil, false, err
+		}
+
+		// ConfigMap exists and is owned by the NdbCluster resource
 		return cm, true, nil
 	}
 
 	if !errors.IsNotFound(err) {
-		// failed to lookup the config map
+		// Failed to lookup ConfigMap
+		klog.Errorf("Failed to retrieve ConfigMap \"%s/%s\"", nc.Namespace, configMapName)
 		return nil, false, err
 	}
 
-	// configmap doesn't exist; create it.
-	klog.Infof("Creating ConfigMap %s/%s", ndb.Namespace, configMapName)
-	cm = resources.CreateConfigMap(ndb)
-	cm, err = configMapInterface.Create(context.TODO(), cm, metav1.CreateOptions{})
+	// ConfigMap doesn't exist; create it.
+	klog.Infof("Creating ConfigMap \"%s/%s\"", nc.Namespace, configMapName)
+	cm = resources.CreateConfigMap(nc)
+	cm, err = cmc.getConfigMapInterface(nc.Namespace).Create(ctx, cm, metav1.CreateOptions{})
 	if err != nil {
-		klog.Errorf("Failed to create config map %s/%s : %s", ndb.Namespace, configMapName, err)
+		klog.Errorf("Failed to create ConfigMap \"%s/%s\" : %s", nc.Namespace, configMapName, err)
+		return nil, false, err
 	}
 
-	// success
+	// ConfigMap was created
 	return cm, false, nil
 }
 
 // PatchConfigMap patches the existing config map with new configuration data generated from ndb CRD object
-func (rcmc *ConfigMapControl) PatchConfigMap(ndb *v1alpha1.NdbCluster, rc *resources.ResourceContext) (*corev1.ConfigMap, error) {
+func (cmc *configMapControl) PatchConfigMap(
+	ctx context.Context, sc *SyncContext) (cm *corev1.ConfigMap, err error) {
 
-	// Get the StatefulSet with the name specified in Ndb.spec, fetching from client not cache
-	cmOrg, err := rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Get(context.TODO(), ndb.GetConfigMapName(), metav1.GetOptions{})
-
-	// If the resource doesn't exist
-	if errors.IsNotFound(err) {
-		klog.Errorf("Config map %s doesn't exist", ndb.GetConfigMapName())
+	// Retrieve the ConfigMap directly from the K8s API Server and not from cache.
+	nc := sc.ndb
+	configMapName := nc.GetConfigMapName()
+	cmOrg, err := cmc.getConfigMap(ctx, nc.Namespace, configMapName)
+	if err != nil {
+		klog.Errorf("Error retrieving ConfigMap \"%s/%s\" : %s", nc.Namespace, configMapName, err)
 		return nil, err
 	}
 
 	// Get an updated config map copy
-	cmChg := resources.GetUpdatedConfigMap(ndb, cmOrg, rc)
+	rc := sc.resourceContext
+	cmChg := resources.GetUpdatedConfigMap(nc, cmOrg, rc)
 
 	j, err := json.Marshal(cmOrg)
 	if err != nil {
@@ -122,20 +123,22 @@ func (rcmc *ConfigMapControl) PatchConfigMap(ndb *v1alpha1.NdbCluster, rc *resou
 	}
 
 	var result *corev1.ConfigMap
+	ConfigMapInterface := cmc.getConfigMapInterface(nc.Namespace)
+	// Patch the ConfigMap with retries on failure
 	updateErr := wait.ExponentialBackoff(retry.DefaultBackoff, func() (ok bool, err error) {
 
-		result, err = rcmc.k8client.CoreV1().ConfigMaps(ndb.Namespace).Patch(context.TODO(), cmOrg.Name,
-			types.StrategicMergePatchType,
-			patchBytes, metav1.PatchOptions{})
+		result, err = ConfigMapInterface.Patch(
+			ctx, cmOrg.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 
 		if err != nil {
-			klog.Errorf("Failed to patch config map: %v", err)
+			klog.Errorf("Failed to patch ConfigMap \"%s/%s\" : %s",
+				nc.Namespace, configMapName, err)
 			return false, err
 		}
 
 		return true, nil
 	})
 
-	klog.Infof("Successfully patched config map %q", getNamespacedName(cmChg))
+	klog.Infof("Successfully patched ConfigMap %q", getNamespacedName(cmChg))
 	return result, updateErr
 }

@@ -106,7 +106,6 @@ func NewController(
 	deploymentInformer appsinformers.DeploymentInformer,
 	serviceInformer coreinformers.ServiceInformer,
 	podInformer coreinformers.PodInformer,
-	configMapInformer coreinformers.ConfigMapInformer,
 	ndbInformer ndbinformers.NdbClusterInformer) *Controller {
 
 	statefulSetLister := statefulSetInformer.Lister()
@@ -124,7 +123,7 @@ func NewController(
 		serviceListerSynced:     serviceInformer.Informer().HasSynced,
 		podLister:               podInformer.Lister(),
 		podListerSynced:         podInformer.Informer().HasSynced,
-		configMapController:     NewConfigMapControl(controllerContext.kubeClientset, configMapInformer),
+		configMapController:     NewConfigMapControl(controllerContext.kubeClientset),
 		workqueue:               workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Ndbs"),
 		recorder:                newEventRecorder(controllerContext.kubeClientset),
 

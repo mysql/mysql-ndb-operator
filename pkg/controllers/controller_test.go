@@ -126,7 +126,6 @@ func (f *fixture) newController() {
 		f.k8If.Apps().V1().Deployments(),
 		f.k8If.Core().V1().Services(),
 		f.k8If.Core().V1().Pods(),
-		f.k8If.Core().V1().ConfigMaps(),
 		f.sif.Mysql().V1alpha1().NdbClusters())
 
 	for _, n := range f.ndbLister {

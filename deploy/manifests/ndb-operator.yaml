@@ -351,10 +351,8 @@ rules:
   - configmaps
   verbs:
   - get
-  - list
   - create
   - patch
-  - watch
 - apiGroups:
   - ""
   resources:

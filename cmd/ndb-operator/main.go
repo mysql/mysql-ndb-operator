@@ -89,7 +89,6 @@ func main() {
 		k8If.Apps().V1().Deployments(),
 		k8If.Core().V1().Services(),
 		k8If.Core().V1().Pods(),
-		k8If.Core().V1().ConfigMaps(),
 		ndbIf.Mysql().V1alpha1().NdbClusters())
 
 	// notice that there is no need to run Start methods in a separate goroutine. (i.e. go kubeInformerFactory.Start(stopCh)
