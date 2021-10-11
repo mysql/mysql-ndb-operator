@@ -83,13 +83,7 @@ func main() {
 
 	ctx := controllers.NewControllerContext(kubeClient, ndbClient, runningInsideK8s)
 
-	controller := controllers.NewController(
-		ctx,
-		k8If.Apps().V1().StatefulSets(),
-		k8If.Apps().V1().Deployments(),
-		k8If.Core().V1().Services(),
-		k8If.Core().V1().Pods(),
-		ndbIf.Mysql().V1alpha1().NdbClusters())
+	controller := controllers.NewController(ctx, k8If, ndbIf)
 
 	// notice that there is no need to run Start methods in a separate goroutine. (i.e. go kubeInformerFactory.Start(stopCh)
 	// Start method is non-blocking and runs all registered informers in a dedicated goroutine.
