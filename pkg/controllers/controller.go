@@ -68,6 +68,7 @@ type Controller struct {
 	ndbdController      StatefulSetControlInterface
 	mysqldController    DeploymentControlInterface
 	configMapController ConfigMapControlInterface
+	pdbController       PodDisruptionBudgetControlInterface
 
 	// K8s Listers
 	podLister     corelisters.PodLister
@@ -96,6 +97,7 @@ func NewController(
 	deploymentInformer := k8sSharedIndexInformer.Apps().V1().Deployments()
 	podInformer := k8sSharedIndexInformer.Core().V1().Pods()
 	serviceInformer := k8sSharedIndexInformer.Core().V1().Services()
+	pdbInformer := k8sSharedIndexInformer.Policy().V1beta1().PodDisruptionBudgets()
 
 	// Extract all the InformerSynced methods
 	informerSyncedMethods := []cache.InformerSynced{
@@ -104,6 +106,7 @@ func NewController(
 		deploymentInformer.Informer().HasSynced,
 		podInformer.Informer().HasSynced,
 		serviceInformer.Informer().HasSynced,
+		pdbInformer.Informer().HasSynced,
 	}
 
 	statefulSetLister := statefulSetInformer.Lister()
@@ -124,6 +127,9 @@ func NewController(
 			controllerContext.kubeClientset, statefulSetLister, resources.NewNdbdStatefulSet()),
 		mysqldController: NewMySQLDeploymentController(
 			controllerContext.kubeClientset, deploymentInformer.Lister()),
+
+		pdbController: NewPodDisruptionBudgetControl(
+			controllerContext.kubeClientset, pdbInformer.Lister()),
 	}
 
 	klog.Info("Setting up event handlers")
@@ -354,6 +360,7 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
 		ndbdController:      c.ndbdController,
 		mysqldController:    c.mysqldController,
 		configMapController: c.configMapController,
+		pdbController:       c.pdbController,
 		ndb:                 ndb,
 		controllerContext:   c.controllerContext,
 		ndbsLister:          c.ndbsLister,
