@@ -14,10 +14,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	appsinformers "k8s.io/client-go/informers/apps/v1"
-	coreinformers "k8s.io/client-go/informers/core/v1"
+	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	appslisters "k8s.io/client-go/listers/apps/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/events"
@@ -28,7 +26,7 @@ import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
-	ndbinformers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/ndbcontroller/v1alpha1"
+	ndbinformers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
 	ndblisters "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/resources"
 )
@@ -62,81 +60,75 @@ func NewControllerContext(
 type Controller struct {
 	controllerContext *ControllerContext
 
-	statefulSetLister       appslisters.StatefulSetLister
-	statefulSetListerSynced cache.InformerSynced
-
+	// NdbCluster Lister
 	ndbsLister ndblisters.NdbClusterLister
-	ndbsSynced cache.InformerSynced
 
+	// Controllers for various resources
 	mgmdController      StatefulSetControlInterface
 	ndbdController      StatefulSetControlInterface
+	mysqldController    DeploymentControlInterface
 	configMapController ConfigMapControlInterface
 
-	serviceLister       corelisters.ServiceLister
-	serviceListerSynced cache.InformerSynced
+	// K8s Listers
+	podLister     corelisters.PodLister
+	serviceLister corelisters.ServiceLister
 
-	// deploymentLister is used to list all deployments
-	deploymentLister       appslisters.DeploymentLister
-	deploymentListerSynced cache.InformerSynced
-	// The controller for the MySQL Server deployment run by the ndb operator
-	mysqldController DeploymentControlInterface
+	// Slice of InformerSynced methods for all the informers used by the controller
+	informerSyncedMethods []cache.InformerSynced
 
-	// podLister is able to list/get Pods from a shared
-	// informer's store.
-	podLister corelisters.PodLister
-	// podListerSynced returns true if the Pod shared informer
-	// has synced at least once.
-	podListerSynced cache.InformerSynced
-
-	// workqueue is a rate limited work queue. This is used to queue work to be
-	// processed instead of performing it as soon as a change happens. This
-	// means we can ensure we only process a fixed amount of resources at a
-	// time, and makes it easy to ensure we are never processing the same item
-	// simultaneously in two different workers.
+	// A rate limited workqueue for queueing the NdbCluster resource
+	// keys on receiving an event. The workqueue ensures that the same
+	// key is not processed simultaneously in two different workers.
 	workqueue workqueue.RateLimitingInterface
-	// recorder is an event recorder for recording Event resources to the
-	// Kubernetes API.
+	// An event recorder for recording Event resources to the Kubernetes API.
 	recorder events.EventRecorder
 }
 
 // NewController returns a new Ndb controller
 func NewController(
 	controllerContext *ControllerContext,
-	statefulSetInformer appsinformers.StatefulSetInformer,
-	deploymentInformer appsinformers.DeploymentInformer,
-	serviceInformer coreinformers.ServiceInformer,
-	podInformer coreinformers.PodInformer,
-	ndbInformer ndbinformers.NdbClusterInformer) *Controller {
+	k8sSharedIndexInformer kubeinformers.SharedInformerFactory,
+	ndbSharedIndexInformer ndbinformers.SharedInformerFactory) *Controller {
+
+	// Register for all the required informers
+	ndbClusterInformer := ndbSharedIndexInformer.Mysql().V1alpha1().NdbClusters()
+	statefulSetInformer := k8sSharedIndexInformer.Apps().V1().StatefulSets()
+	deploymentInformer := k8sSharedIndexInformer.Apps().V1().Deployments()
+	podInformer := k8sSharedIndexInformer.Core().V1().Pods()
+	serviceInformer := k8sSharedIndexInformer.Core().V1().Services()
+
+	// Extract all the InformerSynced methods
+	informerSyncedMethods := []cache.InformerSynced{
+		ndbClusterInformer.Informer().HasSynced,
+		statefulSetInformer.Informer().HasSynced,
+		deploymentInformer.Informer().HasSynced,
+		podInformer.Informer().HasSynced,
+		serviceInformer.Informer().HasSynced,
+	}
 
 	statefulSetLister := statefulSetInformer.Lister()
-	deploymentLister := deploymentInformer.Lister()
 
 	controller := &Controller{
-		controllerContext:       controllerContext,
-		ndbsLister:              ndbInformer.Lister(),
-		ndbsSynced:              ndbInformer.Informer().HasSynced,
-		statefulSetLister:       statefulSetLister,
-		statefulSetListerSynced: statefulSetInformer.Informer().HasSynced,
-		deploymentLister:        deploymentLister,
-		deploymentListerSynced:  deploymentInformer.Informer().HasSynced,
-		serviceLister:           serviceInformer.Lister(),
-		serviceListerSynced:     serviceInformer.Informer().HasSynced,
-		podLister:               podInformer.Lister(),
-		podListerSynced:         podInformer.Informer().HasSynced,
-		configMapController:     NewConfigMapControl(controllerContext.kubeClientset),
-		workqueue:               workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Ndbs"),
-		recorder:                newEventRecorder(controllerContext.kubeClientset),
+		controllerContext:     controllerContext,
+		informerSyncedMethods: informerSyncedMethods,
+		ndbsLister:            ndbClusterInformer.Lister(),
+		serviceLister:         serviceInformer.Lister(),
+		podLister:             podInformer.Lister(),
+		configMapController:   NewConfigMapControl(controllerContext.kubeClientset),
+		workqueue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Ndbs"),
+		recorder:              newEventRecorder(controllerContext.kubeClientset),
 
 		mgmdController: NewNdbNodesStatefulSetControlInterface(
 			controllerContext.kubeClientset, statefulSetLister, resources.NewMgmdStatefulSet()),
 		ndbdController: NewNdbNodesStatefulSetControlInterface(
 			controllerContext.kubeClientset, statefulSetLister, resources.NewNdbdStatefulSet()),
-		mysqldController: NewMySQLDeploymentController(controllerContext.kubeClientset, deploymentLister),
+		mysqldController: NewMySQLDeploymentController(
+			controllerContext.kubeClientset, deploymentInformer.Lister()),
 	}
 
 	klog.Info("Setting up event handlers")
 	// Set up event handler for NdbCluster resource changes
-	ndbInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ndbClusterInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 
 		AddFunc: func(obj interface{}) {
 			ndb := obj.(*v1alpha1.NdbCluster)
@@ -283,12 +275,8 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	klog.Info("Starting Ndb controller")
 
 	// Wait for the caches to be synced before starting workers
-	klog.Info("Waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(stopCh,
-		c.ndbsSynced,
-		c.statefulSetListerSynced,
-		c.deploymentListerSynced,
-		c.serviceListerSynced); !ok {
+	if ok := cache.WaitForNamedCacheSync(
+		controllerName, stopCh, c.informerSyncedMethods...); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 

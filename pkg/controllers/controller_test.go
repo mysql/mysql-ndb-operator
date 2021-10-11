@@ -121,12 +121,7 @@ func (f *fixture) close() {
 func (f *fixture) newController() {
 
 	cc := NewControllerContext(f.kubeclient, f.client, false)
-	f.c = NewController(cc,
-		f.k8If.Apps().V1().StatefulSets(),
-		f.k8If.Apps().V1().Deployments(),
-		f.k8If.Core().V1().Services(),
-		f.k8If.Core().V1().Pods(),
-		f.sif.Mysql().V1alpha1().NdbClusters())
+	f.c = NewController(cc, f.k8If, f.sif)
 
 	for _, n := range f.ndbLister {
 		if err := f.sif.Mysql().V1alpha1().NdbClusters().Informer().GetIndexer().Add(n); err != nil {
@@ -371,14 +366,7 @@ func filterInformerActions(actions []core.Action) []core.Action {
 	ret := []core.Action{}
 	for _, action := range actions {
 		if action.GetNamespace() == "default" &&
-			(action.Matches("get", "ndbclusters") ||
-				action.Matches("get", "pods") ||
-				action.Matches("list", "pods") ||
-				action.Matches("get", "services") ||
-				action.Matches("get", "configmaps") ||
-				action.Matches("get", "poddisruptionbudgets") ||
-				action.Matches("get", "deployments") ||
-				action.Matches("get", "statefulsets") ||
+			(action.Matches("get", "configmaps") ||
 				action.Matches("get", "secrets")) {
 			//klog.Infof("Filtering +%v", action)
 			continue
@@ -390,8 +378,6 @@ func filterInformerActions(actions []core.Action) []core.Action {
 				action.Matches("watch", "pods") ||
 				action.Matches("list", "services") ||
 				action.Matches("watch", "services") ||
-				action.Matches("list", "configmaps") ||
-				action.Matches("watch", "configmaps") ||
 				action.Matches("list", "poddisruptionbudgets") ||
 				action.Matches("watch", "poddisruptionbudgets") ||
 				action.Matches("list", "deployments") ||
