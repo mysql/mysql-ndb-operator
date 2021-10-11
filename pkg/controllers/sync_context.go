@@ -489,9 +489,9 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 	}
 	handleResourceStatus(resourceExists, "Pod Disruption Budgets")
 
-	// enusure config map
+	// ensure config map
 	var cm *corev1.ConfigMap
-	if cm, resourceExists, err = sc.configMapController.EnsureConfigMap(sc); err != nil {
+	if cm, resourceExists, err = sc.configMapController.EnsureConfigMap(ctx, sc); err != nil {
 		return errorWhileProcessing(err)
 	}
 	handleResourceStatus(resourceExists, "Config Map")
@@ -641,9 +641,8 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 	if hasPendingConfigChanges {
 		// The Ndb object spec has changed - patch the config map
 		klog.Info("Config in NdbCluster spec is different from existing config in config map")
-		_, err := sc.configMapController.PatchConfigMap(sc.ndb, sc.resourceContext)
+		_, err = sc.configMapController.PatchConfigMap(ctx, sc)
 		if err != nil {
-			klog.Infof("Failed to patch config map: %s", err)
 			return errorWhileProcessing(err)
 		}
 	}
