@@ -2,11 +2,7 @@
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-FROM oraclelinux:8-slim
-
-# install go
-RUN echo "[main]" > /etc/dnf/dnf.conf && \
-    microdnf install go-toolset
+FROM golang:1.16
 
 # install kubectl
 ENV KUBECTL_BASE_URL https://dl.k8s.io/release
