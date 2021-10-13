@@ -9,11 +9,8 @@ package controllers
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
-	"runtime"
 	"testing"
 
-	"github.com/mysql/ndb-operator/config"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/helpers"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
@@ -121,10 +118,6 @@ func TestCreateConfigMap(t *testing.T) {
 
 	f.setupController("ndb-operator", true)
 	sc := f.c.newSyncContext(ndb)
-
-	_, filenameWithFullPath, _, _ := runtime.Caller(0)
-	// relative path to scripts directory is ../helpers/scripts
-	config.ScriptsDir = filepath.Join(filepath.Dir(filenameWithFullPath), "..", "helpers", "scripts")
 
 	cm, existed, err := cmc.EnsureConfigMap(context.TODO(), sc)
 	f.expectCreateAction(ndb.GetNamespace(), "", "v1", "configmaps", cm)
