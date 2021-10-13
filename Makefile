@@ -39,7 +39,7 @@ build: manifests
 
 .PHONY: run
 run:
-	bin/$(OS)_$(ARCH)/ndb-operator --kubeconfig=$(HOME)/.kube/config --scripts_dir=pkg/helpers/scripts
+	bin/$(OS)_$(ARCH)/ndb-operator --kubeconfig=$(HOME)/.kube/config
 
 .PHONY: clean
 clean:

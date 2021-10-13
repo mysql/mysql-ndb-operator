@@ -5,11 +5,10 @@
 package resources
 
 import (
+	"embed"
 	"errors"
-	"io/ioutil"
 	"strings"
 
-	"github.com/mysql/ndb-operator/config"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers"
@@ -22,6 +21,10 @@ import (
 const (
 	configIniKey = "config.ini"
 )
+
+// Embed the helper scripts in the ndb operator binary
+//go:embed scripts
+var scriptsFS embed.FS
 
 // GetConfigFromConfigMapObject returns the config string from the config map
 func GetConfigFromConfigMapObject(cm *corev1.ConfigMap) (string, error) {
@@ -72,21 +75,19 @@ func updateMySQLConfig(ndb *v1alpha1.NdbCluster, data map[string]string) error {
 // scripts used by the MySQL Server initialisation and health probes.
 func updateMySQLHelperScripts(data map[string]string) error {
 	// Extract and add the MySQL Server initializer file
-	mysqlServerInitScriptPath := config.ScriptsDir + "/" + mysqldInitScriptKey
-	fileBytes, err := ioutil.ReadFile(mysqlServerInitScriptPath)
+	fileBytes, err := scriptsFS.ReadFile("scripts/" + mysqldInitScriptKey)
 	if err != nil {
-		klog.Errorf("Failed to read MySQL Server init script at %s : %v",
-			mysqlServerInitScriptPath, err)
+		klog.Errorf("Failed to read MySQL Server init script at %q : %v",
+			mysqldInitScriptKey, err)
 		return err
 	}
 	data[mysqldInitScriptKey] = string(fileBytes)
 
 	// Extract and add the healthcheck script
-	mysqlServerHealthCheckScript := config.ScriptsDir + "/" + mysqldHealthCheckKey
-	fileBytes, err = ioutil.ReadFile(mysqlServerHealthCheckScript)
+	fileBytes, err = scriptsFS.ReadFile("scripts/" + mysqldHealthCheckKey)
 	if err != nil {
-		klog.Errorf("Failed to read MySQL Server healthcheck script at %s : %v",
-			mysqlServerHealthCheckScript, err)
+		klog.Errorf("Failed to read MySQL Server healthcheck script at %q : %v",
+			mysqldHealthCheckKey, err)
 		return err
 	}
 	data[mysqldHealthCheckKey] = string(fileBytes)
