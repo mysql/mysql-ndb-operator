@@ -11,8 +11,14 @@ RUN curl -LO \
  "$KUBECTL_BASE_URL/$(curl -L -s $KUBECTL_BASE_URL/stable.txt)/$KUBECTL_BINARY"
 RUN install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
+# Create and move into the target repo directory
 WORKDIR /ndb-operator-e2e-testing/
-# copy all files/directories in project directory to workdir
+
+# Copy the required go.* files and download the dependencies
+COPY go.mod go.sum .
+RUN go mod download -x
+
+# Copy all remaining files/directories in project directory to workdir
 # excludes files from Dockerfile.dockerignore
 COPY . .
 
