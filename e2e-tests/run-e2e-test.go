@@ -2,7 +2,7 @@
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-// Tool to run end to end tests using Kubetest2 and Ginkgo
+// Tool to run end-to-end tests using Ginkgo and Kind/Minikube
 
 //go:build ignore
 // +build ignore
@@ -21,11 +21,10 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
+	podutils "github.com/mysql/ndb-operator/e2e-tests/utils/pods"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -51,43 +50,6 @@ var (
 	kindCmd = []string{"go", "run", "sigs.k8s.io/kind"}
 )
 
-// buildKubernetesClientSetFromConfig builds a kubernetes clientset
-// returns clientset if successfully built
-func buildClientsetFromConfig(kubeconfig string) *kubernetes.Clientset {
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	if err != nil {
-		log.Printf("❌ Error loading kubeconfig from '%s': %s", kubeconfig, err)
-		return nil
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		log.Printf("❌ Error building kubernetes clientset: %s", err)
-		return nil
-	}
-	return clientset
-}
-
-// validateKubeConfig validates the config passed to --kubeconfig
-// and verifies that the K8s cluster is running
-func validateKubeConfig(kubeconfig string) bool {
-	// build clientset to verify k8sversion
-	clientset := buildClientsetFromConfig(kubeconfig)
-	if clientset == nil {
-		return false
-	}
-	// Retrieve version and verify
-	var k8sVersion *version.Info
-	var err error
-	if k8sVersion, err = clientset.ServerVersion(); err != nil {
-		log.Printf(" ❌ Error finding out the version of the K8s cluster : %s", err)
-		return false
-	}
-
-	log.Printf(" 👍 Successfully validated kubeconfig. Kubernetes Server version : %s", k8sVersion.String())
-	return true
-}
-
 // provider is an interface for the k8s cluster providers
 type provider interface {
 	// setupK8sCluster sets up the provider specific cluster.
@@ -98,10 +60,62 @@ type provider interface {
 	runGinkgoTestsInsideCluster(t *testRunner) bool
 }
 
-// local implements a provider to connect to an existing K8s cluster
-type local struct {
+// providerDefaults defines the common fields and
+// methods to be used by the other providers
+type providerDefaults struct {
 	// kubeconfig is the kubeconfig of the cluster
 	kubeconfig string
+	// kubernetes clientset
+	clientset kubernetes.Interface
+}
+
+// getKubeConfig returns the Kubeconfig to connect to the cluster
+func (p *providerDefaults) getKubeConfig() string {
+	return p.kubeconfig
+}
+
+// initClientsetFromKubeconfig creates a kubernetes clientset from the given kubeconfig
+func (p *providerDefaults) initClientsetFromKubeconfig() (success bool) {
+	config, err := clientcmd.BuildConfigFromFlags("", p.kubeconfig)
+	if err != nil {
+		log.Printf(" ❌ Error building config from kubeconfig '%s': %s", p.kubeconfig, err)
+		return false
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Printf(" ❌ Error creating new kubernetes clientset: %s", err)
+		return false
+	}
+
+	// success
+	p.clientset = clientset
+	return true
+}
+
+// waitForPodToStart waits until all the containers in the given pod are started
+func (p *providerDefaults) waitForPodToStart(namespace, name string) (podStarted bool) {
+	if err := podutils.WaitForPodToStart(p.clientset, namespace, name); err != nil {
+		log.Printf(" ❌ Error waiting for the e2e-tests pod to start : %s", err)
+		return false
+	}
+
+	return true
+}
+
+// waitForPodToTerminate waits until all the containers in the given pod are terminated
+func (p *providerDefaults) waitForPodToTerminate(namespace, name string) (podTerminated bool) {
+	if err := podutils.WaitForPodToTerminate(p.clientset, namespace, name); err != nil {
+		log.Printf("❌ Error waiting for the e2e-tests pod to terminate : %s", err)
+		return false
+	}
+
+	return true
+}
+
+// local implements a provider to connect to an existing K8s cluster
+type local struct {
+	providerDefaults
 }
 
 // newLocalProvider returns a new local provider
@@ -110,32 +124,38 @@ func newLocalProvider() *local {
 	return &local{}
 }
 
-// setupK8sCluster just validates the kubeconfig passed
-// as the cluster is expected to be running already.
-// It returns true if it succeeded in its attempt.
-func (l *local) setupK8sCluster(*testRunner) bool {
-	// Validate the kubeconfig
+// setupK8sCluster just connects to the Kubernetes Server using the
+// kubeconfig passed as the cluster is expected to be running already.
+func (l *local) setupK8sCluster(*testRunner) (success bool) {
+	// Connect to the K8s Cluster using the kubeconfig
 	if len(options.kubeconfig) > 0 {
-		if validateKubeConfig(options.kubeconfig) {
-			l.kubeconfig = options.kubeconfig
-			return true
+		l.kubeconfig = options.kubeconfig
+		if !l.initClientsetFromKubeconfig() {
+			return false
 		}
+
+		// Retrieve version and verify
+		var k8sVersion *version.Info
+		var err error
+		if k8sVersion, err = l.clientset.Discovery().ServerVersion(); err != nil {
+			log.Printf("❌ Error finding out the version of the K8s cluster : %s", err)
+			return false
+		}
+
+		log.Printf("👍 Successfully validated kubeconfig and connected to the Kubernetes Server.\n"+
+			"Kubernetes Server version : %s", k8sVersion.String())
+		return true
 	}
 
 	log.Println("⚠️  Please pass a valid kubeconfig")
 	return false
 }
 
-// getKubeConfig returns the Kubeconfig to connect to the cluster
-func (l *local) getKubeConfig() string {
-	return l.kubeconfig
-}
-
 // teardownK8sCluster is a no-op for local provider
 // TODO: Maybe verify all the test resources are cleaned up here?
 func (l *local) teardownK8sCluster(*testRunner) {}
 
-// runGingoTestsInsideCluster is a no-op for local provider
+// runGinkgoTestsInsideCluster is a no-op for local provider
 func (l *local) runGinkgoTestsInsideCluster(*testRunner) bool {
 	log.Fatal("❌ Running ginkgo tests inside cluster not supported for local provider.")
 	return false
@@ -143,12 +163,9 @@ func (l *local) runGinkgoTestsInsideCluster(*testRunner) bool {
 
 // kind implements a provider to control k8s clusters in KinD
 type kind struct {
-	// kubeconfig is the kubeconfig of the cluster
-	kubeconfig string
+	providerDefaults
 	// cluster name
 	clusterName string
-	// kubernetes clientset
-	clientset *kubernetes.Clientset
 }
 
 // newKindProvider returns a new kind provider
@@ -181,6 +198,12 @@ func (k *kind) setupK8sCluster(t *testRunner) bool {
 			return false
 		}
 	}
+
+	// init clientset to the k8s cluster
+	if !k.initClientsetFromKubeconfig() {
+		return false
+	}
+
 	return true
 }
 
@@ -236,130 +259,65 @@ func (k *kind) loadImageToKindCluster(image string, t *testRunner) bool {
 	return true
 }
 
-// getKubeConfig returns the Kubeconfig to connect to the cluster
-func (k *kind) getKubeConfig() string {
-	return k.kubeconfig
-}
-
-// getPodPhase returns a pod's phase in a given namespace
-func (k *kind) getPodPhase(namespace string, podName string) (v1.PodPhase, error) {
-	pod, err := k.clientset.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
-	if err != nil {
-		return "", err
-	}
-	return pod.Status.Phase, nil
-}
-
-// hasPodSucceeded checks if a given pod in a given namespace,
-// has succeeded its execution.
-// It returns true if pod has reached 'Succeeded' phase
-func (k *kind) hasPodSucceeded(namespace string, podName string) bool {
-	// poll every second for 60 seconds to check
-	// if the pod either reaches succeeded or failed phase.
-	var podPhase v1.PodPhase
-	err := wait.PollImmediate(1*time.Second, 60*time.Second,
-		func() (done bool, err error) {
-			podPhase, err = k.getPodPhase(namespace, podName)
-			if err != nil {
-				log.Printf("❌ Error getting '%s' pod's phase: %s", podName, err)
-				return false, err
-			}
-
-			switch podPhase {
-			case v1.PodFailed:
-				log.Printf("❌ Pod %q failed", podName)
-				fallthrough
-			case v1.PodSucceeded:
-				return true, nil
-			default:
-				return false, nil
-			}
-		})
-
-	if err != nil {
-		return false
-	}
-	return podPhase == v1.PodSucceeded
-}
-
-// isPodRunning checks if a given pod in a given namespace
-// returns true, if pod is running
-func (k *kind) isPodRunning(namespace string, podName string) (bool, error) {
-	podPhase, err := k.getPodPhase(namespace, podName)
-	if err != nil {
-		return false, err
-	}
-
-	if podPhase == v1.PodRunning {
-		return true, nil
-	}
-	// return false, nil by default,
-	// indicating pod is in 'Pending' phase
-	return false, nil
-}
-
 // runGinkgoTestInsideCluster runs all tests as a pod inside kind cluster
 // It returns true if tests run successfully
 func (k *kind) runGinkgoTestsInsideCluster(t *testRunner) bool {
 	e2eArtifacts := filepath.Join(t.testDir, "_config", "k8s-deployment")
 	// Build kubectl command to create kubernetes resources to run e2e-tests,
 	// using e2e artifacts
-	createE2eTestK8sResources := []string{
-		"kubectl", "apply", "-f",
+	kubectlCommand := getKubectlCommand(k)
+	createE2eTestK8sResources := append(kubectlCommand,
+		"apply", "-f",
 		// e2e-tests artifacts
 		e2eArtifacts,
-		// context that kubectl runs against
-		"--context=kind-ndb-e2e-test",
-		// kubeconfig
-		"--kubeconfig=" + k.kubeconfig,
-	}
+	)
 	if !t.execCommand(createE2eTestK8sResources, "kubectl apply", false, true) {
 		log.Println("❌ Failed to create kubernetes resources using e2e-test artifacts")
 		return false
 	}
-
-	// create clientset to monitor pod phases
-	k.clientset = buildClientsetFromConfig(k.kubeconfig)
-	if k.clientset == nil {
-		return false
-	}
+	log.Println("✅ Successfully created the required RBACs for the e2e tests pod")
 
 	// 'e2e-tests/suites' is the path to testsuite directory, in e2e-tests image
 	// Append ginkgo command to run specific test suites
 	ginkgoTestCmd := t.getGinkgoTestCommand("e2e-tests/suites")
 
 	// create e2e-tests-pod
-	_, err := k.clientset.CoreV1().Pods("default").Create(context.TODO(), k.createE2eTestsPod(ginkgoTestCmd), metav1.CreateOptions{})
+	e2eTestPod := k.createE2eTestsPod(ginkgoTestCmd)
+	_, err := k.clientset.CoreV1().Pods(e2eTestPod.Namespace).Create(context.TODO(), e2eTestPod, metav1.CreateOptions{})
 	if err != nil {
-		log.Printf("Error creating e2e-tests pod: %s", err)
+		log.Printf("❌ Error creating e2e-tests pod: %s", err)
 	}
+	log.Println("✅ Successfully created the the e2e tests pod")
 
-	// poll every second for 60 seconds to check if e2e-tests pod's are running
-	err = wait.PollImmediate(1*time.Second, 60*time.Second,
-		func() (done bool, err error) {
-			return k.isPodRunning("default", "e2e-tests")
-		})
-	if err != nil {
-		log.Printf("❌ Error running e2e-tests pod: %s", err)
+	// Wait for the pods to start
+	if !k.waitForPodToStart(e2eTestPod.Namespace, e2eTestPod.Name) {
+		dumpPodInfo(t, e2eTestPod.Namespace, e2eTestPod.Name)
 		return false
 	}
+	log.Println("🏃 The e2e tests pod has started running")
+	log.Println("📃 Redirecting pod logs to console...")
 
 	// build kubectl command to print e2e-tests pod logs onto console
-	e2eTestPodLogs := []string{
-		"kubectl", "logs", "-f",
-		// 'e2e-tests' pod
-		"e2e-tests",
-		// context that kubectl runs against
-		"--context=kind-ndb-e2e-test",
-
-		"--kubeconfig=" + k.kubeconfig,
-	}
+	e2eTestPodLogs := append(kubectlCommand,
+		"logs", "-f",
+		// e2e tests pod
+		"--namespace="+e2eTestPod.Namespace,
+		e2eTestPod.Name,
+	)
 	if !t.execCommand(e2eTestPodLogs, "kubectl logs", false, true) {
 		log.Println("❌ Failed to get e2e-tests pod logs.")
+		dumpPodInfo(t, e2eTestPod.Namespace, e2eTestPod.Name)
 		return false
 	}
 
-	if !k.hasPodSucceeded("default", "e2e-tests") {
+	// Wait for the pod to terminate
+	if !k.waitForPodToTerminate(e2eTestPod.Namespace, e2eTestPod.Name) {
+		dumpPodInfo(t, e2eTestPod.Namespace, e2eTestPod.Name)
+		return false
+	}
+
+	if !podutils.HasPodSucceeded(k.clientset, e2eTestPod.Namespace, e2eTestPod.Name) {
+		dumpPodInfo(t, e2eTestPod.Namespace, e2eTestPod.Name)
 		log.Println("❌ There are test failures!")
 		return false
 	}
@@ -373,7 +331,7 @@ func (k *kind) createE2eTestsPod(cmd []string) *v1.Pod {
 	// e2e-tests container to be run inside the pod
 	e2eTestsContainer := v1.Container{
 		// Container name, image used and image pull policy
-		Name:            "e2e-tests",
+		Name:            "e2e-tests-container",
 		Image:           "e2e-tests",
 		ImagePullPolicy: v1.PullNever,
 		// Command that will be run by the container
@@ -381,13 +339,9 @@ func (k *kind) createE2eTestsPod(cmd []string) *v1.Pod {
 	}
 
 	e2eTestsPod := &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
 		ObjectMeta: metav1.ObjectMeta{
 			// Pod name and namespace
-			Name:      "e2e-tests",
+			Name:      "e2e-tests-pod",
 			Namespace: "default",
 		},
 		Spec: v1.PodSpec{
@@ -415,6 +369,38 @@ func (k *kind) teardownK8sCluster(t *testRunner) {
 
 	// Run the command
 	t.execCommand(kindCmdAndArgs, "kind delete cluster", false, true)
+}
+
+// getKubectlCommand builds the kubectl command
+// with necessary kubeconfig and context
+func getKubectlCommand(pr provider) []string {
+	kubectlCmd := []string{"kubectl"}
+
+	switch p := pr.(type) {
+	case *local:
+		// Provider is local
+		kubectlCmd = append(kubectlCmd,
+			"--kubeconfig="+p.kubeconfig)
+	case *kind:
+		// KinD provider
+		kubectlCmd = append(kubectlCmd,
+			"--kubeconfig="+p.kubeconfig,
+			// context that kubectl runs against
+			"--context=kind-"+p.clusterName)
+	}
+
+	return kubectlCmd
+}
+
+// dumpPodInfo dumps the pod details using kubectl describe
+func dumpPodInfo(t *testRunner, namespace, name string) {
+	kubectlCmd := getKubectlCommand(t.p)
+	kubectlCmd = append(kubectlCmd,
+		"--namespace="+namespace,
+		"describe", "pods", name)
+
+	// ignore command exit value
+	t.execCommand(kubectlCmd, "kubectl describe", false, true)
 }
 
 // testRunner is the struct used to run the e2e test
@@ -446,7 +432,7 @@ func (t *testRunner) init() {
 	log.SetFlags(log.Lshortfile)
 
 	// Deduce test root directory
-	_, currentFilePath, _, _ := runtime.Caller(0)
+	var _, currentFilePath, _, _ = runtime.Caller(0)
 	t.testDir = filepath.Dir(currentFilePath)
 }
 
@@ -553,7 +539,7 @@ func (t *testRunner) execCommand(
 }
 
 // getGinkgoTestCommand builds and returns the ginkgo test command
-// that will be executed by the testrunner.
+// that will be executed by the testRunner.
 func (t *testRunner) getGinkgoTestCommand(suiteDir string) []string {
 	// The ginkgo test command
 	ginkgoTestCmd := []string{
@@ -613,33 +599,28 @@ func (t *testRunner) run() bool {
 	// Start signal handler
 	t.startSignalHandler()
 
-	// Setup the K8s cluster
-	if !p.setupK8sCluster(t) {
-		// Failed to setup cluster.
-		// Cleanup resources and return.
+	// setup defer to teardown cluster if
+	// the method returns after this point
+	defer func() {
 		p.teardownK8sCluster(t)
 		t.stopSignalHandler()
+	}()
+
+	// Set up the K8s cluster
+	if !p.setupK8sCluster(t) {
+		// Failed to set up cluster.
 		return false
 	}
 
-	// testStatus is true when all tests run successfully, and
-	// false if there are any test failures
-	var testStatus bool
 	// Run the tests
 	if options.inCluster {
 		// run tests as K8s pods inside kind cluster
 		log.Printf("🔨 Running tests from inside the KinD cluster")
-		testStatus = p.runGinkgoTestsInsideCluster(t)
+		return p.runGinkgoTestsInsideCluster(t)
 	} else {
 		// run tests as external go application
-		testStatus = t.runGinkgoTests()
+		return t.runGinkgoTests()
 	}
-
-	// Cleanup resources and return
-	p.teardownK8sCluster(t)
-	t.stopSignalHandler()
-
-	return testStatus
 }
 
 func init() {
@@ -681,7 +662,7 @@ func validateCommandlineArgs() {
 
 	// validate if test suites exist
 	// Deduce test root directory
-	_, currentFilePath, _, _ := runtime.Caller(0)
+	var _, currentFilePath, _, _ = runtime.Caller(0)
 	testDir := filepath.Dir(currentFilePath)
 	suitesDir := filepath.Join(testDir, "suites")
 	for _, suite := range strings.Split(options.suites, ",") {
