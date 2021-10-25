@@ -5,6 +5,7 @@
 package resources
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
@@ -26,6 +27,11 @@ const (
 	volumeClaimTemplateName = "ndb-pvc"
 	// config-volume for the management pods
 	mgmdConfigMapVolumeName = sfsetTypeMgmd + "-config-volume"
+
+	// datanode-healthcheck.sh configmap key, volume and mount path
+	dataNodeHealthCheckKey       = "datanode-healthcheck.sh"
+	dataNodeHealthCheckVolName   = "datanode-healthcheck-vol"
+	dataNodeHealthCheckMountPath = constants.DataDir + "/scripts"
 )
 
 // StatefulSetInterface is the interface for a statefulset of NDB management or data nodes
@@ -278,16 +284,37 @@ type ndbdStatefulSet struct {
 // getPodVolumes returns a slice of volumes to be
 // made available to the data node pods.
 func (nss *ndbdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []v1.Volume {
+
+	// Load the data node healthcheck script from
+	// the configmap into the pod via a volume
+	podVolumes := []v1.Volume{
+		{
+			Name: dataNodeHealthCheckVolName,
+			VolumeSource: v1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: nc.GetConfigMapName(),
+					},
+					Items: []v1.KeyToPath{
+						{
+							Key:  dataNodeHealthCheckKey,
+							Path: dataNodeHealthCheckKey,
+						},
+					},
+				},
+			},
+		},
+	}
+
 	// An empty directory volume needs to be provided
 	// to the data node pods if the NdbCluster resource
 	// doesn't have any PVCs defined to be used with
 	// the data nodes.
 	if nc.Spec.DataNodePVCSpec == nil {
-		return []v1.Volume{*nss.getEmptyDirPodVolume()}
+		podVolumes = append(podVolumes, *nss.getEmptyDirPodVolume())
 	}
 
-	// Data node pod spec has a PVC defined.
-	return nil
+	return podVolumes
 }
 
 // getVolumeMounts returns the volumes to be mounted to the ndbd containers
@@ -303,11 +330,17 @@ func (nss *ndbdStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []v1.Volume
 		dataDirVolumeName = volumeClaimTemplateName
 	}
 
-	// return volume mount for the data directory
+	// return volume mounts
 	return []v1.VolumeMount{
 		{
+			// Volume mount for data directory
 			Name:      dataDirVolumeName,
 			MountPath: constants.DataDir,
+		},
+		{
+			// Volume mount for healthcheck script
+			Name:      dataNodeHealthCheckVolName,
+			MountPath: dataNodeHealthCheckMountPath,
 		},
 	}
 }
@@ -324,7 +357,36 @@ func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 	}
 
 	volumeMounts := nss.getVolumeMounts(nc)
-	return nss.createContainers(nc, cmdAndArgs, volumeMounts, nil, nil)
+
+	// Setup startup probe for data nodes.
+	// The probe uses a script that checks if a data node has started, by
+	// connecting to the Management node via ndb_mgm. This implies that atleast
+	// one Management node has to be available for the probe to succeed. This
+	// is fine as that is already a requirement for a data node to start. Even
+	// if the Management node crashes or becomes unavailable when the data node
+	// is going through the start phases, the Management node will be
+	// rescheduled immediately and will become ready within a few seconds,
+	// enabling the data node startup probe to succeed.
+	dataNodeStartNodeId := nc.GetManagementNodeCount() + 1
+	startupProbe := &v1.Probe{
+		Handler: v1.Handler{
+			Exec: &v1.ExecAction{
+				// datanode-healthcheck.sh <mgmd service> <data node start node id>
+				Command: []string{
+					"/bin/bash",
+					dataNodeHealthCheckMountPath + "/" + dataNodeHealthCheckKey,
+					nc.GetConnectstring(),
+					strconv.Itoa(int(dataNodeStartNodeId)),
+				},
+			},
+		},
+		// expect data node to get ready within 15 minutes
+		PeriodSeconds:    2,
+		TimeoutSeconds:   2,
+		FailureThreshold: 450,
+	}
+
+	return nss.createContainers(nc, cmdAndArgs, volumeMounts, startupProbe, nil)
 }
 
 // NewStatefulSet returns the StatefulSet specification to start and manage the Data nodes.

@@ -71,9 +71,10 @@ func updateMySQLConfig(ndb *v1alpha1.NdbCluster, data map[string]string) error {
 	return nil
 }
 
-// updateMySQLHelperScripts updates the Data map with the helper
-// scripts used by the MySQL Server initialisation and health probes.
-func updateMySQLHelperScripts(data map[string]string) error {
+// updateHelperScripts updates the data map with the helper
+// scripts used for the MySQL Server initialisation & health
+// probes and Data node health probe.
+func updateHelperScripts(data map[string]string) error {
 	// Extract and add the MySQL Server initializer file
 	fileBytes, err := scriptsFS.ReadFile("scripts/" + mysqldInitScriptKey)
 	if err != nil {
@@ -91,6 +92,15 @@ func updateMySQLHelperScripts(data map[string]string) error {
 		return err
 	}
 	data[mysqldHealthCheckKey] = string(fileBytes)
+
+	// Extract and add the data node healthcheck script
+	fileBytes, err = scriptsFS.ReadFile("scripts/" + dataNodeHealthCheckKey)
+	if err != nil {
+		klog.Errorf("Failed to read Data node healthcheck script at %q : %v",
+			dataNodeHealthCheckKey, err)
+		return err
+	}
+	data[dataNodeHealthCheckKey] = string(fileBytes)
 	return nil
 }
 
@@ -148,8 +158,8 @@ func CreateConfigMap(ndb *v1alpha1.NdbCluster) *corev1.ConfigMap {
 		return nil
 	}
 
-	// Add the MySQL helper scripts
-	if updateMySQLHelperScripts(data) != nil {
+	// Add the helper scripts
+	if updateHelperScripts(data) != nil {
 		return nil
 	}
 
