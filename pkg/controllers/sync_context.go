@@ -13,7 +13,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
@@ -32,13 +31,13 @@ import (
 type SyncContext struct {
 	resourceContext *resources.ResourceContext
 
+	// Workload resources
+	mgmdNodeSfset    *appsv1.StatefulSet
 	dataNodeSfSet    *appsv1.StatefulSet
 	mysqldDeployment *appsv1.Deployment
 
 	ManagementServerPort int32
 	ManagementServerIP   string
-
-	clusterState mgmapi.ClusterStatus
 
 	ndb *v1alpha1.NdbCluster
 
@@ -191,37 +190,47 @@ func (sc *SyncContext) ensurePodDisruptionBudget(ctx context.Context) (existed b
 		ctx, sc, sc.ndbdController.GetTypeName())
 }
 
-// ensureDataNodeConfigVersion checks if all the data nodes have the desired configuration.
-// If not, it safely restarts them without affecting the availability of MySQL Cluster.
+// ensureDataNodeConfigVersion checks if all the data nodes have the
+// desired configuration. If not, it safely restarts them without
+// affecting the availability of MySQL Cluster.
+//
+// The method chooses one data node per nodegroup and checks their config
+// version. The nodes that have an outdated config version will be stopped
+// together via the mgm client. The K8s statefulset controller will then
+// restart those nodes using the latest config available in the config map.
+// When the chosen data nodes are being restarted in this way, any further
+// reconciliation is stopped, and is resumed only after the restarted data
+// nodes become ready. At any given time, only one data node per group will
+// be affected by this maneuver thus ensuring MySQL Cluster's availability.
 func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
 
-	wantedGeneration := sc.resourceContext.ConfigGeneration
-	redundancyLevel := sc.resourceContext.RedundancyLevel
-
+	// Get the node and nodegroup details via clusterStatus
 	mgmClient, err := sc.connectToManagementServer()
 	if err != nil {
 		return errorWhileProcessing(err)
 	}
 	defer mgmClient.Disconnect()
+	clusterStatus, err := mgmClient.GetStatus()
+	if err != nil {
+		klog.Errorf("Error getting cluster status from management server: %s", err)
+		return errorWhileProcessing(err)
+	}
 
-	// For data node reconciliation, one data node per nodegroup is
-	// chosen and are restarted together if they have an outdated
-	// config version. Once a set of data nodes are restarted, any
-	// further reconciliation is stopped, and is resumed only after
-	// the restarted data nodes become ready. At any given time,
-	// only one data node per group will be affected by this
-	// maneuver thus ensuring MySQL Cluster's availability.
-	nodesGroupedByNodegroups := sc.clusterState.GetNodesGroupedByNodegroup()
+	// Group the nodes based on nodegroup.
+	// The node ids are sorted within the sub arrays and the array
+	// itself is sorted based on the node groups. Every sub array
+	// will have RedundancyLevel number of node ids.
+	nodesGroupedByNodegroups := clusterStatus.GetNodesGroupedByNodegroup()
 	if nodesGroupedByNodegroups == nil {
 		err := fmt.Errorf("internal error: could not extract nodes and node groups from cluster status")
 		return errorWhileProcessing(err)
 	}
 
-	// The node ids are sorted within the sub arrays and the array
-	// itself is sorted based on the node groups. Every sub array
-	// will have RedundancyLevel number of node ids. Pick up the
-	// i'th node from every sub array during every iteration and
+	// Pick up the i'th node id from every sub array of
+	// nodesGroupedByNodegroups during every iteration and
 	// ensure that they all have the expected config version.
+	wantedGeneration := sc.resourceContext.ConfigGeneration
+	redundancyLevel := sc.resourceContext.RedundancyLevel
 	for i := 0; i < int(redundancyLevel); i++ {
 		// Note down the node ids to be ensured
 		candidateNodeIds := make([]int, 0, redundancyLevel)
@@ -319,6 +328,9 @@ func (sc *SyncContext) connectToManagementServer(managementNodeId ...int) (mgmap
 	return mgmClient, nil
 }
 
+// ensureManagementServerConfigVersion checks if all the management nodes
+// have the desired configuration. If not, it safely restarts them without
+// affecting the availability of MySQL Cluster.
 func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 	wantedGeneration := sc.resourceContext.ConfigGeneration
 	klog.Infof("Ensuring Management Server(s) have the desired config version, %d", wantedGeneration)
@@ -369,63 +381,6 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 	// Continue further processing and sync.
 	klog.Info("All management nodes have the desired config version")
 	return continueProcessing()
-}
-
-// checkPodsReadiness checks if all the pods owned the NdbCluster
-// resource are ready. The sync will continue only if all the pods are ready.
-func (sc *SyncContext) checkPodsReadiness() syncResult {
-
-	// List all pods owned by NdbCluster resource
-	pods, err := sc.podLister.Pods(sc.ndb.Namespace).List(labels.SelectorFromSet(sc.ndb.GetLabels()))
-	if err != nil {
-		klog.Errorf("Failed to list pods with selector %q. Error : %v",
-			labels.Set(sc.ndb.GetLabels()).String(), err)
-		return errorWhileProcessing(err)
-	}
-
-	// Check if all the pods are ready
-	for _, pod := range pods {
-		for _, condition := range pod.Status.Conditions {
-			if condition.Type == corev1.PodReady {
-				klog.V(2).Infof("Pod : %q Ready : %q",
-					getNamespacedName(pod.GetObjectMeta()), condition.Status)
-				if condition.Status != corev1.ConditionTrue {
-					klog.Infof("Some pods owned by the NdbCluster resource %q are not ready yet",
-						getNamespacedName(sc.ndb))
-					// Stop syncing. NdbCluster resource will be later re-queued
-					// once the deployment or the statefulset that controls this
-					// pod becomes ready.
-					return finishProcessing()
-				}
-			}
-		}
-	}
-
-	klog.Infof("All pods owned by the NdbCluster resource %q are ready", getNamespacedName(sc.ndb))
-	// Allow sync to continue further
-	return continueProcessing()
-}
-
-// retrieveClusterStatus gets the cluster status from the
-// Management Server and stores it in the SyncContext
-func (sc *SyncContext) retrieveClusterStatus() (mgmapi.ClusterStatus, error) {
-
-	mgmClient, err := sc.connectToManagementServer()
-	if err != nil {
-		return nil, err
-	}
-	defer mgmClient.Disconnect()
-
-	// check if management nodes report a degraded cluster state
-	cs, err := mgmClient.GetStatus()
-	if err != nil {
-		klog.Errorf("Error getting cluster status from management server: %s", err)
-		return nil, err
-	}
-
-	sc.clusterState = cs
-
-	return cs, nil
 }
 
 // ensureAllResources creates all K8s resources required for running the
@@ -484,7 +439,7 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 	}
 
 	// create the management stateful set if it doesn't exist
-	if _, resourceExists, err = sc.ensureManagementServerStatefulSet(ctx); err != nil {
+	if sc.mgmdNodeSfset, resourceExists, err = sc.ensureManagementServerStatefulSet(ctx); err != nil {
 		return errorWhileProcessing(err)
 	}
 	handleResourceStatus(resourceExists, "StatefulSet for Management Nodes")
@@ -516,6 +471,27 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 	return finishProcessing()
 }
 
+// ensureWorkloadsReadiness checks if all the workloads created for the
+// NdbCluster resource are ready. The sync is stopped if they are not ready.
+func (sc *SyncContext) ensureWorkloadsReadiness() syncResult {
+	// Both mgmd and data node StatefulSets should be ready and
+	// the MySQL deployment should be complete if it exists.
+	if statefulsetReady(sc.mgmdNodeSfset) &&
+		statefulsetReady(sc.dataNodeSfSet) &&
+		(sc.mysqldDeployment == nil ||
+			deploymentComplete(sc.mysqldDeployment)) {
+		klog.Infof("All workloads owned by the NdbCluster resource %q are ready", getNamespacedName(sc.ndb))
+		return continueProcessing()
+	}
+
+	// Some workload is not ready yet => some pods are not ready yet
+	klog.Infof("Some pods owned by the NdbCluster resource %q are not ready yet",
+		getNamespacedName(sc.ndb))
+	// Stop processing.
+	// Reconciliation will continue when all the pods are ready.
+	return finishProcessing()
+}
+
 // sync updates the MySQL Cluster configuration running inside
 // the K8s Cluster based on the NdbCluster spec. This is the
 // core reconciliation loop, and the complete sync takes place
@@ -535,33 +511,15 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 		return sr
 	}
 
-	// All resources already exist or were created in a previous reconciliation loop.
-	// Continue further only if all the pods are ready.
-	if sr := sc.checkPodsReadiness(); sr.stopSync() {
-		// Pods are not ready => The MySQL Cluster is not fully up yet.
+	// All resources and workloads exist.
+	// Continue further only if all the workloads are ready.
+	if sr := sc.ensureWorkloadsReadiness(); sr.stopSync() {
+		// Some workloads are not ready yet => The MySQL Cluster is not fully up yet.
 		// Any further config changes cannot be processed until the pods are ready.
 		return sr
 	}
 
-	// Resources exist and the pods(MySQL Cluster nodes) are ready.
-	// Continue further only if the MySQL Cluster is healthy.
-	// (i.e.) Only if all MySQL Cluster nodes are connected and running.
-	// TODO: Check if this is redundant once the Readiness probes for ndbd/mgmd are implemented
-	clusterState, err := sc.retrieveClusterStatus()
-	if err != nil {
-		// An error occurred when attempting to retrieve MySQL Cluster
-		// status. The error would have been printed to log already,
-		// so, just return the error.
-		return errorWhileProcessing(err)
-	}
-
-	if !clusterState.IsHealthy() {
-		// All/Some MySQL Cluster nodes are not ready yet. Requeue sync.
-		klog.Infof("Some MySQL Cluster nodes are not ready yet")
-		return requeueInSeconds(5)
-	}
-
-	// Resources, pods are ready and the MySQL Cluster is healthy.
+	// The workloads are ready => MySQL Cluster is healthy.
 	// Before starting to handle any new changes from the Ndb
 	// Custom object, verify that the MySQL Cluster is in sync
 	// with the current config in the config map. This is to avoid
