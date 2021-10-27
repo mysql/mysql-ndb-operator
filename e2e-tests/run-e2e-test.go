@@ -42,8 +42,10 @@ var options struct {
 // K8s image used by KinD to bring up cluster
 // https://github.com/kubernetes-sigs/kind/releases
 var kindK8sNodeImages = map[string]string{
-	"1.19": "kindest/node:v1.19.11@sha256:7664f21f9cb6ba2264437de0eb3fe99f201db7a3ac72329547ec4373ba5f5911",
-	"1.20": "kindest/node:v1.20.7@sha256:e645428988191fc824529fd0bb5c94244c12401cf5f5ea3bd875eb0a787f0fe9",
+	"1.19": "kindest/node:v1.19.11@sha256:07db187ae84b4b7de440a73886f008cf903fcf5764ba8106a9fd5243d6f32729",
+	"1.20": "kindest/node:v1.20.7@sha256:cbeaf907fc78ac97ce7b625e4bf0de16e3ea725daf6b04f930bd14c67c671ff9",
+	"1.21": "kindest/node:v1.21.1@sha256:69860bda5563ac81e3c0057d654b5253219618a22ec3a346306239bba8cfa1a6",
+	"1.22": "kindest/node:v1.22.0@sha256:b8bda84bb3a190e6e028b1760d277454a72267a5454b57db34437c34a588d047",
 }
 
 var (
@@ -636,8 +638,8 @@ func init() {
 	flag.BoolVar(&options.inCluster, "in-cluster", false,
 		"Run tests as K8s pod inside cluster.")
 
-	// use v1.20 as default kind k8s version
-	flag.StringVar(&options.kindK8sVersion, "kind-k8s-version", "1.20",
+	// use v1.21 as default kind k8s version
+	flag.StringVar(&options.kindK8sVersion, "kind-k8s-version", "1.21",
 		"Kind k8s version used to run tests. Example usage: --kind-k8s-version=1.20")
 
 	// test suites to be run.
