@@ -390,18 +390,6 @@ func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
 // NdbCluster resource to ensure a consistent setup across multiple
 // reconciliation loops.
 func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
-
-	// bool to track if any resource was created as a part of this step
-	allResourcesExist := true
-
-	// helper method to report and handle the status of the resource
-	handleResourceStatus := func(resourceExists bool, resourceName string) {
-		if !resourceExists {
-			klog.Infof("Created resource : %s", resourceName)
-			allResourcesExist = false
-		}
-	}
-
 	var err error
 	var resourceExists bool
 
@@ -410,20 +398,26 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 	if _, resourceExists, err = sc.ensureServices(ctx); err != nil {
 		return errorWhileProcessing(err)
 	}
-	handleResourceStatus(resourceExists, "Services")
+	if !resourceExists {
+		klog.Info("Created resource : Services")
+	}
 
 	// create pod disruption budgets
 	if resourceExists, err = sc.ensurePodDisruptionBudget(ctx); err != nil {
 		return errorWhileProcessing(err)
 	}
-	handleResourceStatus(resourceExists, "Pod Disruption Budgets")
+	if !resourceExists {
+		klog.Info("Created resource : Pod Disruption Budgets")
+	}
 
 	// ensure config map
 	var cm *corev1.ConfigMap
 	if cm, resourceExists, err = sc.configMapController.EnsureConfigMap(ctx, sc); err != nil {
 		return errorWhileProcessing(err)
 	}
-	handleResourceStatus(resourceExists, "Config Map")
+	if !resourceExists {
+		klog.Info("Created resource : Config Map")
+	}
 
 	// Create a new ResourceContext
 	configAsString, err := resources.GetConfigFromConfigMapObject(cm)
@@ -442,13 +436,27 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 	if sc.mgmdNodeSfset, resourceExists, err = sc.ensureManagementServerStatefulSet(ctx); err != nil {
 		return errorWhileProcessing(err)
 	}
-	handleResourceStatus(resourceExists, "StatefulSet for Management Nodes")
+	if !resourceExists {
+		// Management statefulset was just created.
+		klog.Info("Created resource : StatefulSet for Management Nodes")
+		// Wait for it to become ready before starting the data nodes.
+		// Reconciliation will continue once all the pods in the statefulset are ready.
+		klog.Infof("Reconciliation will continue after all the management nodes are ready.")
+		return finishProcessing()
+	}
 
 	// create the data node stateful set if it doesn't exist
 	if sc.dataNodeSfSet, resourceExists, err = sc.ensureDataNodeStatefulSet(ctx); err != nil {
 		return errorWhileProcessing(err)
 	}
-	handleResourceStatus(resourceExists, "StatefulSet for Data Nodes")
+	if !resourceExists {
+		// Data nodes statefulset was just created.
+		klog.Info("Created resource : StatefulSet for Data Nodes")
+		// Wait for it to become ready.
+		// Reconciliation will continue once all the pods in the statefulset are ready.
+		klog.Infof("Reconciliation will continue after all the data nodes are ready.")
+		return finishProcessing()
+	}
 
 	// MySQL Server deployment will be created only if required.
 	// For now, just verify that if it exists, it is indeed owned by the NdbCluster resource.
@@ -456,19 +464,13 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 		return errorWhileProcessing(err)
 	}
 
-	if allResourcesExist {
-		// All resources already existed before this sync loop
-		klog.Infof("All resources exist already")
-		return continueProcessing()
-	}
-
-	// All or some resources did not exist before this sync loop
-	// and were created just now.
-	klog.Infof("Some resources were just created. So, wait for them to become ready.")
-	// Do not take any further action as the resources like pods
-	// will need some time to get ready. Reconciliation will
-	// continue once all the pods are ready.
-	return finishProcessing()
+	// The StatefulSets already existed before this sync loop.
+	// There is a rare chance that some other resources were created during
+	// this sync loop as they were dropped by some other application other
+	// than the operator. We can still continue processing in that case as
+	// they will become immediately ready.
+	klog.Infof("All resources exist")
+	return continueProcessing()
 }
 
 // ensureWorkloadsReadiness checks if all the workloads created for the
