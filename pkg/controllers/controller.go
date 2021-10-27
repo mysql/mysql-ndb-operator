@@ -139,7 +139,7 @@ func NewController(
 		AddFunc: func(obj interface{}) {
 			ndb := obj.(*v1alpha1.NdbCluster)
 			ndbKey := getNdbClusterKey(ndb)
-			klog.Infof("New NdbCluster resource added : %s", ndbKey)
+			klog.Infof("New NdbCluster resource added : %q, queueing it for reconciliation", ndbKey)
 			controller.workqueue.Add(ndbKey)
 		},
 
@@ -150,11 +150,12 @@ func NewController(
 			newNdb := new.(*v1alpha1.NdbCluster)
 			if oldNdb.Generation != newNdb.Generation {
 				// Spec of the NdbCluster resource was updated.
-				klog.Infof("Spec of the NdbCluster resource '%s' was updated", ndbKey)
+				klog.Infof("Spec of the NdbCluster resource %q was updated", ndbKey)
 				klog.Infof("Generation updated from %d -> %d",
 					oldNdb.Generation, newNdb.Generation)
 				klog.Infof("Resource version updated from %s -> %s",
 					oldNdb.ResourceVersion, newNdb.ResourceVersion)
+				klog.Infof("NdbCluster resource %q is added to the queue for reconciliation", ndbKey)
 			} else if oldNdb.ResourceVersion != newNdb.ResourceVersion {
 				// Spec was not updated but the ResourceVersion changed => Status update
 				klog.Infof("Status of the NdbCluster resource '%s' was updated", ndbKey)
@@ -164,11 +165,14 @@ func NewController(
 				return
 			} else {
 				// NdbCluster resource was not updated and this is a resync/requeue.
-				klog.Infof("No updates to NdbCluster resource '%s'", ndbKey)
 				if oldNdb.Generation != oldNdb.Status.ProcessedGeneration {
-					// Controller is midway applying the previous change to NdbCluster resource.
-					klog.Infof("Continuing reconciliation with generation %d", oldNdb.Generation)
+					// Reconciliation is already underway. Either it is being handled by a
+					// worker right now or the controller is waiting for some resource to get
+					// ready, and it will continue once it is ready.
+					// So, no need to add the item to the workqueue now.
+					return
 				}
+				klog.Infof("No updates to NdbCluster resource %q, queueing it for periodic reconciliation", ndbKey)
 			}
 			controller.workqueue.Add(ndbKey)
 		},
