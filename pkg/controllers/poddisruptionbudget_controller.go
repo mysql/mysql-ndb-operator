@@ -66,7 +66,7 @@ func (pdbi *podDisruptionBudgetImpl) EnsurePodDisruptionBudget(
 		nodeType, nc.Namespace, pdbName)
 	pdb = resources.NewPodDisruptionBudget(nc, nodeType)
 	pdbInterface := sc.kubeClientset().PolicyV1beta1().PodDisruptionBudgets(sc.ndb.Namespace)
-	pdb, err = pdbInterface.Create(ctx, pdb, metav1.CreateOptions{})
+	_, err = pdbInterface.Create(ctx, pdb, metav1.CreateOptions{})
 
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		// Error creating PDB.
