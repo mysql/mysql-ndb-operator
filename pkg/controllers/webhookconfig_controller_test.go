@@ -44,7 +44,7 @@ func createNewValidatingWebhookConfig(
 
 	// create it in k8s
 	var err error
-	vwcInterface := f.kubeclient.AdmissionregistrationV1().ValidatingWebhookConfigurations()
+	vwcInterface := f.k8sclient.AdmissionregistrationV1().ValidatingWebhookConfigurations()
 	if newVwc, err = vwcInterface.Create(context.Background(), newVwc, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("Error creating validating webhook configs : %s", err.Error())
 	}
@@ -91,7 +91,7 @@ func Test_ValidatingWebhook_UpdateWebhookConfigCertificate(t *testing.T) {
 	// Create fixture and start informers
 	f := newFixture(t, &v1alpha1.NdbCluster{})
 	defer f.close()
-	f.start()
+	f.startInformers()
 
 	// create 2 webhook configs
 	serviceName := "test-service"
@@ -104,7 +104,7 @@ func Test_ValidatingWebhook_UpdateWebhookConfigCertificate(t *testing.T) {
 	cert := []byte("CERTIFICATE")
 
 	// Update the webhook configs using the controller
-	vwcController := NewValidatingWebhookConfigController(f.kubeclient)
+	vwcController := NewValidatingWebhookConfigController(f.k8sclient)
 	if !vwcController.UpdateWebhookConfigCertificate(
 		context.Background(), "webhook-server="+serviceName, cert) {
 		t.Fatal("Failed to update the validating webhook configs")

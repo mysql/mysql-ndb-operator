@@ -114,9 +114,9 @@ func TestCreateConfigMap(t *testing.T) {
 	f := newFixture(t, ndb)
 	defer f.close()
 
-	cmc := NewConfigMapControl(f.kubeclient)
+	cmc := NewConfigMapControl(f.k8sclient)
 
-	f.setupController("ndb-operator", true)
+	f.newController()
 	sc := f.c.newSyncContext(ndb)
 
 	cm, existed, err := cmc.EnsureConfigMap(context.TODO(), sc)
