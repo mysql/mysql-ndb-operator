@@ -8,11 +8,9 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
-	coreapi "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,125 +30,94 @@ import (
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 )
 
-var (
-	noResyncPeriodFunc = func() time.Duration { return 0 }
-)
-
 type fixture struct {
 	t *testing.T
 
-	client     *fake.Clientset
-	kubeclient *k8sfake.Clientset
+	// Fake clientsets for NdbCluster and other K8s objects
+	ndbclient *fake.Clientset
+	k8sclient *k8sfake.Clientset
+
+	// Informer factories for NdbCluster and other K8s objects
+	ndbIf informers.SharedInformerFactory
+	k8sIf kubeinformers.SharedInformerFactory
 
 	// stop channel
 	stopCh chan struct{}
 
-	sif  informers.SharedInformerFactory
-	k8If kubeinformers.SharedInformerFactory
-
-	// Objects to put in the store.
-	ndbLister []*ndbcontroller.NdbCluster
-	// deploymentLister []*apps.Deployment
-	configMapLister []*coreapi.ConfigMap
-
 	// Actions expected to happen on the client.
-	kubeactions []core.Action
-	actions     []core.Action
-	// Objects from here preloaded into NewSimpleFake.
-	kubeobjects []runtime.Object
-	objects     []runtime.Object
+	kubeActions []core.Action
+	ndbActions  []core.Action
+
+	// Objects to be loaded into the fake clientset and indexers
+	k8sObjects []runtime.Object
+	ndbObjects []runtime.Object
 
 	c *Controller
 }
 
-func newFixtures(t *testing.T, ndbclusters []*ndbcontroller.NdbCluster) *fixture {
-
-	f := &fixture{}
-	f.t = t
-	f.objects = []runtime.Object{}
-	f.kubeobjects = []runtime.Object{}
-
-	// we first need to set up arrays with objects ...
-	if len(f.ndbLister) > 0 {
-		t.Errorf("f.ndbLister len was %d", len(f.ndbLister))
-	}
-	if len(f.objects) > 0 {
-		t.Errorf("f.objects len was %d", len(f.objects))
+func newFixture(t *testing.T, ndbclusters ...*ndbcontroller.NdbCluster) *fixture {
+	f := &fixture{
+		t:          t,
+		k8sObjects: []runtime.Object{},
+		ndbObjects: []runtime.Object{},
+		stopCh:     make(chan struct{}),
 	}
 
+	// init the ndbObjects with objects from ndbclusters
 	for _, ndb := range ndbclusters {
-		f.ndbLister = append(f.ndbLister, ndb)
-		f.objects = append(f.objects, ndb)
+		f.ndbObjects = append(f.ndbObjects, ndb)
 	}
 
-	// ... before we init the fake clients with those objects.
-	// objects not listed in arrays at fakeclient setup will eventually be deleted
-	f.init()
+	// Initialize clientsets and InformerFactories
+	f.ndbclient = fake.NewSimpleClientset(f.ndbObjects...)
+	f.ndbIf = informers.NewSharedInformerFactory(f.ndbclient, 0)
+
+	f.k8sclient = k8sfake.NewSimpleClientset(f.k8sObjects...)
+	f.k8sIf = kubeinformers.NewSharedInformerFactory(f.k8sclient, 0)
 
 	return f
 }
 
-func newFixture(t *testing.T, ndbcluster *ndbcontroller.NdbCluster) *fixture {
-	ndbclusters := make([]*ndbcontroller.NdbCluster, 1)
-	ndbclusters[0] = ndbcluster
-	return newFixtures(t, ndbclusters)
-}
-
-func (f *fixture) init() {
-
-	f.client = fake.NewSimpleClientset(f.objects...)
-	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
-
-	f.sif = informers.NewSharedInformerFactory(f.client, noResyncPeriodFunc())
-	f.k8If = kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
-
-	f.stopCh = make(chan struct{})
-}
-
-func (f *fixture) start() {
-	// start informers
-	f.sif.Start(f.stopCh)
-	f.k8If.Start(f.stopCh)
-}
-
-func (f *fixture) close() {
-	klog.Info("Closing fixture")
-	close(f.stopCh)
+func (f *fixture) startInformers() {
+	f.ndbIf.Start(f.stopCh)
+	f.k8sIf.Start(f.stopCh)
 }
 
 func (f *fixture) newController() {
 
-	cc := NewControllerContext(f.kubeclient, f.client, false)
-	f.c = NewController(cc, f.k8If, f.sif)
+	cc := NewControllerContext(f.k8sclient, f.ndbclient, false)
+	f.c = NewController(cc, f.k8sIf, f.ndbIf)
 
-	for _, n := range f.ndbLister {
-		if err := f.sif.Mysql().V1alpha1().NdbClusters().Informer().GetIndexer().Add(n); err != nil {
+	for _, n := range f.ndbObjects {
+		if err := f.ndbIf.Mysql().V1alpha1().NdbClusters().Informer().GetIndexer().Add(n); err != nil {
 			f.t.Fatal("Unexpected error :", err)
 		}
 	}
 
-	for _, d := range f.configMapLister {
-		if err := f.k8If.Core().V1().ConfigMaps().Informer().GetIndexer().Add(d); err != nil {
-			f.t.Fatal("Unexpected error :", err)
-		}
+	f.startInformers()
+
+	// Wait for the caches to be synced
+	if ok := cache.WaitForNamedCacheSync(
+		controllerName, f.stopCh, f.c.informerSyncedMethods...); !ok {
+		f.t.Fatal("failed to wait for caches to sync")
 	}
 }
 
-func (f *fixture) run(fooName string) {
-	f.setupController(fooName, true)
-	f.runController(fooName, false, nil)
+func (f *fixture) close() {
+	klog.Info("Closing fixture")
+	// close the stop channel to stop the informers
+	close(f.stopCh)
 }
 
-func (f *fixture) setupController(fooName string, startInformers bool) {
-	f.newController()
-	if startInformers {
-		f.start()
-	}
-}
+// runController runs the controller and validate the actions
+func (f *fixture) runController(nc *ndbcontroller.NdbCluster, expectError bool, expectedErrors []string) {
 
-func (f *fixture) runController(fooName string, expectError bool, expectedErrors []string) {
+	ndbKey := getKey(nc, f.t)
 
-	sr := f.c.syncHandler(fooName)
+	// run the sync loop once
+	sr := f.c.syncHandler(ndbKey)
+
+	// validate the output
 	err := sr.getError()
 
 	if expectError {
@@ -190,51 +157,51 @@ func (f *fixture) runController(fooName string, expectError bool, expectedErrors
 
 func (f *fixture) checkActions() {
 
-	actions := filterInformerActions(f.client.Actions())
-	k8sActions := filterInformerActions(f.kubeclient.Actions())
+	actions := filterInformerActions(f.ndbclient.Actions())
+	k8sActions := filterInformerActions(f.k8sclient.Actions())
 
 	for i, action := range actions {
 
-		if len(f.actions) < i+1 {
-			f.t.Errorf("%d unexpected actions: %+v", len(actions)-len(f.actions), actions[i:])
+		if len(f.ndbActions) < i+1 {
+			f.t.Errorf("%d unexpected actions: %+v", len(actions)-len(f.ndbActions), actions[i:])
 			break
 		}
 
-		expectedAction := f.actions[i]
+		expectedAction := f.ndbActions[i]
 
 		/*
 			s, _ := json.Marshal(expectedAction)
-			fmt.Printf("[%d] %d : %s\n", i, len(f.actions), s)
+			fmt.Printf("[%d] %d : %s\n", i, len(f.ndbActions), s)
 			s, _ = json.Marshal(action)
-			fmt.Printf("[%d] %d : %s\n\n", i, len(f.actions), s)
+			fmt.Printf("[%d] %d : %s\n\n", i, len(f.ndbActions), s)
 		*/
 
 		checkAction(expectedAction, action, f.t)
 	}
 
-	if len(f.actions) > len(actions) {
-		f.t.Errorf("%d additional expected actions:%+v", len(f.actions)-len(actions), f.actions[len(actions):])
+	if len(f.ndbActions) > len(actions) {
+		f.t.Errorf("%d additional expected actions:%+v", len(f.ndbActions)-len(actions), f.ndbActions[len(actions):])
 	}
 
 	for i, action := range k8sActions {
 
-		if len(f.kubeactions) < i+1 {
-			f.t.Errorf("%d unexpected actions: %+v", len(k8sActions)-len(f.kubeactions), k8sActions[i:])
+		if len(f.kubeActions) < i+1 {
+			f.t.Errorf("%d unexpected actions: %+v", len(k8sActions)-len(f.kubeActions), k8sActions[i:])
 			break
 		}
 
-		expectedAction := f.kubeactions[i]
+		expectedAction := f.kubeActions[i]
 		checkAction(expectedAction, action, f.t)
 		/*
 			s, _ := json.Marshal(expectedAction)
-			fmt.Printf("[%d] %d : %s\n", i, len(f.kubeactions), s)
+			fmt.Printf("[%d] %d : %s\n", i, len(f.kubeActions), s)
 			s, _ = json.Marshal(action)
-			fmt.Printf("[%d] %d : %s\n\n", i, len(f.kubeactions), s)
+			fmt.Printf("[%d] %d : %s\n\n", i, len(f.kubeActions), s)
 		*/
 	}
 
-	if len(f.kubeactions) > len(k8sActions) {
-		f.t.Errorf("%d additional expected actions:%+v", len(f.kubeactions)-len(k8sActions), f.kubeactions[len(k8sActions):])
+	if len(f.kubeActions) > len(k8sActions) {
+		f.t.Errorf("%d additional expected actions:%+v", len(f.kubeActions)-len(k8sActions), f.kubeActions[len(k8sActions):])
 	}
 }
 
@@ -362,7 +329,7 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 // Since list and watch don't change resource state we can filter it to lower
 // nose level in our tests.
 func filterInformerActions(actions []core.Action) []core.Action {
-	//klog.Infof("Filtering %d actions", len(actions))
+	//klog.Infof("Filtering %d ndbActions", len(ndbActions))
 	ret := []core.Action{}
 	for _, action := range actions {
 		if action.GetNamespace() == "default" &&
@@ -397,26 +364,26 @@ func filterInformerActions(actions []core.Action) []core.Action {
 
 func (f *fixture) expectCreateAction(ns string, group, version, resource string, o runtime.Object) {
 	grpVersionResource := schema.GroupVersionResource{Group: group, Version: version, Resource: resource}
-	f.kubeactions = append(f.kubeactions, core.NewCreateAction(grpVersionResource, ns, o))
+	f.kubeActions = append(f.kubeActions, core.NewCreateAction(grpVersionResource, ns, o))
 }
 
 // expectPatchAction adds an expected patch action.
 // checkAction will validate the patch action and compare sent patch with the expPatch.
 // To skip the patch comparison, pass nil for expPatch
 func (f *fixture) expectPatchAction(ns string, resource string, name string, pt types.PatchType, expPatch []byte) {
-	f.kubeactions = append(f.kubeactions,
+	f.kubeActions = append(f.kubeActions,
 		core.NewPatchAction(schema.GroupVersionResource{Resource: resource}, ns, name, pt, expPatch))
 }
 
 func (f *fixture) expectDeleteAction(ns, group, version, resource, name string) {
 	grpVersionResource := schema.GroupVersionResource{Group: group, Version: version, Resource: resource}
-	f.kubeactions = append(f.kubeactions, core.NewDeleteAction(grpVersionResource, ns, name))
+	f.kubeActions = append(f.kubeActions, core.NewDeleteAction(grpVersionResource, ns, name))
 }
 
-func getKey(foo *ndbcontroller.NdbCluster, t *testing.T) string {
-	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(foo)
+func getKey(nc *ndbcontroller.NdbCluster, t *testing.T) string {
+	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(nc)
 	if err != nil {
-		t.Errorf("Unexpected error getting key for foo %v: %v", foo.Name, err)
+		t.Errorf("Unexpected error getting key for foo %q: %v", getNamespacedName(nc), err)
 		return ""
 	}
 	return key
@@ -446,31 +413,44 @@ func TestCreatesCluster(t *testing.T) {
 
 	f := newFixture(t, ndb)
 	defer f.close()
+	// create new controller
+	f.newController()
 
-	// two services for ndbd and mgmds
+	// 2 services for mgmd
 	omd := getObjectMetadata("test-mgmd", ndb, t)
 	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
 	omd.Name = "test-mgmd-ext"
 	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
+	// one headless service for data nodes
 	omd.Name = "test-ndbd"
 	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
+	// one loadbalancer service for MySQL Servers
 	omd.Name = "test-mysqld-ext"
 	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
+	// One PDB for data nodes
 	omd.Name = "test-pdb-ndbd"
 	f.expectCreateAction(ns, "policy", "v1beta1", "poddisruptionbudgets",
 		&policyv1beta1.PodDisruptionBudget{ObjectMeta: *omd})
 
+	// One configmap for NdbCluster resource
 	omd.Name = "test-config"
 	f.expectCreateAction(ns, "", "v1", "configmaps", &corev1.ConfigMap{ObjectMeta: *omd})
 
+	// One StatefulSet for management nodes
 	omd.Name = "test-mgmd"
 	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
+
+	// The reconciliation loop ends here. It continues after the management nodes are ready.
+	f.runController(ndb, false, nil)
+
+	// In the next loop, StatefulSet for data nodes is created
 	omd.Name = "test-ndbd"
 	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
 
-	f.run(getKey(ndb, t))
+	// Note : this might fail sometimes due to issues with the fakeclient + k8s cache
+	f.runController(ndb, false, nil)
 }

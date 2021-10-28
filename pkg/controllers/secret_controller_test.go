@@ -23,9 +23,9 @@ func TestMysqlRootPasswordSecrets(t *testing.T) {
 	// Create fixture and start informers
 	f := newFixture(t, ndb)
 	defer f.close()
-	f.start()
+	f.startInformers()
 
-	sci := NewMySQLRootPasswordSecretInterface(f.kubeclient)
+	sci := NewMySQLRootPasswordSecretInterface(f.k8sclient)
 
 	// Test the secret control interface for default random password
 	secret, err := sci.Ensure(context.TODO(), ndb)
@@ -55,7 +55,7 @@ func TestMysqlRootPasswordSecrets(t *testing.T) {
 	// Create the custom secret
 	customSecret := resources.NewMySQLRootPasswordSecret(ndb)
 	customSecret.Name = customSecretName
-	secret, err = f.kubeclient.CoreV1().Secrets(ns).Create(context.TODO(), customSecret, metav1.CreateOptions{})
+	secret, err = f.k8sclient.CoreV1().Secrets(ns).Create(context.TODO(), customSecret, metav1.CreateOptions{})
 	if err != nil {
 		t.Errorf("Error creating custom secret : %v", err)
 	}
