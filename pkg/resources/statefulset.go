@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mysql/ndb-operator/config/debug"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 
@@ -78,6 +79,11 @@ func (bss *baseStatefulSet) getEmptyDirPodVolume() *v1.Volume {
 func (bss *baseStatefulSet) createContainers(
 	nc *v1alpha1.NdbCluster, commandAndArgs []string, volumeMounts []v1.VolumeMount,
 	startupProbe, readinessProbe *v1.Probe) []v1.Container {
+
+	if debug.Enabled {
+		// Increase verbosity
+		commandAndArgs = append(commandAndArgs, "-v")
+	}
 
 	klog.Infof("Creating %q container from image %s", bss.typeName, nc.Spec.Image)
 	return []v1.Container{
@@ -221,7 +227,6 @@ func (mss *mgmdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 		"--initial",
 		"--nodaemon",
 		"--config-cache=0",
-		"-v",
 	}
 
 	volumeMounts := mss.getVolumeMounts()
@@ -352,8 +357,7 @@ func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 	cmdAndArgs := []string{
 		"/usr/sbin/ndbmtd",
 		"-c", nc.GetConnectstring(),
-		"--nodaemon",
-		"-v",
+		"--foreground",
 	}
 
 	volumeMounts := nss.getVolumeMounts(nc)
