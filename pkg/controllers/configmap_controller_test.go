@@ -127,6 +127,8 @@ func TestCreateConfigMap(t *testing.T) {
 	}
 	if cm == nil {
 		t.Fatalf("Unexpected error EnsuringConfigMap: return null pointer")
+		// return to suppress incorrect staticcheck warnings for SA5011
+		return
 	}
 	if existed {
 		t.Errorf("Unexpected error EnsuringConfigMap: should not have existed")

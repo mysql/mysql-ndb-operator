@@ -68,6 +68,8 @@ func TestMysqlRootPasswordSecrets(t *testing.T) {
 	}
 	if secret == nil {
 		t.Fatal("Error ensuring custom secret : secret is nil")
+		// return to suppress incorrect staticcheck warnings for SA5011
+		return
 	}
 	// No action is expected
 

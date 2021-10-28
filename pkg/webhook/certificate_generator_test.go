@@ -36,6 +36,8 @@ func Test_createCertificate(t *testing.T) {
 	block, _ := pem.Decode(td.certificate)
 	if block == nil {
 		t.Fatalf("Failed to decode the generated certificate")
+		// return to suppress incorrect staticcheck warnings for SA5011
+		return
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
