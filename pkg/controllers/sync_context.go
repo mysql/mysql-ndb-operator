@@ -13,7 +13,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/events"
@@ -582,7 +581,7 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 	}
 
 	// Update the status of the Ndb resource to reflect the state of any changes applied
-	err = sc.updateNdbClusterStatus(hasPendingConfigChanges)
+	err = sc.updateNdbClusterStatus(ctx, hasPendingConfigChanges)
 	if err != nil {
 		klog.Errorf("Updating status failed: %v", err)
 		return errorWhileProcessing(err)
@@ -599,11 +598,11 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 
 // updateNdbClusterStatus updates the status of the NdbCluster object and
 // sends out an event if the object is already in syn with the MySQL Cluster
-func (sc *SyncContext) updateNdbClusterStatus(hasPendingConfigChanges bool) error {
+func (sc *SyncContext) updateNdbClusterStatus(ctx context.Context, hasPendingConfigChanges bool) error {
 
-	// we already received a deep copy here
 	ndb := sc.ndb
 
+	var processedGeneration int64
 	if hasPendingConfigChanges {
 		// The loop received a new config change that has to be applied yet
 		if ndb.Status.ProcessedGeneration+1 == ndb.ObjectMeta.Generation {
@@ -615,9 +614,7 @@ func (sc *SyncContext) updateNdbClusterStatus(hasPendingConfigChanges bool) erro
 			// All the config changes except the one received in this
 			// loop has been handled but the status is not updated yet.
 			// Bump up the ProcessedGeneration to reflect this.
-			klog.Infof("Updating the NdbCluster resource %q processed generation from %d to %d",
-				getNamespacedName(sc.ndb), ndb.Status.ProcessedGeneration, ndb.ObjectMeta.Generation-1)
-			ndb.Status.ProcessedGeneration = ndb.ObjectMeta.Generation - 1
+			processedGeneration = ndb.ObjectMeta.Generation - 1
 		}
 	} else {
 		// No pending changes
@@ -630,37 +627,42 @@ func (sc *SyncContext) updateNdbClusterStatus(hasPendingConfigChanges bool) erro
 		} else {
 			// The last change was successfully applied.
 			// Update status to reflect this
-			klog.Infof("Updating the NdbCluster resource %q processed generation from %d to %d",
-				getNamespacedName(sc.ndb), ndb.Status.ProcessedGeneration, ndb.ObjectMeta.Generation)
-			ndb.Status.ProcessedGeneration = ndb.ObjectMeta.Generation
+			processedGeneration = ndb.ObjectMeta.Generation
 		}
 	}
 
-	// Set the time of this status update
-	ndb.Status.LastUpdate = metav1.NewTime(time.Now())
+	// The status need to be updated
+	klog.Infof("Updating the NdbCluster resource %q processed generation from %d to %d",
+		getNamespacedName(sc.ndb), ndb.Status.ProcessedGeneration, ndb.ObjectMeta.Generation-1)
+
 	ndbClusterInterface := sc.ndbClientset().MysqlV1alpha1().NdbClusters(ndb.Namespace)
 
-	updateErr := wait.ExponentialBackoff(retry.DefaultBackoff, func() (done bool, err error) {
-
-		ndb, err = ndbClusterInterface.UpdateStatus(context.TODO(), ndb, metav1.UpdateOptions{})
-		if err == nil {
-			return true, nil
-		}
-		if !apierrors.IsConflict(err) {
-			return false, err
-		}
-
-		updated, err := ndbClusterInterface.Get(context.TODO(), ndb.Name, metav1.GetOptions{})
+	// Update the status. Use RetryOnConflict to automatically handle
+	// conflicts that can occur if the spec changes between the time
+	// the controller gets the NdbCluster object and updates it.
+	updateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Get the latest NdbCluster object from the API Server
+		nc, err := ndbClusterInterface.Get(ctx, ndb.Name, metav1.GetOptions{})
 		if err != nil {
-			klog.Errorf("Failed to get NdbCluster resource %q: %v", getNamespacedName(sc.ndb), err)
-			return false, err
+			klog.Errorf("Failed to get NdbCluster resource during status update %q: %v",
+				getNamespacedName(sc.ndb), err)
+			return err
 		}
-		ndb = updated.DeepCopy()
-		return false, nil
+
+		// Update the status
+		nc.Status.ProcessedGeneration = processedGeneration
+		// Set the time of this status update
+		nc.Status.LastUpdate = metav1.NewTime(time.Now())
+
+		// Update the status
+		_, err = ndbClusterInterface.UpdateStatus(ctx, nc, metav1.UpdateOptions{})
+		// Return the error and let RetryOnConflict handle any conflicts.
+		return err
 	})
 
 	if updateErr != nil {
-		klog.Errorf("Failed to update NdbCluster resource %q : %v", getNamespacedName(sc.ndb), updateErr)
+		klog.Errorf("Failed to update the status of NdbCluster resource %q : %v",
+			getNamespacedName(sc.ndb), updateErr)
 		return updateErr
 	}
 
