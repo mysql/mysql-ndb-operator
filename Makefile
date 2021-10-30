@@ -69,7 +69,7 @@ e2e:
 
 .PHONY: e2e-kind
 e2e-kind: operator-image e2e-tests-image
-	go run e2e-tests/run-e2e-test.go -use-kind -in-cluster
+	go run e2e-tests/run-e2e-test.go -use-kind
 
 # Run all unit tests and e2e test. Requires a minikube running
 # with the tunnel open and the operator image to be available in it
