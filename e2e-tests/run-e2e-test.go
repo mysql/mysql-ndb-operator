@@ -32,11 +32,11 @@ import (
 
 // Command line options
 var options struct {
-	useKind        bool
-	kubeconfig     string
-	inCluster      bool
-	kindK8sVersion string
-	suites         string
+	useKind         bool
+	kubeconfig      string
+	runOutOfCluster bool
+	kindK8sVersion  string
+	suites          string
 }
 
 // K8s image used by KinD to bring up cluster
@@ -57,9 +57,12 @@ type provider interface {
 	// setupK8sCluster sets up the provider specific cluster.
 	// It returns true if it succeeded in its attempt.
 	setupK8sCluster(t *testRunner) bool
+	loadImageIntoK8sCluster(t *testRunner, image string) bool
 	getKubeConfig() string
+	getKubectlCommand() []string
+	getClientset() kubernetes.Interface
 	teardownK8sCluster(t *testRunner)
-	runGinkgoTestsInsideCluster(t *testRunner) bool
+	dumpLogs(t *testRunner)
 }
 
 // providerDefaults defines the common fields and
@@ -76,17 +79,32 @@ func (p *providerDefaults) getKubeConfig() string {
 	return p.kubeconfig
 }
 
+// getKubectlCommand returns the kubectl command with
+// the required arguments to connect to the K8s cluster.
+func (p *providerDefaults) getKubectlCommand() []string {
+	return []string{
+		"kubectl",
+		"--kubeconfig=" + p.kubeconfig,
+	}
+}
+
+// getClientset returns the clientset that can be used
+// to connect to the K8s Cluster managed by the provider.
+func (p *providerDefaults) getClientset() kubernetes.Interface {
+	return p.clientset
+}
+
 // initClientsetFromKubeconfig creates a kubernetes clientset from the given kubeconfig
 func (p *providerDefaults) initClientsetFromKubeconfig() (success bool) {
 	config, err := clientcmd.BuildConfigFromFlags("", p.kubeconfig)
 	if err != nil {
-		log.Printf(" ❌ Error building config from kubeconfig '%s': %s", p.kubeconfig, err)
+		log.Printf("❌ Error building config from kubeconfig '%s': %s", p.kubeconfig, err)
 		return false
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		log.Printf(" ❌ Error creating new kubernetes clientset: %s", err)
+		log.Printf("❌ Error creating new kubernetes clientset: %s", err)
 		return false
 	}
 
@@ -95,23 +113,8 @@ func (p *providerDefaults) initClientsetFromKubeconfig() (success bool) {
 	return true
 }
 
-// waitForPodToStart waits until all the containers in the given pod are started
-func (p *providerDefaults) waitForPodToStart(namespace, name string) (podStarted bool) {
-	if err := podutils.WaitForPodToStart(p.clientset, namespace, name); err != nil {
-		log.Printf(" ❌ Error waiting for the e2e-tests pod to start : %s", err)
-		return false
-	}
-
-	return true
-}
-
-// waitForPodToTerminate waits until all the containers in the given pod are terminated
-func (p *providerDefaults) waitForPodToTerminate(namespace, name string) (podTerminated bool) {
-	if err := podutils.WaitForPodToTerminate(p.clientset, namespace, name); err != nil {
-		log.Printf("❌ Error waiting for the e2e-tests pod to terminate : %s", err)
-		return false
-	}
-
+// loadImageIntoK8sCluster implements a default no-op method for other providers
+func (p *providerDefaults) loadImageIntoK8sCluster(*testRunner, string) bool {
 	return true
 }
 
@@ -157,11 +160,8 @@ func (l *local) setupK8sCluster(*testRunner) (success bool) {
 // TODO: Maybe verify all the test resources are cleaned up here?
 func (l *local) teardownK8sCluster(*testRunner) {}
 
-// runGinkgoTestsInsideCluster is a no-op for local provider
-func (l *local) runGinkgoTestsInsideCluster(*testRunner) bool {
-	log.Fatal("❌ Running ginkgo tests inside cluster not supported for local provider.")
-	return false
-}
+// dumpLogs is a no-op for local provider
+func (l *local) dumpLogs(*testRunner) {}
 
 // kind implements a provider to control k8s clusters in KinD
 type kind struct {
@@ -187,18 +187,6 @@ func (k *kind) setupK8sCluster(t *testRunner) bool {
 
 	if !k.createKindCluster(t) {
 		return false
-	}
-
-	// Load the operator docker image into cluster nodes
-	if !k.loadImageToKindCluster("mysql/ndb-operator:latest", t) {
-		return false
-	}
-
-	if options.inCluster {
-		// Load e2e-tests docker image into cluster nodes
-		if !k.loadImageToKindCluster("e2e-tests:latest", t) {
-			return false
-		}
 	}
 
 	// init clientset to the k8s cluster
@@ -241,9 +229,8 @@ func (k *kind) createKindCluster(t *testRunner) bool {
 	return true
 }
 
-// loadImageToKindCluster loads docker image to kind cluster
-// It returns true on success.
-func (k *kind) loadImageToKindCluster(image string, t *testRunner) bool {
+// loadImageIntoK8sCluster loads docker image to kind cluster
+func (k *kind) loadImageIntoK8sCluster(t *testRunner, image string) (success bool) {
 	kindLoadImage := append(kindCmd,
 		// load docker-image
 		"load", "docker-image",
@@ -261,100 +248,27 @@ func (k *kind) loadImageToKindCluster(image string, t *testRunner) bool {
 	return true
 }
 
-// runGinkgoTestInsideCluster runs all tests as a pod inside kind cluster
-// It returns true if tests run successfully
-func (k *kind) runGinkgoTestsInsideCluster(t *testRunner) bool {
-	e2eArtifacts := filepath.Join(t.testDir, "_config", "k8s-deployment")
-	// Build kubectl command to create kubernetes resources to run e2e-tests,
-	// using e2e artifacts
-	kubectlCommand := getKubectlCommand(k)
-	createE2eTestK8sResources := append(kubectlCommand,
-		"apply", "-f",
-		// e2e-tests artifacts
-		e2eArtifacts,
+// getKubectlCommand returns the kubectl command with
+// the required arguments to connect to the K8s cluster.
+func (k *kind) getKubectlCommand() []string {
+	return append(
+		k.providerDefaults.getKubectlCommand(),
+		// context that kubectl runs against
+		"--context=kind-"+k.clusterName,
 	)
-	if !t.execCommand(createE2eTestK8sResources, "kubectl apply", false, true) {
-		log.Println("❌ Failed to create kubernetes resources using e2e-test artifacts")
-		return false
-	}
-	log.Println("✅ Successfully created the required RBACs for the e2e tests pod")
-
-	// 'e2e-tests/suites' is the path to testsuite directory, in e2e-tests image
-	// Append ginkgo command to run specific test suites
-	ginkgoTestCmd := t.getGinkgoTestCommand("e2e-tests/suites")
-
-	// create e2e-tests-pod
-	e2eTestPod := k.createE2eTestsPod(ginkgoTestCmd)
-	_, err := k.clientset.CoreV1().Pods(e2eTestPod.Namespace).Create(context.TODO(), e2eTestPod, metav1.CreateOptions{})
-	if err != nil {
-		log.Printf("❌ Error creating e2e-tests pod: %s", err)
-	}
-	log.Println("✅ Successfully created the the e2e tests pod")
-
-	// Wait for the pods to start
-	if !k.waitForPodToStart(e2eTestPod.Namespace, e2eTestPod.Name) {
-		dumpPodInfo(t, e2eTestPod.Namespace, e2eTestPod.Name)
-		return false
-	}
-	log.Println("🏃 The e2e tests pod has started running")
-	log.Println("📃 Redirecting pod logs to console...")
-
-	// build kubectl command to print e2e-tests pod logs onto console
-	e2eTestPodLogs := append(kubectlCommand,
-		"logs", "-f",
-		// e2e tests pod
-		"--namespace="+e2eTestPod.Namespace,
-		e2eTestPod.Name,
-	)
-	if !t.execCommand(e2eTestPodLogs, "kubectl logs", false, true) {
-		log.Println("❌ Failed to get e2e-tests pod logs.")
-		dumpPodInfo(t, e2eTestPod.Namespace, e2eTestPod.Name)
-		return false
-	}
-
-	// Wait for the pod to terminate
-	if !k.waitForPodToTerminate(e2eTestPod.Namespace, e2eTestPod.Name) {
-		dumpPodInfo(t, e2eTestPod.Namespace, e2eTestPod.Name)
-		return false
-	}
-
-	if !podutils.HasPodSucceeded(k.clientset, e2eTestPod.Namespace, e2eTestPod.Name) {
-		dumpPodInfo(t, e2eTestPod.Namespace, e2eTestPod.Name)
-		log.Println("❌ There are test failures!")
-		return false
-	}
-	log.Println("😊 All tests ran successfully!")
-	return true
 }
 
-// createE2eTestsPod creates a new e2e-tests pod and returns the Pod object.
-// So created pod will run specific test suites.
-func (k *kind) createE2eTestsPod(cmd []string) *v1.Pod {
-	// e2e-tests container to be run inside the pod
-	e2eTestsContainer := v1.Container{
-		// Container name, image used and image pull policy
-		Name:            "e2e-tests-container",
-		Image:           "e2e-tests",
-		ImagePullPolicy: v1.PullNever,
-		// Command that will be run by the container
-		Command: cmd,
-	}
+// dumpLogs exports the KinD logs to _artifacts/kind-logs
+func (k *kind) dumpLogs(t *testRunner) {
+	// Build KinD command and args
+	kindCmdAndArgs := append(kindCmd,
+		// kind export logs
+		"export", "logs",
+		"--name=ndb-e2e-test",
+		"./e2e-tests/_artifacts/kind-logs",
+	)
 
-	e2eTestsPod := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			// Pod name and namespace
-			Name:      "e2e-tests-pod",
-			Namespace: "default",
-		},
-		Spec: v1.PodSpec{
-			Containers: []v1.Container{e2eTestsContainer},
-			// Service account with necessary RBAC authorization
-			ServiceAccountName: "e2e-tests-service-account",
-			RestartPolicy:      v1.RestartPolicyNever,
-		},
-	}
-
-	return e2eTestsPod
+	t.execCommand(kindCmdAndArgs, "kind export logs", false, true)
 }
 
 // teardownK8sCluster deletes the KinD cluster
@@ -371,38 +285,6 @@ func (k *kind) teardownK8sCluster(t *testRunner) {
 
 	// Run the command
 	t.execCommand(kindCmdAndArgs, "kind delete cluster", false, true)
-}
-
-// getKubectlCommand builds the kubectl command
-// with necessary kubeconfig and context
-func getKubectlCommand(pr provider) []string {
-	kubectlCmd := []string{"kubectl"}
-
-	switch p := pr.(type) {
-	case *local:
-		// Provider is local
-		kubectlCmd = append(kubectlCmd,
-			"--kubeconfig="+p.kubeconfig)
-	case *kind:
-		// KinD provider
-		kubectlCmd = append(kubectlCmd,
-			"--kubeconfig="+p.kubeconfig,
-			// context that kubectl runs against
-			"--context=kind-"+p.clusterName)
-	}
-
-	return kubectlCmd
-}
-
-// dumpPodInfo dumps the pod details using kubectl describe
-func dumpPodInfo(t *testRunner, namespace, name string) {
-	kubectlCmd := getKubectlCommand(t.p)
-	kubectlCmd = append(kubectlCmd,
-		"--namespace="+namespace,
-		"describe", "pods", name)
-
-	// ignore command exit value
-	t.execCommand(kubectlCmd, "kubectl describe", false, true)
 }
 
 // testRunner is the struct used to run the e2e test
@@ -467,7 +349,8 @@ func (t *testRunner) startSignalHandler() {
 					// no process running - handle it
 					if sig == syscall.SIGINT ||
 						sig == syscall.SIGQUIT ||
-						sig == syscall.SIGTSTP {
+						sig == syscall.SIGTSTP ||
+						sig == syscall.SIGTERM {
 						// Test is being aborted
 						// teardown the cluster and exit
 						t.p.teardownK8sCluster(t)
@@ -567,6 +450,7 @@ func (t *testRunner) getGinkgoTestCommand(suiteDir string) []string {
 // runGinkgoTests runs all the tests using ginkgo
 // It returns true if all tests ran successfully
 func (t *testRunner) runGinkgoTests() bool {
+	log.Println("🔨 Running tests from outside the K8s cluster")
 	suiteDir := filepath.Join(t.testDir, "suites")
 	// get ginkgo command to run specific test suites
 	ginkgoTestCmd := t.getGinkgoTestCommand(suiteDir)
@@ -585,9 +469,152 @@ func (t *testRunner) runGinkgoTests() bool {
 	return false
 }
 
+// newE2ETestPod defines and returns a new e2e-tests pod that runs the given command
+func (t *testRunner) newE2ETestPod(command []string) *v1.Pod {
+	// e2e-tests container to be run inside the pod
+	e2eTestsContainer := v1.Container{
+		// Container name, image used and image pull policy
+		Name:            "e2e-tests-container",
+		Image:           "e2e-tests",
+		ImagePullPolicy: v1.PullNever,
+		// Command that will be run by the container
+		Command: command,
+	}
+
+	e2eTestsPod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			// Pod name and namespace
+			Name:      "e2e-tests-pod",
+			Namespace: "default",
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{e2eTestsContainer},
+			// Service account with necessary RBAC authorization
+			ServiceAccountName: "e2e-tests-service-account",
+			RestartPolicy:      v1.RestartPolicyNever,
+		},
+	}
+
+	return e2eTestsPod
+}
+
+// dumpPodInfo dumps the pod details using kubectl describe
+func (t *testRunner) dumpPodInfo(namespace, name string) {
+	kubectlCmd := append(
+		t.p.getKubectlCommand(),
+		"--namespace="+namespace,
+		"describe", "pods", name)
+
+	// ignore command exit value
+	t.execCommand(kubectlCmd, "kubectl describe", false, true)
+}
+
+// waitForPodToStart waits until all the containers in the given pod are started
+func (t *testRunner) waitForPodToStart(namespace, name string) (podStarted bool) {
+	if err := podutils.WaitForPodToStart(t.p.getClientset(), namespace, name); err != nil {
+		log.Printf(" ❌ Error waiting for the e2e-tests pod to start : %s", err)
+		return false
+	}
+
+	return true
+}
+
+// waitForPodToTerminate waits until all the containers in the given pod are terminated
+func (t *testRunner) waitForPodToTerminate(namespace, name string) (podTerminated bool) {
+	if err := podutils.WaitForPodToTerminate(t.p.getClientset(), namespace, name); err != nil {
+		log.Printf("❌ Error waiting for the e2e-tests pod to terminate : %s", err)
+		return false
+	}
+
+	return true
+}
+
+// runGinkgoTestsInsideK8sCluster runs the tests as a pod in the K8s Cluster
+func (t *testRunner) runGinkgoTestsInsideK8sCluster(ctx context.Context) (success bool) {
+	log.Println("🔨 Running tests from inside the K8s cluster")
+
+	// Get the kubectl command to be used for creating
+	// and monitoring the test and related resources.
+	kubectlCommand := t.p.getKubectlCommand()
+
+	// Create the required RBACs in K8s Cluster
+	e2eArtifacts := filepath.Join(t.testDir, "_config", "k8s-deployment")
+	createE2eTestK8sResources := append(kubectlCommand,
+		"apply", "-f",
+		// e2e-tests artifacts
+		e2eArtifacts,
+	)
+	if !t.execCommand(createE2eTestK8sResources, "kubectl apply", false, true) {
+		log.Println("❌ Failed to create the required RBACs for the e2e tests pod")
+		return false
+	}
+	log.Println("✅ Successfully created the required RBACs for the e2e tests pod")
+
+	// Get the ginkgo command to be run.
+	// By default, all suites under 'e2e-tests/suites' will be run.
+	// If '-suites' flag is passed, the mentioned suites will be run.
+	ginkgoTestCmd := t.getGinkgoTestCommand("e2e-tests/suites")
+
+	// Create a pod that runs the tests using the above command
+	clientset := t.p.getClientset()
+	e2eTestPod := t.newE2ETestPod(ginkgoTestCmd)
+	_, err := clientset.CoreV1().Pods(e2eTestPod.Namespace).Create(ctx, e2eTestPod, metav1.CreateOptions{})
+	if err != nil {
+		log.Printf("❌ Error creating e2e-test pod: %s", err)
+		return false
+	}
+	log.Println("✅ Successfully created the the e2e test pod")
+
+	// Setup defer to clean up pod after completion
+	defer func() {
+		if !success {
+			// Dump pod information to console if there is a failure after this point
+			t.dumpPodInfo(e2eTestPod.Namespace, e2eTestPod.Name)
+		}
+		// delete the e2e test pod
+		err = clientset.CoreV1().Pods(e2eTestPod.Namespace).Delete(ctx, e2eTestPod.Name, metav1.DeleteOptions{})
+		if err != nil {
+			log.Printf("Failed to delete the e2e-test pod : %s", err.Error())
+		}
+	}()
+
+	// Wait for the pods to start
+	if !t.waitForPodToStart(e2eTestPod.Namespace, e2eTestPod.Name) {
+		return false
+	}
+	log.Println("🏃 The e2e tests pod has started running")
+
+	// Redirect pod logs to console
+	log.Println("📃 Redirecting pod logs to console...")
+	// Run 'kubectl logs -f e2e-test-pod'
+	e2eTestPodLogs := append(
+		kubectlCommand,
+		"logs", "-f",
+		// e2e tests pod
+		"--namespace="+e2eTestPod.Namespace,
+		e2eTestPod.Name,
+	)
+	if !t.execCommand(e2eTestPodLogs, "kubectl logs", false, true) {
+		log.Println("❌ Failed to get e2e-tests pod logs.")
+		return false
+	}
+
+	// Wait for the pod to terminate
+	if !t.waitForPodToTerminate(e2eTestPod.Namespace, e2eTestPod.Name) {
+		return false
+	}
+
+	if !podutils.HasPodSucceeded(t.p.getClientset(), e2eTestPod.Namespace, e2eTestPod.Name) {
+		log.Println("❌ There are test failures!")
+		return false
+	}
+	log.Println("😊 All tests ran successfully!")
+	return true
+}
+
 // run executes the complete e2e test
 // It returns true if all tests run successfully
-func (t *testRunner) run() bool {
+func (t *testRunner) run(ctx context.Context) bool {
 	// Choose a provider
 	var p provider
 	if options.useKind {
@@ -614,29 +641,44 @@ func (t *testRunner) run() bool {
 		return false
 	}
 
+	// Some providers require manual loading of images into their nodes.
+	// Load the operator docker image in the K8s Cluster nodes
+	if !p.loadImageIntoK8sCluster(t, "mysql/ndb-operator:latest") {
+		return false
+	}
+
+	if !options.runOutOfCluster {
+		// Load e2e-tests docker image into cluster nodes for in-cluster runs
+		if !p.loadImageIntoK8sCluster(t, "e2e-tests:latest") {
+			return false
+		}
+	}
+
 	// Run the tests
-	if options.inCluster {
-		// run tests as K8s pods inside kind cluster
-		log.Printf("🔨 Running tests from inside the KinD cluster")
-		return p.runGinkgoTestsInsideCluster(t)
-	} else {
+	if options.runOutOfCluster {
 		// run tests as external go application
 		return t.runGinkgoTests()
+	} else {
+		// run tests as K8s pods inside kind cluster
+		return t.runGinkgoTestsInsideK8sCluster(ctx)
 	}
 }
 
 func init() {
 
 	flag.BoolVar(&options.useKind, "use-kind", false,
-		"Use KinD to run the e2e tests.\nBy default, this is disabled and the tests will be run in an existing K8s cluster.")
+		"Use KinD to run the e2e tests.\n"+
+			"By default, this is disabled and the tests will be run in an existing K8s cluster.")
 
 	// use kubeconfig at $HOME/.kube/config as the default
 	defaultKubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
 	flag.StringVar(&options.kubeconfig, "kubeconfig", defaultKubeconfig,
-		"Kubeconfig of the existing K8s cluster to run tests on.\nThis will not be used if '--use-kind' is enabled.")
+		"Kubeconfig of the existing K8s cluster to run tests on.\n"+
+			"This will not be used if '--use-kind' is enabled.")
 
-	flag.BoolVar(&options.inCluster, "in-cluster", false,
-		"Run tests as K8s pod inside cluster.")
+	flag.BoolVar(&options.runOutOfCluster, "run-out-of-cluster", false,
+		"Enable this to run tests from outside the K8s cluster.\n"+
+			"By default, this is not enabled and the tests will be run as a pod from inside K8s Cluster.")
 
 	// use v1.21 as default kind k8s version
 	flag.StringVar(&options.kindK8sVersion, "kind-k8s-version", "1.21",
@@ -682,7 +724,7 @@ func main() {
 	validateCommandlineArgs()
 	t := testRunner{}
 	t.init()
-	if !t.run() {
+	if !t.run(context.Background()) {
 		// exit with status code 1 on cluster setup failure or test failures
 		os.Exit(1)
 	}
