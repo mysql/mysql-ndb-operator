@@ -23,13 +23,13 @@ const (
 
 // CreateNdbCRD creates the Ndb CRD in K8s cluster
 func CreateNdbCRD() {
-	klog.V(2).Infof("Creating Ndb Custom Resource Definition")
+	klog.Infof("Creating Ndb Custom Resource Definition")
 	RunKubectl(CreateCmd, "", yaml_utils.YamlFile("", ndbCRDYaml))
 }
 
 // DeleteNdbCRD deletes the Ndb CRD from K8s cluster
 func DeleteNdbCRD() {
-	klog.V(2).Infof("Deleting Ndb Custom Resource Definition")
+	klog.Infof("Deleting Ndb Custom Resource Definition")
 	RunKubectl(DeleteCmd, "", yaml_utils.YamlFile("", ndbCRDYaml))
 }
 

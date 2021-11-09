@@ -19,16 +19,15 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 )
 
-var _ = ndbtest.DescribeFeature("Datanode configuration", func() {
+var _ = ndbtest.NewTestCase("Datanode configuration", func(tc *ndbtest.TestContext) {
 	var ns string
 	var c clientset.Interface
 	var testNdb *v1alpha1.NdbCluster
 
 	ginkgo.BeforeEach(func() {
-		ginkgo.By("extracting values from framework")
-		f := ndbtest.GetFramework()
-		ns = f.Namespace.Name
-		c = f.ClientSet
+		ginkgo.By("extracting values from TestContext")
+		ns = tc.Namespace()
+		c = tc.K8sClientset()
 
 		ginkgo.By(fmt.Sprintf("Deploying operator in namespace '%s'", ns))
 		ndbtest.DeployNdbOperator(c, ns)

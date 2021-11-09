@@ -8,7 +8,6 @@ import (
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/kubernetes/test/e2e/framework"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
@@ -18,17 +17,16 @@ import (
 	secretutils "github.com/mysql/ndb-operator/e2e-tests/utils/secret"
 )
 
-var _ = ndbtest.DescribeFeature("MySQL Custom cnf", func() {
+var _ = ndbtest.NewTestCase("MySQL Custom cnf", func(tc *ndbtest.TestContext) {
 	var ns string
 	var c clientset.Interface
 	var ndbName, mysqlRootSecretName string
 	var testNdb *v1alpha1.NdbCluster
 
 	ginkgo.BeforeEach(func() {
-		ginkgo.By("extracting values from framework")
-		f := ndbtest.GetFramework()
-		ns = f.Namespace.Name
-		c = f.ClientSet
+		ginkgo.By("extracting values from TestContext")
+		ns = tc.Namespace()
+		c = tc.K8sClientset()
 
 		ginkgo.By("Deploying operator in namespace'" + ns + "'")
 		ndbtest.DeployNdbOperator(c, ns)
@@ -67,7 +65,7 @@ var _ = ndbtest.DescribeFeature("MySQL Custom cnf", func() {
 				row := db.QueryRow(
 					"select variable_value from global_variables where variable_name = 'max_user_connections';")
 				var value int
-				framework.ExpectNoError(row.Scan(&value),
+				ndbtest.ExpectNoError(row.Scan(&value),
 					"querying for max_user_connections returned an error")
 				gomega.Expect(value).To(gomega.Equal(42),
 					"max_user_connections had an unexpected value")
@@ -77,7 +75,7 @@ var _ = ndbtest.DescribeFeature("MySQL Custom cnf", func() {
 				row := db.QueryRow(
 					"select variable_value from global_variables where variable_name = 'log_bin';")
 				var value string
-				framework.ExpectNoError(row.Scan(&value),
+				ndbtest.ExpectNoError(row.Scan(&value),
 					"querying for log_bin returned an error")
 				gomega.Expect(value).To(gomega.Or(gomega.Equal("OFF")),
 					"log_bin has an unexpected value")

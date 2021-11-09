@@ -11,7 +11,7 @@ import (
 )
 
 func Test_NdbBasic(t *testing.T) {
-	ndbtest.RunGinkgoSuite(t, "ndb-basic", "Ndb operator basic", true)
+	ndbtest.RunGinkgoSuite(t, "ndb-basic", "Ndb operator basic", true, true)
 }
 
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {

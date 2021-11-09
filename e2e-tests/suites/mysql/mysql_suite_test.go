@@ -24,5 +24,5 @@ var _ = ginkgo.SynchronizedAfterSuite(func() {
 }, func() {}, 5000)
 
 func Test_NdbBasic(t *testing.T) {
-	ndbtest.RunGinkgoSuite(t, "mysql", "MySQL Server Tests", true)
+	ndbtest.RunGinkgoSuite(t, "mysql", "MySQL Server Tests", true, true)
 }
