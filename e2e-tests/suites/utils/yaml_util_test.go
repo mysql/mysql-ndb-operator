@@ -11,7 +11,7 @@ import (
 	"github.com/onsi/gomega"
 )
 
-var _ = ndbtest.DescribeFeature("Reading yaml from file", func() {
+var _ = ndbtest.NewTestCase("Reading yaml from file", func(*ndbtest.TestContext) {
 	var data string
 	ginkgo.BeforeEach(func() {
 		data = yamlUtils.YamlFile("e2e-tests/_manifests", "prep_test_suite")

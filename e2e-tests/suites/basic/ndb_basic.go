@@ -10,8 +10,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/klog"
-	"k8s.io/kubernetes/test/e2e/framework"
 
 	crd_utils "github.com/mysql/ndb-operator/e2e-tests/utils/crd"
 	deployment_utils "github.com/mysql/ndb-operator/e2e-tests/utils/deployment"
@@ -22,15 +20,14 @@ import (
 	"github.com/onsi/ginkgo"
 )
 
-var _ = ndbtest.DescribeFeature("Ndb basic", func() {
+var _ = ndbtest.NewTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 	var ns string
 	var c clientset.Interface
 
 	ginkgo.BeforeEach(func() {
-		ginkgo.By("extracting values from framework")
-		f := ndbtest.GetFramework()
-		ns = f.Namespace.Name
-		c = f.ClientSet
+		ginkgo.By("extracting values from TestContext")
+		ns = tc.Namespace()
+		c = tc.K8sClientset()
 
 		ginkgo.By(fmt.Sprintf("Deploying operator in namespace '%s'", ns))
 		ndbtest.DeployNdbOperator(c, ns)
@@ -80,11 +77,7 @@ var _ = ndbtest.DescribeFeature("Ndb basic", func() {
 	ginkgo.When("a Ndb with a wrong config is applied", func() {
 		var ndbclient ndbclientset.Interface
 		ginkgo.BeforeEach(func() {
-			var err error
-			ndbclient, err = crd_utils.LoadClientset()
-			if err != nil {
-				klog.Fatal("Error loading client: ", err)
-			}
+			ndbclient = tc.NdbClientset()
 		})
 
 		ginkgo.It("should not return any error", func() {
@@ -92,10 +85,10 @@ var _ = ndbtest.DescribeFeature("Ndb basic", func() {
 
 			ndbobj := crd_utils.NewTestNdbCrd(ns, "test-ndb", 1, 2, 2)
 			_, err = ndbclient.MysqlV1alpha1().NdbClusters(ns).Create(context.TODO(), ndbobj, metav1.CreateOptions{})
-			framework.ExpectNoError(err)
+			ndbtest.ExpectNoError(err)
 
 			err = ndbclient.MysqlV1alpha1().NdbClusters(ns).Delete(context.TODO(), "test-ndb", metav1.DeleteOptions{})
-			framework.ExpectNoError(err)
+			ndbtest.ExpectNoError(err)
 		})
 
 	})

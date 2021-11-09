@@ -16,20 +16,18 @@ import (
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/kubernetes/test/e2e/framework"
 )
 
-var _ = ndbtest.DescribeFeature("MySQL Servers scaling up and down", func() {
+var _ = ndbtest.NewTestCase("MySQL Servers scaling up and down", func(tc *ndbtest.TestContext) {
 	var ns string
 	var c clientset.Interface
 	var ndbName, mysqlRootSecretName string
 	var testNdb *v1alpha1.NdbCluster
 
 	ginkgo.BeforeEach(func() {
-		ginkgo.By("extracting values from framework")
-		f := ndbtest.GetFramework()
-		ns = f.Namespace.Name
-		c = f.ClientSet
+		ginkgo.By("extracting values from TestContext")
+		ns = tc.Namespace()
+		c = tc.K8sClientset()
 
 		ginkgo.By("Deploying operator in namespace'" + ns + "'")
 		ndbtest.DeployNdbOperator(c, ns)
@@ -66,9 +64,9 @@ var _ = ndbtest.DescribeFeature("MySQL Servers scaling up and down", func() {
 				deployment.ExpectHasReplicas(c, testNdb.Namespace, ndbName+"-mysqld", 2)
 				db := mysql.Connect(c, testNdb, "")
 				_, err := db.Exec("create database test")
-				framework.ExpectNoError(err, "create database test failed")
+				ndbtest.ExpectNoError(err, "create database test failed")
 				_, err = db.Exec("create table test.t1 (id int, value char(10)) engine ndb")
-				framework.ExpectNoError(err, "create table t1 failed")
+				ndbtest.ExpectNoError(err, "create table t1 failed")
 			})
 
 			ginkgo.By("scaling up the MySQL Servers", func() {
@@ -80,7 +78,7 @@ var _ = ndbtest.DescribeFeature("MySQL Servers scaling up and down", func() {
 				deployment.ExpectHasReplicas(c, testNdb.Namespace, ndbName+"-mysqld", 5)
 				db := mysql.Connect(c, testNdb, "test")
 				result, err := db.Exec("insert into t1 values (1, 'ndb'), (2, 'operator')")
-				framework.ExpectNoError(err, "insert into t1 failed")
+				ndbtest.ExpectNoError(err, "insert into t1 failed")
 				gomega.Expect(result.RowsAffected()).To(gomega.Equal(int64(2)))
 			})
 
@@ -94,7 +92,7 @@ var _ = ndbtest.DescribeFeature("MySQL Servers scaling up and down", func() {
 				db := mysql.Connect(c, testNdb, "test")
 				row := db.QueryRow("select value from t1 where id = 2")
 				var value string
-				framework.ExpectNoError(row.Scan(&value), "select value from t1 failed")
+				ndbtest.ExpectNoError(row.Scan(&value), "select value from t1 failed")
 				gomega.Expect(value).To(gomega.Equal("operator"),
 					"'select' query returned unexpected value")
 			})

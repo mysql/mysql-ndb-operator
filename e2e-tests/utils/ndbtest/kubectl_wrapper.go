@@ -8,7 +8,6 @@ import (
 	yaml_utils "github.com/mysql/ndb-operator/e2e-tests/utils/yaml"
 	"github.com/onsi/gomega"
 	"k8s.io/klog"
-	"k8s.io/kubernetes/test/e2e/framework"
 	"strings"
 )
 
@@ -18,14 +17,42 @@ const (
 	ApplyCmd  = "apply"
 )
 
+// buildKubectlCmd creates a Cmd for the kubectl command with given arguments
+func buildKubectlCmd(namespace, subCommand, data string, extraArgs ...string) *cmdPro {
+	// Build the kubectl command
+	var kubectlArgs []string
+
+	// Add namespace if not empty
+	if namespace != "" {
+		kubectlArgs = append(kubectlArgs, "--namespace="+namespace)
+	}
+
+	// Append kubeConfig
+	if ndbTestSuite.kubeConfig != "" {
+		kubectlArgs = append(kubectlArgs, "--kubeconfig="+ndbTestSuite.kubeConfig)
+	}
+
+	// Append the subcommand
+	kubectlArgs = append(kubectlArgs, subCommand)
+
+	// Append any additional args
+	kubectlArgs = append(kubectlArgs, extraArgs...)
+
+	// Append "-f -" arg if any input data is being passed
+	kubectlArgs = append(kubectlArgs, "-f", "-")
+
+	return newCmdWithTimeout(ndbTestSuite.kubectlPath, data, kubectlArgs...)
+}
+
 // RunKubectl is a wrapper around framework.RunKubectlInput that additionally expects no error
 func RunKubectl(command, namespace, yamlContent string) string {
 	if command != CreateCmd && command != DeleteCmd && command != ApplyCmd {
 		panic("Unsupported command in getKubectlArgs")
 	}
 
-	result, err := framework.RunKubectlInput(namespace, yamlContent, command, "-n", namespace, "-f", "-")
-	framework.ExpectNoError(err, "RunKubectl failed with an error")
+	// Build and run the command
+	result, _, err := buildKubectlCmd(namespace, command, yamlContent).run()
+	ExpectNoError(err, "RunKubectl failed with an error")
 	klog.V(3).Infof("kubectl executing %s : %s", command, result)
 	return result
 }

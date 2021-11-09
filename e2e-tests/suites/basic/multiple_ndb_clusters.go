@@ -13,7 +13,6 @@ import (
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/kubernetes/test/e2e/framework"
 )
 
 func verifyMySQLCluster(clientset clientset.Interface, testNdbCluster *v1alpha1.NdbCluster) {
@@ -25,23 +24,22 @@ func verifyMySQLCluster(clientset clientset.Interface, testNdbCluster *v1alpha1.
 		db := mysql.Connect(clientset, testNdbCluster, "")
 		row := db.QueryRow("select support from information_schema.engines where engine = 'ndbcluster'")
 		var value string
-		framework.ExpectNoError(row.Scan(&value), "select support from information_schema.engines failed")
+		ndbtest.ExpectNoError(row.Scan(&value), "select support from information_schema.engines failed")
 		gomega.Expect(value).To(gomega.Equal("YES"),
 			"MySQL Server does not have support for NDBCLUSTER engine.")
 	})
 }
 
-var _ = ndbtest.DescribeFeature("Multiple NDB Clusters maintained by a single NDB Operator", func() {
+var _ = ndbtest.NewTestCase("Multiple NDB Clusters maintained by a single NDB Operator", func(tc *ndbtest.TestContext) {
 	var ns string
 	var c clientset.Interface
 	var numOfNdbClusters int
 	var testNdbClusters []*v1alpha1.NdbCluster
 
 	ginkgo.BeforeEach(func() {
-		ginkgo.By("extracting values from framework")
-		f := ndbtest.GetFramework()
-		ns = f.Namespace.Name
-		c = f.ClientSet
+		ginkgo.By("extracting values from TestContext")
+		ns = tc.Namespace()
+		c = tc.K8sClientset()
 		numOfNdbClusters = 2
 
 		ginkgo.By(fmt.Sprintf("Deploying operator in namespace '%s'", ns), func() {

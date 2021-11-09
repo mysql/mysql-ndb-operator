@@ -15,16 +15,15 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 )
 
-var _ = ginkgo.Describe("Setting/Resetting MySQL Spec to nil", func() {
+var _ = ndbtest.NewTestCase("Setting/Resetting MySQL Spec to nil", func(tc *ndbtest.TestContext) {
 	var ns, ndbName string
 	var c clientset.Interface
 	var testNdb *v1alpha1.NdbCluster
 
 	ginkgo.BeforeEach(func() {
-		ginkgo.By("extracting values from framework")
-		f := ndbtest.GetFramework()
-		ns = f.Namespace.Name
-		c = f.ClientSet
+		ginkgo.By("extracting values from TestContext")
+		ns = tc.Namespace()
+		c = tc.K8sClientset()
 
 		ginkgo.By("Deploying operator in namespace'" + ns + "'")
 		ndbtest.DeployNdbOperator(c, ns)

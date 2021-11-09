@@ -5,25 +5,13 @@
 package yaml
 
 import (
-	"os"
+	"github.com/mysql/ndb-operator/e2e-tests/utils/testfiles"
 	"path/filepath"
-
-	"k8s.io/klog"
-
-	"k8s.io/kubernetes/test/e2e/framework"
-	"k8s.io/kubernetes/test/e2e/framework/testfiles"
 )
 
-// YamlFile reads the content of a single yamle file as string
-// Read happens from a test files path which needs to first
-// be registered with testfiles.AddFileSource()
+// YamlFile reads the content of a single yaml file as string
 func YamlFile(path, file string) string {
 	from := filepath.Join(path, file+".yaml")
-	data, err := testfiles.Read(from)
-	if err != nil {
-		dir, _ := os.Getwd()
-		klog.Infof("Maybe in wrong directory %s", dir)
-		framework.Fail(err.Error())
-	}
+	data := testfiles.ReadTestFile(from)
 	return string(data)
 }
