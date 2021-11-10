@@ -1,3 +1,4 @@
+//go:build tools
 // +build tools
 
 // Copyright (c) 2020, 2021, Oracle and/or its affiliates.
@@ -8,7 +9,8 @@
 package tools
 
 import (
-  _ "k8s.io/code-generator"
-  _ "sigs.k8s.io/controller-tools/cmd/controller-gen"
-  _ "sigs.k8s.io/kind"
+	_ "github.com/onsi/ginkgo/ginkgo"
+	_ "k8s.io/code-generator"
+	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
+	_ "sigs.k8s.io/kind"
 )
