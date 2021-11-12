@@ -13,13 +13,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
-
-	e2edeployment "k8s.io/kubernetes/test/e2e/framework/deployment"
-
-	deploymentutil "k8s.io/kubernetes/pkg/controller/deployment/util"
 )
 
 const (
@@ -28,20 +23,14 @@ const (
 	pollTimeout  = 5 * time.Minute
 )
 
-// CreateDeploymentFromSpec creates a deployment.
-// copied from k8s.io/kubernetes@v1.18.2/test/e2e/framework/deployment/fixtures.go
-// but using own deployment instead
-func CreateDeploymentFromSpec(client clientset.Interface, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
-	deployment, err := client.AppsV1().Deployments(deployment.Namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("deployment %q Create API error: %v", deployment.Name, err)
-	}
-	klog.V(1).Infof("Waiting deployment %q to complete", deployment.Name)
-	err = e2edeployment.WaitForDeploymentComplete(client, deployment)
-	if err != nil {
-		return nil, fmt.Errorf("deployment %q failed to complete: %v", deployment.Name, err)
-	}
-	return deployment, nil
+// deploymentComplete considers a deployment to be complete
+// once all of its desired replicas are updated and available,
+// and no old pods are running.
+func deploymentComplete(deployment *appsv1.Deployment) bool {
+	return deployment.Status.UpdatedReplicas == *(deployment.Spec.Replicas) &&
+		deployment.Status.Replicas == *(deployment.Spec.Replicas) &&
+		deployment.Status.AvailableReplicas == *(deployment.Spec.Replicas) &&
+		deployment.Status.ObservedGeneration >= deployment.Generation
 }
 
 // WaitForDeploymentComplete waits for the deployment to complete.
@@ -63,7 +52,7 @@ func WaitForDeploymentComplete(c clientset.Interface, namespace, name string) er
 		}
 
 		// When the deployment status and its underlying resources reach the desired state, we're done
-		if deploymentutil.DeploymentComplete(deployment, &deployment.Status) {
+		if deploymentComplete(deployment) {
 			return true, nil
 		}
 

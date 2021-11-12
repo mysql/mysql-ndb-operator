@@ -7,13 +7,13 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	k8s "k8s.io/client-go/kubernetes"
-	admissionregistrationv1 "k8s.io/client-go/kubernetes/typed/admissionregistration/v1"
+	typedadmissionregistrationv1 "k8s.io/client-go/kubernetes/typed/admissionregistration/v1"
 	"k8s.io/klog"
-	"k8s.io/kubernetes/pkg/apis/admissionregistration"
 )
 
 // WebhookConfigController defines a webhookConfig control interface
@@ -23,7 +23,7 @@ type WebhookConfigController interface {
 
 // validatingWebhookConfigController implements WebhookConfigController for ValidatingWebhookConfigs
 type validatingWebhookConfigController struct {
-	vwcInterface admissionregistrationv1.ValidatingWebhookConfigurationInterface
+	vwcInterface typedadmissionregistrationv1.ValidatingWebhookConfigurationInterface
 }
 
 // NewValidatingWebhookConfigController creates and returns a new validatingWebhookConfigController
@@ -67,7 +67,7 @@ func (c *validatingWebhookConfigController) UpdateWebhookConfigCertificate(
 			return false
 		}
 		patch, err := strategicpatch.CreateTwoWayMergePatch(
-			existingJSON, updatedJSON, admissionregistration.ValidatingWebhookConfiguration{})
+			existingJSON, updatedJSON, admissionregistrationv1.ValidatingWebhookConfiguration{})
 		if err != nil {
 			klog.Error("Failed to generate the patch to be applied : ", err)
 			return false

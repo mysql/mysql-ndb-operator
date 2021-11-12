@@ -10,8 +10,8 @@ import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/mgmapi"
 	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/kubernetes/test/e2e/framework"
 )
 
 // ConnectToMgmd connects to a Management Server of the MySQL Cluster
@@ -21,7 +21,7 @@ func ConnectToMgmd(clientset kubernetes.Interface, ndb *v1alpha1.NdbCluster) mgm
 	serviceName := ndb.GetServiceName("mgmd") + "-ext"
 	host, port := service.GetServiceAddressAndPort(clientset, ndb.Namespace, serviceName)
 	mgmClient, err := mgmapi.NewMgmClient(fmt.Sprintf("%s:%d", host, port))
-	framework.ExpectNoError(err)
+	gomega.Expect(err).Should(gomega.Succeed())
 	return mgmClient
 }
 
@@ -36,7 +36,7 @@ func ForEachConnectedNodes(
 
 	// Get Cluster Status
 	cs, err := mgmClient.GetStatus()
-	framework.ExpectNoError(err)
+	gomega.Expect(err).Should(gomega.Succeed())
 	// Run the test on desired nodes
 	for _, node := range cs {
 		if node.IsConnected && node.NodeType == nodeType {
