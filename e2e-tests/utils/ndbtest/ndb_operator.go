@@ -12,7 +12,6 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
-	"k8s.io/kubernetes/test/e2e/framework"
 )
 
 const (
@@ -69,7 +68,7 @@ func DeployNdbOperator(clientset kubernetes.Interface, namespace string) {
 	// wait for ndb operator deployment to come up
 	ginkgo.By("Waiting for ndb-operator deployment to complete")
 	err := deployment_utils.WaitForDeploymentComplete(clientset, namespace, "ndb-operator")
-	framework.ExpectNoError(err)
+	ExpectNoError(err)
 }
 
 // UndeployNdbOperator deletes the Ndb operator and the associated cluster roles from k8s
@@ -82,5 +81,5 @@ func UndeployNdbOperator(clientset kubernetes.Interface, namespace string) {
 	// wait for ndb operator deployment to disappear
 	ginkgo.By("Waiting for ndb-operator deployment to disappear")
 	err := deployment_utils.WaitForDeploymentToDisappear(clientset, namespace, "ndb-operator")
-	framework.ExpectNoError(err)
+	ExpectNoError(err)
 }

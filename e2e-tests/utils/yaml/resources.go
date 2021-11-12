@@ -7,9 +7,9 @@ package yaml
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	"gopkg.in/yaml.v2"
-	"k8s.io/kubernetes/test/e2e/framework"
 	"strings"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
@@ -85,7 +85,7 @@ func ExtractObjectsFromYaml(path, filename string, k8sObjects []K8sObject, ns st
 			errorMsg = append(errorMsg, fmt.Sprintf(
 				"Requested resource '%s' with kind '%s' and version '%s' not found", res[0], res[1], res[2]))
 		}
-		framework.Fail(strings.Join(errorMsg, "\n"))
+		ginkgo.Fail(strings.Join(errorMsg, "\n"))
 	}
 
 	// Return the docs as a single yaml string
@@ -99,13 +99,13 @@ func MarshalNdb(ndb *v1alpha1.NdbCluster) []byte {
 	// back to a map to get the yaml in right format.
 	// TODO: Find a better solution or update Ndb flags.
 	b, err := json.Marshal(ndb)
-	framework.ExpectNoError(err, "MarshalNdb failed")
+	gomega.Expect(err).Should(gomega.Succeed(), "MarshalNdb failed")
 
 	var data map[string]interface{}
 	err = json.Unmarshal(b, &data)
-	framework.ExpectNoError(err, "MarshalNdb failed")
+	gomega.Expect(err).Should(gomega.Succeed(), "MarshalNdb failed")
 
 	yamlContent, err := yaml.Marshal(data)
-	framework.ExpectNoError(err, "MarshalNdb failed")
+	gomega.Expect(err).Should(gomega.Succeed(), "MarshalNdb failed")
 	return yamlContent
 }

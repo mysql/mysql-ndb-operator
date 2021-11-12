@@ -15,7 +15,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/kubernetes/test/e2e/framework"
 )
 
 const (
@@ -34,12 +33,12 @@ func CreateSecretForMySQLRootAccount(clientset kubernetes.Interface, secretName,
 	}
 
 	_, err := clientset.CoreV1().Secrets(namespace).Create(context.TODO(), rootPassSecret, metav1.CreateOptions{})
-	framework.ExpectNoError(err, "failed to create the custom secret")
+	gomega.Expect(err).Should(gomega.Succeed(), "failed to create the custom secret")
 }
 
 func DeleteSecret(clientset kubernetes.Interface, secretName, namespace string) {
 	err := clientset.CoreV1().Secrets(namespace).Delete(context.TODO(), secretName, metav1.DeleteOptions{})
-	framework.ExpectNoError(err, "failed to delete the custom secret")
+	gomega.Expect(err).Should(gomega.Succeed(), "failed to delete the custom secret")
 }
 
 // GetMySQLRootPassword returns the root password for the MySQL Servers maintained by the given NdbCluster.
@@ -49,7 +48,7 @@ func GetMySQLRootPassword(ctx context.Context, clientset kubernetes.Interface, n
 	// Retrieve the Secret
 	secretName, _ := resources.GetMySQLRootPasswordSecretName(nc)
 	secret, err := clientset.CoreV1().Secrets(nc.Namespace).Get(ctx, secretName, metav1.GetOptions{})
-	framework.ExpectNoError(err, "failed to retrieve the MySQL root password secret")
+	gomega.Expect(err).Should(gomega.Succeed(), "failed to retrieve the MySQL root password secret")
 
 	// Extract the password
 	password := secret.Data[v1.BasicAuthPasswordKey]

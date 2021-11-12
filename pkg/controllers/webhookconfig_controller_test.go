@@ -59,19 +59,25 @@ func generateExpectedPatch(
 
 	// Build the webhook config diff
 	var webhooks []v1.ValidatingWebhook
+	var webhookNames []map[string]string
 	for i := uint(0); i < numberOfWebhooks; i++ {
+		webHookName := fmt.Sprintf("webhook%d", i+1)
 		webhooks = append(webhooks, v1.ValidatingWebhook{
-			Name: fmt.Sprintf("webhook%d", i+1),
+			Name: webHookName,
 			ClientConfig: v1.WebhookClientConfig{
-				Service: &v1.ServiceReference{
-					Namespace: "default",
-					Name:      serviceName,
-				},
 				CABundle: cert,
 			},
+			AdmissionReviewVersions: nil,
+			SideEffects:             nil,
+		})
+		webhookNames = append(webhookNames, map[string]string{
+			"name": webHookName,
 		})
 	}
-	diff := map[string]interface{}{"webhooks": webhooks}
+	diff := map[string]interface{}{
+		"$setElementOrder/webhooks": webhookNames,
+		"webhooks":                  webhooks,
+	}
 
 	// Generate the patch for the change
 	patch, err := json.Marshal(diff)
@@ -79,9 +85,16 @@ func generateExpectedPatch(
 		t.Fatal("Failed to marshal diff :", err)
 	}
 
-	// Re-marshal to sort all the json keys
+	// Re-marshal to sort all the json keys and
+	// delete the keys that will not be in the patch.
 	var ifce interface{}
 	_ = json.Unmarshal(patch, &ifce)
+	webhooksArr := ifce.(map[string]interface{})["webhooks"].([]interface{})
+	for _, webhookIfce := range webhooksArr {
+		webhook := webhookIfce.(map[string]interface{})
+		delete(webhook, "admissionReviewVersions")
+		delete(webhook, "sideEffects")
+	}
 	patch, _ = json.Marshal(ifce)
 
 	return patch

@@ -16,22 +16,21 @@ import (
 	"github.com/onsi/ginkgo"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
-	"k8s.io/kubernetes/test/e2e/framework"
 )
 
 // waitForNdbSync waits for a ReasonSyncSuccess event to occur
 func waitForNdbSync(clientset kubernetes.Interface, namespace string, lastKnownEventResourceVersion string) {
 	err := event_utils.WaitForEvent(clientset, namespace, controllers.ReasonSyncSuccess, lastKnownEventResourceVersion)
-	framework.ExpectNoError(err, "timed out waiting for operator to send sync event")
+	ExpectNoError(err, "timed out waiting for operator to send sync event")
 }
 
 func waitForNdbDelete(clientset kubernetes.Interface, namespace, ndbName string) {
 	err := sfset_utils.WaitForStatefulSetToDisappear(clientset, namespace, ndbName+"-ndbd")
-	framework.ExpectNoError(err, "timed out waiting for ndb statefulset to disappear")
+	ExpectNoError(err, "timed out waiting for ndb statefulset to disappear")
 	err = sfset_utils.WaitForStatefulSetToDisappear(clientset, namespace, ndbName+"-mgmd")
-	framework.ExpectNoError(err, "timed out waiting for mgmd statefulset to disappear")
+	ExpectNoError(err, "timed out waiting for mgmd statefulset to disappear")
 	err = deployment_utils.WaitForDeploymentToDisappear(clientset, namespace, ndbName+"-mysqld")
-	framework.ExpectNoError(err, "timed out waiting for mysqld deployment to disappear")
+	ExpectNoError(err, "timed out waiting for mysqld deployment to disappear")
 }
 
 // KubectlApplyNdbYaml creates/updates an Ndb K8s object from the given file

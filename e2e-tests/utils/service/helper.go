@@ -10,14 +10,13 @@ import (
 	"github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/kubernetes/test/e2e/framework"
 )
 
 func GetServiceAddressAndPort(
 	clientset kubernetes.Interface, namespace string, serviceName string) (string, int32) {
 	svc, err := clientset.CoreV1().Services(namespace).Get(
 		context.TODO(), serviceName, metav1.GetOptions{})
-	framework.ExpectNoError(err)
+	gomega.Expect(err).Should(gomega.Succeed())
 
 	svcAddress, svcPort := helpers.GetServiceAddressAndPort(svc)
 	gomega.Expect(svcAddress).NotTo(gomega.BeEmpty(), "service address should not be empty")

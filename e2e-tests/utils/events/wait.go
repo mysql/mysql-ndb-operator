@@ -7,13 +7,13 @@ package event_utils
 import (
 	"context"
 	"errors"
+	"github.com/onsi/gomega"
 	"time"
 
 	v1 "k8s.io/api/events/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/kubernetes/test/e2e/framework"
 )
 
 const (
@@ -32,7 +32,7 @@ func GetLastKnownEventResourceVersion(clientset clientset.Interface, namespace s
 			"reportingController": "ndb-controller",
 		}.String(),
 	})
-	framework.ExpectNoError(err, "failed to list all events")
+	gomega.Expect(err).Should(gomega.Succeed(), "failed to list all events")
 
 	numOfEvents := len(eventList.Items)
 	if numOfEvents == 0 {
