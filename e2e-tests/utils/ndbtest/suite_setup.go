@@ -92,12 +92,18 @@ func newClientsets(t *testing.T) (kubernetes.Interface, ndbclient.Interface) {
 // RunGinkgoSuite sets up a ginkgo suite, and then starts
 // running the test specs. This needs to be called only
 // once from a suite inside a golang test method to start
-// the tests.
+// the tests. The list of CRD that needs to be installed
+// before starting the suite can be passed via crdList.
+// The CRD path needs to be relative to the project root
+// directory.
 // example :
 //  func Test_NdbBasic(t *testing.T) {
 //	  framework.RunGinkgoSuite(t, "ndb-basic", "Ndb operator basic", true, true)
 //  }
-func RunGinkgoSuite(t *testing.T, suiteName, description string, createClientsets, createNamespace bool) {
+func RunGinkgoSuite(
+	t *testing.T, suiteName, description string,
+	createClientsets, createNamespace bool,
+	crdList []string) {
 	if ndbTestSuite.setupDone {
 		panic("RunGinkgoSuite should be called only once within a suite")
 	}
@@ -131,6 +137,9 @@ func RunGinkgoSuite(t *testing.T, suiteName, description string, createClientset
 		// Create k8s clientsets
 		ndbTestSuite.clientset, ndbTestSuite.ndbClientset = newClientsets(t)
 	}
+
+	// Register Before/AfterSuite methods
+	setupBeforeAfterSuite(crdList)
 
 	ndbTestSuite.ctx = context.Background()
 	ndbTestSuite.setupDone = true

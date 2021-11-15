@@ -15,22 +15,9 @@ import (
 )
 
 const (
-	ndbCRDYaml          = "deploy/charts/ndb-operator/crds/mysql.oracle.com_ndbclusters"
 	installYamlPath     = "deploy/manifests"
 	installYamlFilename = "ndb-operator"
 )
-
-// CreateNdbCRD creates the Ndb CRD in K8s cluster
-func CreateNdbCRD() {
-	klog.Infof("Creating Ndb Custom Resource Definition")
-	RunKubectl(CreateCmd, "", yaml_utils.YamlFile("", ndbCRDYaml))
-}
-
-// DeleteNdbCRD deletes the Ndb CRD from K8s cluster
-func DeleteNdbCRD() {
-	klog.Infof("Deleting Ndb Custom Resource Definition")
-	RunKubectl(DeleteCmd, "", yaml_utils.YamlFile("", ndbCRDYaml))
-}
 
 // required resources for ndb operator
 var ndbOperatorResources = []yaml_utils.K8sObject{

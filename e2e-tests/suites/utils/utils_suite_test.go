@@ -10,5 +10,6 @@ import (
 )
 
 func Test_Util(t *testing.T) {
-	ndbtest.RunGinkgoSuite(t, "utils-suite", "Utils test suite", false, false)
+	ndbtest.RunGinkgoSuite(t, "utils-suite", "Utils test suite",
+		false, false, nil)
 }

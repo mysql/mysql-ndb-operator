@@ -6,7 +6,9 @@ package ndbtest
 
 import (
 	"fmt"
+	"github.com/mysql/ndb-operator/e2e-tests/utils/testfiles"
 	"github.com/onsi/ginkgo"
+	"path/filepath"
 )
 
 // NewTestCase is a wrapper around the ginkgo.Describe block with
@@ -36,4 +38,28 @@ func NewTestCase(name string, body func(tc *TestContext)) bool {
 		// Run the body
 		body(tc)
 	})
+}
+
+// setupBeforeAfterSuite registers Before and After Suite
+// methods for the current Suite. Any CRD requested by the
+// suite is created and cleaned up by these methods.
+func setupBeforeAfterSuite(crdList []string) {
+	// Setup BeforeSuite for the suite
+	ginkgo.SynchronizedBeforeSuite(func() []byte {
+		// Install all the CRDs passed via crdList before starting the suite
+		for _, crdPath := range crdList {
+			ginkgo.By(fmt.Sprintf("Creating CRD from %s", filepath.Base(crdPath)))
+			RunKubectl(CreateCmd, "", string(testfiles.ReadTestFile(crdPath)))
+		}
+		return nil
+	}, func([]byte) {}, 600)
+
+	// Setup AfterSuite for the suite
+	ginkgo.SynchronizedAfterSuite(func() {
+		// Install all the CRDs passed via crdList before starting the suite
+		for _, crdPath := range crdList {
+			ginkgo.By(fmt.Sprintf("Deleting CRD from %s", filepath.Base(crdPath)))
+			RunKubectl(DeleteCmd, "", string(testfiles.ReadTestFile(crdPath)))
+		}
+	}, func() {}, 600)
 }
