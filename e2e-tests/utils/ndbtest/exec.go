@@ -13,11 +13,6 @@ import (
 	"time"
 )
 
-const (
-	// default timeout for the commands
-	cmdTimeout = 10 * time.Second
-)
-
 // cmdPro is a wrapper around exec.Cmd
 type cmdPro struct {
 	cmd       *exec.Cmd
@@ -25,10 +20,15 @@ type cmdPro struct {
 	ctxCancel context.CancelFunc
 }
 
-// newCmdWithTimeout returns a CmdPro with a 10s timeout
-func newCmdWithTimeout(name, data string, args ...string) *cmdPro {
-	// Create a context with a 10s timeout
-	ctx, cancel := context.WithTimeout(context.Background(), cmdTimeout)
+// newCmdWithTimeout defines a new Cmd with the given timeout
+func newCmdWithTimeout(name, data string, timeout time.Duration, args ...string) *cmdPro {
+
+	if timeout == 0 {
+		panic("cannot set 0 as the timeout for the " + name + " command")
+	}
+
+	// Create a context with given timeout
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 
 	// Build the command
 	cmd := exec.CommandContext(ctx, name, args...)
@@ -68,10 +68,10 @@ func (cp *cmdPro) run() (stdout, stderr string, err error) {
 
 	// Send the stdout/stderr to klog
 	if stdoutBytes.Len() > 0 {
-		klog.Infof("Command stdout : %q", stdoutBytes.String())
+		klog.Infof("Command stdout : \n%s", stdoutBytes.String())
 	}
 	if stderrBytes.Len() > 0 {
-		klog.Infof("Command stderr : %q", stderrBytes.String())
+		klog.Infof("Command stderr : \n%s", stderrBytes.String())
 	}
 
 	return stdoutBytes.String(), stderrBytes.String(), err

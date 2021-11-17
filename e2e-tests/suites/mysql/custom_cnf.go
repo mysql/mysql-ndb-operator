@@ -27,14 +27,6 @@ var _ = ndbtest.NewTestCase("MySQL Custom cnf", func(tc *ndbtest.TestContext) {
 		ginkgo.By("extracting values from TestContext")
 		ns = tc.Namespace()
 		c = tc.K8sClientset()
-
-		ginkgo.By("Deploying operator in namespace'" + ns + "'")
-		ndbtest.DeployNdbOperator(c, ns)
-	})
-
-	ginkgo.AfterEach(func() {
-		ginkgo.By("Deleting ndb operator and other resources")
-		ndbtest.UndeployNdbOperator(c, ns)
 	})
 
 	ginkgo.When("a custom cnf property is specified for MySQL Server", func() {

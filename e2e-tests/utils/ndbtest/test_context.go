@@ -29,6 +29,8 @@ type TestContext struct {
 	k8sClientset kubernetes.Interface
 	ndbClientset ndbclient.Interface
 	initDone     bool
+	// bool flag to track if Ndb Operator was successfully installed
+	ndbOperatorInstalled bool
 }
 
 // newTestContext returns a new TestContext
@@ -96,6 +98,9 @@ func (tc *TestContext) init(suiteName string) {
 	}
 
 	tc.initDone = true
+
+	// Reset ndbOperatorInstalled flag
+	tc.ndbOperatorInstalled = false
 }
 
 // cleanup deletes the namespace created by the init method.

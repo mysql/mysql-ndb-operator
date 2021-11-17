@@ -9,6 +9,7 @@ import (
 	"github.com/onsi/gomega"
 	"k8s.io/klog"
 	"strings"
+	"time"
 )
 
 const (
@@ -41,7 +42,7 @@ func buildKubectlCmd(namespace, subCommand, data string, extraArgs ...string) *c
 	// Append "-f -" arg if any input data is being passed
 	kubectlArgs = append(kubectlArgs, "-f", "-")
 
-	return newCmdWithTimeout(ndbTestSuite.kubectlPath, data, kubectlArgs...)
+	return newCmdWithTimeout(ndbTestSuite.kubectlPath, data, 1*time.Minute, kubectlArgs...)
 }
 
 // RunKubectl is a wrapper around framework.RunKubectlInput that additionally expects no error

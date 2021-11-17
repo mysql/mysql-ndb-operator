@@ -24,14 +24,6 @@ var _ = ndbtest.NewTestCase("Setting/Resetting MySQL Spec to nil", func(tc *ndbt
 		ginkgo.By("extracting values from TestContext")
 		ns = tc.Namespace()
 		c = tc.K8sClientset()
-
-		ginkgo.By("Deploying operator in namespace'" + ns + "'")
-		ndbtest.DeployNdbOperator(c, ns)
-	})
-
-	ginkgo.AfterEach(func() {
-		ginkgo.By("Deleting ndb operator and other resources")
-		ndbtest.UndeployNdbOperator(c, ns)
 	})
 
 	ginkgo.AfterEach(func() {

@@ -44,7 +44,9 @@ func IsValidConfig(newNdb *ndbv1alpha1.NdbCluster, oldNdb *ndbv1alpha1.NdbCluste
 		}
 
 		// do not allow updating Spec.Mysqld.RootHost
-		if newNdb.Spec.Mysqld != nil && (oldNdb.Spec.Mysqld.RootHost != newNdb.Spec.Mysqld.RootHost) {
+		if oldNdb.Spec.Mysqld != nil &&
+			newNdb.Spec.Mysqld != nil &&
+			(oldNdb.Spec.Mysqld.RootHost != newNdb.Spec.Mysqld.RootHost) {
 			errList = append(errList,
 				field.Invalid(mysqldPath.Child("rootHost"), newNdb.Spec.Mysqld.RootHost,
 					"spec.mysqld.rootHost cannot be updated once MySQL Cluster has been started"))

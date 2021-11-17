@@ -5,13 +5,12 @@
 package util
 
 import (
-	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	yamlUtils "github.com/mysql/ndb-operator/e2e-tests/utils/yaml"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 )
 
-var _ = ndbtest.NewTestCase("Reading yaml from file", func(*ndbtest.TestContext) {
+var _ = ginkgo.Describe("Reading yaml from file", func() {
 	var data string
 	ginkgo.BeforeEach(func() {
 		data = yamlUtils.YamlFile("e2e-tests/_manifests", "prep_test_suite")

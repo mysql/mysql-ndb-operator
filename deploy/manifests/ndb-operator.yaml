@@ -473,6 +473,9 @@ spec:
   selector:
     matchLabels:
       app: ndb-operator-webhook-server
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
   template:
     metadata:
       labels:
@@ -508,6 +511,9 @@ spec:
   selector:
     matchLabels:
       app: ndb-operator
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
   template:
     metadata:
       labels:

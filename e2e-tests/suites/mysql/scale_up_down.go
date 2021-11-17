@@ -19,6 +19,7 @@ import (
 )
 
 var _ = ndbtest.NewTestCase("MySQL Servers scaling up and down", func(tc *ndbtest.TestContext) {
+
 	var ns string
 	var c clientset.Interface
 	var ndbName, mysqlRootSecretName string
@@ -28,14 +29,6 @@ var _ = ndbtest.NewTestCase("MySQL Servers scaling up and down", func(tc *ndbtes
 		ginkgo.By("extracting values from TestContext")
 		ns = tc.Namespace()
 		c = tc.K8sClientset()
-
-		ginkgo.By("Deploying operator in namespace'" + ns + "'")
-		ndbtest.DeployNdbOperator(c, ns)
-	})
-
-	ginkgo.AfterEach(func() {
-		ginkgo.By("Deleting ndb operator and other resources")
-		ndbtest.UndeployNdbOperator(c, ns)
 	})
 
 	ginkgo.When("mysqld.nodeCount is updated", func() {

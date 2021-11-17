@@ -8,21 +8,34 @@ package testfiles
 
 import (
 	"fmt"
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
 	"io/ioutil"
+	"k8s.io/klog"
 	"path/filepath"
+	"runtime"
 )
 
-const (
-	root = "../../.."
-)
+// project root directory
+var root string
+
+func init() {
+	var _, filename, _, _ = runtime.Caller(0)
+	// This file is at project-root/e2e-tests/utils/testfiles
+	root = filepath.Join(filepath.Dir(filename), "../../..")
+	klog.Infof("Project root directory at %q", root)
+}
+
+// GetAbsPath returns the absolute path of the given
+// path that was relative to the project root directory.
+func GetAbsPath(path string) string {
+	return filepath.Join(root, path)
+}
 
 // ReadTestFile looks for the file relative to the configured root directory.
 func ReadTestFile(filePath string) []byte {
 	fullPath := filepath.Join(root, filePath)
 	data, err := ioutil.ReadFile(fullPath)
-	if err != nil {
-		ginkgo.Fail(fmt.Sprintf("Failed to read file %q : %v", filePath, err), 1)
-	}
+	gomega.ExpectWithOffset(1, err).Should(
+		gomega.Succeed(), fmt.Sprintf("Failed to read file %q", filePath))
 	return data
 }
