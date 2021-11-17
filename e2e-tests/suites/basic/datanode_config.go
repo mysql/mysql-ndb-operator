@@ -5,7 +5,6 @@
 package e2e
 
 import (
-	"fmt"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 
@@ -28,14 +27,6 @@ var _ = ndbtest.NewTestCase("Datanode configuration", func(tc *ndbtest.TestConte
 		ginkgo.By("extracting values from TestContext")
 		ns = tc.Namespace()
 		c = tc.K8sClientset()
-
-		ginkgo.By(fmt.Sprintf("Deploying operator in namespace '%s'", ns))
-		ndbtest.DeployNdbOperator(c, ns)
-	})
-
-	ginkgo.AfterEach(func() {
-		ginkgo.By("Deleting mgmclient operator and other resources")
-		ndbtest.UndeployNdbOperator(c, ns)
 	})
 
 	ginkgo.When("the data memory is specified in Ndb resource", func() {

@@ -23,12 +23,21 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - secrets
   - serviceaccounts
   verbs:
   - create
   - delete
   - get
+
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - create
+  - delete
 
 - apiGroups:
   - ""
@@ -46,6 +55,17 @@ rules:
   - ""
   resources:
   - configmaps
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - create
@@ -54,6 +74,7 @@ rules:
   - patch
   - update
   - watch
+  - delete
 
 - apiGroups:
   - ""
@@ -92,6 +113,13 @@ rules:
   - watch
 
 - apiGroups:
+  - apps
+  resources:
+  - replicasets
+  verbs:
+  - list
+
+- apiGroups:
   - policy
   resources:
   - podsecuritypolicies
@@ -119,6 +147,17 @@ rules:
   - delete
   - get
   - patch
+
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - validatingwebhookconfigurations
+  verbs:
+  - get
+  - list
+  - patch
+  - create
+  - delete
 
 - apiGroups:
   - mysql.oracle.com

@@ -41,16 +41,6 @@ var _ = ndbtest.NewTestCase("Multiple NDB Clusters maintained by a single NDB Op
 		ns = tc.Namespace()
 		c = tc.K8sClientset()
 		numOfNdbClusters = 2
-
-		ginkgo.By(fmt.Sprintf("Deploying operator in namespace '%s'", ns), func() {
-			ndbtest.DeployNdbOperator(c, ns)
-		})
-	})
-
-	ginkgo.AfterEach(func() {
-		ginkgo.By("Deleting ndb operator and other resources", func() {
-			ndbtest.UndeployNdbOperator(c, ns)
-		})
 	})
 
 	ginkgo.When("Multiple NdbCluster objects are created", func() {

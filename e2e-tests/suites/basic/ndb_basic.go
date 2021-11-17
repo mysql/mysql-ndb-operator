@@ -6,8 +6,7 @@ package e2e
 
 import (
 	"context"
-	"fmt"
-
+	"github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 
@@ -28,14 +27,6 @@ var _ = ndbtest.NewTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 		ginkgo.By("extracting values from TestContext")
 		ns = tc.Namespace()
 		c = tc.K8sClientset()
-
-		ginkgo.By(fmt.Sprintf("Deploying operator in namespace '%s'", ns))
-		ndbtest.DeployNdbOperator(c, ns)
-	})
-
-	ginkgo.AfterEach(func() {
-		ginkgo.By("Deleting ndb operator and other resources")
-		ndbtest.UndeployNdbOperator(c, ns)
 	})
 
 	/*
@@ -70,25 +61,21 @@ var _ = ndbtest.NewTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 		})
 	})
 
-	/*
-		Test to see that we correctly handle most common errors
-		- less nodes than replicas
-	*/
+	// TODO: Move this into a separate testcase and add more validation tests
 	ginkgo.When("a Ndb with a wrong config is applied", func() {
 		var ndbclient ndbclientset.Interface
 		ginkgo.BeforeEach(func() {
 			ndbclient = tc.NdbClientset()
 		})
 
-		ginkgo.It("should not return any error", func() {
+		ginkgo.It("should return an error", func() {
 			var err error
 
 			ndbobj := crd_utils.NewTestNdbCrd(ns, "test-ndb", 1, 2, 2)
 			_, err = ndbclient.MysqlV1alpha1().NdbClusters(ns).Create(context.TODO(), ndbobj, metav1.CreateOptions{})
-			ndbtest.ExpectNoError(err)
-
-			err = ndbclient.MysqlV1alpha1().NdbClusters(ns).Delete(context.TODO(), "test-ndb", metav1.DeleteOptions{})
-			ndbtest.ExpectNoError(err)
+			ndbtest.ExpectError(err)
+			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
+				"Invalid value: 1: spec.nodeCount should be a multiple of the spec.redundancyLevel(=2)"))
 		})
 
 	})

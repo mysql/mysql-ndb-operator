@@ -35,6 +35,14 @@ func NewTestCase(name string, body func(tc *TestContext)) bool {
 			tc.cleanup()
 		})
 
+		// Setup Before/AfterEach methods to install/uninstall NDB Operator
+		ginkgo.BeforeEach(func() {
+			installNdbOperator(tc)
+		})
+		ginkgo.AfterEach(func() {
+			uninstallNdbOperator(tc)
+		})
+
 		// Run the body
 		body(tc)
 	})

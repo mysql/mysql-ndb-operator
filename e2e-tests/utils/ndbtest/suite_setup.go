@@ -114,6 +114,9 @@ func RunGinkgoSuite(
 
 	flag.Parse()
 
+	// Redirect all klog output to GinkgoWriter
+	klog.SetOutput(ginkgo.GinkgoWriter)
+
 	// init ndbTestSuite
 	ndbTestSuite.suiteName = suiteName
 	ndbTestSuite.description = description
@@ -152,9 +155,6 @@ func RunGinkgoSuite(
 	config.DefaultReporterConfig.Succinct = false
 	// Print stack trace on failure
 	config.DefaultReporterConfig.FullTrace = true
-
-	// Redirect all klog output to GinkgoWriter
-	klog.SetOutput(ginkgo.GinkgoWriter)
 
 	// Register fail handler and start running the test
 	gomega.RegisterFailHandler(ginkgo.Fail)
