@@ -24,7 +24,7 @@ import (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Redundancy Level",type=string,JSONPath=`.spec.redundancyLevel`
-// +kubebuilder:resource:shortName=ndb;ndbc
+// +kubebuilder:resource:shortName=ndb;ndbc,categories=all
 
 // NdbCluster is the Schema for the Ndb CRD API
 type NdbCluster struct {
