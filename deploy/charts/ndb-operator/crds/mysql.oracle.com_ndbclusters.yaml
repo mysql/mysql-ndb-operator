@@ -9,6 +9,8 @@ metadata:
 spec:
   group: mysql.oracle.com
   names:
+    categories:
+    - all
     kind: NdbCluster
     listKind: NdbClusterList
     plural: ndbclusters
