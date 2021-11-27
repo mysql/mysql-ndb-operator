@@ -581,7 +581,7 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 	}
 
 	// Update the status of the Ndb resource to reflect the state of any changes applied
-	err = sc.updateNdbClusterStatus(ctx, hasPendingConfigChanges)
+	err = sc.updateNdbClusterProcessedGeneration(ctx, hasPendingConfigChanges)
 	if err != nil {
 		klog.Errorf("Updating status failed: %v", err)
 		return errorWhileProcessing(err)
@@ -596,9 +596,10 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 	return finishProcessing()
 }
 
-// updateNdbClusterStatus updates the status of the NdbCluster object and
-// sends out an event if the object is already in syn with the MySQL Cluster
-func (sc *SyncContext) updateNdbClusterStatus(ctx context.Context, hasPendingConfigChanges bool) error {
+// updateNdbClusterProcessedGeneration updates the .status.processedGeneration
+// of the NdbCluster object and sends out an event if the object is already
+// in sync with the MySQL Cluster
+func (sc *SyncContext) updateNdbClusterProcessedGeneration(ctx context.Context, hasPendingConfigChanges bool) error {
 
 	ndb := sc.ndb
 
@@ -631,18 +632,34 @@ func (sc *SyncContext) updateNdbClusterStatus(ctx context.Context, hasPendingCon
 		}
 	}
 
-	// The status need to be updated
+	// The status needs to be updated
 	klog.Infof("Updating the NdbCluster resource %q processed generation from %d to %d",
 		getNamespacedName(sc.ndb), ndb.Status.ProcessedGeneration, ndb.ObjectMeta.Generation-1)
+	if err := sc.updateNdbClusterStatus(ctx, func(status *v1alpha1.NdbClusterStatus) {
+		status.ProcessedGeneration = processedGeneration
+	}); err != nil {
+		return err
+	}
 
-	ndbClusterInterface := sc.ndbClientset().MysqlV1alpha1().NdbClusters(ndb.Namespace)
+	// Record an SyncSuccess event as the MySQL Cluster specification has been
+	// successfully synced with the spec of Ndb object and the status has been updated.
+	sc.recorder.Eventf(ndb, nil,
+		corev1.EventTypeNormal, ReasonSyncSuccess, ActionSynced, MessageSyncSuccess)
+
+	return nil
+}
+
+// updateNdbClusterStatus updates the status of the given NdbCluster resource in the K8s API Server
+func (sc *SyncContext) updateNdbClusterStatus(
+	ctx context.Context, statusUpdater func(status *v1alpha1.NdbClusterStatus)) error {
+	ndbClusterInterface := sc.ndbClientset().MysqlV1alpha1().NdbClusters(sc.ndb.Namespace)
 
 	// Update the status. Use RetryOnConflict to automatically handle
 	// conflicts that can occur if the spec changes between the time
 	// the controller gets the NdbCluster object and updates it.
 	updateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// Get the latest NdbCluster object from the API Server
-		nc, err := ndbClusterInterface.Get(ctx, ndb.Name, metav1.GetOptions{})
+		nc, err := ndbClusterInterface.Get(ctx, sc.ndb.Name, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("Failed to get NdbCluster resource during status update %q: %v",
 				getNamespacedName(sc.ndb), err)
@@ -650,11 +667,11 @@ func (sc *SyncContext) updateNdbClusterStatus(ctx context.Context, hasPendingCon
 		}
 
 		// Update the status
-		nc.Status.ProcessedGeneration = processedGeneration
+		statusUpdater(&nc.Status)
 		// Set the time of this status update
 		nc.Status.LastUpdate = metav1.NewTime(time.Now())
 
-		// Update the status
+		// Send the update to K8s server
 		_, err = ndbClusterInterface.UpdateStatus(ctx, nc, metav1.UpdateOptions{})
 		// Return the error and let RetryOnConflict handle any conflicts.
 		return err
@@ -665,11 +682,6 @@ func (sc *SyncContext) updateNdbClusterStatus(ctx context.Context, hasPendingCon
 			getNamespacedName(sc.ndb), updateErr)
 		return updateErr
 	}
-
-	// Record an SyncSuccess event as the MySQL Cluster specification has been
-	// successfully synced with the spec of Ndb object and the status has been updated.
-	sc.recorder.Eventf(ndb, nil,
-		corev1.EventTypeNormal, ReasonSyncSuccess, ActionSynced, MessageSyncSuccess)
 
 	return nil
 }
