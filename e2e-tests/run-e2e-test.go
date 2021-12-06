@@ -25,6 +25,7 @@ import (
 	podutils "github.com/mysql/ndb-operator/e2e-tests/utils/pods"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -51,6 +52,11 @@ var kindK8sNodeImages = map[string]string{
 var (
 	kindCmd = []string{"go", "run", "sigs.k8s.io/kind"}
 )
+
+// shortUUID returns a short UUID to be used by the methods
+func shortUUID() string {
+	return string(uuid.NewUUID())[:8]
+}
 
 // provider is an interface for the k8s cluster providers
 type provider interface {
@@ -202,8 +208,9 @@ func (k *kind) setupK8sCluster(t *testRunner) bool {
 func (k *kind) createKindCluster(t *testRunner) bool {
 	// custom kubeconfig
 	k.kubeconfig = filepath.Join(t.testDir, "_artifacts", ".kubeconfig")
-	// kind cluster name
-	k.clusterName = "ndb-e2e-test"
+	// kind cluster name - append an uuid to allow
+	// running multiple tests in parallel
+	k.clusterName = "ndb-e2e-test-" + shortUUID()
 	// KinD k8s image used to run tests
 	kindK8sNodeImage := kindK8sNodeImages[options.kindK8sVersion]
 	// Build KinD command and args
@@ -308,6 +315,9 @@ type testRunner struct {
 	// the run method has completed. Used by
 	// signalHandler to stop listening for signals
 	runDone chan bool
+	// e2eTestImageName is the name of the e2e
+	// tests docker image
+	e2eTestImageName string
 }
 
 // init sets up the testRunner
@@ -391,6 +401,9 @@ func (t *testRunner) execCommand(
 		cmd.Stderr = os.Stderr
 	}
 
+	// Enable DOCKER_BUILDKIT for docker commands
+	cmd.Env = append(os.Environ(), "DOCKER_BUILDKIT=1")
+
 	// Protect cmd.Start() by sigMutex to avoid signal
 	// handler wrongly processing the signals itself
 	// after the process has been started
@@ -469,13 +482,61 @@ func (t *testRunner) runGinkgoTests() bool {
 	return false
 }
 
+// buildE2ETestImage builds the e2e test docker image
+func (t *testRunner) buildE2ETestImage() bool {
+	// Append a short uuid to the image tag to allow
+	// multiple run-e2e-tests to run in parallel.
+	t.e2eTestImageName = "e2e-tests:" + shortUUID()
+
+	// Build the docker command
+	// docker build -t e2e-tests -f docker/e2e-tests/Dockerfile .
+	dockerBuildCmd := []string{
+		"docker", "build",
+		"-t", t.e2eTestImageName,
+		"-f", filepath.Join(t.testDir, "..", "docker", "e2e-tests", "Dockerfile"),
+	}
+
+	// Append any proxies set in env to the docker command
+	if httpProxy, exists := os.LookupEnv("http_proxy"); exists {
+		dockerBuildCmd = append(dockerBuildCmd,
+			"--build-arg", "http_proxy="+httpProxy,
+		)
+	}
+	if httpsProxy, exists := os.LookupEnv("https_proxy"); exists {
+		dockerBuildCmd = append(dockerBuildCmd,
+			"--build-arg", "https_proxy="+httpsProxy,
+		)
+	}
+
+	// Append docker context
+	dockerBuildCmd = append(dockerBuildCmd, filepath.Join(t.testDir, ".."))
+
+	// Run the docker build command to build the e2e tests image
+	if !t.execCommand(dockerBuildCmd, "docker build e2e-tests", false, true) {
+		log.Println("❌ Error building the e2e-tests docker image")
+		return false
+	}
+	return true
+}
+
+// deleteE2ETestImage removes the e2e test image built by buildE2ETestImage
+func (t *testRunner) removeE2ETestImage() {
+	dockerRemoveCmd := []string{
+		"docker", "rmi", t.e2eTestImageName,
+	}
+	if !t.execCommand(dockerRemoveCmd, "docker rmi e2e-tests", false, true) {
+		// Just print the warning and ignore the error
+		log.Println("⚠️  Error removing the e2e-tests docker image")
+	}
+}
+
 // newE2ETestPod defines and returns a new e2e-tests pod that runs the given command
 func (t *testRunner) newE2ETestPod(command []string) *v1.Pod {
 	// e2e-tests container to be run inside the pod
 	e2eTestsContainer := v1.Container{
 		// Container name, image used and image pull policy
 		Name:            "e2e-tests-container",
-		Image:           "e2e-tests",
+		Image:           t.e2eTestImageName,
 		ImagePullPolicy: v1.PullNever,
 		// Command that will be run by the container
 		Command: command,
@@ -512,7 +573,7 @@ func (t *testRunner) dumpPodInfo(namespace, name string) {
 // waitForPodToStart waits until all the containers in the given pod are started
 func (t *testRunner) waitForPodToStart(namespace, name string) (podStarted bool) {
 	if err := podutils.WaitForPodToStart(t.p.getClientset(), namespace, name); err != nil {
-		log.Printf(" ❌ Error waiting for the e2e-tests pod to start : %s", err)
+		log.Printf("❌ Error waiting for the e2e-tests pod to start : %s", err)
 		return false
 	}
 
@@ -574,7 +635,7 @@ func (t *testRunner) runGinkgoTestsInsideK8sCluster(ctx context.Context) (succes
 		// delete the e2e test pod
 		err = clientset.CoreV1().Pods(e2eTestPod.Namespace).Delete(ctx, e2eTestPod.Name, metav1.DeleteOptions{})
 		if err != nil {
-			log.Printf("Failed to delete the e2e-test pod : %s", err.Error())
+			log.Printf("❌ Failed to delete the e2e-test pod : %s", err.Error())
 		}
 	}()
 
@@ -635,6 +696,15 @@ func (t *testRunner) run(ctx context.Context) bool {
 		t.stopSignalHandler()
 	}()
 
+	// Build the test image if running inside KinD Cluster
+	if options.useKind && !options.runOutOfCluster {
+		if !t.buildE2ETestImage() {
+			return false
+		}
+		// setup defer to delete the image before returning
+		defer t.removeE2ETestImage()
+	}
+
 	// Set up the K8s cluster
 	if !p.setupK8sCluster(t) {
 		// Failed to set up cluster.
@@ -649,7 +719,7 @@ func (t *testRunner) run(ctx context.Context) bool {
 
 	if !options.runOutOfCluster {
 		// Load e2e-tests docker image into cluster nodes for in-cluster runs
-		if !p.loadImageIntoK8sCluster(t, "e2e-tests:latest") {
+		if !p.loadImageIntoK8sCluster(t, t.e2eTestImageName) {
 			return false
 		}
 	}
