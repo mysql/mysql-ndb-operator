@@ -68,7 +68,7 @@ e2e:
 	go run e2e-tests/run-e2e-test.go
 
 .PHONY: e2e-kind
-e2e-kind: operator-image e2e-tests-image
+e2e-kind: operator-image
 	go run e2e-tests/run-e2e-test.go -use-kind
 
 # Run all unit tests and e2e test. Requires a minikube running
