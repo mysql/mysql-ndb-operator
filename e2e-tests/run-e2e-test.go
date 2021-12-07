@@ -38,6 +38,7 @@ var options struct {
 	runOutOfCluster bool
 	kindK8sVersion  string
 	suites          string
+	verbose         bool
 }
 
 // K8s image used by KinD to bring up cluster
@@ -449,6 +450,11 @@ func (t *testRunner) getGinkgoTestCommand(suiteDir string) []string {
 		"-keepGoing", // keep running all test suites even if one fails
 	}
 
+	if options.verbose {
+		// Print extra logs
+		ginkgoTestCmd = append(ginkgoTestCmd, "-v")
+	}
+
 	if options.suites == "" {
 		// Run all test suites
 		ginkgoTestCmd = append(ginkgoTestCmd, suiteDir)
@@ -760,6 +766,10 @@ func init() {
 	// test suites to be run.
 	flag.StringVar(&options.suites, "suites", "",
 		"Test suites that needs to be run. Example usage: --suites=mysql,basic")
+
+	// Add verbose for extra logs.
+	flag.BoolVar(&options.verbose, "v", false,
+		"Enable verbose mode in ginkgo. By default this is disabled.")
 }
 
 // validatesCommandlineArgs validates if command line arguments,
