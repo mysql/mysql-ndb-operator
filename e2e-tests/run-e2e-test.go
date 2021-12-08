@@ -328,6 +328,9 @@ func (t *testRunner) init() {
 	// Deduce test root directory
 	var _, currentFilePath, _, _ = runtime.Caller(0)
 	t.testDir = filepath.Dir(currentFilePath)
+
+	// By default, use the latest e2e-tests image
+	t.e2eTestImageName = "e2e-tests"
 }
 
 func (t *testRunner) startSignalHandler() {
@@ -484,10 +487,6 @@ func (t *testRunner) runGinkgoTests() bool {
 
 // buildE2ETestImage builds the e2e test docker image
 func (t *testRunner) buildE2ETestImage() bool {
-	// Append a short uuid to the image tag to allow
-	// multiple run-e2e-tests to run in parallel.
-	t.e2eTestImageName = "e2e-tests:" + shortUUID()
-
 	// Build the docker command
 	// docker build -t e2e-tests -f docker/e2e-tests/Dockerfile .
 	dockerBuildCmd := []string{
@@ -698,6 +697,10 @@ func (t *testRunner) run(ctx context.Context) bool {
 
 	// Build the test image if running inside KinD Cluster
 	if options.useKind && !options.runOutOfCluster {
+		// Append a short uuid to the image tag to allow
+		// multiple run-e2e-tests to run in parallel.
+		t.e2eTestImageName += ":" + shortUUID()
+
 		if !t.buildE2ETestImage() {
 			return false
 		}
