@@ -8,25 +8,21 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
-
-# get go.mod
-GOMOD=$(grep "k8s.io/code-generator => " ${SCRIPT_ROOT}/go.mod)
-
-# extract directory and version in gopath
-MODULE=$(awk '{split($0, a, " => "); print a[2]}' <<< ${GOMOD})
-MODULE="${MODULE/ /@}"
-
 # install the required generators in go cache
 go install k8s.io/code-generator/cmd/{defaulter-gen,client-gen,lister-gen,informer-gen,deepcopy-gen}
 
-# get go module cache
-CACHE=$(go env GOMODCACHE)
+# get code-generator version from go.mod
+SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
+MODULE=$(grep "k8s.io/code-generator" ${SCRIPT_ROOT}/go.mod | xargs)
+MODULE="${MODULE/ /@}"
 
-CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ${CACHE}/${MODULE} 2>/dev/null || echo ../code-generator)}
-#OUTPUT_BASE="$(dirname "${BASH_SOURCE[0]}")/../../.."
+# get absolute path to the module inside go mod cache
+CODEGEN_PKG=$(go env GOMODCACHE)"/${MODULE}"
+
+# Verify that the module exists
+ls -d -1 "$CODEGEN_PKG"
+
 OUTPUT_BASE="$(dirname "${BASH_SOURCE[0]}")/.."
-
 PROJECT_MODULE=$(go list -m)
 
 echo "output base is ${OUTPUT_BASE}"
