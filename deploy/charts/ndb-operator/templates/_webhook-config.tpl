@@ -3,7 +3,7 @@ Name of the webhook service.
 Used by the service, deployment and the validating webhook.
 */}}
 {{- define "webhook-service.name" -}}
-ndbop-webhook-service
+{{.Release.Name}}-webhook-service
 {{- end -}}
 
 {{- /*

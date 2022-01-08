@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -153,7 +153,7 @@ func setWebhookServerTLSCerts(ws *http.Server) {
 	// update the webhook with the certificate
 	vwcInterface := controllers.NewValidatingWebhookConfigController(clientset)
 	if !vwcInterface.UpdateWebhookConfigCertificate(
-		context.Background(), "webhook-server="+config.serviceName, td.certificate) {
+		context.Background(), "webhook-server="+namespace+"-"+config.serviceName, td.certificate) {
 		klog.Fatal("Failed to update validating webhook configs with the new certificate")
 	}
 

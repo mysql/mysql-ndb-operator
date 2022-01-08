@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -6,9 +6,10 @@ package ndbtest
 
 import (
 	"fmt"
+	"path/filepath"
+
 	"github.com/mysql/ndb-operator/e2e-tests/utils/testfiles"
 	"github.com/onsi/ginkgo"
-	"path/filepath"
 )
 
 // NewTestCase is a wrapper around the ginkgo.Describe block with
@@ -23,7 +24,7 @@ func NewTestCase(name string, body func(tc *TestContext)) bool {
 		// specs are usually run one by one and the init/cleanup
 		// methods delete the previous namespace and create a
 		// new one in between the specs.
-		tc := newTestContext()
+		tc := NewTestContext()
 
 		// Setup before and after each to init/cleanup TestContexts
 		ginkgo.BeforeEach(func() {

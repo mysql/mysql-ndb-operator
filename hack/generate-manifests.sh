@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2021, Oracle and/or its affiliates.
+# Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -35,6 +35,6 @@ metadata:
   name: ndb-operator
 ---" >> ${INSTALL_ARTIFACT}
 # Generate and append the resources from helm templates
-helm template ${HELM_CHART_PATH} --namespace=ndb-operator >> ${INSTALL_ARTIFACT}
+helm template ndb-operator ${HELM_CHART_PATH} --namespace=ndb-operator >> ${INSTALL_ARTIFACT}
 # Prettify the yaml file
 go run hack/prettify-yaml.go --yaml=${INSTALL_ARTIFACT}

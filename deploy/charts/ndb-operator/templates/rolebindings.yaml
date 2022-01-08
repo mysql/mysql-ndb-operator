@@ -4,48 +4,49 @@
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: ndb-operator-webhook-vwc-crb
+  name: {{.Release.Namespace}}-{{.Release.Name}}-webhook-vwc-crb
   namespace: {{.Release.Namespace}}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: ndb-operator-webhook-vwc-cr
+  name: {{.Release.Namespace}}-{{.Release.Name}}-webhook-vwc-cr
 subjects:
   - kind: ServiceAccount
-    name: ndb-operator-webhook-sa
+    name: {{.Release.Name}}-webhook-sa
     namespace: {{.Release.Namespace}}
 ---
 # Other RBAC bindings are based on the scope of the Operator.
 # Use ClusterRoleBinding if the operator is cluster-scoped
 # and RoleBinding if the operator is namespace-scoped.
 {{ $bindingKind := ternary "ClusterRoleBinding" "RoleBinding" .Values.clusterScoped -}}
+{{ $userRoleKind := ternary "ClusterRole" "Role" .Values.clusterScoped -}}
 ---
 # Other RBACs for the WebHook Server
 kind: {{$bindingKind}}
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: ndb-operator-webhook-crb
+  name: {{.Release.Name}}-webhook-crb
   namespace: {{.Release.Namespace}}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: ndb-operator-webhook-cr
+  kind: {{$userRoleKind}}
+  name: {{.Release.Name}}-webhook-cr
 subjects:
   - kind: ServiceAccount
-    name: ndb-operator-webhook-sa
+    name: {{.Release.Name}}-webhook-sa
     namespace: {{.Release.Namespace}}
 ---
 # Ndb operator
 kind: {{$bindingKind}}
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: ndb-operator-crb
+  name: {{.Release.Name}}-crb
   namespace: {{.Release.Namespace}}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: ndb-operator-cr
+  kind: {{$userRoleKind}}
+  name: {{.Release.Name}}-cr
 subjects:
 - kind: ServiceAccount
-  name: ndb-operator-sa
+  name: {{.Release.Name}}-app-sa
   namespace: {{.Release.Namespace}}
