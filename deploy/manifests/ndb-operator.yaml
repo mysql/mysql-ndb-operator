@@ -357,7 +357,7 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: ndb-operator-sa
+  name: ndb-operator-app-sa
   namespace: ndb-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -375,7 +375,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: ndb-operator-webhook-vwc-cr
+  name: ndb-operator-ndb-operator-webhook-vwc-cr
 rules:
 - apiGroups:
   - admissionregistration.k8s.io
@@ -469,12 +469,12 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: ndb-operator-webhook-vwc-crb
+  name: ndb-operator-ndb-operator-webhook-vwc-crb
   namespace: ndb-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: ndb-operator-webhook-vwc-cr
+  name: ndb-operator-ndb-operator-webhook-vwc-cr
 subjects:
 - kind: ServiceAccount
   name: ndb-operator-webhook-sa
@@ -505,13 +505,13 @@ roleRef:
   name: ndb-operator-cr
 subjects:
 - kind: ServiceAccount
-  name: ndb-operator-sa
+  name: ndb-operator-app-sa
   namespace: ndb-operator
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: ndbop-webhook-service
+  name: ndb-operator-webhook-service
   namespace: ndb-operator
 spec:
   ports:
@@ -541,7 +541,7 @@ spec:
     spec:
       containers:
       - args:
-        - -service=ndbop-webhook-service
+        - -service=ndb-operator-webhook-service
         command:
         - ndb-operator-webhook
         image: mysql/ndb-operator:latest
@@ -562,7 +562,7 @@ metadata:
   labels:
     app: ndb-operator
     release: 8.0.26-0.1.0
-  name: ndb-operator
+  name: ndb-operator-app
   namespace: ndb-operator
 spec:
   replicas: 1
@@ -587,20 +587,20 @@ spec:
         name: ndb-operator-controller
         ports:
         - containerPort: 1186
-      serviceAccountName: ndb-operator-sa
+      serviceAccountName: ndb-operator-app-sa
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   labels:
-    webhook-server: ndbop-webhook-service
-  name: ndb-validating-webhook-config
+    webhook-server: ndb-operator-ndb-operator-webhook-service
+  name: ndb-operator-ndb-operator-webhook-config
 webhooks:
 - admissionReviewVersions:
   - v1
   clientConfig:
     service:
-      name: ndbop-webhook-service
+      name: ndb-operator-webhook-service
       namespace: ndb-operator
       path: /validate-ndb
       port: 9443

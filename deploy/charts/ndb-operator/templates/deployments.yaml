@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ndb-operator-webhook-server
+  name: {{.Release.Name}}-webhook-server
   namespace: {{.Release.Namespace}}
   labels:
     release: {{.Chart.AppVersion}}
@@ -17,7 +17,7 @@ spec:
         {{template "webhook-service.pod-label"}}
     spec:
       # use the account created above to run the server
-      serviceAccountName: ndb-operator-webhook-sa
+      serviceAccountName: {{.Release.Name}}-webhook-sa
       {{- if .Values.imagePullSecretName }}
       imagePullSecrets:
         - name: {{.Values.imagePullSecretName}}
@@ -32,7 +32,7 @@ spec:
           command:
             - ndb-operator-webhook
           args:
-            - -service={{template "webhook-service.name"}}
+            - -service={{template "webhook-service.name" .}}
           readinessProbe:
             httpGet:
               path: /health
@@ -47,7 +47,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ndb-operator
+  name: {{.Release.Name}}-app
   namespace: {{.Release.Namespace}}
   labels:
     release: {{.Chart.AppVersion}}
@@ -62,7 +62,7 @@ spec:
       labels:
         app: ndb-operator
     spec:
-      serviceAccountName: ndb-operator-sa
+      serviceAccountName: {{.Release.Name}}-app-sa
       {{- if .Values.imagePullSecretName }}
       imagePullSecrets:
         - name: {{.Values.imagePullSecretName}}

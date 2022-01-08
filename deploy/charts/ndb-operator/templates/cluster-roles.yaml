@@ -1,8 +1,12 @@
+# Use ClusterRole if the operator is cluster-scoped
+# and Role if the operator is namespace-scoped.
+{{ $userRoleKind := ternary "ClusterRole" "Role" .Values.clusterScoped -}}
+---
 # ClusterRoles for the WebHook Server to access the non cluster-scoped resources
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: {{$userRoleKind}}
 metadata:
-  name: ndb-operator-webhook-cr
+  name: {{.Release.Name}}-webhook-cr
 rules:
   - apiGroups:
       - ""
@@ -15,7 +19,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: ndb-operator-webhook-vwc-cr
+  name: {{.Release.Namespace}}-{{.Release.Name}}-webhook-vwc-cr
 rules:
   - apiGroups:
       - admissionregistration.k8s.io
@@ -27,9 +31,9 @@ rules:
 ---
 # Cluster roles for Ndb Operator
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: {{$userRoleKind}}
 metadata:
-  name: ndb-operator-cr
+  name: {{.Release.Name}}-cr
 rules:
   - apiGroups: [""]
     resources: ["pods"]

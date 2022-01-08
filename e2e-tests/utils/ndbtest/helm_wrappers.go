@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -6,9 +6,10 @@ package ndbtest
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/mysql/ndb-operator/e2e-tests/utils/testfiles"
 	"github.com/onsi/gomega"
-	"time"
 )
 
 func runHelmCommand(namespace string, helmArgs []string) (result string) {
@@ -31,7 +32,7 @@ func runHelmCommand(namespace string, helmArgs []string) (result string) {
 }
 
 // helmInstall installs the helm chart at chartPath into the given namespace.
-func helmInstall(namespace, releaseName, chartPath string) {
+func HelmInstall(namespace, releaseName, chartPath string, namespace_scoped bool) {
 	// Build the helm args for helm create command
 	helmArgs := []string{
 		"install",
@@ -45,6 +46,11 @@ func helmInstall(namespace, releaseName, chartPath string) {
 		"--wait",
 	}
 
+	if namespace_scoped {
+		// add scope flag
+		helmArgs = append(helmArgs, "--set", "clusterScoped=false")
+	}
+
 	// Run the command
 	result := runHelmCommand(namespace, helmArgs)
 	gomega.Expect(result).Should(
@@ -52,7 +58,7 @@ func helmInstall(namespace, releaseName, chartPath string) {
 }
 
 // helmUninstall uninstalls the given helm release from the given namespace.
-func helmUninstall(namespace, releaseName string) {
+func HelmUninstall(namespace, releaseName string) {
 	// Build the helm args for helm uninstall command
 	helmArgs := []string{
 		"uninstall",
