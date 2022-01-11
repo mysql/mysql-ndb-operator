@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -146,13 +145,12 @@ const (
 	delayedReplyTimeout = 300 * time.Second
 )
 
-// sendCommand sends the given command and args to the
-// connected management server and reads back the reply.
-// Note : it might be easier and will be sufficient for most
-// cases to use executeCommand rather than directly calling
-// sendCommand and parseReply
-func (mci *mgmClientImpl) sendCommand(
-	command string, args map[string]interface{}, slowCommand bool) ([]byte, error) {
+// executeCommand sends the command to the Management Server,
+// reads back the reply, parses it and returns the reply and
+// other details to the caller.
+func (mci *mgmClientImpl) executeCommand(
+	command string, args map[string]interface{},
+	slowCommand bool, expectedReplyDetails []string) (map[string]string, error) {
 
 	if mci.connection == nil {
 		return nil, debug.InternalError("MgmClient is not connected to Management server")
@@ -176,153 +174,133 @@ func (mci *mgmClientImpl) sendCommand(
 
 	// Send the command along with the args to the connected mgmd server
 	if _, err = mci.connection.Write(cmdWithArgs.Bytes()); err != nil {
-		klog.Error("failed to send command to connected management server : ", err)
+		klog.Error("failed to send command to connected management server :", err)
 		return nil, err
 	}
 
-	// Pick a timeout for the read
+	// Pick and set a timeout for the read
 	replyReadTimeout := defaultReadWriteTimeout
 	if slowCommand {
 		replyReadTimeout = delayedReplyTimeout
 	}
-	// In certain cases, using a single SetReadDeadline call
-	// with the full replyReadTimeout might cause the Read
-	// call to hang once it has read all the reply. So, the
-	// total timeout is divided into shorter timeouts over
-	// which the read is done.
-	timeoutPerRead := 200 * time.Millisecond
-
-	// Start reading the reply
-	var reply []byte
-	buffer := make([]byte, 256)
-	for elapsedTime := time.Duration(0); elapsedTime < replyReadTimeout; {
-		err = mci.connection.SetReadDeadline(time.Now().Add(timeoutPerRead))
-		if err != nil {
-			klog.Error("SetReadDeadline failed : ", err)
-			return nil, err
-		}
-		numBytesRead, err := mci.connection.Read(buffer)
-		if err != nil {
-			// Error occurred during read
-			if errors.Is(err, os.ErrDeadlineExceeded) {
-				// Read timed out.
-				if len(reply) == 0 {
-					// The read has not begun.
-					// Retry after updating the elapsed time.
-					elapsedTime += timeoutPerRead
-					continue
-				}
-				// Timeout occurring after the read has begun,
-				// i.e. len(reply) > 0, indicates that there
-				// is nothing more to read. Return the reply.
-				return reply, nil
-			}
-
-			// Unexpected error
-			return nil, err
-		}
-
-		// append the read bytes to reply
-		reply = append(reply, buffer[:numBytesRead]...)
-		if numBytesRead < len(buffer) {
-			// done reading reply
-			return reply, nil
-		}
+	err = mci.connection.SetReadDeadline(time.Now().Add(replyReadTimeout))
+	if err != nil {
+		klog.Error("SetReadDeadline failed : ", err)
+		return nil, err
 	}
-	// Timed out as management Server never sent back any reply
-	return nil, errors.New("no reply received from the Management Server")
-}
 
-// parseReply parses the reply sent by the management server,
-// validates and extracts the information from it.
-// Note : it might be easier and will be sufficient for most
-// cases to use executeCommand rather than directly calling
-// sendCommand and parseReply
-func (mci *mgmClientImpl) parseReply(
-	reply []byte, expectedReplyDetails []string) (map[string]string, error) {
-	// create a scanner and start parsing reply
-	scanner := bufio.NewScanner(bytes.NewReader(reply))
+	// Start reading the reply via a scanner
+	scanner := bufio.NewScanner(mci.connection)
 
-	// read and verify the header
+	// Setup defer to flush out all the reply from the connection in case of any errors
+	readDone := false
+	defer func() {
+		if !readDone && scanner.Err() == nil {
+			for scanner.Scan() && scanner.Text() != "" {
+			}
+		}
+	}()
+
+	// Read and verify the reply header.
 	// note : most parse errors are development errors, so panic in debug builds
 	if scanner.Scan() {
 		header := scanner.Text()
 
-		// check for common command format errors
-		for _, err := range []string{
-			"Unknown command",
-			"Unknown argument",
-			"Missing arg",
-			"Type mismatch",
-		} {
-			if strings.HasPrefix(header, "result: "+err) {
-				// protocol usage error
-				return nil, debug.InternalError("sendCommand failed : " + err)
-			}
-		}
-
-		// check if it has the expected reply header
+		// Check if the header has the expected reply header
 		if len(expectedReplyDetails) == 0 {
 			return nil, debug.InternalError("expectedReplyDetails is empty")
 		}
 		if header != expectedReplyDetails[0] {
+			// Unexpected header. Check for common format errors
+			if strings.HasPrefix(header, "result: ") {
+				// The Management Server has sent back a bad protocol error
+				tokens := strings.SplitN(header, ":", 2)
+				return nil, debug.InternalError("executeCommand failed :" + tokens[1])
+			}
+
+			// Unrecognizable header. Log details and return error.
 			klog.Errorf("Expected header : %s, Actual header : %s",
 				expectedReplyDetails[0], header)
 			return nil, debug.InternalError("unexpected header in reply")
 		}
+
 	}
 
-	// Extract and store the details sent as a part of the reply
+	// Read and parse the rest of the reply which has the details.
 	replyDetails := make(map[string]string)
 	for scanner.Scan() {
 		// read the line
 		replyLine := scanner.Text()
 
-		if len(replyLine) == 0 {
-			// ignore blank spaces
-			klog.V(4).Info("ignoring blank space")
-			continue
+		if replyLine == "" {
+			// Empty line marks the end of reply.
+			// Stop reading.
+			break
 		}
 
 		// extract the information
 		tokens := strings.SplitN(replyLine, ":", 2)
 
 		if len(tokens) != 2 {
-			// The reply detail is not of form key:value
-			// Check if this is a 'get config reply', in that case,
-			// read in the octet stream at the end of the reply
-			if expectedReplyDetails[0] == "get config reply" {
-				// everything starting from here is the config binary data
-				config := scanner.Text()
-				for scanner.Scan() {
-					//read until the end
-					config += scanner.Text()
-				}
-
-				// store it in the reply
-				replyDetails["config"] = config
-				// end of reply
-				break
-			}
-
+			// The reply detail is not of form key:value.
 			// Usage issue or MySQL Cluster has updated its wire protocol.
 			// In any case, panic to bring in early attention.
 			klog.Error("reply has unexpected format : ", replyLine)
 			return nil, debug.InternalError("missing colon(:) in reply detail")
 		}
 
-		// store it
+		// store the key value pair
 		replyDetails[tokens[0]] = strings.TrimSpace(tokens[1])
 	}
 
-	// handle any errors in scanner
-	if err := scanner.Err(); err != nil {
-		klog.Error("parsing reply failed : ", err)
+	// The reply has been read and if the method returns
+	// after this point, no need to read more from the
+	// connection inside the 'defer' logic.
+	readDone = true
+
+	// Handle any error thrown by the scanner
+	if err = scanner.Err(); err != nil {
+		klog.Error("failed to read reply from Management Server :", err)
 		return nil, err
 	}
 
+	// if the reply details has a 'Content-Length' key, the 'Content' appended to the reply has to be read
+	if contentLengthVal, exists := replyDetails["Content-Length"]; exists {
+		contentLength, err := strconv.Atoi(contentLengthVal)
+		if err != nil {
+			return nil, err
+		}
+
+		// So far only the get config command expects a content in
+		// the reply and the maximum length of that is 1024*1024 bytes
+		if contentLength == 0 || contentLength > 1024*1024 {
+			return nil, debug.InternalError("unexpected content length in reply")
+		}
+		// Increment contentLength to account for the trailing \n
+		contentLength += 1
+
+		// Read the content
+		var content string
+		for len(content) < contentLength && scanner.Scan() {
+			data := scanner.Text()
+			content += data + "\n"
+		}
+
+		// Handle any error thrown by the scanner
+		if err = scanner.Err(); err != nil {
+			klog.Error("failed to read content from Management Server :", err)
+			return nil, err
+		}
+		if len(content) != contentLength {
+			return nil, debug.InternalError("mismatched content and content-length in reply")
+		}
+
+		// Add the content to replyDetails
+		replyDetails["Content"] = content
+	}
+
 	// Validate the reply details.
-	// If there is an 'result' key, check if it is 'Ok'
+	// If there is a 'result' key, check if it is 'Ok'
 	if result, exists := replyDetails["result"]; exists && result != "Ok" {
 		// Command failed
 		return nil, errors.New(result)
@@ -340,21 +318,6 @@ func (mci *mgmClientImpl) parseReply(
 	}
 
 	return replyDetails, nil
-}
-
-// executeCommand sends the command, reads the reply, parses it and returns
-func (mci *mgmClientImpl) executeCommand(
-	command string, args map[string]interface{},
-	slowCommand bool, expectedReplyDetails []string) (map[string]string, error) {
-
-	// send the command and get reply
-	reply, err := mci.sendCommand(command, args, slowCommand)
-	if err != nil {
-		return nil, err
-	}
-
-	// parse the reply and return
-	return mci.parseReply(reply, expectedReplyDetails)
 }
 
 // getConnectedMgmdNodeId returns the nodeId of the mgmd
@@ -580,7 +543,7 @@ func (mci *mgmClientImpl) getConfig(
 		"Content-Length",
 		"Content-Type",
 		"Content-Transfer-Encoding",
-		"config",
+		"Content",
 	}
 
 	// send the command and read the reply
@@ -599,7 +562,8 @@ func (mci *mgmClientImpl) getConfig(
 		return nil, debug.InternalError("unexpected content in get config reply")
 	}
 
-	value := readConfigFromBase64EncodedData(reply["config"], sectionFilter, uint32(nodeId), configKey)
+	// extract the required config value from the base64 encoded config data
+	value := readConfigFromBase64EncodedData(reply["Content"], sectionFilter, uint32(nodeId), configKey)
 	if value == nil {
 		return nil, debug.InternalError("getConfig failed")
 	}

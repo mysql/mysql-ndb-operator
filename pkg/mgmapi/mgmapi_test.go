@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -84,35 +84,10 @@ func TestMgmClientImpl_connectToNodeId(t *testing.T) {
 	}
 }
 
-func TestMgmClientImpl_sendCommand(t *testing.T) {
-	mci := getConnectionToMgmd(t)
-	defer mci.Disconnect()
-
-	// test a valid command - get session id
-	command := "get session id"
-	reply, err := mci.sendCommand(command, nil, false)
-	if err != nil {
-		t.Errorf("%s command failed : %s", command, err)
-	} else if !strings.HasPrefix(string(reply), command+" reply") {
-		t.Errorf("unexpected reply received for '%s' : \n%s", command, reply)
-	}
-
-	// test a valid command with args - get session
-	command = "get session"
-	reply, err = mci.sendCommand(command, map[string]interface{}{
-		"id": 1,
-	}, false)
-	if err != nil {
-		t.Errorf("%s command failed : %s", command, err)
-	} else if !strings.HasPrefix(string(reply), command+" reply") {
-		t.Errorf("unexpected reply received for '%s' : \n%s", command, reply)
-	}
-}
-
-// parseReplyAndExpectToFail calls parseReply on a reply with
-// wrong format and verifies that it either panics or fails.
+// parseReplyAndExpectToFail calls executeCommand to parse a preset reply
+// (using fake mgm server) and expects the command to throw or fail with an error.
 func parseReplyAndExpectToFail(
-	t *testing.T, mci *mgmClientImpl, desc string, reply []byte,
+	t *testing.T, desc string, reply []byte,
 	expectedDetails []string, expectedError string) {
 
 	// the function is expected to panic in debug builds
@@ -123,7 +98,15 @@ func parseReplyAndExpectToFail(
 		}
 	}()
 
-	values, err := mci.parseReply(reply, expectedDetails)
+	// Run fake mgmd server
+	mgmServer, mci := newFakeMgmServerAndClient(t)
+	defer mci.Disconnect()
+	defer mgmServer.disconnect()
+	mgmServer.run(reply)
+
+	// Run execute command, read back and parse pre-set replies and check if any error is thrown.
+	// Use an empty command and nil args as the preset replies are not dependent on those.
+	values, err := mci.executeCommand("", nil, false, expectedDetails)
 	if err != nil {
 		if !strings.Contains(err.Error(), expectedError) {
 			t.Errorf("parseReply with '%s' failed with unexpected error : %s", desc, err)
@@ -133,12 +116,11 @@ func parseReplyAndExpectToFail(
 	}
 }
 
-func TestMgmClientImpl_parseReply(t *testing.T) {
-	mci := getConnectionToMgmd(t)
-	defer mci.Disconnect()
+// TestMgmClientImpl_executeCommand_replyParser tests the parser inside executeCommand method
+func TestMgmClientImpl_executeCommand_replyParser(t *testing.T) {
 
 	// default reply that will be tested with
-	getSessionReply := []byte("get session reply\nid: 42\nm_stopSelf: always\nm_stop: 0 \n\n")
+	getSessionReply := []byte("get session reply\nid: 42\nm_stopSelf: always\nm_stop: 0 ")
 
 	// test error scenarios
 	invalidTestcases := []*struct {
@@ -148,19 +130,22 @@ func TestMgmClientImpl_parseReply(t *testing.T) {
 		expectedError   string
 	}{
 		{
-			desc:          "invalid command",
-			reply:         []byte("result: Unknown command, 'get time'"),
-			expectedError: "sendCommand failed : Unknown command",
+			desc:            "invalid command",
+			reply:           []byte("result: Unknown command, 'get time'"),
+			expectedDetails: []string{"get time reply"},
+			expectedError:   "executeCommand failed : Unknown command",
 		},
 		{
-			desc:          "invalid argument",
-			reply:         []byte("result: Unknown argument, 'operator-id'"),
-			expectedError: "sendCommand failed : Unknown argument",
+			desc:            "invalid argument",
+			reply:           []byte("result: Unknown argument, 'operator-id'"),
+			expectedDetails: []string{"get time reply"},
+			expectedError:   "executeCommand failed : Unknown argument",
 		},
 		{
-			desc:          "missing mandatory command",
-			reply:         []byte("result: Missing arg., '"),
-			expectedError: "sendCommand failed : Missing arg",
+			desc:            "missing mandatory command",
+			reply:           []byte("result: Missing arg., '"),
+			expectedDetails: []string{"get time reply"},
+			expectedError:   "executeCommand failed : Missing arg",
 		},
 		{
 			desc:            "wrong header",
@@ -171,7 +156,7 @@ func TestMgmClientImpl_parseReply(t *testing.T) {
 		{
 			desc:            "missing colon",
 			command:         "get session",
-			reply:           []byte("get session reply\nid 42\n\n"),
+			reply:           []byte("get session reply\nid 42"),
 			expectedDetails: []string{"get session reply"},
 			expectedError:   "missing colon(:) in reply detail",
 		},
@@ -194,11 +179,15 @@ func TestMgmClientImpl_parseReply(t *testing.T) {
 		if reply == nil {
 			reply = getSessionReply
 		}
-		parseReplyAndExpectToFail(t, mci, tc.desc, reply, tc.expectedDetails, tc.expectedError)
+		parseReplyAndExpectToFail(t, tc.desc, reply, tc.expectedDetails, tc.expectedError)
 	}
 
 	// test successful parsing
-	values, err := mci.parseReply(getSessionReply,
+	mgmServer, mci := newFakeMgmServerAndClient(t)
+	defer mci.Disconnect()
+	defer mgmServer.disconnect()
+	mgmServer.run(getSessionReply)
+	values, err := mci.executeCommand("", nil, false,
 		[]string{"get session reply", "id", "m_stopSelf", "m_stop"})
 	if err != nil {
 		t.Errorf("expected parseReply to succeed but failed. error : %s", err)
@@ -243,6 +232,7 @@ func executeCommandAndExpectToFail(
 }
 
 func TestMgmClientImpl_executeCommand(t *testing.T) {
+	// Run test on actual Mgmd Server
 	mci := getConnectionToMgmd(t)
 	defer mci.Disconnect()
 
@@ -260,9 +250,10 @@ func TestMgmClientImpl_executeCommand(t *testing.T) {
 	}{
 		// failure cases
 		{
-			desc:          "invalid command",
-			command:       "get time",
-			expectedError: "sendCommand failed : Unknown command",
+			desc:            "invalid command",
+			command:         "get time",
+			expectedDetails: []string{"get time reply"},
+			expectedError:   "executeCommand failed : Unknown command, 'get time'",
 		},
 		{
 			desc:    "invalid argument name",
@@ -270,7 +261,8 @@ func TestMgmClientImpl_executeCommand(t *testing.T) {
 			args: map[string]interface{}{
 				"operator-id": "0.1",
 			},
-			expectedError: "sendCommand failed : Unknown argument",
+			expectedDetails: []string{"get time reply"},
+			expectedError:   "executeCommand failed : Unknown argument, 'operator-id'",
 		},
 		{
 			desc:    "missing mandatory command",
@@ -278,7 +270,8 @@ func TestMgmClientImpl_executeCommand(t *testing.T) {
 			args: map[string]interface{}{
 				"node": "1",
 			},
-			expectedError: "sendCommand failed : Missing arg",
+			expectedDetails: []string{"get time reply"},
+			expectedError:   "executeCommand failed : Missing arg",
 		},
 		{
 			desc:    "invalid argument type",
@@ -286,7 +279,8 @@ func TestMgmClientImpl_executeCommand(t *testing.T) {
 			args: map[string]interface{}{
 				"node": "invalid",
 			},
-			expectedError: "sendCommand failed : Type mismatch",
+			expectedDetails: []string{"get time reply"},
+			expectedError:   "executeCommand failed : Type mismatch",
 		},
 		{
 			desc:            "invalid expected details",
@@ -426,5 +420,81 @@ func TestMgmClientImpl_GetConfigVersionFromNode(t *testing.T) {
 		t.Errorf("GetConfigVersionFromNode nodeId:%d failed : %s", dataNodeId, err)
 	} else {
 		t.Logf("Extracted config version: %d", version)
+	}
+}
+
+// TestMgmClientImpl_getConfig_replyReceiver tests the
+// getConfig reply handling with a fake server. The
+// reply is broken up into two pieces to verify that
+// it is properly being read by the executeCommand method.
+func TestMgmClientImpl_getConfig_replyReceiver(t *testing.T) {
+	mgmServer, mci := newFakeMgmServerAndClient(t)
+	defer mci.Disconnect()
+	defer mgmServer.disconnect()
+
+	// Start the fake mgmd server with a get config reply
+	mgmServer.run([]byte(`get config reply
+result: Ok
+Content-Length: 3271
+Content-Type: ndbconfig/octet-stream
+Content-Transfer-Encoding: base64
+
+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
+Ap4AAAAAIAACnwAAAA9TdGF0aWNTcGlu`),
+		[]byte(`bmluZwAAEAACoQAAAAAQAAKiAAAAAhAAAqMAAAABEAAC
+pAAAAAAQAAKlAAAAABAAAqYAAOpgEAACpwAAAAAQAAMmAAAAAAAAACMAAAAPAAAAAiAAAAUAAAAB
+AAAAABAAAAkAAAAAEAAACwAAAAAQAADIAAAAABAAAMkAAAAAQAAAywAAAAAAAAAAEAACggAAAAAQ
+AAMgAAQAABAAAyEAAEAAEAADIgAAAQAQAAMjAAAAARAAAyUAAAABEAADJgAAAAAQAAMnAAAF3BAA
+AygAAAAAAAAAHAAAAAoAAAADIAAABQAAAApsb2NhbGhvc3QAAAAgAAAHAAAAAQAAAAAQAAAJAAAA
+ABAAAAsAAAAAEAAAyAAAAAEQAADJAAAAAEAAAMsAAAAAAAAAABAAAMwAAAXcEAABLAAABKIQAAKC
+AAAAAAAAACsAAAASAAAABBAAAZIAAAABEAABkwAAAAAQAAGWAAAAACAAAZcAAAABAAAAACAAAZgA
+AAAKbG9jYWxob3N0AAAAEAABmQAAADcQAAGaAAAAAxAAAZsAAAAAEAABnAAAAAAQAAGdAAAAABAA
+AZ4AAAAEEAABxgAgAAAQAAHHACAAABAAAckAAAAAEAABygAAAAAQAAHLAAAAABAAAcwAAAAAEAAB
+zQAAAAAAAAADAAAAAAAAAAUAAAAOAAAAAwAAAAYQAAABAAAAMhAAAAIAAAABIAAAAwAAABJNQ18y
+MDIxMTIyMjAwMzU1MQAAAAAAABsAAAADAAAAARAAAAMAAAACIAAABwAAACMvaG9tZS9teXNxbC9k
+YXRhZGlyL25kYl9kYXRhL25vZGUyAAAgAAB9AAAAIy9ob21lL215c3FsL2RhdGFkaXIvbmRiX2Rh
+dGEvbm9kZTIAAAAAAAUAAAABAAAAARAAAAMAAAADAAAABQAAAAEAAAADEAAAAwAAADIAAAAFAAAA
+AQAAAAIQAAADAAAAkQAAAAUAAAABAAAAAhAAAAMAAACSAAAABQAAAAEAAAACEAAAAwAAAJMAAAAF
+AAAAAQAAAAIQAAADAAAAlAAAAAUAAAABAAAAAhAAAAMAAACVAAAABQAAAAEAAAACEAAAAwAAAJYA
+AAAFAAAAAQAAAAIQAAADAAAAlwAAAAUAAAABAAAAAhAAAAMAAACYAAAABQAAAAEAAAACEAAAAwAA
+AJkAAAAFAAAAAQAAAAIQAAADAAAAmhVv0RY=
+`))
+
+	// Extract config through the management client connected
+	// to the fake management server and verify the value
+	value, err := mci.getConfig(
+		1, cfgSectionTypeSystem, sysCfgConfigGenerationNumber, true)
+	if err != nil {
+		t.Fatalf("getConfig failed : %s", err)
+	}
+
+	// Check if the right config version is returned
+	if value.(uint32) != 1 {
+		t.Errorf("getConfig returned a wrong config version. Expected : 1. Recieved : %d", value.(uint32))
 	}
 }
