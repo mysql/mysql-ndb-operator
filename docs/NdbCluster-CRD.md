@@ -135,6 +135,21 @@ Allowed values 1M - 1T. More info :
 </tr>
 <tr>
 <td>
+<code>extraNdbdDefaultParams</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Extra ndbd default parameters to be added to [ndbd default] section of config.ini file.
+Exception: parameters DataMemory and NoOfReplicas should not be added as
+they are handled through CRD attributes dataMemory and redundancyLevel. List of parameters :
+<a href="https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-ndbd-definition.html">https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-ndbd-definition.html</a></p>
+</td>
+</tr>
+<tr>
+<td>
 <code>image</code><br/>
 <em>
 string

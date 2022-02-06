@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ndbop-mysql-secret
+type: Opaque
+stringData:
+  password: ndbpass
+---
+apiVersion: mysql.oracle.com/v1alpha1
+kind: NdbCluster
+metadata:
+  name: example-ndb
+spec:
+  nodeCount: 2
+  redundancyLevel: 2
+  extraNdbdDefaultParams: |
+    MaxNoOfAttributes=8000
+    MaxNoOfTables=10000
+    MaxNoOfOrderedIndexes=10000
+  mysqld:
+    nodeCount: 2

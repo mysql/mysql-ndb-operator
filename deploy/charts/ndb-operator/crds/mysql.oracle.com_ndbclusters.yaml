@@ -173,6 +173,12 @@ spec:
                       backing this claim.
                     type: string
                 type: object
+              extraNdbdDefaultParams:
+                description: 'Extra ndbd default parameters to be added to [ndbd default]
+                  section of config.ini file. Exception: parameters DataMemory and
+                  NoOfReplicas should not be added as they are handled through CRD
+                  attributes dataMemory and redundancyLevel. List of parameters: https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-ndbd-definition.html'
+                type: string
               image:
                 default: mysql/mysql-cluster:latest
                 description: The name of the MySQL Ndb Cluster image to be used. If

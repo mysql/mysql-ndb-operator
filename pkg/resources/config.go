@@ -28,7 +28,7 @@ NoOfReplicas={{.Spec.RedundancyLevel}}
 DataMemory={{.Spec.DataMemory}}
 # Use a fixed ServerPort for all data nodes
 ServerPort=1186
-
+{{if .Spec.ExtraNdbdDefaultParams -}}{{println .Spec.ExtraNdbdDefaultParams}}{{end}}
 [tcp default]
 AllowUnresolvedHostnames=1
 

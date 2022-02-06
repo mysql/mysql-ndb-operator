@@ -84,6 +84,13 @@ type NdbClusterSpec struct {
 	// +kubebuilder:validation:Pattern="[0-9]+[MGT]"
 	DataMemory string `json:"dataMemory,omitempty"`
 
+	// Extra ndbd default parameters to be added to [ndbd default] section of config.ini file.
+	// Exception: parameters DataMemory and NoOfReplicas should not be added as
+	// they are handled through CRD attributes dataMemory and redundancyLevel.
+	// List of parameters: https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-ndbd-definition.html
+	// +optional
+	ExtraNdbdDefaultParams string `json:"extraNdbdDefaultParams,omitempty"`
+
 	// The name of the MySQL Ndb Cluster image to be used.
 	// If not specified, "mysql/mysql-cluster:latest" will be used.
 	// Lowest supported version is 8.0.26.
