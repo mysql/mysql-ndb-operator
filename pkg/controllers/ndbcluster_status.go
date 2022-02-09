@@ -15,14 +15,16 @@ import (
 )
 
 // statusEqual checks if the given two NdbClusterStatuses are equal.
-// This function does not compare conditions as they are already
-// dependent on the other status fields.
+// This function does not compare all the fields of the conditions
+// as they are already dependent on the Status field.
 func statusEqual(oldStatus *v1alpha1.NdbClusterStatus, newStatus *v1alpha1.NdbClusterStatus) bool {
 	return oldStatus.ProcessedGeneration == newStatus.ProcessedGeneration &&
 		oldStatus.ReadyManagementNodes == newStatus.ReadyManagementNodes &&
 		oldStatus.ReadyDataNodes == newStatus.ReadyDataNodes &&
 		oldStatus.ReadyMySQLServers == newStatus.ReadyMySQLServers &&
-		oldStatus.GeneratedRootPasswordSecretName == newStatus.GeneratedRootPasswordSecretName
+		oldStatus.GeneratedRootPasswordSecretName == newStatus.GeneratedRootPasswordSecretName &&
+		// TODO: Improve this comparison when more conditions are added
+		oldStatus.Conditions[0].Status == newStatus.Conditions[0].Status
 }
 
 // calculateNdbClusterStatus generates the current status for the NdbCluster in SyncContext
