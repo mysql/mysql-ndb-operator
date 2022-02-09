@@ -12,7 +12,7 @@ import (
 
 	crdutils "github.com/mysql/ndb-operator/e2e-tests/utils/crd"
 	ndbclient "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"

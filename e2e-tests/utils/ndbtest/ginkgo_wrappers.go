@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/mysql/ndb-operator/e2e-tests/utils/testfiles"
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 )
 
 // NewTestCase is a wrapper around the ginkgo.Describe block with
@@ -61,14 +61,14 @@ func setupBeforeAfterSuite(crdList []string) {
 			RunKubectl(CreateCmd, "", string(testfiles.ReadTestFile(crdPath)))
 		}
 		return nil
-	}, func([]byte) {}, 600)
+	}, func([]byte) {})
 
 	// Setup AfterSuite for the suite
 	ginkgo.SynchronizedAfterSuite(func() {
-		// Install all the CRDs passed via crdList before starting the suite
+		// Delete all the CRDs passed via crdList before starting the suite
 		for _, crdPath := range crdList {
 			ginkgo.By(fmt.Sprintf("Deleting CRD from %s", filepath.Base(crdPath)))
 			RunKubectl(DeleteCmd, "", string(testfiles.ReadTestFile(crdPath)))
 		}
-	}, func() {}, 600)
+	}, func() {})
 }

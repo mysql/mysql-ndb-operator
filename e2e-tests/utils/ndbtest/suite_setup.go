@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -9,8 +9,7 @@ package ndbtest
 import (
 	"context"
 	"flag"
-	"github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/config"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"testing"
 	"time"
@@ -112,8 +111,6 @@ func RunGinkgoSuite(
 		panic("Suite name should be a valid DNS1123Label as it will be used to create namespaces")
 	}
 
-	flag.Parse()
-
 	// Redirect all klog output to GinkgoWriter
 	klog.SetOutput(ginkgo.GinkgoWriter)
 
@@ -147,16 +144,18 @@ func RunGinkgoSuite(
 	ndbTestSuite.ctx = context.Background()
 	ndbTestSuite.setupDone = true
 
+	// Update ginkgo config
+	_, reporterConfig := ginkgo.GinkgoConfiguration()
 	// Ndb operator tests can take more than the default
 	// 5 secs to complete. To avoid getting marked as slow,
 	// update the default slow spec threshold to 5 minutes.
-	config.DefaultReporterConfig.SlowSpecThreshold = 5 * time.Minute.Seconds()
+	reporterConfig.SlowSpecThreshold = 5 * time.Minute
 	// disable succinct report option to get a mini detailed report
-	config.DefaultReporterConfig.Succinct = false
+	reporterConfig.Succinct = false
 	// Print stack trace on failure
-	config.DefaultReporterConfig.FullTrace = true
+	reporterConfig.FullTrace = true
 
 	// Register fail handler and start running the test
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, description)
+	ginkgo.RunSpecs(t, description, reporterConfig)
 }
