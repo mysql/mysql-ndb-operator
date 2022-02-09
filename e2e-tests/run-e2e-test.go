@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -615,6 +615,16 @@ func (t *testRunner) runGinkgoTestsInsideK8sCluster(ctx context.Context) (succes
 		return false
 	}
 	log.Println("✅ Successfully created the required RBACs for the e2e tests pod")
+
+	// Setup defer to cleanup RBACs before returning
+	defer func() {
+		deleteE2eTestK8sResources := append(kubectlCommand,
+			"delete", "-f", e2eArtifacts,
+		)
+		if !t.execCommand(deleteE2eTestK8sResources, "kubectl delete", false, false) {
+			log.Println("❌ Failed to cleanup the RBACs created for the e2e tests pod")
+		}
+	}()
 
 	// Get the ginkgo command to be run.
 	// By default, all suites under 'e2e-tests/suites' will be run.
