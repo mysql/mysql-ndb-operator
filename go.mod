@@ -6,8 +6,8 @@ go 1.16
 
 require (
 	github.com/go-sql-driver/mysql v1.6.0
-	github.com/onsi/ginkgo v1.16.4
-	github.com/onsi/gomega v1.17.0
+	github.com/onsi/ginkgo/v2 v2.1.1
+	github.com/onsi/gomega v1.18.1
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.20.2
 	k8s.io/apimachinery v0.20.2

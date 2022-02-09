@@ -10,7 +10,7 @@ import (
 
 	"github.com/mysql/ndb-operator/e2e-tests/utils/k8sutils"
 	ndbclient "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"

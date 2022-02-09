@@ -14,7 +14,7 @@ import (
 	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 
 	clientset "k8s.io/client-go/kubernetes"
 )
