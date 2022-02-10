@@ -11,6 +11,7 @@ import (
 	"flag"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"os"
 	"testing"
 	"time"
 
@@ -109,6 +110,19 @@ func RunGinkgoSuite(
 
 	if validation.IsDNS1123Label(suiteName) != nil {
 		panic("Suite name should be a valid DNS1123Label as it will be used to create namespaces")
+	}
+
+	// Skip running test if the test is running inside a pod
+	// and user has aborted the previous suite.
+	if helpers.IsAppRunningInsideK8s() {
+		// The docker entrypoint script touches the /tmp/abort
+		// file if the tests are being aborted.
+		if _, err := os.Stat("/tmp/abort"); err == nil {
+			t.Fatalf("Skipping suite %q as the tests are being aborted", suiteName)
+		} else if !os.IsNotExist(err) {
+			// Any other error than the IsNotFound should not occur
+			panic("error occurred when trying to stat /tmp/abort : " + err.Error())
+		}
 	}
 
 	// Redirect all klog output to GinkgoWriter

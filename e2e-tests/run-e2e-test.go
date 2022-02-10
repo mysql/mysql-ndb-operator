@@ -319,6 +319,8 @@ type testRunner struct {
 	// e2eTestImageName is the name of the e2e
 	// tests docker image
 	e2eTestImageName string
+	// pod name and namespace
+	e2eTestPodName, e2eTestPodNamespace string
 }
 
 // init sets up the testRunner
@@ -332,6 +334,10 @@ func (t *testRunner) init() {
 
 	// By default, use the latest e2e-tests image
 	t.e2eTestImageName = "e2e-tests"
+
+	// Run the pod in the default namespace
+	t.e2eTestPodNamespace = "default"
+	t.e2eTestPodName = "e2e-tests-pod"
 }
 
 func (t *testRunner) startSignalHandler() {
@@ -339,9 +345,9 @@ func (t *testRunner) startSignalHandler() {
 	t.runDone = make(chan bool)
 	// Start a go routine to handle signals
 	go func() {
-		// Create a channel to receive any signal
+		// Create a channel to receive interrupt and kill signals
 		sigs := make(chan os.Signal, 2)
-		signal.Notify(sigs)
+		signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 
 		// Handle all the signals as follows
 		// - If a process is running and ignoreSignals
@@ -354,6 +360,11 @@ func (t *testRunner) startSignalHandler() {
 			select {
 			case sig := <-sigs:
 				t.sigMutex.Lock()
+				if !options.runOutOfCluster && t.p != nil && t.p.getClientset() != nil {
+					// The test is being aborted and test was to be run
+					// inside a pod. Delete the pod if it is running already.
+					_ = t.deleteE2eTestsPodIfExists()
+				}
 				if t.process != nil {
 					if t.passSignals {
 						// Pass the signal to the process
@@ -361,15 +372,10 @@ func (t *testRunner) startSignalHandler() {
 					} // else it is ignored
 				} else {
 					// no process running - handle it
-					if sig == syscall.SIGINT ||
-						sig == syscall.SIGQUIT ||
-						sig == syscall.SIGTSTP ||
-						sig == syscall.SIGTERM {
-						// Test is being aborted
-						// teardown the cluster and exit
-						t.p.teardownK8sCluster(t)
-						log.Fatalf("⚠️  Test was aborted!")
-					}
+					// Test is being aborted
+					// teardown the cluster and exit
+					t.p.teardownK8sCluster(t)
+					log.Fatalf("⚠️  Test was aborted!")
 				}
 				t.sigMutex.Unlock()
 			case <-t.runDone:
@@ -398,6 +404,14 @@ func (t *testRunner) execCommand(
 	commandAndArgs []string, commandName string, quiet bool, passSignals bool) bool {
 	// Create cmd struct
 	cmd := exec.Command(commandAndArgs[0], commandAndArgs[1:]...)
+
+	if !passSignals {
+		// Disable the ctrl+c from passing to the command by
+		// requesting it to start in its own process group
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Setpgid: true,
+		}
+	}
 
 	// Map the stout and stderr if not quiet
 	if !quiet {
@@ -524,7 +538,7 @@ func (t *testRunner) buildE2ETestImage() bool {
 	return true
 }
 
-// deleteE2ETestImage removes the e2e test image built by buildE2ETestImage
+// removeE2ETestImage removes the e2e test image built by buildE2ETestImage
 func (t *testRunner) removeE2ETestImage() {
 	dockerRemoveCmd := []string{
 		"docker", "rmi", t.e2eTestImageName,
@@ -543,15 +557,17 @@ func (t *testRunner) newE2ETestPod(command []string) *v1.Pod {
 		Name:            "e2e-tests-container",
 		Image:           t.e2eTestImageName,
 		ImagePullPolicy: v1.PullNever,
-		// Command that will be run by the container
-		Command: command,
+		// The e2e-tests-image has an entrypoint script that will
+		// run the tests and handle signals. Add the command to
+		// be run as container Args.
+		Args: command,
 	}
 
 	e2eTestsPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			// Pod name and namespace
-			Name:      "e2e-tests-pod",
-			Namespace: "default",
+			Name:      t.e2eTestPodName,
+			Namespace: t.e2eTestPodNamespace,
 		},
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{e2eTestsContainer},
@@ -562,6 +578,15 @@ func (t *testRunner) newE2ETestPod(command []string) *v1.Pod {
 	}
 
 	return e2eTestsPod
+}
+
+// deleteE2eTestsPodIfExists deletes the e2e test pod if it is running
+func (t *testRunner) deleteE2eTestsPodIfExists() (err error) {
+	if err = podutils.DeletePodIfExists(
+		context.TODO(), t.p.getClientset(), t.e2eTestPodNamespace, t.e2eTestPodName); err != nil {
+		log.Printf("❌ Failed to delete the e2e test pod : %s", err.Error())
+	}
+	return err
 }
 
 // dumpPodInfo dumps the pod details using kubectl describe
@@ -643,15 +668,8 @@ func (t *testRunner) runGinkgoTestsInsideK8sCluster(ctx context.Context) (succes
 
 	// Setup defer to clean up pod after completion
 	defer func() {
-		if !success {
-			// Dump pod information to console if there is a failure after this point
-			t.dumpPodInfo(e2eTestPod.Namespace, e2eTestPod.Name)
-		}
 		// delete the e2e test pod
-		err = clientset.CoreV1().Pods(e2eTestPod.Namespace).Delete(ctx, e2eTestPod.Name, metav1.DeleteOptions{})
-		if err != nil {
-			log.Printf("❌ Failed to delete the e2e-test pod : %s", err.Error())
-		}
+		_ = t.deleteE2eTestsPodIfExists()
 	}()
 
 	// Wait for the pods to start
@@ -670,7 +688,7 @@ func (t *testRunner) runGinkgoTestsInsideK8sCluster(ctx context.Context) (succes
 		"--namespace="+e2eTestPod.Namespace,
 		e2eTestPod.Name,
 	)
-	if !t.execCommand(e2eTestPodLogs, "kubectl logs", false, true) {
+	if !t.execCommand(e2eTestPodLogs, "kubectl logs", false, false) {
 		log.Println("❌ Failed to get e2e-tests pod logs.")
 		return false
 	}

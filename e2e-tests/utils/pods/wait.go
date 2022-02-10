@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"time"
@@ -67,4 +68,33 @@ func WaitForPodToStart(
 func WaitForPodToTerminate(
 	clientset kubernetes.Interface, namespace, name string) error {
 	return WaitForPodPhase(clientset, namespace, name, isPodTerminated, "WaitForPodToTerminate")
+}
+
+// DeletePodIfExists deletes a pod if it exists
+func DeletePodIfExists(ctx context.Context, clientset kubernetes.Interface, namespace, name string) error {
+	podInterface := clientset.CoreV1().Pods(namespace)
+	pod, err := podInterface.Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// Pod doesn't exist - nothing to do
+			return nil
+		} else {
+			// Unexpected error
+			return err
+		}
+	}
+
+	// Pod exists
+	podPhase := pod.Status.Phase
+	if podPhase == corev1.PodSucceeded || podPhase == corev1.PodFailed {
+		// Pod has already completed/failed. Nothing to do.
+		return nil
+	}
+
+	// Delete the pod
+	if err = podInterface.Delete(ctx, name, metav1.DeleteOptions{}); err != nil {
+		return err
+	}
+
+	return nil
 }

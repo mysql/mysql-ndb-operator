@@ -1,4 +1,4 @@
-# Copyright (c) 2021, Oracle and/or its affiliates.
+# Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -26,4 +26,5 @@ RUN go mod download -x
 # excludes files from Dockerfile.dockerignore
 COPY . .
 
-ENTRYPOINT ["go", "run", "github.com/onsi/ginkgo/ginkgo", "-r", "-keepGoing", "e2e-tests/suites"]
+ENTRYPOINT ["docker/e2e-tests/entrypoint.sh"]
+CMD ["go", "run", "github.com/onsi/ginkgo/ginkgo", "-r", "-keep-going", "e2e-tests/suites"]
