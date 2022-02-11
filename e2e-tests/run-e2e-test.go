@@ -321,6 +321,10 @@ type testRunner struct {
 	e2eTestImageName string
 	// pod name and namespace
 	e2eTestPodName, e2eTestPodNamespace string
+	// cleanup methods that need to be executed after
+	// the test completes. The methods in the slice
+	// are run in reverse order.
+	cleanupMethods []func()
 }
 
 // init sets up the testRunner
@@ -371,10 +375,9 @@ func (t *testRunner) startSignalHandler() {
 						_ = t.process.Signal(sig)
 					} // else it is ignored
 				} else {
-					// no process running - handle it
-					// Test is being aborted
-					// teardown the cluster and exit
-					t.p.teardownK8sCluster(t)
+					// no process running - handle it ourselves.
+					// cleanup and exit
+					t.cleanup()
 					log.Fatalf("⚠️  Test was aborted!")
 				}
 				t.sigMutex.Unlock()
@@ -389,6 +392,24 @@ func (t *testRunner) startSignalHandler() {
 // stopSignalHandler stops the signal handler
 func (t *testRunner) stopSignalHandler() {
 	t.runDone <- true
+}
+
+// deferCleanup adds the given method to the cleanupMethods slice
+func (t *testRunner) deferCleanup(cleanupMethod func()) {
+	t.cleanupMethods = append(t.cleanupMethods, cleanupMethod)
+}
+
+// cleanup runs all the cleanupMethods in reverse order
+func (t *testRunner) cleanup() {
+	if t.cleanupMethods == nil {
+		// nothing to do
+		return
+	}
+	log.Println("🧹 Cleaning up test resources..")
+	// Run the cleanup methods in reverse order
+	for i := len(t.cleanupMethods) - 1; i >= 0; i-- {
+		t.cleanupMethods[i]()
+	}
 }
 
 // execCommand executes the command along with its arguments
@@ -535,6 +556,12 @@ func (t *testRunner) buildE2ETestImage() bool {
 		log.Println("❌ Error building the e2e-tests docker image")
 		return false
 	}
+
+	// setup defer to delete the image during cleanup
+	t.deferCleanup(func() {
+		t.removeE2ETestImage()
+	})
+
 	return true
 }
 
@@ -543,7 +570,7 @@ func (t *testRunner) removeE2ETestImage() {
 	dockerRemoveCmd := []string{
 		"docker", "rmi", t.e2eTestImageName,
 	}
-	if !t.execCommand(dockerRemoveCmd, "docker rmi e2e-tests", false, true) {
+	if !t.execCommand(dockerRemoveCmd, "docker rmi e2e-tests", true, true) {
 		// Just print the warning and ignore the error
 		log.Println("⚠️  Error removing the e2e-tests docker image")
 	}
@@ -642,14 +669,14 @@ func (t *testRunner) runGinkgoTestsInsideK8sCluster(ctx context.Context) (succes
 	log.Println("✅ Successfully created the required RBACs for the e2e tests pod")
 
 	// Setup defer to cleanup RBACs before returning
-	defer func() {
+	t.deferCleanup(func() {
 		deleteE2eTestK8sResources := append(kubectlCommand,
 			"delete", "-f", e2eArtifacts,
 		)
-		if !t.execCommand(deleteE2eTestK8sResources, "kubectl delete", false, false) {
+		if !t.execCommand(deleteE2eTestK8sResources, "kubectl delete", true, false) {
 			log.Println("❌ Failed to cleanup the RBACs created for the e2e tests pod")
 		}
-	}()
+	})
 
 	// Get the ginkgo command to be run.
 	// By default, all suites under 'e2e-tests/suites' will be run.
@@ -667,10 +694,10 @@ func (t *testRunner) runGinkgoTestsInsideK8sCluster(ctx context.Context) (succes
 	log.Println("✅ Successfully created the the e2e test pod")
 
 	// Setup defer to clean up pod after completion
-	defer func() {
+	t.deferCleanup(func() {
 		// delete the e2e test pod
 		_ = t.deleteE2eTestsPodIfExists()
-	}()
+	})
 
 	// Wait for the pods to start
 	if !t.waitForPodToStart(e2eTestPod.Namespace, e2eTestPod.Name) {
@@ -692,6 +719,7 @@ func (t *testRunner) runGinkgoTestsInsideK8sCluster(ctx context.Context) (succes
 		log.Println("❌ Failed to get e2e-tests pod logs.")
 		return false
 	}
+	log.Print("\n\n")
 
 	// Wait for the pod to terminate
 	if !t.waitForPodToTerminate(e2eTestPod.Namespace, e2eTestPod.Name) {
@@ -719,15 +747,21 @@ func (t *testRunner) run(ctx context.Context) bool {
 	// store it in testRunner
 	t.p = p
 
+	// testRunner should cleanup resources before returning
+	defer t.cleanup()
+
 	// Start signal handler
 	t.startSignalHandler()
+	// setup defer to clear signal handler
+	t.deferCleanup(func() {
+		t.stopSignalHandler()
+	})
 
 	// setup defer to teardown cluster if
 	// the method returns after this point
-	defer func() {
-		p.teardownK8sCluster(t)
-		t.stopSignalHandler()
-	}()
+	t.deferCleanup(func() {
+		t.p.teardownK8sCluster(t)
+	})
 
 	// Build the test image if running inside KinD Cluster
 	if options.useKind && !options.runOutOfCluster {
@@ -738,8 +772,6 @@ func (t *testRunner) run(ctx context.Context) bool {
 		if !t.buildE2ETestImage() {
 			return false
 		}
-		// setup defer to delete the image before returning
-		defer t.removeE2ETestImage()
 	}
 
 	// Set up the K8s cluster
