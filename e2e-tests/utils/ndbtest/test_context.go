@@ -34,7 +34,7 @@ type TestContext struct {
 	ndbOperatorInstalled bool
 }
 
-// newTestContext returns a new TestContext
+// NewTestContext returns a new TestContext
 // with the clientsets and ctx initialised.
 func NewTestContext() *TestContext {
 	if !ndbTestSuite.setupDone {
