@@ -44,7 +44,7 @@ var _ = ginkgo.Describe("Multiple NDB Clusters released in different Namespaces"
 	ginkgo.When("multiple NDB Operators are released multiple times into different namespaces", func() {
 
 		ginkgo.BeforeEach(func() {
-			contextArray := make([]testContext, numOfNamespaces)
+			contextArray = make([]testContext, numOfNamespaces)
 			for i := 0; i < numOfNamespaces; i++ {
 				//create namespace and release the ndb-operator
 				namespace := "multi-ns-" + strconv.Itoa(i)
