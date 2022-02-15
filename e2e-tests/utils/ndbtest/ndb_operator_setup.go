@@ -23,7 +23,7 @@ const (
 	ndbOperatorReleaseName = "ndb-operator-rel"
 )
 
-// Wait for the NDB Operator webhook server to become ready
+// WaitForNdbOperatorReady waits for the NDB Operator webhook server to become ready
 func WaitForNdbOperatorReady(ctx context.Context, ndbClientset ndbclient.Interface, namespace string) {
 	nc := crdutils.NewTestNdbCrd(namespace, "test-webhook-ready", 1, 1, 1)
 	err := wait.PollImmediate(500*time.Millisecond, 5*time.Minute, func() (done bool, err error) {

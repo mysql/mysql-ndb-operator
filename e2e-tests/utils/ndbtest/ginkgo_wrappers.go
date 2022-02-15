@@ -7,9 +7,14 @@ package ndbtest
 import (
 	"fmt"
 	"path/filepath"
+	"sync"
 
+	podutils "github.com/mysql/ndb-operator/e2e-tests/utils/pods"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/testfiles"
 	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/klog"
 )
 
 // NewTestCase is a wrapper around the ginkgo.Describe block with
@@ -26,22 +31,66 @@ func NewTestCase(name string, body func(tc *TestContext)) bool {
 		// new one in between the specs.
 		tc := NewTestContext()
 
-		// Setup before and after each to init/cleanup TestContexts
+		// Setup BeforeEach to init/cleanup TestContexts
 		ginkgo.BeforeEach(func() {
 			ginkgo.By("Initialising TestContext")
 			tc.init(ndbTestSuite.suiteName)
-		})
-		ginkgo.AfterEach(func() {
-			ginkgo.By("Cleaning up TestContext")
-			tc.cleanup()
+
+			ginkgo.DeferCleanup(func() {
+				ginkgo.By("Cleaning up TestContext")
+				tc.cleanup()
+			})
 		})
 
-		// Setup Before/AfterEach methods to install/uninstall NDB Operator
+		// Set up NDB Operator for the testcase. This BeforeEach also
+		// starts a couple of goroutines to monitor the Operator for
+		// any crashes and to stream/save the operator pod logs.
 		ginkgo.BeforeEach(func() {
+			// Ginkgo should wait for the goroutines started by this
+			// BeforeEach before moving on to the next testcase.
+			// Use a sync.WaitGroup to track and wait for those
+			// goroutines via ginkgo.DeferCleanup.
+			var wg sync.WaitGroup
+			ginkgo.DeferCleanup(func() {
+				// Wait for the go routines to complete
+				wg.Wait()
+			})
+
+			// Install operator and on success Set up the uninstall method as Cleanup
 			installNdbOperator(tc)
-		})
-		ginkgo.AfterEach(func() {
-			uninstallNdbOperator(tc)
+			// Operator installed successfully.
+			// Set up the uninstall method as the Cleanup method.
+			ginkgo.DeferCleanup(uninstallNdbOperator, tc)
+
+			// Extract name of the operator pod
+			ctx := tc.ctx
+			namespace := tc.namespace
+			clientset := tc.k8sClientset
+			podName := podutils.GetPodNameWithLabel(
+				ctx, clientset, namespace, labels.Set{"app": "ndb-operator"}.AsSelector())
+			klog.Infof("Ndb Operator is running in pod %q", podName)
+
+			// Start a go routine to watch NDB Operator for crashes
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				defer ginkgo.GinkgoRecover()
+
+				// Watch for pod errors
+				podFailed := podutils.WatchForPodError(ctx, clientset, namespace, podName)
+				gomega.Expect(podFailed).To(gomega.BeFalse(), "Ndb Operator pod failed")
+			}()
+
+			// Start a go routine that streams and stores the operator pod logs
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				defer ginkgo.GinkgoRecover()
+
+				// Collect the pod logs and add them as a spec report entry
+				operatorLogs := podutils.CollectPodLogs(ctx, clientset, namespace, podName)
+				ginkgo.AddReportEntry("NDB Operator pod log", operatorLogs, ginkgo.ReportEntryVisibilityFailureOrVerbose)
+			}()
 		})
 
 		// Run the body

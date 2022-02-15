@@ -54,6 +54,13 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - pods/log
+  verbs:
+  - get
+
+- apiGroups:
+  - ""
+  resources:
   - configmaps
   verbs:
   - create
