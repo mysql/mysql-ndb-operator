@@ -31,7 +31,7 @@ func runHelmCommand(namespace string, helmArgs []string) (result string) {
 	return stdout
 }
 
-// helmInstall installs the helm chart at chartPath into the given namespace.
+// HelmInstall installs the helm chart at chartPath into the given namespace.
 func HelmInstall(namespace, releaseName, chartPath string, namespace_scoped bool) {
 	// Build the helm args for helm create command
 	helmArgs := []string{
@@ -57,7 +57,7 @@ func HelmInstall(namespace, releaseName, chartPath string, namespace_scoped bool
 		gomega.ContainSubstring("STATUS: deployed"), "'helm install' failed")
 }
 
-// helmUninstall uninstalls the given helm release from the given namespace.
+// HelmUninstall uninstalls the given helm release from the given namespace.
 func HelmUninstall(namespace, releaseName string) {
 	// Build the helm args for helm uninstall command
 	helmArgs := []string{
