@@ -446,28 +446,33 @@ func (c *Controller) syncHandler(ctx context.Context, key string) (result syncRe
 	}
 
 	// Update the status of the NdbCluster resource
-	err = syncContext.updateNdbClusterStatus(ctx)
+	statusUpdated, err := syncContext.updateNdbClusterStatus(ctx)
 	if err != nil {
 		// Status needs to be updated, but it failed.
-		// Do not send out signals yet.
+		// Do not record events yet.
 		// TODO: Ensure that the sync doesn't get stuck
 		return result
 	}
 
-	// Update success. Check status and send out events if necessary
-	if ndbOrg.Status.ProcessedGeneration != nc.Status.ProcessedGeneration {
-		// The status update succeeded and the ProcessedGeneration got updated during
-		// this loop implying that the MySQL Cluster config has been successfully
-		// synced with the spec of NdbCluster object. Record a SyncSuccess event to
-		// notify the same.
-		syncContext.recorder.Eventf(nc, nil,
-			corev1.EventTypeNormal, ReasonSyncSuccess, ActionSynced, MessageSyncSuccess)
-	} else if ndbOrg.Generation == ndbOrg.Status.ProcessedGeneration {
-		// NdbCluster was already in sync when the loop started.
-		// Record an InSync event
-		syncContext.recorder.Eventf(nc, nil,
-			corev1.EventTypeNormal, ReasonInSync, ActionNone, MessageInSync)
-
+	// No error returned by updateNdbClusterStatus.
+	// Check status and record events if necessary.
+	if nc.Status.ProcessedGeneration == nc.Generation {
+		// The latest generation of the NdbCluster has been processed
+		// and the MySQL Cluster is up-to-date.
+		if statusUpdated {
+			// The status was updated in this loop implying that this
+			// sync loop marks the end of the reconciliation of
+			// MySQL Cluster configuration with the latest spec.
+			// Record a SyncSuccess event to notify the same.
+			syncContext.recorder.Eventf(nc, nil,
+				corev1.EventTypeNormal, ReasonSyncSuccess, ActionSynced, MessageSyncSuccess)
+		} else {
+			// No status update this loop => the MySQL Cluster
+			// was already in sync with the latest NdbCluster spec.
+			// Record an InSync event
+			syncContext.recorder.Eventf(nc, nil,
+				corev1.EventTypeNormal, ReasonInSync, ActionNone, MessageInSync)
+		}
 	}
 
 	return result
