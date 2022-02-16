@@ -608,23 +608,24 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 }
 
 // updateNdbClusterStatus updates the status of the SyncContext's NdbCluster resource in the K8s API Server
-func (sc *SyncContext) updateNdbClusterStatus(ctx context.Context) error {
+func (sc *SyncContext) updateNdbClusterStatus(ctx context.Context) (statusUpdated bool, err error) {
 
 	// Use the DeepCopied NdbCluster resource to make the update
 	nc := sc.ndb
 	// Generate status with recent state of various resources
 	status := sc.calculateNdbClusterStatus()
-	// Check if the status has changed, if not the K8s update can be skipped
-	if statusEqual(&nc.Status, status) {
-		// No change to status
-		return nil
-	}
 
 	// Update the status. Use RetryOnConflict to automatically handle
 	// conflicts that can occur if the spec changes between the time
 	// the controller gets the NdbCluster object and updates it.
 	ndbClusterInterface := sc.ndbClientset().MysqlV1alpha1().NdbClusters(sc.ndb.Namespace)
-	updateErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Check if the status has changed, if not the K8s update can be skipped
+		if statusEqual(&nc.Status, status) {
+			// Status up-to-date. No update required.
+			return nil
+		}
+
 		// Update the status of NdbCluster
 		status.DeepCopyInto(&nc.Status)
 		// Send the update to K8s server
@@ -633,28 +634,29 @@ func (sc *SyncContext) updateNdbClusterStatus(ctx context.Context) error {
 
 		if updateErr == nil {
 			// Status update succeeded
+			statusUpdated = true
 			return nil
 		}
 
 		// Get the latest version of the NdbCluster object from
 		// the K8s API Server for retrying the update.
-		var err error
-		nc, err = ndbClusterInterface.Get(ctx, sc.ndb.Name, metav1.GetOptions{})
-		if err != nil {
+		var getErr error
+		nc, getErr = ndbClusterInterface.Get(ctx, sc.ndb.Name, metav1.GetOptions{})
+		if getErr != nil {
 			klog.Errorf("Failed to get NdbCluster resource during status update %q: %v",
-				getNamespacedName(sc.ndb), err)
-			return err
+				getNamespacedName(sc.ndb), getErr)
+			return getErr
 		}
+
 		// Return the updateErr. If it is a conflict error, RetryOnConflict
 		// will retry the update with the latest version of the NdbCluster object.
 		return updateErr
 	})
 
-	if updateErr != nil {
+	if err != nil {
 		klog.Errorf("Failed to update the status of NdbCluster resource %q : %v",
-			getNamespacedName(sc.ndb), updateErr)
-		return updateErr
+			getNamespacedName(sc.ndb), err)
 	}
 
-	return nil
+	return statusUpdated, err
 }
