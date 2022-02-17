@@ -1,29 +1,29 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-package helpers
+package v1alpha1
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 type validationCase struct {
-	spec       *v1alpha1.NdbClusterSpec
-	oldSpec    *v1alpha1.NdbClusterSpec
+	spec       *NdbClusterSpec
+	oldSpec    *NdbClusterSpec
 	shouldFail bool
 	explain    string
 }
 
 func nodeNumberTests(redundancy, dnc, mysqldc int32, fail bool, short string) *validationCase {
 	return &validationCase{
-		spec: &v1alpha1.NdbClusterSpec{
+		spec: &NdbClusterSpec{
 			RedundancyLevel: redundancy,
 			NodeCount:       dnc,
-			Mysqld: &v1alpha1.NdbMysqldSpec{
+			Mysqld: &NdbMysqldSpec{
 				NodeCount: mysqldc,
 			},
 		},
@@ -35,10 +35,10 @@ func nodeNumberTests(redundancy, dnc, mysqldc int32, fail bool, short string) *v
 
 func mysqldRootPasswordSecretNameTests(secretName string, fail bool, short string) *validationCase {
 	return &validationCase{
-		spec: &v1alpha1.NdbClusterSpec{
+		spec: &NdbClusterSpec{
 			RedundancyLevel: 1,
 			NodeCount:       1,
-			Mysqld: &v1alpha1.NdbMysqldSpec{
+			Mysqld: &NdbMysqldSpec{
 				NodeCount:              1,
 				RootPasswordSecretName: secretName,
 			},
@@ -52,17 +52,17 @@ func ndbUpdateTests(redundancy, dnc, mysqldCount,
 	oldRedundancy, oldDnc, oldMysqldCount int32,
 	fail bool, short string) *validationCase {
 	return &validationCase{
-		spec: &v1alpha1.NdbClusterSpec{
+		spec: &NdbClusterSpec{
 			RedundancyLevel: redundancy,
 			NodeCount:       dnc,
-			Mysqld: &v1alpha1.NdbMysqldSpec{
+			Mysqld: &NdbMysqldSpec{
 				NodeCount: mysqldCount,
 			},
 		},
-		oldSpec: &v1alpha1.NdbClusterSpec{
+		oldSpec: &NdbClusterSpec{
 			RedundancyLevel: oldRedundancy,
 			NodeCount:       oldDnc,
-			Mysqld: &v1alpha1.NdbMysqldSpec{
+			Mysqld: &NdbMysqldSpec{
 				NodeCount: oldMysqldCount,
 			},
 		},
@@ -76,15 +76,15 @@ func Test_InvalidValues(t *testing.T) {
 	shouldFail := true
 	vcs := []*validationCase{
 		nodeNumberTests(0, 0, 0, shouldFail, "all zero"),
-		nodeNumberTests(0, 2, 2, shouldFail, "reduncany zero, not matching node count"),
-		nodeNumberTests(3, 2, 2, shouldFail, "reduncany not matching data node count"),
+		nodeNumberTests(0, 2, 2, shouldFail, "redundancy zero, not matching node count"),
+		nodeNumberTests(3, 2, 2, shouldFail, "redundancy not matching data node count"),
 		nodeNumberTests(2, 145, 2, shouldFail, "too many data nodes"),
 		nodeNumberTests(2, 144, 111, shouldFail, "too many nodes (including 2 mgmd nodes)"),
 		nodeNumberTests(1, 144, 111, !shouldFail, "okay no of nodes (including 1 mgmd nodes)"),
 		nodeNumberTests(2, 144, 2, !shouldFail, "okay"),
 		nodeNumberTests(3, 9, 2, !shouldFail, "okay"),
 		nodeNumberTests(2, 2, 2, !shouldFail, "all okay"),
-		nodeNumberTests(1, 2, 2, !shouldFail, "2 dn and reduncany 1 is okay"),
+		nodeNumberTests(1, 2, 2, !shouldFail, "2 dn and redundancy 1 is okay"),
 		nodeNumberTests(2, 2, 0, !shouldFail, "okay with no mysqlds"),
 
 		mysqldRootPasswordSecretNameTests("root-pass.123", !shouldFail, "valid name"),
@@ -99,25 +99,25 @@ func Test_InvalidValues(t *testing.T) {
 
 	for _, vc := range vcs {
 
-		ndb := &v1alpha1.NdbCluster{
+		ndb := &NdbCluster{
 			Spec: *vc.spec,
 		}
 
-		var oldNdb *v1alpha1.NdbCluster
+		var isValid bool
+		var errList field.ErrorList
 		if vc.oldSpec != nil {
-			oldNdb = &v1alpha1.NdbCluster{
+			oldNdb := &NdbCluster{
 				Spec: *vc.oldSpec,
 			}
+			isValid, errList = oldNdb.IsValidSpecUpdate(ndb)
+		} else {
+			isValid, errList = ndb.HasValidSpec()
 		}
 
-		if errList := IsValidConfig(ndb, oldNdb); errList != nil {
-			if !vc.shouldFail {
-				t.Errorf("Error \"%s\" for valid case: %s", errList.ToAggregate(), vc.explain)
-			}
-		} else {
-			if vc.shouldFail {
-				t.Errorf("Should fail with error but didn't: %s", vc.explain)
-			}
+		if vc.shouldFail && isValid {
+			t.Errorf("Should fail with error but didn't: %s", vc.explain)
+		} else if !vc.shouldFail && !isValid {
+			t.Errorf("Error %q for valid case: %s", errList.ToAggregate(), vc.explain)
 		}
 	}
 

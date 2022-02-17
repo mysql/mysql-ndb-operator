@@ -1,70 +1,41 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-package helpers
+package v1alpha1
 
 import (
 	"fmt"
 	"math"
 	"strings"
 
-	ndbv1alpha1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
+	"github.com/mysql/ndb-operator/pkg/helpers"
 
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-// IsValidConfig validates the Ndb resource and returns an ErrorList with all invalid field values
-func IsValidConfig(newNdb *ndbv1alpha1.NdbCluster, oldNdb *ndbv1alpha1.NdbCluster) field.ErrorList {
-
-	spec := newNdb.Spec
+// HasValidSpec validates the spec of the NdbCluster object
+func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
+	spec := nc.Spec
 
 	var errList field.ErrorList
 	specPath := field.NewPath("spec")
 	mysqldPath := specPath.Child("mysqld")
-	if oldNdb != nil {
-		// this is an update - do not allow updating Spec.NodeCount and Spec.RedundancyLevel.
-		if oldNdb.Spec.NodeCount != newNdb.Spec.NodeCount {
-			var msg string
-			if oldNdb.Spec.NodeCount < newNdb.Spec.NodeCount {
-				msg = "Online add node is not supported by the operator yet"
-			} else {
-				msg = "spec.NodeCount cannot be reduced once MySQL Cluster has been started"
-			}
-			errList = append(errList,
-				field.Invalid(specPath.Child("nodeCount"), newNdb.Spec.NodeCount, msg))
-		}
-
-		if oldNdb.Spec.RedundancyLevel != newNdb.Spec.RedundancyLevel {
-			errList = append(errList,
-				field.Invalid(specPath.Child("redundancyLevel"), newNdb.Spec.RedundancyLevel,
-					"spec.redundancyLevel cannot be updated once MySQL Cluster has been started"))
-		}
-
-		// do not allow updating Spec.Mysqld.RootHost
-		if oldNdb.Spec.Mysqld != nil &&
-			newNdb.Spec.Mysqld != nil &&
-			(oldNdb.Spec.Mysqld.RootHost != newNdb.Spec.Mysqld.RootHost) {
-			errList = append(errList,
-				field.Invalid(mysqldPath.Child("rootHost"), newNdb.Spec.Mysqld.RootHost,
-					"spec.mysqld.rootHost cannot be updated once MySQL Cluster has been started"))
-		}
-	}
 
 	dataNodeCount := spec.NodeCount
-	mysqlServerCount := newNdb.GetMySQLServerNodeCount()
-	managementNodeCount := newNdb.GetManagementNodeCount()
+	mysqlServerCount := nc.GetMySQLServerNodeCount()
+	managementNodeCount := nc.GetManagementNodeCount()
 
-	// checking if number of data nodes match redundancy
+	// check if number of data nodes is a multiple of redundancy
 	if math.Mod(float64(dataNodeCount), float64(spec.RedundancyLevel)) != 0 {
 		msg := fmt.Sprintf(
 			"spec.nodeCount should be a multiple of the spec.redundancyLevel(=%d)", spec.RedundancyLevel)
 		errList = append(errList, field.Invalid(specPath.Child("nodeCount"), dataNodeCount, msg))
 	}
 
-	// checking total number of nodes
+	// check if total number of nodes are not more than the allowed maximum
 	total := managementNodeCount + dataNodeCount + mysqlServerCount
 	if total > constants.MaxNumberOfNodes {
 		invalidValue := fmt.Sprintf("%d (= %d management, %d data and %d mysql nodes)", total, managementNodeCount, dataNodeCount, mysqlServerCount)
@@ -73,10 +44,10 @@ func IsValidConfig(newNdb *ndbv1alpha1.NdbCluster, oldNdb *ndbv1alpha1.NdbCluste
 		errList = append(errList, field.Invalid(field.NewPath("Total Nodes"), invalidValue, msg))
 	}
 
-	// validate the MySQL Root password secret name
+	// check if the MySQL root password secret name has the expected format
 	var rootPasswordSecret string
-	if newNdb.Spec.Mysqld != nil {
-		rootPasswordSecret = newNdb.Spec.Mysqld.RootPasswordSecretName
+	if nc.Spec.Mysqld != nil {
+		rootPasswordSecret = nc.Spec.Mysqld.RootPasswordSecretName
 	}
 	if rootPasswordSecret != "" {
 		errs := validation.IsDNS1123Subdomain(rootPasswordSecret)
@@ -88,14 +59,14 @@ func IsValidConfig(newNdb *ndbv1alpha1.NdbCluster, oldNdb *ndbv1alpha1.NdbCluste
 	}
 
 	// validate any passed additional cnf
-	myCnfString := newNdb.GetMySQLCnf()
+	myCnfString := nc.GetMySQLCnf()
 	if len(myCnfString) > 0 {
-		myCnf, err := ParseString(myCnfString)
+		myCnf, err := helpers.ParseString(myCnfString)
 		if err != nil && strings.Contains(err.Error(), "Non-empty line without section") {
 			// section header is missing as it is optional
 			// try parsing again with [mysqld] header
 			myCnfString = "[mysqld]\n" + myCnfString
-			myCnf, err = ParseString(myCnfString)
+			myCnf, err = helpers.ParseString(myCnfString)
 		}
 
 		if err != nil {
@@ -113,5 +84,46 @@ func IsValidConfig(newNdb *ndbv1alpha1.NdbCluster, oldNdb *ndbv1alpha1.NdbCluste
 		}
 	}
 
-	return errList
+	return errList == nil, errList
+}
+
+func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorList) {
+
+	var errList field.ErrorList
+	specPath := field.NewPath("spec")
+	mysqldPath := specPath.Child("mysqld")
+
+	// Do not allow updating Spec.NodeCount and Spec.RedundancyLevel
+	if nc.Spec.NodeCount != newNc.Spec.NodeCount {
+		var msg string
+		if nc.Spec.NodeCount < newNc.Spec.NodeCount {
+			msg = "Online add node is not supported by the operator yet"
+		} else {
+			msg = "spec.NodeCount cannot be reduced once MySQL Cluster has been started"
+		}
+		errList = append(errList,
+			field.Invalid(specPath.Child("nodeCount"), newNc.Spec.NodeCount, msg))
+	}
+
+	if nc.Spec.RedundancyLevel != newNc.Spec.RedundancyLevel {
+		errList = append(errList,
+			field.Invalid(specPath.Child("redundancyLevel"), newNc.Spec.RedundancyLevel,
+				"spec.redundancyLevel cannot be updated once MySQL Cluster has been started"))
+	}
+
+	// Do not allow updating Spec.Mysqld.RootHost
+	if nc.Spec.Mysqld != nil &&
+		newNc.Spec.Mysqld != nil &&
+		(nc.Spec.Mysqld.RootHost != newNc.Spec.Mysqld.RootHost) {
+		errList = append(errList,
+			field.Invalid(mysqldPath.Child("rootHost"), newNc.Spec.Mysqld.RootHost,
+				"spec.mysqld.rootHost cannot be updated once MySQL Cluster has been started"))
+	}
+
+	// Check if the new NdbCluster valid is spec
+	if isValid, specErrList := newNc.HasValidSpec(); !isValid {
+		errList = append(errList, specErrList...)
+	}
+
+	return errList == nil, errList
 }
