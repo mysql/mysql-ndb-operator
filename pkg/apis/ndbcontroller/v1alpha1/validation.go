@@ -5,6 +5,7 @@
 package v1alpha1
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -92,6 +93,15 @@ func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorLis
 	var errList field.ErrorList
 	specPath := field.NewPath("spec")
 	mysqldPath := specPath.Child("mysqld")
+
+	if nc.Spec.RedundancyLevel == 1 {
+		// MySQL Cluster replica = 1 => updating MySQL config via
+		// rolling restart is not possible. Disallow any spec update.
+		errList = append(errList,
+			field.InternalError(specPath,
+				errors.New("operator cannot handle any spec update to a MySQL Cluster whose replica is 1")))
+		return false, errList
+	}
 
 	// Do not allow updating Spec.NodeCount and Spec.RedundancyLevel
 	if nc.Spec.NodeCount != newNc.Spec.NodeCount {

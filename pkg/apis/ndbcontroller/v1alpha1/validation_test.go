@@ -95,6 +95,7 @@ func Test_InvalidValues(t *testing.T) {
 		ndbUpdateTests(2, 2, 2, 1, 2, 2, shouldFail, "should not update redundancy"),
 		ndbUpdateTests(2, 4, 2, 2, 2, 2, shouldFail, "should not update data node count"),
 		ndbUpdateTests(2, 2, 5, 2, 2, 2, !shouldFail, "allow increasing mysqld node count"),
+		ndbUpdateTests(1, 2, 5, 1, 2, 2, shouldFail, "update spec with replica = 1"),
 	}
 
 	for _, vc := range vcs {
