@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -6,7 +6,6 @@ package webhook
 
 import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/mysql/ndb-operator/pkg/helpers"
 	v1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,7 +43,7 @@ func (nv *ndbValidator) newObject() runtime.Object {
 
 func (nv *ndbValidator) validateCreate(reqUID types.UID, obj runtime.Object) *v1.AdmissionResponse {
 	nc := obj.(*v1alpha1.NdbCluster)
-	if errList := helpers.IsValidConfig(nc, nil); errList != nil {
+	if isValid, errList := nc.HasValidSpec(); !isValid {
 		// ndb does not define a valid configuration
 		return requestDeniedNdbInvalid(reqUID, nc, errList)
 	}
@@ -64,7 +63,7 @@ func (nv *ndbValidator) validateUpdate(
 	}
 
 	newNC := newObj.(*v1alpha1.NdbCluster)
-	if errList := helpers.IsValidConfig(newNC, oldNC); errList != nil {
+	if isValid, errList := oldNC.IsValidSpecUpdate(newNC); !isValid {
 		// new ndb does not define a valid configuration
 		return requestDeniedNdbInvalid(reqUID, newNC, errList)
 	}
