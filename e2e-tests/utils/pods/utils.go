@@ -74,9 +74,9 @@ func getConditionStatus(pod *corev1.Pod, conditionType corev1.PodConditionType) 
 	return corev1.ConditionUnknown
 }
 
-// WatchForPodError watches the given pod for any errors or crashes.
-// It returns true when the pod stops due to an error or
-//            false when the pod completes without an error.
+// WatchForPodError watches the containers in the given pod for any errors or crashes.
+// It returns true when any of the container stops due to an error or
+//            false when the all the containers complete without an error.
 // Note : this method should be called only when the pod is ready.
 func WatchForPodError(ctx context.Context, clientset kubernetes.Interface, namespace, podName string) bool {
 	// Start watching the pod
@@ -111,18 +111,63 @@ func WatchForPodError(ctx context.Context, clientset kubernetes.Interface, names
 			continue
 		}
 
+		var unreadyContainers int
 		// Pod is not ready - check for errors in all containers
 		for _, containerStatus := range pod.Status.ContainerStatuses {
+			// Extract exit code if the container is not running
+			var exitCode int32
 			containerState := containerStatus.State
 			if containerState.Terminated != nil {
-				if containerState.Terminated.ExitCode == 0 {
-					// This container has completed without error
-					return false
-				} else {
-					// This container has failed
+				// This container has failed
+				exitCode = containerState.Terminated.ExitCode
+
+			} else if containerState.Waiting != nil {
+				// This container was previously running, but it is
+				// waiting now. Check LastTerminationState for error code.
+				lastTerminatedState := containerStatus.LastTerminationState.Terminated
+				if lastTerminatedState != nil {
+					exitCode = lastTerminatedState.ExitCode
+				}
+			} else {
+				// This container is still running
+				continue
+			}
+
+			// Found one unready container
+			unreadyContainers++
+
+			// Deduce if container has failed by examining the exit code
+			switch exitCode {
+			case 137:
+				// Container was not found when the status was generated
+				// If the container had stopped in response to a pod delete
+				// request, assume this as a successful completion.
+				if pod.DeletionTimestamp == nil {
+					// There was no deletion request => container failed.
 					return true
 				}
+				// Pod deletion requested - assume container completed without any error.
+				// Continue looking for error in other containers.
+				continue
+			case 0:
+				// Container completed without any error.
+				// Continue looking for error in other containers.
+				continue
+			default:
+				// Container failed with an error
+				return true
 			}
 		}
+
+		// All completed containers returned exit code 0.
+		// None of them have failed.
+
+		if len(pod.Spec.Containers) == unreadyContainers {
+			// All containers have completed without any errors
+			return false
+		}
+
+		// Some containers are still running.
+		// Wait for them to complete as well.
 	}
 }
