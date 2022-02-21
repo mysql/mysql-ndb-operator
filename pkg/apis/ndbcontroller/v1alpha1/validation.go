@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/mysql/ndb-operator/pkg/constants"
-	"github.com/mysql/ndb-operator/pkg/helpers"
+	"github.com/mysql/ndb-operator/pkg/ndbconfig/configparser"
 
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -62,12 +62,12 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 	// validate any passed additional cnf
 	myCnfString := nc.GetMySQLCnf()
 	if len(myCnfString) > 0 {
-		myCnf, err := helpers.ParseString(myCnfString)
+		myCnf, err := configparser.ParseString(myCnfString)
 		if err != nil && strings.Contains(err.Error(), "Non-empty line without section") {
 			// section header is missing as it is optional
 			// try parsing again with [mysqld] header
 			myCnfString = "[mysqld]\n" + myCnfString
-			myCnf, err = helpers.ParseString(myCnfString)
+			myCnf, err = configparser.ParseString(myCnfString)
 		}
 
 		if err != nil {

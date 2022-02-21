@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -11,6 +11,7 @@ import (
 	"github.com/mysql/ndb-operator/config/debug"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
+	"github.com/mysql/ndb-operator/pkg/ndbconfig"
 
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -38,7 +39,7 @@ const (
 // StatefulSetInterface is the interface for a statefulset of NDB management or data nodes
 type StatefulSetInterface interface {
 	GetTypeName() string
-	NewStatefulSet(rc *ResourceContext, cluster *v1alpha1.NdbCluster) *apps.StatefulSet
+	NewStatefulSet(rc *ndbconfig.ResourceContext, cluster *v1alpha1.NdbCluster) *apps.StatefulSet
 	GetName(nc *v1alpha1.NdbCluster) string
 }
 
@@ -254,7 +255,7 @@ func (mss *mgmdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 }
 
 // NewStatefulSet returns the StatefulSet specification to start and manage the Management nodes.
-func (mss *mgmdStatefulSet) NewStatefulSet(rc *ResourceContext, nc *v1alpha1.NdbCluster) *apps.StatefulSet {
+func (mss *mgmdStatefulSet) NewStatefulSet(rc *ndbconfig.ResourceContext, nc *v1alpha1.NdbCluster) *apps.StatefulSet {
 	statefulSet := mss.newStatefulSet(nc)
 	statefulSetSpec := &statefulSet.Spec
 
@@ -394,7 +395,7 @@ func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 }
 
 // NewStatefulSet returns the StatefulSet specification to start and manage the Data nodes.
-func (nss *ndbdStatefulSet) NewStatefulSet(rc *ResourceContext, nc *v1alpha1.NdbCluster) *apps.StatefulSet {
+func (nss *ndbdStatefulSet) NewStatefulSet(rc *ndbconfig.ResourceContext, nc *v1alpha1.NdbCluster) *apps.StatefulSet {
 	statefulSet := nss.newStatefulSet(nc)
 	statefulSetSpec := &statefulSet.Spec
 

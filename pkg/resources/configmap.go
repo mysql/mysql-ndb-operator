@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -11,7 +11,8 @@ import (
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
-	"github.com/mysql/ndb-operator/pkg/helpers"
+	"github.com/mysql/ndb-operator/pkg/ndbconfig"
+	"github.com/mysql/ndb-operator/pkg/ndbconfig/configparser"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,9 +42,9 @@ func GetConfigFromConfigMapObject(cm *corev1.ConfigMap) (string, error) {
 }
 
 // updateManagementConfig updates the Data map with latest config.ini
-func updateManagementConfig(ndb *v1alpha1.NdbCluster, data map[string]string, oldRC *ResourceContext) error {
+func updateManagementConfig(ndb *v1alpha1.NdbCluster, data map[string]string, oldRC *ndbconfig.ResourceContext) error {
 	// get the updated config string
-	configString, err := GetConfigString(ndb, oldRC)
+	configString, err := ndbconfig.GetConfigString(ndb, oldRC)
 	if err != nil {
 		klog.Errorf("Failed to get the config string : %v", err)
 		return err
@@ -60,7 +61,7 @@ func updateMySQLConfig(ndb *v1alpha1.NdbCluster, data map[string]string) error {
 	// Add the cnf, if any, to the data map
 	myCnfValue := ndb.GetMySQLCnf()
 	if len(myCnfValue) > 0 {
-		_, err := helpers.ParseString(myCnfValue)
+		_, err := configparser.ParseString(myCnfValue)
 		if err != nil && strings.Contains(err.Error(), "Non-empty line without section") {
 			// section header is missing as it is optional
 			// add mysqld section header
@@ -105,7 +106,7 @@ func updateHelperScripts(data map[string]string) error {
 }
 
 // GetUpdatedConfigMap creates and returns a new config map with updated data
-func GetUpdatedConfigMap(ndb *v1alpha1.NdbCluster, cm *corev1.ConfigMap, oldRC *ResourceContext) *corev1.ConfigMap {
+func GetUpdatedConfigMap(ndb *v1alpha1.NdbCluster, cm *corev1.ConfigMap, oldRC *ndbconfig.ResourceContext) *corev1.ConfigMap {
 	// create a deep copy of the original ConfigMap
 	updatedCm := cm.DeepCopy()
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -12,6 +12,7 @@ import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
+	"github.com/mysql/ndb-operator/pkg/ndbconfig"
 
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -328,7 +329,7 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.NdbCluster, oldC
 
 // NewDeployment creates a new MySQL Server Deployment for the given Cluster.
 func (msd *MySQLServerDeployment) NewDeployment(
-	ndb *v1alpha1.NdbCluster, rc *ResourceContext, oldDeployment *apps.Deployment) *apps.Deployment {
+	ndb *v1alpha1.NdbCluster, rc *ndbconfig.ResourceContext, oldDeployment *apps.Deployment) *apps.Deployment {
 
 	var oldContainer *v1.Container
 	if oldDeployment != nil {

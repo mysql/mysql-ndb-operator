@@ -1,12 +1,13 @@
-// Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-package resources
+package ndbconfig
 
 import (
-	"github.com/mysql/ndb-operator/pkg/helpers"
 	"strconv"
+
+	"github.com/mysql/ndb-operator/pkg/ndbconfig/configparser"
 )
 
 // ResourceContext contains a summary of information extracted from the
@@ -35,7 +36,7 @@ type ResourceContext struct {
 // with extracted information from the configStr.
 func NewResourceContextFromConfiguration(configStr string) (*ResourceContext, error) {
 
-	config, err := helpers.ParseString(configStr)
+	config, err := configparser.ParseString(configStr)
 	if err != nil {
 		return nil, err
 	}
