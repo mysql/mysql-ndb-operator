@@ -10,11 +10,11 @@ import (
 	"github.com/mysql/ndb-operator/pkg/ndbconfig/configparser"
 )
 
-// ResourceContext contains a summary of information extracted from the
+// ConfigSummary contains a summary of information extracted from the
 // Management server's configuration. It is used during creation and
 // updation of various K8s resources and also to compare any new incoming
 // Ndb spec change
-type ResourceContext struct {
+type ConfigSummary struct {
 	// ConfigHash is the hash of the Spec the config is based on.
 	ConfigHash string
 	// ConfigGeneration is the generation of the NdbCluster this configuration is based on.
@@ -32,36 +32,35 @@ type ResourceContext struct {
 	RedundancyLevel uint32
 }
 
-// NewResourceContextFromConfiguration creates a new ResourceContext
-// with extracted information from the configStr.
-func NewResourceContextFromConfiguration(configStr string) (*ResourceContext, error) {
+// NewConfigSummary creates a new ConfigSummary with the information extracted from the configStr.
+func NewConfigSummary(configStr string) (*ConfigSummary, error) {
 
 	config, err := configparser.ParseString(configStr)
 	if err != nil {
 		return nil, err
 	}
 
-	rc := &ResourceContext{}
+	cs := &ConfigSummary{}
 
-	rc.ConfigHash = config.GetValueFromSection("header", "ConfigHash")
+	cs.ConfigHash = config.GetValueFromSection("header", "ConfigHash")
 
 	generationStr := config.GetValueFromSection("system", "ConfigGenerationNumber")
 	gen, _ := strconv.ParseUint(generationStr, 10, 32)
-	rc.ConfigGeneration = uint32(gen)
+	cs.ConfigGeneration = uint32(gen)
 
 	redundancyLevelStr := config.GetValueFromSection("ndbd default", "NoOfReplicas")
 	rl, _ := strconv.ParseUint(redundancyLevelStr, 10, 32)
-	rc.RedundancyLevel = uint32(rl)
+	cs.RedundancyLevel = uint32(rl)
 
-	rc.NumOfDataNodes = uint32(config.GetNumberOfSections("ndbd"))
+	cs.NumOfDataNodes = uint32(config.GetNumberOfSections("ndbd"))
 
-	rc.NumOfManagementNodes = uint32(config.GetNumberOfSections("ndb_mgmd"))
+	cs.NumOfManagementNodes = uint32(config.GetNumberOfSections("ndb_mgmd"))
 
 	buffer := config.GetValueFromSection("header", "NumOfMySQLServers")
 	numOfMySQLServers, _ := strconv.ParseUint(buffer, 10, 32)
-	rc.NumOfMySQLServers = uint32(numOfMySQLServers)
+	cs.NumOfMySQLServers = uint32(numOfMySQLServers)
 
-	rc.NumOfApiSlots = uint32(config.GetNumberOfSections("api"))
+	cs.NumOfApiSlots = uint32(config.GetNumberOfSections("api"))
 
-	return rc, nil
+	return cs, nil
 }

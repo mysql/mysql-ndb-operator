@@ -329,7 +329,7 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.NdbCluster, oldC
 
 // NewDeployment creates a new MySQL Server Deployment for the given Cluster.
 func (msd *MySQLServerDeployment) NewDeployment(
-	ndb *v1alpha1.NdbCluster, rc *ndbconfig.ResourceContext, oldDeployment *apps.Deployment) *apps.Deployment {
+	ndb *v1alpha1.NdbCluster, cs *ndbconfig.ConfigSummary, oldDeployment *apps.Deployment) *apps.Deployment {
 
 	var oldContainer *v1.Container
 	if oldDeployment != nil {
@@ -389,7 +389,7 @@ func (msd *MySQLServerDeployment) NewDeployment(
 					// TODO: Trigger a rolling update only when there is a change in Ndb
 					//       resource config that affects the MySQL Server
 					Annotations: map[string]string{
-						LastAppliedConfigGeneration: strconv.FormatUint(uint64(rc.ConfigGeneration), 10),
+						LastAppliedConfigGeneration: strconv.FormatUint(uint64(cs.ConfigGeneration), 10),
 					},
 				},
 				Spec: podSpec,

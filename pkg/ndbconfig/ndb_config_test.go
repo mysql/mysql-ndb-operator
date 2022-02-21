@@ -18,7 +18,7 @@ func errorIfNotEqual(t *testing.T, expected, actual uint32, desc string) {
 	}
 }
 
-func Test_NewResourceContextFromConfiguration(t *testing.T) {
+func Test_NewConfigSummary(t *testing.T) {
 
 	// just testing actual extraction of ConfigHash - not ini-file reading
 	testini := `
@@ -44,21 +44,21 @@ func Test_NewResourceContextFromConfiguration(t *testing.T) {
     [api]
 	`
 
-	rc, err := NewResourceContextFromConfiguration(testini)
+	cs, err := NewConfigSummary(testini)
 
 	if err != nil {
-		t.Errorf("NewResourceContextFromConfiguration failed : %s", err)
+		t.Errorf("NewConfigSummary failed : %s", err)
 	}
 
-	if rc.ConfigHash != "asdasdlkajhhnxh=?" {
-		t.Errorf("Actual 'rc.ConfigHash' value(%s) didn't match the expected value(asdasdlkajhhnxh=?).", rc.ConfigHash)
+	if cs.ConfigHash != "asdasdlkajhhnxh=?" {
+		t.Errorf("Actual 'cs.ConfigHash' value(%s) didn't match the expected value(asdasdlkajhhnxh=?).", cs.ConfigHash)
 	}
-	errorIfNotEqual(t, 4711, rc.ConfigGeneration, "rc.ConfigGeneration")
-	errorIfNotEqual(t, 2, rc.RedundancyLevel, " rc.RedundancyLevel")
-	errorIfNotEqual(t, 2, rc.NumOfManagementNodes, "rc.NumOfManagementNodes")
-	errorIfNotEqual(t, 2, rc.NumOfDataNodes, "rc.NumOfDataNodes")
-	errorIfNotEqual(t, 6, rc.NumOfApiSlots, "rc.NumOfApiSlots")
-	errorIfNotEqual(t, 3, rc.NumOfMySQLServers, "rc.NumOfMySQLServers")
+	errorIfNotEqual(t, 4711, cs.ConfigGeneration, "cs.ConfigGeneration")
+	errorIfNotEqual(t, 2, cs.RedundancyLevel, " cs.RedundancyLevel")
+	errorIfNotEqual(t, 2, cs.NumOfManagementNodes, "cs.NumOfManagementNodes")
+	errorIfNotEqual(t, 2, cs.NumOfDataNodes, "cs.NumOfDataNodes")
+	errorIfNotEqual(t, 6, cs.NumOfApiSlots, "cs.NumOfApiSlots")
+	errorIfNotEqual(t, 3, cs.NumOfMySQLServers, "cs.NumOfMySQLServers")
 }
 
 func Test_GetConfigString(t *testing.T) {

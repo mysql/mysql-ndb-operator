@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -103,7 +103,7 @@ func (mdc *mysqlDeploymentController) createDeployment(ctx context.Context, sc *
 	}
 
 	// Create deployment
-	deployment := mdc.mysqlServerDeployment.NewDeployment(sc.ndb, sc.resourceContext, nil)
+	deployment := mdc.mysqlServerDeployment.NewDeployment(sc.ndb, sc.configSummary, nil)
 	_, err := mdc.deploymentInterface(deployment.Namespace).Create(ctx, deployment, metav1.CreateOptions{})
 	if err != nil {
 		if errors.IsAlreadyExists(err) {
@@ -224,7 +224,7 @@ func (mdc *mysqlDeploymentController) HandleScaleDown(ctx context.Context, sc *S
 	}
 
 	// Handle any scale down
-	mysqldNodeCount := int32(sc.resourceContext.NumOfMySQLServers)
+	mysqldNodeCount := int32(sc.configSummary.NumOfMySQLServers)
 	if deployment.Status.Replicas <= mysqldNodeCount {
 		// No scale down requested or, it has been processed already
 		// Continue processing rest of sync loop
@@ -255,12 +255,12 @@ func (mdc *mysqlDeploymentController) HandleScaleDown(ctx context.Context, sc *S
 // the new config has been ensured in both Management and Data Nodes.
 func (mdc *mysqlDeploymentController) ReconcileDeployment(ctx context.Context, sc *SyncContext) syncResult {
 	deployment := sc.mysqldDeployment
-	rc := sc.resourceContext
+	cs := sc.configSummary
 	ndbCluster := sc.ndb
 
 	if deployment == nil {
 		// deployment doesn't exist yet
-		if rc.NumOfMySQLServers == 0 {
+		if cs.NumOfMySQLServers == 0 {
 			// the current state is in sync with expectation
 			return continueProcessing()
 		}
@@ -279,12 +279,12 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(ctx context.Context, s
 	// At this point the deployment exists and has already been verified
 	// to be complete (i.e. no previous updates still being applied) by HandleScaleDown.
 	// Check if it has the recent config generation.
-	if deploymentHasConfig(deployment, rc.ConfigGeneration) {
+	if deploymentHasConfig(deployment, cs.ConfigGeneration) {
 		// Deployment upto date
 		return continueProcessing()
 	}
 
 	// Deployment has to be patched
-	updatedDeployment := mdc.mysqlServerDeployment.NewDeployment(ndbCluster, rc, deployment)
+	updatedDeployment := mdc.mysqlServerDeployment.NewDeployment(ndbCluster, cs, deployment)
 	return mdc.patchDeployment(deployment, updatedDeployment)
 }
