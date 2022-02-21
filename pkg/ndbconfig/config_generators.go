@@ -60,7 +60,7 @@ NodeId={{$nodeId}}
 //
 // It is important to note that GetConfigString uses the Spec in its
 // actual and consistent state and does not rely on any Status field.
-func GetConfigString(ndb *v1alpha1.NdbCluster, oldResourceContext *ResourceContext) (string, error) {
+func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) (string, error) {
 
 	var (
 		// Variable that keeps track of the first free data node, mgmd node ids
@@ -73,7 +73,7 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldResourceContext *ResourceConte
 
 	// API Slots required for the MySQL Servers
 	requiredNumOfSlotsForMySQLServer := ndb.GetMySQLServerNodeCount()
-	if oldResourceContext != nil {
+	if oldConfigSummary != nil {
 		// An update has been applied to the Ndb resource.
 		// If the new update has requested for more MySQL Servers,
 		// increase the slots if required, but if a scale down has
@@ -82,7 +82,7 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldResourceContext *ResourceConte
 		// Servers after the scale down might have mismatching NodeIds
 		// with the ones specified in the config file causing the
 		// setup to go into a degraded state.
-		existingNumOfSlotsForMySQLServer := int32(oldResourceContext.NumOfMySQLServers)
+		existingNumOfSlotsForMySQLServer := int32(oldConfigSummary.NumOfMySQLServers)
 		if requiredNumOfSlotsForMySQLServer < existingNumOfSlotsForMySQLServer {
 			// Scale down requested - retain the existingNumOfSlotsForMySQLServer
 			requiredNumOfSlotsForMySQLServer = existingNumOfSlotsForMySQLServer

@@ -39,7 +39,7 @@ const (
 // StatefulSetInterface is the interface for a statefulset of NDB management or data nodes
 type StatefulSetInterface interface {
 	GetTypeName() string
-	NewStatefulSet(rc *ndbconfig.ResourceContext, cluster *v1alpha1.NdbCluster) *apps.StatefulSet
+	NewStatefulSet(cs *ndbconfig.ConfigSummary, cluster *v1alpha1.NdbCluster) *apps.StatefulSet
 	GetName(nc *v1alpha1.NdbCluster) string
 }
 
@@ -255,12 +255,12 @@ func (mss *mgmdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 }
 
 // NewStatefulSet returns the StatefulSet specification to start and manage the Management nodes.
-func (mss *mgmdStatefulSet) NewStatefulSet(rc *ndbconfig.ResourceContext, nc *v1alpha1.NdbCluster) *apps.StatefulSet {
+func (mss *mgmdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) *apps.StatefulSet {
 	statefulSet := mss.newStatefulSet(nc)
 	statefulSetSpec := &statefulSet.Spec
 
 	// Fill in mgmd specific values
-	replicas := int32(rc.NumOfManagementNodes)
+	replicas := int32(cs.NumOfManagementNodes)
 	statefulSetSpec.Replicas = &replicas
 	// Set pod management policy to start Management nodes one by one
 	statefulSetSpec.PodManagementPolicy = apps.OrderedReadyPodManagement
@@ -395,12 +395,12 @@ func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 }
 
 // NewStatefulSet returns the StatefulSet specification to start and manage the Data nodes.
-func (nss *ndbdStatefulSet) NewStatefulSet(rc *ndbconfig.ResourceContext, nc *v1alpha1.NdbCluster) *apps.StatefulSet {
+func (nss *ndbdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) *apps.StatefulSet {
 	statefulSet := nss.newStatefulSet(nc)
 	statefulSetSpec := &statefulSet.Spec
 
 	// Fill in ndbd specific values
-	replicas := int32(rc.NumOfDataNodes)
+	replicas := int32(cs.NumOfDataNodes)
 	statefulSetSpec.Replicas = &replicas
 	// Set pod management policy to start Data nodes in parallel
 	statefulSetSpec.PodManagementPolicy = apps.ParallelPodManagement

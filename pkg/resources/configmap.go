@@ -42,9 +42,10 @@ func GetConfigFromConfigMapObject(cm *corev1.ConfigMap) (string, error) {
 }
 
 // updateManagementConfig updates the Data map with latest config.ini
-func updateManagementConfig(ndb *v1alpha1.NdbCluster, data map[string]string, oldRC *ndbconfig.ResourceContext) error {
+func updateManagementConfig(
+	ndb *v1alpha1.NdbCluster, data map[string]string, oldConfigSummary *ndbconfig.ConfigSummary) error {
 	// get the updated config string
-	configString, err := ndbconfig.GetConfigString(ndb, oldRC)
+	configString, err := ndbconfig.GetConfigString(ndb, oldConfigSummary)
 	if err != nil {
 		klog.Errorf("Failed to get the config string : %v", err)
 		return err
@@ -106,12 +107,13 @@ func updateHelperScripts(data map[string]string) error {
 }
 
 // GetUpdatedConfigMap creates and returns a new config map with updated data
-func GetUpdatedConfigMap(ndb *v1alpha1.NdbCluster, cm *corev1.ConfigMap, oldRC *ndbconfig.ResourceContext) *corev1.ConfigMap {
+func GetUpdatedConfigMap(
+	ndb *v1alpha1.NdbCluster, cm *corev1.ConfigMap, oldConfigSummary *ndbconfig.ConfigSummary) *corev1.ConfigMap {
 	// create a deep copy of the original ConfigMap
 	updatedCm := cm.DeepCopy()
 
 	// Update the config.ini
-	if err := updateManagementConfig(ndb, updatedCm.Data, oldRC); err != nil {
+	if err := updateManagementConfig(ndb, updatedCm.Data, oldConfigSummary); err != nil {
 		klog.Errorf("Failed to update the config map : %v", err)
 		return nil
 	}

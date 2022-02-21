@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -75,7 +75,7 @@ func (ndbSfset *ndbNodeStatefulSetImpl) EnsureStatefulSet(
 	}
 
 	// StatefulSet doesn't exist. Create it.
-	sfset = ndbSfset.ndbNodeStatefulset.NewStatefulSet(sc.resourceContext, nc)
+	sfset = ndbSfset.ndbNodeStatefulset.NewStatefulSet(sc.configSummary, nc)
 	klog.Infof("Creating StatefulSet \"%s/%s\" of type %q with Replica = %d",
 		nc.Namespace, sfsetName, ndbSfset.ndbNodeStatefulset.GetTypeName(), *sfset.Spec.Replicas)
 	sfsetInterface := ndbSfset.client.AppsV1().StatefulSets(nc.Namespace)
