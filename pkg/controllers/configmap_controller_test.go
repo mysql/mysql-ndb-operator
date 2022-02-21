@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/mysql/ndb-operator/pkg/helpers"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
+	"github.com/mysql/ndb-operator/pkg/ndbconfig/configparser"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,7 +76,7 @@ func Test_TestThingsRelatedToConfigMaps(t *testing.T) {
 
 // ValidateConfigIniSectionCount validates the count of a
 // given section in the configIni
-func validateConfigIniSectionCount(t *testing.T, config helpers.ConfigIni, sectionName string, expected int) {
+func validateConfigIniSectionCount(t *testing.T, config configparser.ConfigIni, sectionName string, expected int) {
 	t.Helper()
 	if actual := config.GetNumberOfSections(sectionName); actual != expected {
 		t.Errorf("Expected number of '%s' sections : %d. Actual : %d", sectionName, expected, actual)
@@ -93,7 +93,7 @@ func validateMgmtConfig(t *testing.T, cm *corev1.ConfigMap, ndb *v1alpha1.NdbClu
 	}
 
 	// Parse the config.ini in the ConfigMap into a ConfigIni
-	cfg, err := helpers.ParseString(cm.Data["config.ini"])
+	cfg, err := configparser.ParseString(cm.Data["config.ini"])
 	if err != nil {
 		t.Errorf("Parsing of config.ini from config map failed: %s", err)
 		return
