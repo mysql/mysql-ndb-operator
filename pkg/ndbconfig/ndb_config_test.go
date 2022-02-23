@@ -64,6 +64,7 @@ func Test_NewConfigSummary(t *testing.T) {
 func Test_GetConfigString(t *testing.T) {
 	ndb := testutils.NewTestNdb("default", "example-ndb", 2)
 	ndb.Spec.DataMemory = "80M"
+	ndb.Spec.FreeAPISlots = 3
 	configString, err := GetConfigString(ndb, nil)
 	if err != nil {
 		t.Errorf("Failed to generate config string from Ndb : %s", err)

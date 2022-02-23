@@ -89,6 +89,15 @@ type NdbClusterSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=144
 	NodeCount int32 `json:"nodeCount"`
+	// The number of API sections declared in the MySQL Cluster, in
+	// addition to the API sections declared for the MySQL Servers.
+	// Any NDBAPI application can connect to the MySQL Cluster via
+	// these free slots. These slots will also enable the NDB
+	// Operator to scale up the MySQL Servers, when requested,
+	// without having to perform a rolling restart of all nodes
+	// to add more API sections in the MySQL Cluster config.
+	// +kubebuilder:default=5
+	FreeAPISlots int32 `json:"freeAPISlots,omitempty"`
 	// DataMemory specifies the space available per data node
 	// for storing in memory tables and indexes.
 	// Allowed values 1M - 1T. More info :

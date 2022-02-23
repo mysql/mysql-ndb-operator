@@ -28,6 +28,7 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 	dataNodeCount := spec.NodeCount
 	mysqlServerCount := nc.GetMySQLServerNodeCount()
 	managementNodeCount := nc.GetManagementNodeCount()
+	numOfFreeApiSlots := spec.FreeAPISlots
 
 	// check if number of data nodes is a multiple of redundancy
 	if math.Mod(float64(dataNodeCount), float64(spec.RedundancyLevel)) != 0 {
@@ -37,9 +38,11 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 	}
 
 	// check if total number of nodes are not more than the allowed maximum
-	total := managementNodeCount + dataNodeCount + mysqlServerCount
+	total := managementNodeCount + dataNodeCount + mysqlServerCount + numOfFreeApiSlots
 	if total > constants.MaxNumberOfNodes {
-		invalidValue := fmt.Sprintf("%d (= %d management, %d data and %d mysql nodes)", total, managementNodeCount, dataNodeCount, mysqlServerCount)
+		invalidValue := fmt.Sprintf(
+			"%d (= %d management, %d data, %d mysql nodes and %d free API nodes)",
+			total, managementNodeCount, dataNodeCount, mysqlServerCount, numOfFreeApiSlots)
 		msg := fmt.Sprintf(
 			"Total number of MySQL Cluster nodes should not exceed the allowed maximum of %d", constants.MaxNumberOfNodes)
 		errList = append(errList, field.Invalid(field.NewPath("Total Nodes"), invalidValue, msg))
