@@ -196,6 +196,17 @@ spec:
                       backing this claim.
                     type: string
                 type: object
+              freeAPISlots:
+                default: 5
+                description: The number of API sections declared in the MySQL Cluster,
+                  in addition to the API sections declared for the MySQL Servers.
+                  Any NDBAPI application can connect to the MySQL Cluster via these
+                  free slots. These slots will also enable the NDB Operator to scale
+                  up the MySQL Servers, when requested, without having to perform
+                  a rolling restart of all nodes to add more API sections in the MySQL
+                  Cluster config.
+                format: int32
+                type: integer
               image:
                 default: mysql/mysql-cluster:latest
                 description: The name of the MySQL Ndb Cluster image to be used. If
