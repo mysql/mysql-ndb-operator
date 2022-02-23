@@ -6,7 +6,7 @@ package resources
 
 import (
 	"embed"
-	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
@@ -19,40 +19,33 @@ import (
 	"k8s.io/klog"
 )
 
-const (
-	configIniKey = "config.ini"
-)
-
 // Embed the helper scripts in the ndb operator binary
 //go:embed scripts
 var scriptsFS embed.FS
 
-// GetConfigFromConfigMapObject returns the config string from the config map
-func GetConfigFromConfigMapObject(cm *corev1.ConfigMap) (string, error) {
-
-	if cm != nil && cm.Data != nil {
-		if len(cm.Data) > 0 {
-			if val, ok := cm.Data[configIniKey]; ok {
-				return val, nil
-			}
-		}
-	}
-
-	return "", errors.New(configIniKey + " key not found in configmap")
-}
-
-// updateManagementConfig updates the Data map with latest config.ini
+// updateManagementConfig updates the Data map with a new config.ini
+// if there is any change to the MySQL Cluster configuration.
 func updateManagementConfig(
 	ndb *v1alpha1.NdbCluster, data map[string]string, oldConfigSummary *ndbconfig.ConfigSummary) error {
-	// get the updated config string
-	configString, err := ndbconfig.GetConfigString(ndb, oldConfigSummary)
-	if err != nil {
-		klog.Errorf("Failed to get the config string : %v", err)
-		return err
+
+	// Update management if required
+	if oldConfigSummary == nil || oldConfigSummary.MySQLClusterConfigNeedsUpdate(ndb) {
+		// get the updated config string
+		klog.Infof("MySQL Cluster config for NdbCluster resource %q needs to be updated", ndb.Name)
+		configString, err := ndbconfig.GetConfigString(ndb, oldConfigSummary)
+		if err != nil {
+			klog.Errorf("Failed to get the config string : %v", err)
+			return err
+		}
+
+		// add/update that to the data map
+		data[constants.ConfigIniKey] = configString
 	}
 
-	// add/update that to the data map
-	data[configIniKey] = configString
+	// add/update the API slot information
+	data[constants.FreeApiSlots] = fmt.Sprintf("%d", ndb.Spec.FreeAPISlots)
+	data[constants.NumOfMySQLServers] = fmt.Sprintf("%d", ndb.GetMySQLServerNodeCount())
+
 	return nil
 }
 
@@ -124,6 +117,9 @@ func GetUpdatedConfigMap(
 		return nil
 	}
 
+	// Update the generation the config map is based on
+	updatedCm.Data[constants.NdbClusterGeneration] = fmt.Sprintf("%d", ndb.Generation)
+
 	return updatedCm
 }
 
@@ -165,6 +161,9 @@ func CreateConfigMap(ndb *v1alpha1.NdbCluster) *corev1.ConfigMap {
 	if updateHelperScripts(data) != nil {
 		return nil
 	}
+
+	// Update the generation the config map is based on
+	data[constants.NdbClusterGeneration] = fmt.Sprintf("%d", ndb.Generation)
 
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{

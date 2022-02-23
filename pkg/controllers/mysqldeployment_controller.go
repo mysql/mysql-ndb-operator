@@ -24,11 +24,11 @@ import (
 )
 
 // deploymentHasConfig returns true if the given deployment has the expected config generation
-func deploymentHasConfig(deployment *appsv1.Deployment, expectedConfigGeneration uint32) bool {
+func deploymentHasConfig(deployment *appsv1.Deployment, expectedConfigGeneration int64) bool {
 	// Get the last applied Config Generation
 	annotations := deployment.Spec.Template.GetAnnotations()
-	existingConfigGeneration, _ := strconv.ParseUint(annotations[resources.LastAppliedConfigGeneration], 10, 64)
-	return uint32(existingConfigGeneration) == expectedConfigGeneration
+	existingConfigGeneration, _ := strconv.ParseInt(annotations[resources.LastAppliedConfigGeneration], 10, 64)
+	return existingConfigGeneration == expectedConfigGeneration
 }
 
 // DeploymentControlInterface is the interface for deployment controllers
@@ -224,7 +224,7 @@ func (mdc *mysqlDeploymentController) HandleScaleDown(ctx context.Context, sc *S
 	}
 
 	// Handle any scale down
-	mysqldNodeCount := int32(sc.configSummary.NumOfMySQLServers)
+	mysqldNodeCount := sc.configSummary.NumOfMySQLServers
 	if deployment.Status.Replicas <= mysqldNodeCount {
 		// No scale down requested or, it has been processed already
 		// Continue processing rest of sync loop
@@ -279,7 +279,7 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(ctx context.Context, s
 	// At this point the deployment exists and has already been verified
 	// to be complete (i.e. no previous updates still being applied) by HandleScaleDown.
 	// Check if it has the recent config generation.
-	if deploymentHasConfig(deployment, cs.ConfigGeneration) {
+	if deploymentHasConfig(deployment, cs.NdbClusterGeneration) {
 		// Deployment upto date
 		return continueProcessing()
 	}

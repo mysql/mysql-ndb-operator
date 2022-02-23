@@ -24,22 +24,32 @@ type Section map[string]string
 // of section names, and an array of all Sections with that name.
 type ConfigIni map[string][]Section
 
-// GetValueFromSection extracts the config value of the key from the requested
-// section. If multiple sections exist with the sectionName, the method will panic.
-func (ci ConfigIni) GetValueFromSection(sectionName string, key string) string {
-	var value string
+// GetSection returns the Section with the sectionName.
+// If multiple sections exist with the given sectionName, the method will panic.
+func (ci ConfigIni) GetSection(sectionName string) Section {
 	if grp, ok := ci[sectionName]; ok {
 		switch len(grp) {
 		case 0:
 			// no Sections exist
+			return nil
 		case 1:
-			value = grp[0][key]
+			return grp[0]
 		default:
 			// Wrong usage : multiple Sections exist with the same
-			// name, and the method doesn't know which one to extract from.
-			panic("GetValueFromSection : multiple Sections exist with the sectionName")
+			// name, and the method doesn't know which one to return.
+			panic("GetSection : multiple Sections exist with the sectionName")
 		}
 
+	}
+	return nil
+}
+
+// GetValueFromSection extracts the config value of the key from the requested
+// section. If multiple sections exist with the sectionName, the method will panic.
+func (ci ConfigIni) GetValueFromSection(sectionName string, key string) (value string) {
+	section := ci.GetSection(sectionName)
+	if section != nil {
+		value = section[key]
 	}
 	return value
 }
