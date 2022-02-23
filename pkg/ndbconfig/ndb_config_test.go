@@ -132,5 +132,27 @@ NodeId=150
 		t.Errorf("Expected :\n%s\n", expectedConfigString)
 		t.Errorf("Generated :\n%s\n", configString)
 	}
+}
 
+func Test_GetMySQLConfigString(t *testing.T) {
+	nc := testutils.NewTestNdb("default", "example-ndb", 2)
+	nc.Spec.Mysqld.MyCnf = "config1=value1\nconfig2=value2\n"
+	configString, err := GetMySQLConfigString(nc, nil)
+	if err != nil {
+		t.Errorf("Failed to generate MySQL config string from Ndb : %s", err)
+	}
+
+	expectedConfigString := `# Auto generated config.ini - DO NOT EDIT
+# ConfigVersion=1
+
+[mysqld]
+config1=value1
+config2=value2
+
+`
+	if configString != expectedConfigString {
+		t.Error("The generated config string does not match the expected value")
+		t.Errorf("Expected :\n%s\n", expectedConfigString)
+		t.Errorf("Generated :\n%s\n", configString)
+	}
 }

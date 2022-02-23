@@ -22,6 +22,8 @@ type ConfigSummary struct {
 	NdbClusterGeneration int64
 	// MySQLClusterConfigVersion is the version of the config.ini stored in the config map
 	MySQLClusterConfigVersion int32
+	// MySQLServerConfigVersion is the version of the my.cnf stored in the config map
+	MySQLServerConfigVersion int32
 	// NumOfManagementNodes is number of Management Nodes (1 or 2).
 	NumOfManagementNodes int32
 	// NumOfDataNodes is the number of Data Nodes.
@@ -37,6 +39,8 @@ type ConfigSummary struct {
 	RedundancyLevel int32
 	// defaultNdbdConfigs has the values extracted from the default ndbd section of the management config.
 	defaultNdbdSection configparser.Section
+	// myCnfConfig has the parsed My.cnf config
+	myCnfConfig configparser.ConfigIni
 }
 
 // parseInt32 parses the given string into an Int32
@@ -68,6 +72,17 @@ func NewConfigSummary(configMapData map[string]string) (*ConfigSummary, error) {
 		RedundancyLevel: parseInt32(
 			config.GetValueFromSection("ndbd default", "NoOfReplicas")),
 		defaultNdbdSection: config.GetSection("ndbd default"),
+	}
+
+	// Update MySQL Config details if it exists
+	mysqlConfigString := configMapData[constants.MySQLConfigKey]
+	if mysqlConfigString != "" {
+		cs.myCnfConfig, err = configparser.ParseString(mysqlConfigString)
+		if err != nil {
+			return nil, debug.InternalError(err)
+		}
+		cs.MySQLServerConfigVersion = parseInt32(
+			cs.myCnfConfig.GetValueFromSection("header", "ConfigVersion"))
 	}
 
 	return cs, nil
@@ -113,4 +128,30 @@ func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1alpha1.NdbCluster) 
 	// No update required to the MySQL Cluster config.
 	return false
 
+}
+
+// MySQLCnfNeedsUpdate checks if the my.cnf config stored in the configMap needs to be updated
+func (cs *ConfigSummary) MySQLCnfNeedsUpdate(nc *v1alpha1.NdbCluster) (needsUpdate bool, err error) {
+	myCnf := nc.GetMySQLCnf()
+
+	if cs == nil {
+		// NdbCluster resource created for the first time.
+		// Need to update my.cnf if it is specified in the spec.
+		return myCnf != "", nil
+	}
+
+	if myCnf == "" {
+		// myCnf is empty.
+		// Update required if it previously had a value
+		return cs.myCnfConfig != nil, nil
+	}
+
+	myCnfConfig, err := configparser.ParseString(myCnf)
+	if err != nil {
+		// Cannot happen as it is already validated
+		return false, debug.InternalError(err)
+	}
+
+	// Compare the configs and return if the config needs an update
+	return !cs.myCnfConfig.IsEqual(myCnfConfig), nil
 }

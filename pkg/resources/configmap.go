@@ -7,13 +7,9 @@ package resources
 import (
 	"embed"
 	"fmt"
-	"strings"
-
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
-	"github.com/mysql/ndb-operator/pkg/ndbconfig/configparser"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
@@ -49,20 +45,21 @@ func updateManagementConfig(
 	return nil
 }
 
-// updateMySQLConfig updates the Data map with the
-// default my.cnf if it is specified in the Ndb resource.
-func updateMySQLConfig(ndb *v1alpha1.NdbCluster, data map[string]string) error {
-	// Add the cnf, if any, to the data map
-	myCnfValue := ndb.GetMySQLCnf()
-	if len(myCnfValue) > 0 {
-		_, err := configparser.ParseString(myCnfValue)
-		if err != nil && strings.Contains(err.Error(), "Non-empty line without section") {
-			// section header is missing as it is optional
-			// add mysqld section header
-			myCnfValue = "[mysqld]\n" + myCnfValue
+// updateMySQLConfig updates the my.cnf key in the configMap if required
+func updateMySQLConfig(
+	nc *v1alpha1.NdbCluster, data map[string]string, oldConfigSummary *ndbconfig.ConfigSummary) error {
+
+	if needsUpdate, err := oldConfigSummary.MySQLCnfNeedsUpdate(nc); err != nil {
+		klog.Errorf("Failed to check if the my.cnf needs to be updated : %s", err)
+		return err
+	} else if needsUpdate {
+		// Update the my.cnf key in configmap
+		if data[mysqldMyCnfKey], err = ndbconfig.GetMySQLConfigString(nc, oldConfigSummary); err != nil {
+			klog.Errorf("Failed to get the my.cnf config string : %s", err)
+			return err
 		}
-		data[mysqldMyCnfKey] = myCnfValue
 	}
+
 	return nil
 }
 
@@ -112,7 +109,7 @@ func GetUpdatedConfigMap(
 	}
 
 	// Update the MySQL custom config
-	if err := updateMySQLConfig(ndb, updatedCm.Data); err != nil {
+	if err := updateMySQLConfig(ndb, updatedCm.Data, oldConfigSummary); err != nil {
 		klog.Errorf("Failed to update the config map : %v", err)
 		return nil
 	}
@@ -153,7 +150,7 @@ func CreateConfigMap(ndb *v1alpha1.NdbCluster) *corev1.ConfigMap {
 	}
 
 	// Add the MySQL custom config
-	if updateMySQLConfig(ndb, data) != nil {
+	if updateMySQLConfig(ndb, data, nil) != nil {
 		return nil
 	}
 

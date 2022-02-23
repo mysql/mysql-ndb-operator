@@ -23,10 +23,10 @@ import (
 	"k8s.io/klog"
 )
 
-// deploymentHasConfig returns true if the given deployment has the expected config generation
-func deploymentHasConfig(deployment *appsv1.Deployment, expectedConfigGeneration int64) bool {
+// deploymentHasConfigGeneration returns true if the expectedConfigGeneration has already been applied to the given deployment
+func deploymentHasConfigGeneration(deployment *appsv1.Deployment, expectedConfigGeneration int64) bool {
 	// Get the last applied Config Generation
-	annotations := deployment.Spec.Template.GetAnnotations()
+	annotations := deployment.GetAnnotations()
 	existingConfigGeneration, _ := strconv.ParseInt(annotations[resources.LastAppliedConfigGeneration], 10, 64)
 	return existingConfigGeneration == expectedConfigGeneration
 }
@@ -279,7 +279,7 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(ctx context.Context, s
 	// At this point the deployment exists and has already been verified
 	// to be complete (i.e. no previous updates still being applied) by HandleScaleDown.
 	// Check if it has the recent config generation.
-	if deploymentHasConfig(deployment, cs.NdbClusterGeneration) {
+	if deploymentHasConfigGeneration(deployment, cs.NdbClusterGeneration) {
 		// Deployment upto date
 		return continueProcessing()
 	}

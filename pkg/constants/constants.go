@@ -34,4 +34,6 @@ const (
 	FreeApiSlots = "freeApiSlots"
 	// NdbClusterGeneration stores the generation the config map is based on.
 	NdbClusterGeneration = "ndb.generation"
+	// MySQLConfigKey is the key to the MySQL Server config(my.cnf) string
+	MySQLConfigKey = "my.cnf"
 )
