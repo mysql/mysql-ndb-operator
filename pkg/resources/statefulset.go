@@ -186,8 +186,8 @@ func (mss *mgmdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []v1.Volume {
 				// Load only the config.ini key
 				Items: []v1.KeyToPath{
 					{
-						Key:  configIniKey,
-						Path: configIniKey,
+						Key:  constants.ConfigIniKey,
+						Path: constants.ConfigIniKey,
 					},
 				},
 			},

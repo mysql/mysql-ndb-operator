@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -23,3 +23,15 @@ const MaxNumberOfDataNodes = 144
 
 // MaxNumberOfReplicas is the maximum number of replicas of Ndb (not K8)
 const MaxNumberOfReplicas = 4
+
+// List of ConfigMap keys
+const (
+	// ConfigIniKey is the key to the management config string
+	ConfigIniKey = "config.ini"
+	// NumOfMySQLServers has the number of MySQL Servers declared in the NdbCluster spec.
+	NumOfMySQLServers = "numOfMySQLServers"
+	// FreeApiSlots stores the number of freeApiSlots declared in the NdbCluster spec.
+	FreeApiSlots = "freeApiSlots"
+	// NdbClusterGeneration stores the generation the config map is based on.
+	NdbClusterGeneration = "ndb.generation"
+)

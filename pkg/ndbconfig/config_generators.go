@@ -14,13 +14,10 @@ import (
 
 // MySQL Cluster config template
 var mgmtConfigTmpl = `{{- /* Template to generate management config ini */ -}}
-# auto generated config.ini - do not edit
-#
-# ConfigHash={{.CalculateNewConfigHash}}
-# NumOfMySQLServers={{.GetMySQLServerNodeCount}}
+# Auto generated config.ini - DO NOT EDIT
 
 [system]
-ConfigGenerationNumber={{.GetGeneration}}
+ConfigGenerationNumber={{GetConfigVersion}}
 Name={{.Name}}
 
 [ndbd default]
@@ -71,28 +68,6 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 		apiStartNodeId = 145
 	)
 
-	// API Slots required for the MySQL Servers
-	requiredNumOfSlotsForMySQLServer := ndb.GetMySQLServerNodeCount()
-	if oldConfigSummary != nil {
-		// An update has been applied to the Ndb resource.
-		// If the new update has requested for more MySQL Servers,
-		// increase the slots if required, but if a scale down has
-		// been requested, do not decrease the slots. This is to
-		// avoid a potential issue where the remaining MySQL
-		// Servers after the scale down might have mismatching NodeIds
-		// with the ones specified in the config file causing the
-		// setup to go into a degraded state.
-		existingNumOfSlotsForMySQLServer := int32(oldConfigSummary.NumOfMySQLServers)
-		if requiredNumOfSlotsForMySQLServer < existingNumOfSlotsForMySQLServer {
-			// Scale down requested - retain the existingNumOfSlotsForMySQLServer
-			requiredNumOfSlotsForMySQLServer = existingNumOfSlotsForMySQLServer
-		}
-	}
-
-	// Calculate the total number of API slots to be set in the config.
-	// slots required for mysql servers + free NDBAPI slots.
-	requiredNumOfAPISlots := requiredNumOfSlotsForMySQLServer + ndb.Spec.FreeAPISlots
-
 	tmpl := template.New("config.ini")
 	tmpl.Funcs(template.FuncMap{
 		// GetNodeIds returns an array of node ids for the given node type
@@ -108,11 +83,13 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 				numberOfNodes = ndb.Spec.NodeCount
 			case "api":
 				startNodeId = &apiStartNodeId
-				numberOfNodes = requiredNumOfAPISlots
+				// Calculate the total number of API slots to be set in the config.
+				// slots required for mysql servers + free NDBAPI slots.
+				numberOfNodes = getNumOfRequiredAPISections(ndb, oldConfigSummary) + ndb.Spec.FreeAPISlots
 			default:
 				panic("Unrecognised node type")
 			}
-			// generate nodeis based on start node id and number of nodes
+			// generate nodeIds based on start node id and number of nodes
 			nodeIds := make([]int, numberOfNodes)
 			for i := range nodeIds {
 				nodeIds[i] = *startNodeId
@@ -121,6 +98,15 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 			return nodeIds
 		},
 		"GetDataDir": func() string { return constants.DataDir },
+		"GetConfigVersion": func() int32 {
+			if oldConfigSummary == nil {
+				// First version of the management config based on newly added NdbCluster spec.
+				return 1
+			} else {
+				// Bump up the config version for every change.
+				return oldConfigSummary.MySQLClusterConfigVersion + 1
+			}
+		},
 	})
 
 	if _, err := tmpl.Parse(mgmtConfigTmpl); err != nil {
