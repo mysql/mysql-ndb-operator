@@ -10,8 +10,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/mysql/ndb-operator/pkg/constants"
+	"github.com/mysql/ndb-operator/pkg/ndbconfig/configparser"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -304,9 +306,16 @@ func (nc *NdbCluster) GetOwnerReferences() []metav1.OwnerReference {
 
 // GetMySQLCnf returns any specified additional MySQL Server cnf
 func (nc *NdbCluster) GetMySQLCnf() string {
-	if nc.Spec.Mysqld == nil {
+	if nc.Spec.Mysqld == nil || nc.Spec.Mysqld.MyCnf == "" {
 		return ""
 	}
 
-	return nc.Spec.Mysqld.MyCnf
+	myCnf := nc.Spec.Mysqld.MyCnf
+	_, err := configparser.ParseString(myCnf)
+	if err != nil && strings.Contains(err.Error(), "Non-empty line without section") {
+		// section header is missing as it is optional - prepend and return
+		myCnf = "[mysqld]\n" + myCnf
+	}
+
+	return myCnf
 }

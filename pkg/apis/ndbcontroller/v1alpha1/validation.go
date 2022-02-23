@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strings"
 
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig/configparser"
@@ -66,21 +65,14 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 	myCnfString := nc.GetMySQLCnf()
 	if len(myCnfString) > 0 {
 		myCnf, err := configparser.ParseString(myCnfString)
-		if err != nil && strings.Contains(err.Error(), "Non-empty line without section") {
-			// section header is missing as it is optional
-			// try parsing again with [mysqld] header
-			myCnfString = "[mysqld]\n" + myCnfString
-			myCnf, err = configparser.ParseString(myCnfString)
-		}
-
 		if err != nil {
 			// error parsing the cnf
 			errList = append(errList,
 				field.Invalid(mysqldPath.Child("myCnf"), myCnfString, err.Error()))
 		} else {
 			// accept only one mysqld section in the cnf
-			if len(myCnf) > 1 ||
-				len(myCnf) != myCnf.GetNumberOfSections("mysqld") {
+			if len(myCnf) != 1 ||
+				myCnf.GetNumberOfSections("mysqld") != 1 {
 				errList = append(errList,
 					field.Invalid(mysqldPath.Child("myCnf"),
 						myCnfString, "spec.mysqld.myCnf can have only one mysqld section"))

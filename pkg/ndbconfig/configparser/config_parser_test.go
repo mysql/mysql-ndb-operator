@@ -164,3 +164,58 @@ func Test_GetNumberOfSections(t *testing.T) {
 	validateConfigIniSectionCount(t, config, "mgmd", 2)
 	validateConfigIniSectionCount(t, config, "mysqld", 0)
 }
+
+func configEqualTester(t *testing.T, config1, config2 string, expected bool, desc string) {
+	t.Helper()
+	if ConfigEqual(config1, config2) != expected {
+		t.Errorf("Testcase %q failed", desc)
+	}
+}
+
+func Test_ConfigEqual(t *testing.T) {
+	equal := true
+	configEqualTester(t,
+		"[ndbd default]\nDataMemory=20M\nNoOfReplica=2\n",
+		"[ndbd default]\nDataMemory=20M\nNoOfReplica=2\n", equal,
+		"equal config")
+	configEqualTester(t,
+		"[ndbd default]\nNoOfReplica=2\nDataMemory=20M\n",
+		"[ndbd default]\nDataMemory=20M\nNoOfReplica=2\n", equal,
+		"config params out of order but configs equal")
+	configEqualTester(t,
+		"[ndbd default]\nDataMemory=20M\nNoOfReplica=2\n",
+		"[ndbd]\nDataMemory=20M\nNoOfReplica=2\n", !equal,
+		"different sections with similar config")
+	configEqualTester(t,
+		"[ndbd]\nDataMemory=20M\nNoOfReplica=2\n[mysqld]\nndbcluster=true\nuser=root\n",
+		"[ndbd]\nDataMemory=20M\nNoOfReplica=2\n[mysqld]\nndbcluster=true\nuser=root\n", equal,
+		"equal config with multiple sections")
+	configEqualTester(t,
+		"[ndbd]\nDataMemory=20M\nNoOfReplica=2\n[mysqld]\nndbcluster=true\nuser=root\n",
+		"[mysqld]\nndbcluster=true\nuser=root\n[ndbd]\nDataMemory=20M\nNoOfReplica=2\n", equal,
+		"equal config with multiple sections that are out of order")
+	configEqualTester(t,
+		"[ndbd]\nNoOfReplica=2\nDataMemory=20M\n[mysqld]\nuser=root\nndbcluster=true\n",
+		"[mysqld]\nndbcluster=true\nuser=root\n[ndbd]\nDataMemory=20M\nNoOfReplica=2\n", equal,
+		"equal config with multiple sections and params that are out of order")
+	configEqualTester(t,
+		"[ndbd]\nNoOfReplica=2\nDataMemory=20M\n[mysqld]\nuser=mysql\nndbcluster=true\n",
+		"[mysqld]\nndbcluster=true\nuser=root\n[ndbd]\nDataMemory=20M\nNoOfReplica=2\n", !equal,
+		"unequal config with multiple sections and params that are out of order")
+	configEqualTester(t,
+		"[mysqld]\nuser=mysql\nndbcluster=true\n[mysqld]\nuser=root\nndbcluster=true\n",
+		"[mysqld]\nndbcluster=true\nuser=root\n[mysqld]\nuser=mysql\nndbcluster=true\n", equal,
+		"equal configs with multiple sections with same name")
+	configEqualTester(t,
+		"[mysqld]\nuser=mysql\nndbcluster=true\n",
+		"[mysqld]\nndbcluster=true\nuser=root\n[mysqld]\nuser=mysql\nndbcluster=true\n", !equal,
+		"unequal configs with one config having more sections")
+	configEqualTester(t,
+		"[mysqld]\nuser=mysql\nndbcluster=true\n[mysqld]\nuser=mysql\nndbcluster=true\n",
+		"[mysqld]\nndbcluster=true\nuser=mysql\n[mysqld]\nuser=mysql\nndbcluster=true\n", equal,
+		"equal configs with having multiple, equal sections")
+	configEqualTester(t,
+		"[mysqld]\nuser=mysql\nndbcluster=true\n[mysqld]\nuser=mysql\nndbcluster=true\n",
+		"[mysqld]\nndbcluster=true\nuser=mysql\n[mysqld]\nuser=root\nndbcluster=true\n", !equal,
+		"unequal configs with having multiple sections")
+}

@@ -9,7 +9,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"strings"
+
+	"github.com/mysql/ndb-operator/config/debug"
 )
 
 const (
@@ -81,6 +84,47 @@ func (ci ConfigIni) addSection(sectionName string) Section {
 	newSection := make(Section)
 	ci[sectionName] = append(grp, newSection)
 	return newSection
+}
+
+// IsEqual returns if the given ConfigIni is equal to ci
+func (ci ConfigIni) IsEqual(ci2 ConfigIni) bool {
+	if len(ci) != len(ci2) {
+		// One of the config has extra section(s) (or) one of them is nil
+		return false
+	}
+
+	// Loop all sections of c1 and c2, and check if there
+	// is any difference between them.
+	for sectionName, sections1 := range ci {
+		sections2, sectionExists := ci2[sectionName]
+		if !sectionExists || len(sections1) != len(sections2) {
+			// Either section with sectionName doesn't exist in c2 (or)
+			// The number of sections under sectionName is not equal
+			return false
+		}
+
+		// Compare the sections
+		matched := make([]bool, len(sections1))
+		for _, section1 := range sections1 {
+			// Loop the sections in sections2 and look for a match for section1
+			var matchFoundForSection1 bool
+			for i, section2 := range sections2 {
+				if !matched[i] && reflect.DeepEqual(section1, section2) {
+					// Found a match. Mark it as matched to avoid other
+					// sections getting matched against the same section again.
+					matchFoundForSection1 = true
+					matched[i] = true
+					break
+				}
+			}
+			if !matchFoundForSection1 {
+				// No match found for Section1
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 // ParseFile parses the config from the file at the
@@ -192,4 +236,22 @@ func parseConfig(reader *bufio.Reader) (ConfigIni, error) {
 	}
 
 	return c, nil
+}
+
+// ConfigEqual returns if the given two config strings are equal
+func ConfigEqual(config1 string, config2 string) bool {
+	// Parse both the configs
+	c1, err := ParseString(config1)
+	if err != nil {
+		debug.Panic(fmt.Sprintf("ConfigEqual failed : %s", err))
+		return false
+	}
+
+	c2, err := ParseString(config2)
+	if err != nil {
+		debug.Panic(fmt.Sprintf("ConfigEqual failed : %s", err))
+		return false
+	}
+
+	return c1.IsEqual(c2)
 }

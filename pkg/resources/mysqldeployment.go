@@ -39,7 +39,7 @@ const (
 	mysqldInitScriptsMountPath = "/docker-entrypoint-initdb.d/"
 
 	// my.cnf configmap key, volume and mount path
-	mysqldMyCnfKey     = "my.cnf"
+	mysqldMyCnfKey     = constants.MySQLConfigKey
 	mysqldCnfVolName   = mysqldClientName + "-cnf-vol"
 	mysqldCnfMountPath = mysqldDir + "/cnf"
 
@@ -50,6 +50,10 @@ const (
 
 	// LastAppliedConfigGeneration is the annotation key that holds the last applied config generation
 	LastAppliedConfigGeneration = ndbcontroller.GroupName + "/last-applied-config-generation"
+	// LastAppliedMySQLClusterConfigVersion is the annotation key that holds the last applied version of MySQL Cluster config
+	LastAppliedMySQLClusterConfigVersion = ndbcontroller.GroupName + "/last-applied-mysql-cluster-config-version"
+	// LastAppliedMySQLServerConfigVersion is the annotation key that holds the last applied version of MySQL Server config (my.cnf version)
+	LastAppliedMySQLServerConfigVersion = ndbcontroller.GroupName + "/last-applied-my-cnf-config-version"
 	// RootPasswordSecret is the name of the secret that holds the password for the root account
 	RootPasswordSecret = ndbcontroller.GroupName + "/root-password-secret"
 )
@@ -370,6 +374,8 @@ func (msd *MySQLServerDeployment) NewDeployment(
 			OwnerReferences: ndb.GetOwnerReferences(),
 			Annotations: map[string]string{
 				RootPasswordSecret: rootPasswordSecret,
+				// Add the NdbCluster generation this deployment is based on to the annotation
+				LastAppliedConfigGeneration: strconv.FormatInt(cs.NdbClusterGeneration, 10),
 			},
 		},
 		Spec: apps.DeploymentSpec{
@@ -384,12 +390,11 @@ func (msd *MySQLServerDeployment) NewDeployment(
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: ndb.Namespace,
 					Labels:    podLabels,
-					// Annotate the template with the current config generation
-					// A change in the config will trigger a rolling update of the deployments
-					// TODO: Trigger a rolling update only when there is a change in Ndb
-					//       resource config that affects the MySQL Server
+					// Annotate the spec template with the config.ini and my.cnf config versions.
+					// A change in the config will trigger a rolling update of the deployments.
 					Annotations: map[string]string{
-						LastAppliedConfigGeneration: strconv.FormatInt(cs.NdbClusterGeneration, 10),
+						LastAppliedMySQLClusterConfigVersion: strconv.FormatInt(int64(cs.MySQLClusterConfigVersion), 10),
+						LastAppliedMySQLServerConfigVersion:  strconv.FormatInt(int64(cs.MySQLServerConfigVersion), 10),
 					},
 				},
 				Spec: podSpec,

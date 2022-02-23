@@ -121,3 +121,45 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 
 	return configIni.String(), nil
 }
+
+// MySQL Server config (my.cnf) template
+var myCnfTemplate = `{{- /* Template to generate my.cnf config ini */ -}}
+# Auto generated config.ini - DO NOT EDIT
+# ConfigVersion={{GetConfigVersion}}
+
+{{.GetMySQLCnf}}
+`
+
+// GetMySQLConfigString returns the MySQL Server config(my.cnf)
+// to be used by the MySQL deployments.
+func GetMySQLConfigString(nc *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) (string, error) {
+
+	if nc.GetMySQLCnf() == "" {
+		return "", nil
+	}
+
+	tmpl := template.New("my.cnf")
+	tmpl.Funcs(template.FuncMap{
+		"GetConfigVersion": func() int32 {
+			if oldConfigSummary == nil {
+				// First version of the my.cnf config based on newly added NdbCluster spec.
+				return 1
+			} else {
+				// Bump up the config version for every change.
+				return oldConfigSummary.MySQLServerConfigVersion + 1
+			}
+		},
+	})
+
+	if _, err := tmpl.Parse(myCnfTemplate); err != nil {
+		// panic to discover any parsing errors during development
+		panic("Failed to parse my.cnf config template")
+	}
+
+	var myCnf bytes.Buffer
+	if err := tmpl.Execute(&myCnf, nc); err != nil {
+		return "", err
+	}
+
+	return myCnf.String(), nil
+}
