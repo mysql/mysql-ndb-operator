@@ -21,7 +21,7 @@ func verifyMySQLCluster(clientset clientset.Interface, testNdbCluster *v1alpha1.
 	// only after verifying the health of the MySQL Cluster nodes
 	// and the pods they run in.
 	ginkgo.By("Verifying that MySQL Server has NDBCLUSTER engine support", func() {
-		db := mysql.Connect(clientset, testNdbCluster, "")
+		db := mysqlutils.Connect(clientset, testNdbCluster, "")
 		row := db.QueryRow("select support from information_schema.engines where engine = 'ndbcluster'")
 		var value string
 		ndbtest.ExpectNoError(row.Scan(&value), "select support from information_schema.engines failed")

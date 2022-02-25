@@ -10,7 +10,7 @@ import (
 
 	"github.com/mysql/ndb-operator/pkg/mgmapi"
 
-	mgmapi_utils "github.com/mysql/ndb-operator/e2e-tests/utils/mgmapi"
+	"github.com/mysql/ndb-operator/e2e-tests/utils/mgmapi"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
@@ -46,7 +46,7 @@ var _ = ndbtest.NewTestCase("Datanode configuration", func(tc *ndbtest.TestConte
 			// check if all the data nodes have the expected data memory
 			ginkgo.By("checking if all the data nodes have the expected data memory")
 			expectedDataMemory := uint64(200 * 1024 * 1024)
-			mgmapi_utils.ForEachConnectedNodes(c, testNdb, mgmapi.NodeTypeNDB, func(mgmClient mgmapi.MgmClient, nodeId int) {
+			mgmapiutils.ForEachConnectedNodes(c, testNdb, mgmapi.NodeTypeNDB, func(mgmClient mgmapi.MgmClient, nodeId int) {
 				gomega.Expect(mgmClient.GetDataMemory(nodeId)).To(gomega.Equal(expectedDataMemory))
 			})
 
@@ -56,7 +56,7 @@ var _ = ndbtest.NewTestCase("Datanode configuration", func(tc *ndbtest.TestConte
 
 			ginkgo.By("checking if all the data nodes have the new expected data memory")
 			expectedDataMemory = uint64(300 * 1024 * 1024)
-			mgmapi_utils.ForEachConnectedNodes(c, testNdb, mgmapi.NodeTypeNDB, func(mgmClient mgmapi.MgmClient, nodeId int) {
+			mgmapiutils.ForEachConnectedNodes(c, testNdb, mgmapi.NodeTypeNDB, func(mgmClient mgmapi.MgmClient, nodeId int) {
 				gomega.Expect(mgmClient.GetDataMemory(nodeId)).To(gomega.Equal(expectedDataMemory))
 			})
 		})
