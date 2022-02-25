@@ -5,6 +5,7 @@
 package e2e
 
 import (
+	"fmt"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	clientset "k8s.io/client-go/kubernetes"
@@ -12,11 +13,26 @@ import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 
+	"github.com/mysql/ndb-operator/e2e-tests/utils/mgmapi"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/mysql"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbutils"
-	secretutils "github.com/mysql/ndb-operator/e2e-tests/utils/secret"
+	"github.com/mysql/ndb-operator/e2e-tests/utils/secret"
 )
+
+func expectGlobalVariableValue(
+	c clientset.Interface, testNdb *v1alpha1.NdbCluster,
+	variableName string, expectedValue interface{}) {
+	ginkgo.By(fmt.Sprintf("verifying %q has the right value", variableName))
+	db := mysqlutils.Connect(c, testNdb, "performance_schema")
+	row := db.QueryRow(
+		"select variable_value from global_variables where variable_name = ?", variableName)
+	var value string
+	ndbtest.ExpectNoError(row.Scan(&value),
+		"querying for %q returned an error", variableName)
+	gomega.Expect(value).To(gomega.BeEquivalentTo(fmt.Sprint(expectedValue)),
+		"%q had an unexpected value", variableName)
+}
 
 var _ = ndbtest.NewTestCase("MySQL Custom cnf", func(tc *ndbtest.TestContext) {
 	var ns string
@@ -52,33 +68,34 @@ var _ = ndbtest.NewTestCase("MySQL Custom cnf", func(tc *ndbtest.TestContext) {
 		})
 
 		ginkgo.It("should start the server with those values as the defaults", func() {
-			db := mysql.Connect(c, testNdb, "performance_schema")
+			// verify that max_user_connections is properly set in server
+			expectGlobalVariableValue(c, testNdb, "max_user_connections", 42)
 
-			ginkgo.By("verifying that max_user_connections is properly set in server", func() {
-				row := db.QueryRow(
-					"select variable_value from global_variables where variable_name = 'max_user_connections';")
-				var value int
-				ndbtest.ExpectNoError(row.Scan(&value),
-					"querying for max_user_connections returned an error")
-				gomega.Expect(value).To(gomega.Equal(42),
-					"max_user_connections had an unexpected value")
-			})
+			// verify that the defaults doesn't override the value set by the operator
+			expectGlobalVariableValue(c, testNdb, "log_bin", "OFF")
 
-			ginkgo.By("verifying that the defaults doesn't override the value set by the operator", func() {
-				row := db.QueryRow(
-					"select variable_value from global_variables where variable_name = 'log_bin';")
-				var value string
-				ndbtest.ExpectNoError(row.Scan(&value),
-					"querying for log_bin returned an error")
-				gomega.Expect(value).To(gomega.Or(gomega.Equal("OFF")),
-					"log_bin has an unexpected value")
-			})
+			// verify that the ndb_use_copying_alter_table variable has the default value
+			expectGlobalVariableValue(c, testNdb, "ndb_use_copying_alter_table", "OFF")
 
 			ginkgo.By("verifying that NdbCluster status was updated properly", func() {
 				// expects the status.generatedRootPasswordSecretName to be empty
 				// as spec.mysqld.rootPasswordSecretName is set
 				ndbutils.ValidateNdbClusterStatus(tc.Ctx(), tc.NdbClientset(), ns, ndbName)
 			})
+
+			mgmapiutils.ExpectConfigVersionInMySQLClusterNodes(c, testNdb, 1)
+
+			ginkgo.By("updating the my.cnf value", func() {
+				testNdb.Spec.Mysqld.MyCnf =
+					"[mysqld]\nmax-user-connections=42\nlog-bin=ON\nndb_use_copying_alter_table=ON\n"
+				ndbtest.KubectlApplyNdbObj(c, testNdb)
+			})
+
+			// verify that the ndb_use_copying_alter_table variable has the new value
+			expectGlobalVariableValue(c, testNdb, "ndb_use_copying_alter_table", "ON")
+
+			// verify that the mgmd and data nodes still have the previous config version
+			mgmapiutils.ExpectConfigVersionInMySQLClusterNodes(c, testNdb, 1)
 		})
 	})
 })

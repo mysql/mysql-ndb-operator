@@ -2,7 +2,7 @@
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-package mgmapi
+package mgmapiutils
 
 import (
 	"fmt"
@@ -43,4 +43,22 @@ func ForEachConnectedNodes(
 			testFunc(mgmClient, node.NodeId)
 		}
 	}
+}
+
+// ExpectConfigVersionInMySQLClusterNodes checks if the MySQL Cluster
+// nodes run with the expected config version.
+func ExpectConfigVersionInMySQLClusterNodes(
+	c kubernetes.Interface, testNdb *v1alpha1.NdbCluster, expectedConfigVersion uint32) {
+	ginkgo.By(
+		fmt.Sprintf("expecting config version of MySQL Cluster nodes to be %d", expectedConfigVersion))
+
+	// Check config of connected mgmd node
+	client := ConnectToMgmd(c, testNdb)
+	defer client.Disconnect()
+	gomega.Expect(client.GetConfigVersion()).To(gomega.Equal(expectedConfigVersion))
+
+	// Check config of all data nodes
+	ForEachConnectedNodes(c, testNdb, mgmapi.NodeTypeNDB, func(mgmClient mgmapi.MgmClient, nodeId int) {
+		gomega.Expect(mgmClient.GetConfigVersion(nodeId)).To(gomega.Equal(expectedConfigVersion))
+	})
 }

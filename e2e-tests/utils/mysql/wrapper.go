@@ -2,7 +2,7 @@
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-package mysql
+package mysqlutils
 
 import (
 	"context"
@@ -29,7 +29,7 @@ func Connect(clientset kubernetes.Interface, nc *v1alpha1.NdbCluster, dbname str
 	serviceName := nc.GetServiceName("mysqld") + "-ext"
 	host, port := service.GetServiceAddressAndPort(clientset, nc.Namespace, serviceName)
 	user := "root"
-	password := secret.GetMySQLRootPassword(context.TODO(), clientset, nc)
+	password := secretutils.GetMySQLRootPassword(context.TODO(), clientset, nc)
 	dataSource := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?timeout=10s", user, password, host, port, dbname)
 	db, err := sql.Open("mysql", dataSource)
 	gomega.Expect(err).Should(gomega.Succeed())
