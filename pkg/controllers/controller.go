@@ -7,6 +7,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -213,11 +214,20 @@ func NewController(
 				//     reconciliation loop.
 				//  So, add the NdbCluster item to the workqueue for both cases.
 				UpdateFunc: func(oldObj, newObj interface{}) {
-					deployment := newObj.(*appsv1.Deployment)
-					if deploymentComplete(deployment) {
-						klog.Infof("Deployment %q is complete", getNamespacedName(deployment))
+					oldDeployment := oldObj.(*appsv1.Deployment)
+					newDeployment := newObj.(*appsv1.Deployment)
+
+					if reflect.DeepEqual(oldDeployment.Status, newDeployment.Status) {
+						// No updates to status => this event was triggered
+						// by an update to the Deployment spec by the operator.
+						// No need to enqueue for reconciliation.
+						return
 					}
-					controller.extractAndEnqueueNdbCluster(deployment)
+
+					if deploymentComplete(newDeployment) {
+						klog.Infof("Deployment %q is complete", getNamespacedName(newDeployment))
+					}
+					controller.extractAndEnqueueNdbCluster(newDeployment)
 				},
 
 				// When a deployment owned by a NdbCluster resource
@@ -260,11 +270,20 @@ func NewController(
 				//     reconciliation loop.
 				//  So, add the NdbCluster item to the workqueue for both cases.
 				UpdateFunc: func(oldObj, newObj interface{}) {
-					statefulset := newObj.(*appsv1.StatefulSet)
-					if statefulsetReady(statefulset) {
-						klog.Infof("StatefulSet %q is ready", getNamespacedName(statefulset))
+					oldStatefulSet := oldObj.(*appsv1.StatefulSet)
+					newStatefulSet := newObj.(*appsv1.StatefulSet)
+
+					if reflect.DeepEqual(oldStatefulSet.Status, newStatefulSet.Status) {
+						// No updates to status => this event was triggered
+						// by an update to the StatefulSet spec by the operator.
+						// No need to enqueue for reconciliation.
+						return
 					}
-					controller.extractAndEnqueueNdbCluster(statefulset)
+
+					if statefulsetReady(newStatefulSet) {
+						klog.Infof("StatefulSet %q is ready", getNamespacedName(newStatefulSet))
+					}
+					controller.extractAndEnqueueNdbCluster(newStatefulSet)
 				},
 			},
 		},
