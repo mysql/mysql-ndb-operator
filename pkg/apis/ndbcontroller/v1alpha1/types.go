@@ -275,7 +275,6 @@ func (nc *NdbCluster) GetMySQLServerNodeCount() int32 {
 
 // GetConnectstring returns the connect string of cluster represented by Ndb resource
 func (nc *NdbCluster) GetConnectstring() string {
-	dnsZone := fmt.Sprintf("%s.svc.cluster.local", nc.Namespace)
 	port := "1186"
 
 	connectstring := ""
@@ -286,7 +285,7 @@ func (nc *NdbCluster) GetConnectstring() string {
 			connectstring += ","
 		}
 		connectstring += fmt.Sprintf(
-			"%s-%d.%s.%s:%s", mgmdPodNamePrefix, i, mgmdServiceName, dnsZone, port)
+			"%s-%d.%s:%s", mgmdPodNamePrefix, i, mgmdServiceName, port)
 	}
 
 	return connectstring
