@@ -90,22 +90,22 @@ AllowUnresolvedHostnames=1
 
 [ndb_mgmd]
 NodeId=1
-Hostname=example-ndb-mgmd-0.example-ndb-mgmd.default.svc.cluster.local
+Hostname=example-ndb-mgmd-0.example-ndb-mgmd.default
 DataDir=/var/lib/ndb
 
 [ndb_mgmd]
 NodeId=2
-Hostname=example-ndb-mgmd-1.example-ndb-mgmd.default.svc.cluster.local
+Hostname=example-ndb-mgmd-1.example-ndb-mgmd.default
 DataDir=/var/lib/ndb
 
 [ndbd]
 NodeId=3
-Hostname=example-ndb-ndbd-0.example-ndb-ndbd.default.svc.cluster.local
+Hostname=example-ndb-ndbd-0.example-ndb-ndbd.default
 DataDir=/var/lib/ndb
 
 [ndbd]
 NodeId=4
-Hostname=example-ndb-ndbd-1.example-ndb-ndbd.default.svc.cluster.local
+Hostname=example-ndb-ndbd-1.example-ndb-ndbd.default
 DataDir=/var/lib/ndb
 
 [api]

@@ -6,7 +6,10 @@ package ndbconfig
 
 import (
 	"bytes"
+	"net"
 	"text/template"
+
+	"k8s.io/klog"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
@@ -29,19 +32,18 @@ ServerPort=1186
 [tcp default]
 AllowUnresolvedHostnames=1
 
+{{$hostnameSuffix := GetHostnameSuffix -}}
 {{range $idx, $nodeId := GetNodeIds "mgmd" -}}
 [ndb_mgmd]
 NodeId={{$nodeId}}
-{{/*TODO - get and use the real domain name instead of .svc.cluster.local */ -}}
-Hostname={{$.Name}}-mgmd-{{$idx}}.{{$.GetServiceName "mgmd"}}.{{$.Namespace}}.svc.cluster.local
+Hostname={{$.Name}}-mgmd-{{$idx}}.{{$.GetServiceName "mgmd"}}.{{$hostnameSuffix}}
 DataDir={{GetDataDir}}
 
 {{end -}}
 {{range $idx, $nodeId := GetNodeIds "ndbd" -}}
 [ndbd]
 NodeId={{$nodeId}}
-{{/*TODO - get and use the real domain name instead of .svc.cluster.local */ -}}
-Hostname={{$.Name}}-ndbd-{{$idx}}.{{$.GetServiceName "ndbd"}}.{{$.Namespace}}.svc.cluster.local
+Hostname={{$.Name}}-ndbd-{{$idx}}.{{$.GetServiceName "ndbd"}}.{{$hostnameSuffix}}
 DataDir={{GetDataDir}}
 
 {{end -}}
@@ -107,11 +109,25 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 				return oldConfigSummary.MySQLClusterConfigVersion + 1
 			}
 		},
+		"GetHostnameSuffix": func() string {
+			// If the K8s Cluster domain can be found, generate the hostname suffix of form :
+			// '<namespace>.svc.<k8s-cluster-domain>' or else, simply use the namespace as the suffix.
+			// Deduce K8s cluster domain suffix by looking up the kubernetes server's CNAME.
+			if k8sCname, err := net.LookupCNAME("kubernetes.default.svc"); err != nil {
+				klog.Warning("K8s Cluster domain lookup failed :", err.Error())
+				klog.Warning("Using partial subdomain as Hostnames in management configuration")
+				return ndb.Namespace
+			} else {
+				// Found the FQDN of form "kubernetes.default.svc.<k8s-cluster-domain>."
+				// Extract the required parts and append them to the suffix
+				return ndb.Namespace + k8sCname[len("kubernetes.default"):len(k8sCname)-1]
+			}
+		},
 	})
 
 	if _, err := tmpl.Parse(mgmtConfigTmpl); err != nil {
 		// panic to discover any parsing errors during development
-		panic("Failed to parse mgmt config template")
+		panic("Failed to parse mgmt config template : " + err.Error())
 	}
 
 	var configIni bytes.Buffer
