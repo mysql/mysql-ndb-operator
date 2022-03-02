@@ -41,6 +41,11 @@ spec:
           spec:
             description: NdbClusterSpec defines the desired state of MySQL Ndb Cluster
             properties:
+              apiFreeSlots:
+                default: 3
+                description: Number of free API slots for other NDBAPI applications
+                format: int32
+                type: integer
               dataMemory:
                 default: 98M
                 description: 'DataMemory specifies the space available per data node

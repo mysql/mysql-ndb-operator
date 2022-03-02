@@ -135,6 +135,18 @@ Allowed values 1M - 1T. More info :
 </tr>
 <tr>
 <td>
+<code>apiFreeSlots</code><br/>
+<em>
+int32
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Number of free API slots for other NDBAPI applications. Default is: 3</p>
+</td>
+</tr>
+<tr>
+<td>
 <code>image</code><br/>
 <em>
 string

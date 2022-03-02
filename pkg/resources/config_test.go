@@ -134,3 +134,91 @@ NodeId=149
 	}
 
 }
+
+func Test_GetConfigString_ApiFreeSlots(t *testing.T) {
+	ndb := testutils.NewTestNdb("default", "example-ndb-2", 1)
+	ndb.Spec.DataMemory = "80M"
+	ndb.Spec.ApiFreeSlots = 10
+	configString, err := GetConfigString(ndb, nil)
+	if err != nil {
+		t.Errorf("Failed to generate config string from Ndb : %s", err)
+	}
+
+	expectedConfigString := `# auto generated config.ini - do not edit
+#
+# ConfigHash=######
+# NumOfMySQLServers=1
+
+[system]
+ConfigGenerationNumber=0
+Name=example-ndb-2
+
+[ndbd default]
+NoOfReplicas=2
+DataMemory=80M
+# Use a fixed ServerPort for all data nodes
+ServerPort=1186
+
+[tcp default]
+AllowUnresolvedHostnames=1
+
+[ndb_mgmd]
+NodeId=1
+Hostname=example-ndb-2-mgmd-0.example-ndb-2-mgmd.default.svc.cluster.local
+DataDir=/var/lib/ndb
+
+[ndb_mgmd]
+NodeId=2
+Hostname=example-ndb-2-mgmd-1.example-ndb-2-mgmd.default.svc.cluster.local
+DataDir=/var/lib/ndb
+
+[ndbd]
+NodeId=3
+Hostname=example-ndb-2-ndbd-0.example-ndb-2-ndbd.default.svc.cluster.local
+DataDir=/var/lib/ndb
+
+[api]
+NodeId=145
+
+[api]
+NodeId=146
+
+[api]
+NodeId=147
+
+[api]
+NodeId=148
+
+[api]
+NodeId=149
+
+[api]
+NodeId=150
+
+[api]
+NodeId=151
+
+[api]
+NodeId=152
+
+[api]
+NodeId=153
+
+[api]
+NodeId=154
+
+[api]
+NodeId=155
+
+`
+	// replace the config hash
+	re := regexp.MustCompile(`ConfigHash=.*`)
+	configString = re.ReplaceAllString(configString, "ConfigHash=######")
+
+	if configString != expectedConfigString {
+		t.Error("The generated config string does not match the expected value")
+		t.Errorf("Expected :\n%s\n", expectedConfigString)
+		t.Errorf("Generated :\n%s\n", configString)
+	}
+
+}

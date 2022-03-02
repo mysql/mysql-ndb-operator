@@ -90,8 +90,8 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldResourceContext *ResourceConte
 	}
 
 	// Calculate the total number of API slots to be set in the config.
-	// slots required for mysql servers + 3 free slot for other NDBAPi apps
-	requiredNumOfAPISlots := requiredNumOfSlotsForMySQLServer + 3
+	// slots required for mysql servers + free slot for other NDBAPi apps
+	requiredNumOfAPISlots := requiredNumOfSlotsForMySQLServer + ndb.Spec.ApiFreeSlots
 
 	tmpl := template.New("config.ini")
 	tmpl.Funcs(template.FuncMap{

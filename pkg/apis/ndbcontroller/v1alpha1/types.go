@@ -84,6 +84,11 @@ type NdbClusterSpec struct {
 	// +kubebuilder:validation:Pattern="[0-9]+[MGT]"
 	DataMemory string `json:"dataMemory,omitempty"`
 
+	// Number of free API slots for other NDBAPI applications
+	// +kubebuilder:default=3
+	// +optional
+	ApiFreeSlots int32 `json:"apiFreeSlots,omitempty"`
+
 	// The name of the MySQL Ndb Cluster image to be used.
 	// If not specified, "mysql/mysql-cluster:latest" will be used.
 	// Lowest supported version is 8.0.26.
