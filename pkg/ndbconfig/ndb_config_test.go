@@ -61,7 +61,8 @@ func Test_NewConfigSummary(t *testing.T) {
 	errorIfNotEqual(t, 6, cs.TotalNumOfApiSlots, "cs.TotalNumOfApiSlots")
 	errorIfNotEqual(t, 3, cs.NumOfMySQLServers, "cs.NumOfMySQLServers")
 	errorIfNotEqual(t, 10, cs.NumOfFreeApiSlots, "cs.NumOfFreeApiSlots")
-	errorIfNotEqual(t, 42, parseInt32(cs.getDefaultNdbdConfigValue("DataMemory")), "DataMemory")
+	dataMemory, _ := cs.defaultNdbdSection.GetValue("DataMemory")
+	errorIfNotEqual(t, 42, parseInt32(dataMemory), "DataMemory")
 }
 
 func Test_GetConfigString(t *testing.T) {

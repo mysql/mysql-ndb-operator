@@ -57,6 +57,7 @@ func NewConfigSummary(configMapData map[string]string) (*ConfigSummary, error) {
 
 	config, err := configparser.ParseString(configMapData[constants.ConfigIniKey])
 	if err != nil {
+		// Should never happen as the operator generated the config.ini
 		return nil, debug.InternalError(err)
 	}
 
@@ -79,6 +80,7 @@ func NewConfigSummary(configMapData map[string]string) (*ConfigSummary, error) {
 	if mysqlConfigString != "" {
 		cs.myCnfConfig, err = configparser.ParseString(mysqlConfigString)
 		if err != nil {
+			// Should never happen as the operator generated the my.cnf
 			return nil, debug.InternalError(err)
 		}
 		cs.MySQLServerConfigVersion = parseInt32(
@@ -88,19 +90,12 @@ func NewConfigSummary(configMapData map[string]string) (*ConfigSummary, error) {
 	return cs, nil
 }
 
-// getDefaultNdbdConfigValue returns the value of the config from defaultNdbdSection
-func (cs *ConfigSummary) getDefaultNdbdConfigValue(configName string) string {
-	if cs.defaultNdbdSection == nil {
-		panic("default ndbd section is nil")
-	}
-	return cs.defaultNdbdSection[configName]
-}
-
 // MySQLClusterConfigNeedsUpdate checks if the config of the MySQL Cluster needs to be updated.
 func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1alpha1.NdbCluster) (needsUpdate bool) {
 	// Compare DataMemory
 	// TODO: Compare with actual DataMemory in the system
-	if nc.Spec.DataMemory != cs.getDefaultNdbdConfigValue("DataMemory") {
+	currentDataMemory, _ := cs.defaultNdbdSection.GetValue("DataMemory")
+	if nc.Spec.DataMemory != currentDataMemory {
 		return true
 	}
 
