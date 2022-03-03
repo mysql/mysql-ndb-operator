@@ -7,8 +7,6 @@ package configparser
 import (
 	"bufio"
 	"fmt"
-	"io"
-	"os"
 	"reflect"
 	"strings"
 
@@ -23,28 +21,41 @@ const (
 // their value extracted from a particular section.
 type Section map[string]string
 
+// GetValue extracts the value of the configParam from the section
+func (s Section) GetValue(configParam string) (value string, exists bool) {
+	value, exists = s[strings.ToLower(configParam)]
+	return value, exists
+}
+
+// SetValue sets the value of the configParam in the Section
+func (s Section) SetValue(configParam string, value string) {
+	s[strings.ToLower(configParam)] = value
+}
+
 // ConfigIni holds the parsed management configuration. It is a map
 // of section names, and an array of all Sections with that name.
 type ConfigIni map[string][]Section
 
+// GetAllSections returns all the Sections with the sectionName.
+func (ci ConfigIni) GetAllSections(sectionName string) []Section {
+	return ci[strings.ToLower(sectionName)]
+}
+
 // GetSection returns the Section with the sectionName.
 // If multiple sections exist with the given sectionName, the method will panic.
 func (ci ConfigIni) GetSection(sectionName string) Section {
-	if grp, ok := ci[sectionName]; ok {
-		switch len(grp) {
-		case 0:
-			// no Sections exist
-			return nil
-		case 1:
-			return grp[0]
-		default:
-			// Wrong usage : multiple Sections exist with the same
-			// name, and the method doesn't know which one to return.
-			panic("GetSection : multiple Sections exist with the sectionName")
-		}
-
+	grp := ci.GetAllSections(sectionName)
+	switch len(grp) {
+	case 0:
+		// no Sections exist
+		return nil
+	case 1:
+		return grp[0]
+	default:
+		// Wrong usage : multiple Sections exist with the same
+		// name, and the method doesn't know which one to return.
+		panic("GetSection : multiple Sections exist with the sectionName")
 	}
-	return nil
 }
 
 // GetValueFromSection extracts the config value of the key from the requested
@@ -52,22 +63,20 @@ func (ci ConfigIni) GetSection(sectionName string) Section {
 func (ci ConfigIni) GetValueFromSection(sectionName string, key string) (value string) {
 	section := ci.GetSection(sectionName)
 	if section != nil {
-		value = section[key]
+		value, _ = section.GetValue(key)
 	}
 	return value
 }
 
 // GetNumberOfSections returns the number of sections with the given sectionName.
 func (ci ConfigIni) GetNumberOfSections(sectionName string) int {
-	if grp, ok := ci[sectionName]; ok {
-		return len(grp)
-	}
-	return 0
+	return len(ci.GetAllSections(sectionName))
 }
 
 func (ci ConfigIni) addSection(sectionName string) Section {
 
-	grp := ci[sectionName]
+	sectionNameInLower := strings.ToLower(sectionName)
+	grp := ci[sectionNameInLower]
 
 	if sectionName == headerSection && len(grp) == 1 {
 		// header group should have only one section, and it already exists
@@ -77,12 +86,12 @@ func (ci ConfigIni) addSection(sectionName string) Section {
 	if grp == nil {
 		// Section group doesn't exist - create one
 		grp = []Section{}
-		ci[sectionName] = grp
+		ci[sectionNameInLower] = grp
 	}
 
 	// Add the new section and return
 	newSection := make(Section)
-	ci[sectionName] = append(grp, newSection)
+	ci[sectionNameInLower] = append(grp, newSection)
 	return newSection
 }
 
@@ -127,112 +136,82 @@ func (ci ConfigIni) IsEqual(ci2 ConfigIni) bool {
 	return true
 }
 
-// ParseFile parses the config from the file at the
-// given location into a ConfigIni object.
-func ParseFile(file string) (ConfigIni, error) {
-
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	reader := bufio.NewReader(f)
-
-	return parseConfig(reader)
-}
-
 // ParseString parses the config string into a ConfigIni object
-func ParseString(inString string) (ConfigIni, error) {
-
-	reader := bufio.NewReader(strings.NewReader(inString))
-
-	return parseConfig(reader)
-}
-
-// parseConfig parses the config from the reader and returns a ConfigIni object
-func parseConfig(reader *bufio.Reader) (ConfigIni, error) {
+func ParseString(configStr string) (ConfigIni, error) {
 
 	c := make(ConfigIni)
-
-	lineno := 1
-	sectionName := ""
-	seenHeader := false // we only want to allow 1 header and keep track
-	isComment := false
-
+	var lineNo int
 	var currentSection Section
 
-	for {
-
-		line, err := reader.ReadString('\n')
-
-		// don't exit on io.EOF if there is still something read into line
-		// that is e.g. the case when there is no newline at end of last line
-		if err != nil && err != io.EOF {
-			return c, err
-		}
-
-		if len(line) == 0 {
-			break
-		}
-		line = strings.TrimSpace(line)
-		if len(line) == 0 {
+	// Parse the config string using a bufio.Scanner
+	scanner := bufio.NewScanner(strings.NewReader(configStr))
+	for scanner.Scan() {
+		// Process one line at a time
+		line := strings.TrimSpace(scanner.Text())
+		lineNo++
+		if line == "" {
+			// Empty line
 			continue
 		}
 
+		// Check if this is a comment.
+		// Any key value pair declared inside the first comment block
+		// on top of the config, before any section is declared, will
+		// be collected under the "header" section.
+		var isComment bool
 		if line[0] == ';' || line[0] == '#' {
-			line = line[1:]
-			line = strings.TrimSpace(line)
-			if len(line) == 0 {
+			isComment = true
+			line = strings.TrimSpace(strings.TrimLeft(line, ";#"))
+			if line == "" {
+				// No more text in comment
 				continue
 			}
 
-			// for all key value pairs in a comment we collect that under "header" section
-			if !isComment {
+			if len(c) == 0 {
+				// No sections have been declared yet and this is the first comment block.
+				// Collect any key=value pairs under the section "header"
 				currentSection = c.addSection(headerSection)
-				isComment = true
-			}
-		} else {
-			// reset comment
-			if isComment {
-				seenHeader = true
-			}
-			isComment = false
-		}
-
-		if line[0] == '[' {
-			if isComment {
-				// no section headers in comments - only values
+			} else if len(c) == 1 && c.GetSection(headerSection) != nil {
+				// First comment block and headerSection is being read
+				currentSection = c.GetSection(headerSection)
+			} else {
+				// We can ignore this comment
 				continue
 			}
+		} else if line[0] == '[' {
+			// A section starts
 			if line[len(line)-1] != ']' {
-				return nil, fmt.Errorf("Incomplete section name in line %d %s", lineno, line)
+				return nil, fmt.Errorf("Incomplete section name at line %d : %s", lineNo, line)
 			}
 
-			sectionName = line[1 : len(line)-1]
+			// create/load the section
+			sectionName := line[1 : len(line)-1]
 			currentSection = c.addSection(sectionName)
 			continue
 		}
 
 		if currentSection == nil {
-			return nil, fmt.Errorf("Non-empty line without section %d %s", lineno, line)
+			// No section is currently being read
+			return nil, fmt.Errorf("Non-empty line without section at line %d : %s", lineNo, line)
 		}
 
-		split := strings.SplitN(line, "=", 2)
-		if len(split) != 2 {
+		// Split the line to look for a key value pair
+		tokens := strings.SplitN(line, "=", 2)
+		if len(tokens) != 2 || tokens[1] == "" {
 			if isComment {
+				// Ignore errors in a comment
 				continue
 			}
-			return nil, fmt.Errorf("Format error %d %s", lineno, line)
+			return nil, fmt.Errorf("Format error at line %d : %s", lineNo, line)
 		}
 
-		if isComment && seenHeader {
-			// ignore config values in comments outside header section
-			continue
-		}
-		currentSection[split[0]] = split[1]
+		// store the config key value pair
+		currentSection.SetValue(tokens[0], tokens[1])
+	}
 
-		lineno++
+	if err := scanner.Err(); err != nil {
+		// Error occurred during config scan
+		return nil, err
 	}
 
 	return c, nil

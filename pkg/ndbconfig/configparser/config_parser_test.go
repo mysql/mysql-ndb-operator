@@ -5,37 +5,58 @@
 package configparser
 
 import (
-	"fmt"
-	"os"
+	"strings"
 	"testing"
 )
 
 // ValidateConfigIniSectionCount validates the count of a
 // given section in the configIni
 func validateConfigIniSectionCount(
-	t *testing.T, config ConfigIni, sectionName string, expected int) (validationSuccess bool) {
+	t *testing.T, config ConfigIni, sectionName string, expected int) {
 	t.Helper()
 	if actual := config.GetNumberOfSections(sectionName); actual != expected {
 		t.Errorf("Expected number of '%s' sections : %d. Actual : %d", sectionName, expected, actual)
-		return false
 	}
-
-	return true
 }
 
-func TestReadInifile(t *testing.T) {
+func validateConfigKeys(t *testing.T, config ConfigIni, sectionName string, expectedKeys [][]string) {
+	t.Helper()
 
-	f, err := os.Create("test.txt")
-	if err != nil {
-		fmt.Println(err)
+	sectionGrp := config.GetAllSections(sectionName)
+	if sectionGrp == nil {
+		t.Errorf("Failed to find section %q", sectionName)
 		return
 	}
 
-	// Close and remove the file before exit
-	defer func() {
-		f.Close()
-		os.Remove("test.txt")
-	}()
+	if len(sectionGrp) != len(expectedKeys) {
+		t.Errorf("Found Unexpected number of Section %q", sectionName)
+		return
+	}
+
+	for i, keys := range expectedKeys {
+		section := sectionGrp[i]
+		if len(section) != len(keys) {
+			t.Errorf("Found unexpected number of keys in section %q group %d : %v", sectionName, i, section)
+		}
+		for _, key := range keys {
+			if _, exists := section.GetValue(key); !exists {
+				t.Errorf("Failed to find expected key %q in section %q : %v", key, sectionName, section)
+			}
+		}
+	}
+}
+
+func validateErrors(t *testing.T, configStr string, expectedError string) {
+	t.Helper()
+
+	if _, err := ParseString(configStr); err != nil && !strings.Contains(err.Error(), expectedError) {
+		t.Errorf("ParseString throw an unexpected error : %s", err)
+	} else if err == nil {
+		t.Errorf("ParseString was expected to throw an error but it did not")
+	}
+}
+
+func Test_ParseString(t *testing.T) {
 
 	testini := `
 	;
@@ -71,6 +92,11 @@ func TestReadInifile(t *testing.T) {
 	Hostname=example-ndb-0.example-ndb.svc.default-namespace.com
 	DataDir=/var/lib/ndb
 	ServerPort=1186
+
+	[ndbd]
+	NodeId=2
+	Hostname=example-ndb-1.example-ndb.svc.default-namespace.com
+	DataDir=/var/lib/ndb
 	
 	[mysqld]
 	NodeId=1
@@ -78,18 +104,7 @@ func TestReadInifile(t *testing.T) {
 	
 	[mysqld]`
 
-	l, err := f.WriteString(testini)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	if l == 0 {
-		t.Fail()
-		return
-	}
-
-	c, err := ParseFile("test.txt")
+	c, err := ParseString(testini)
 
 	if err != nil {
 		t.Error(err)
@@ -120,10 +135,10 @@ func TestReadInifile(t *testing.T) {
 
 	// Verify that values are parsed as expected
 	// TODO: Verify more keys
-	expectedNdbdServerPort := "1186"
-	ndbdServerPort := c.GetValueFromSection("ndbd", "ServerPort")
-	if expectedNdbdServerPort != ndbdServerPort {
-		t.Errorf("Expected ndbd's ServerPort : %s but got %s", expectedNdbdServerPort, ndbdServerPort)
+	expectedDataMemory := "80M"
+	ndbdDataMemory := c.GetValueFromSection("ndbd default", "DataMemory")
+	if expectedDataMemory != ndbdDataMemory {
+		t.Errorf("Expected ndbd's DataMemory : %s but got %s", expectedDataMemory, ndbdDataMemory)
 	}
 
 	expectedMgmdHostname := "example-ndb-0.example-ndb.svc.default-namespace.com"
@@ -132,15 +147,42 @@ func TestReadInifile(t *testing.T) {
 		t.Errorf("Expected mgmd's Hostname : %s but got %s", expectedMgmdHostname, mgmdHostname)
 	}
 
-	if !validateConfigIniSectionCount(t, c, "api", 0) {
-		t.Error("The section 'api' was parsed despite being commented out")
-	}
-
-	validateConfigIniSectionCount(t, c, "ndbd", 1)
+	validateConfigIniSectionCount(t, c, "ndbd", 2)
 	validateConfigIniSectionCount(t, c, "ndb_mgmd", 1)
 	validateConfigIniSectionCount(t, c, "mysqld", 2)
 	validateConfigIniSectionCount(t, c, "ndbd default", 1)
 	validateConfigIniSectionCount(t, c, "tcp default", 1)
+
+	// The section 'api' should not be parsed as it is commented out
+	validateConfigIniSectionCount(t, c, "api", 0)
+
+	validateConfigKeys(t, c, "header", [][]string{
+		{"ConfigHash"},
+	})
+	validateConfigKeys(t, c, "ndbd default", [][]string{
+		{"NoOfReplicas", "DataMemory", "ServerPort", "StartPartialTimeout", "StartPartitionedTimeout"},
+	})
+	validateConfigKeys(t, c, "tcp default", [][]string{
+		{"AllowUnresolvedHostnames"},
+	})
+	validateConfigKeys(t, c, "ndb_mgmd", [][]string{
+		{"NodeId", "Hostname", "DataDir"},
+	})
+	validateConfigKeys(t, c, "ndbd", [][]string{
+		{"NodeId", "Hostname", "DataDir", "ServerPort"},
+		{"NodeId", "Hostname", "DataDir"},
+	})
+	validateConfigKeys(t, c, "mysqld", [][]string{
+		{"NodeId", "Hostname"}, {},
+	})
+
+	// Validate Errors
+	validateErrors(t, "#\n#\n\n\n[test]\nkey", "Format error at line 6")
+	validateErrors(t, "[test]\nkey=", "Format error at line 2")
+	validateErrors(t, "#\n#\n\n[test", "Incomplete section name at line 4")
+	validateErrors(t, "#\n#\n\n\n[test]key", "Incomplete section name at line 5")
+	validateErrors(t, "#\n\nkey", "Non-empty line without section at line 3")
+	validateErrors(t, "#\n\nkey=value", "Non-empty line without section at line 3")
 }
 
 func Test_GetNumberOfSections(t *testing.T) {
