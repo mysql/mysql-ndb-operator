@@ -8,6 +8,7 @@ spec:
   dataNodeConfig:
     # The data node config has to be specified as a map.
     # Both integer and string config values are accepted.
+    DataMemory: 100M
     MaxNoOfTables: 1024
     MaxNoOfConcurrentOperations: 409600
     Arbitration: WaitExternal

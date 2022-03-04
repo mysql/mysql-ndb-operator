@@ -15,8 +15,14 @@ import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 
+	"k8s.io/apimachinery/pkg/util/intstr"
 	clientset "k8s.io/client-go/kubernetes"
 )
+
+func getIntStrPtrFromString(value string) *intstr.IntOrString {
+	v := intstr.FromString(value)
+	return &v
+}
 
 var _ = ndbtest.NewTestCase("Datanode configuration", func(tc *ndbtest.TestContext) {
 	var ns string
@@ -34,7 +40,9 @@ var _ = ndbtest.NewTestCase("Datanode configuration", func(tc *ndbtest.TestConte
 		ginkgo.BeforeEach(func() {
 			testNdb = testutils.NewTestNdb(ns, "mgmclient-datamemory-test", 2)
 			// Set a 200M memory to the mgmclient resource and test if its set
-			testNdb.Spec.DataMemory = "200M"
+			testNdb.Spec.DataNodeConfig = map[string]*intstr.IntOrString{
+				"DataMemory": getIntStrPtrFromString("200M"),
+			}
 			ndbtest.KubectlApplyNdbObj(c, testNdb)
 		})
 
@@ -51,7 +59,7 @@ var _ = ndbtest.NewTestCase("Datanode configuration", func(tc *ndbtest.TestConte
 			})
 
 			ginkgo.By("updating the data memory in Ndb resource")
-			testNdb.Spec.DataMemory = "300M"
+			testNdb.Spec.DataNodeConfig["DataMemory"] = getIntStrPtrFromString("300M")
 			ndbtest.KubectlApplyNdbObj(c, testNdb)
 
 			ginkgo.By("checking if all the data nodes have the new expected data memory")

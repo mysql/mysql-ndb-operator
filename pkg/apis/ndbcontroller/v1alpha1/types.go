@@ -101,13 +101,6 @@ type NdbClusterSpec struct {
 	// to add more API sections in the MySQL Cluster config.
 	// +kubebuilder:default=5
 	FreeAPISlots int32 `json:"freeAPISlots,omitempty"`
-	// DataMemory specifies the space available per data node
-	// for storing in memory tables and indexes.
-	// Allowed values 1M - 1T. More info :
-	// https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datamemory
-	// +kubebuilder:default="98M"
-	// +kubebuilder:validation:Pattern="[0-9]+[MGT]"
-	DataMemory string `json:"dataMemory,omitempty"`
 	// A map of default MySQL Cluster Data node configurations. More info :
 	// https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-ndbd.html
 	DataNodeConfig map[string]*intstr.IntOrString `json:"dataNodeConfig,omitempty"`

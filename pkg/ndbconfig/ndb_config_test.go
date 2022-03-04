@@ -69,12 +69,12 @@ func Test_NewConfigSummary(t *testing.T) {
 
 func Test_GetConfigString(t *testing.T) {
 	ndb := testutils.NewTestNdb("default", "example-ndb", 2)
-	ndb.Spec.DataMemory = "80M"
 	ndb.Spec.FreeAPISlots = 3
 	getIntStrPtr := func(obj intstr.IntOrString) *intstr.IntOrString {
 		return &obj
 	}
 	ndb.Spec.DataNodeConfig = map[string]*intstr.IntOrString{
+		"DataMemory":        getIntStrPtr(intstr.FromString("80M")),
 		"MaxNoOfAttributes": getIntStrPtr(intstr.FromInt(2048)),
 		"MaxNoOfTriggers":   getIntStrPtr(intstr.FromInt(10000)),
 		"ThreadConfig": getIntStrPtr(
@@ -93,9 +93,9 @@ Name=example-ndb
 
 [ndbd default]
 NoOfReplicas=2
-DataMemory=80M
 # Use a fixed ServerPort for all data nodes
 ServerPort=1186
+DataMemory=80M
 MaxNoOfAttributes=2048
 MaxNoOfTriggers=10000
 ThreadConfig=ldm={count=2,cpubind=1,2},main={cpubind=12},rep={cpubind=11}
