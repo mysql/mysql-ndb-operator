@@ -99,6 +99,24 @@ func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1alpha1.NdbCluster) 
 		return true
 	}
 
+	// Check if the default ndbd section has been updated
+	newNdbdConfig := nc.Spec.DataNodeConfig
+	// Operator sets NoOfReplicas, DataMemory and ServerPort in the
+	// default ndbd section, so take them into account when comparing configs.
+	numOfOperatorSetConfigs := 3
+	if len(newNdbdConfig)+numOfOperatorSetConfigs != len(cs.defaultNdbdSection) {
+		// A config has been added (or) removed from default ndbd section
+		return true
+	}
+	// Check if all configs exist and their value has not changed
+	// TODO: Compare with actual values from the DataNodes
+	for configKey, configValue := range newNdbdConfig {
+		if value, exists := cs.defaultNdbdSection.GetValue(configKey); !exists || value != configValue.String() {
+			// Either the config doesn't exist or the value has been changed
+			return true
+		}
+	}
+
 	// Check if the number of API sections declared in the config is
 	// sufficient. Calculate the total number of slots required for
 	// the MySQL Servers and the NDB Operator. Update the config if
@@ -117,8 +135,6 @@ func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1alpha1.NdbCluster) 
 		// Number of free slots have been changed. Regenerate config and apply it.
 		return true
 	}
-
-	// TODO: How to update DataNodePVCs?
 
 	// No update required to the MySQL Cluster config.
 	return false

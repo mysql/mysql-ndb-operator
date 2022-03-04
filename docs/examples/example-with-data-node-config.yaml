@@ -1,0 +1,15 @@
+apiVersion: mysql.oracle.com/v1alpha1
+kind: NdbCluster
+metadata:
+  name: example-ndb
+spec:
+  nodeCount: 2
+  redundancyLevel: 2
+  dataNodeConfig:
+    # The data node config has to be specified as a map.
+    # Both integer and string config values are accepted.
+    MaxNoOfTables: 1024
+    MaxNoOfConcurrentOperations: 409600
+    Arbitration: WaitExternal
+  mysqld:
+    nodeCount: 2

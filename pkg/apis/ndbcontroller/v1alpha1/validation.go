@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig/configparser"
@@ -15,6 +16,23 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
+
+// List of all config parameters that are not allowed in
+// .Spec.DataNodeConfig. and any additional details to be appended to the error.
+var disallowedConfigParams = map[string]string{
+	// NoOfReplicas and DataMemory is already set via .Spec
+	"noofreplicas": "Specify it via .spec.redundancyLevel.", // NoOfReplicas
+	"datamemory":   "Specify it via .spec.dataMemory.",      // DataMemory
+	// Disallow any parameter that specifies machine/port
+	// configurations as that will be taken care by the operator.
+	"nodeid":            "", // NodeId
+	"hostname":          "", // HostName
+	"serverport":        "", // ServerPort
+	"executeoncomputer": "", // ExecuteOnComputer
+	"nodegroup":         "", // NodeGroup
+	// Disallow DataDir config as that will be handled by the operator
+	"datadir": "", // DataDir
+}
 
 // HasValidSpec validates the spec of the NdbCluster object
 func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
@@ -47,6 +65,23 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 		errList = append(errList, field.Invalid(field.NewPath("Total Nodes"), invalidValue, msg))
 	}
 
+	// check if there are any disallowed config params in dataNodeConfig.
+	if nc.Spec.DataNodeConfig != nil {
+		dataNodeConfigPath := specPath.Child("dataNodeConfig")
+		for configKey := range nc.Spec.DataNodeConfig {
+			if details, exists := disallowedConfigParams[strings.ToLower(configKey)]; exists {
+				msg := fmt.Sprintf("config param %q is not allowed in .spec.dataNodeConfig. ", configKey)
+				if details == "" {
+					msg += "It will be configured automatically by the Ndb Operator based on the spec."
+				} else {
+					msg += details
+				}
+				// errList = append(errList, field.Invalid(specPath.Child("dataNodeConfig"), configKey, msg))
+				errList = append(errList, field.Forbidden(dataNodeConfigPath.Child(configKey), msg))
+			}
+		}
+	}
+
 	// check if the MySQL root password secret name has the expected format
 	var rootPasswordSecret string
 	if nc.Spec.Mysqld != nil {
@@ -61,7 +96,7 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 		}
 	}
 
-	// validate any passed additional cnf
+	// check if any passed my.cnf has proper format
 	myCnfString := nc.GetMySQLCnf()
 	if len(myCnfString) > 0 {
 		myCnf, err := configparser.ParseString(myCnfString)
