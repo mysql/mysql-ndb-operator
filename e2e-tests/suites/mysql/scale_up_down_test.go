@@ -19,6 +19,7 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	clientset "k8s.io/client-go/kubernetes"
 )
 
@@ -100,7 +101,10 @@ var _ = ndbtest.NewTestCase("MySQL Servers scaling up and down", func(tc *ndbtes
 
 			// TestCase-2
 			ginkgo.By("changing a non MySQL Server spec", func() {
-				testNdb.Spec.DataMemory = "150M"
+				dataMemory := intstr.FromString("150M")
+				testNdb.Spec.DataNodeConfig = map[string]*intstr.IntOrString{
+					"DataMemory": &dataMemory,
+				}
 				ndbtest.KubectlApplyNdbObjNoWait(testNdb)
 				// validate the status updates made by the operator during the sync
 				ndbutils.ValidateNdbClusterStatusUpdatesDuringSync(

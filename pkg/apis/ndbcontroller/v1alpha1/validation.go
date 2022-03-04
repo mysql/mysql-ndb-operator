@@ -20,9 +20,8 @@ import (
 // List of all config parameters that are not allowed in
 // .Spec.DataNodeConfig. and any additional details to be appended to the error.
 var disallowedConfigParams = map[string]string{
-	// NoOfReplicas and DataMemory is already set via .Spec
+	// NoOfReplicas is already set via .spec.redundancyLevel
 	"noofreplicas": "Specify it via .spec.redundancyLevel.", // NoOfReplicas
-	"datamemory":   "Specify it via .spec.dataMemory.",      // DataMemory
 	// Disallow any parameter that specifies machine/port
 	// configurations as that will be taken care by the operator.
 	"nodeid":            "", // NodeId
