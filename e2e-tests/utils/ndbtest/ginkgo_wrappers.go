@@ -17,12 +17,21 @@ import (
 	"k8s.io/klog"
 )
 
-// NewTestCase is a wrapper around the ginkgo.Describe block with
-// additional BeforeEach and AfterEach blocks that initialize the
+// newTestCaseImpl is a wrapper around the ginkgo.Describe block with
+// additional BeforeEach/BeforeAll blocks that initialize the
 // TestContext to be used by the test spec.
-func NewTestCase(name string, body func(tc *TestContext)) bool {
+func newTestCaseImpl(name string, body func(tc *TestContext), ordered bool) bool {
 	desc := fmt.Sprintf("[TestCase : %q]", name)
-	return ginkgo.Describe(desc, func() {
+
+	// Use BeforeEach for non-ordered and BeforeAll for ordered testcase
+	BeforeFunc := ginkgo.BeforeEach
+	if ordered {
+		BeforeFunc = ginkgo.BeforeAll
+	}
+
+	// Define a func that does the required setup using
+	// the BeforeFunc and then executes the body func.
+	testCaseFunc := func() {
 		// TestContext to pass to the testcases. It will be
 		// shared by the specs that are defined inside the body.
 		// A new Namespace will be created for each spec as the
@@ -32,7 +41,7 @@ func NewTestCase(name string, body func(tc *TestContext)) bool {
 		tc := NewTestContext()
 
 		// Setup BeforeEach to init/cleanup TestContexts
-		ginkgo.BeforeEach(func() {
+		BeforeFunc(func() {
 			ginkgo.By("Initialising TestContext")
 			tc.init(ndbTestSuite.suiteName)
 
@@ -45,7 +54,7 @@ func NewTestCase(name string, body func(tc *TestContext)) bool {
 		// Set up NDB Operator for the testcase. This BeforeEach also
 		// starts a couple of goroutines to monitor the Operator for
 		// any crashes and to stream/save the operator pod logs.
-		ginkgo.BeforeEach(func() {
+		BeforeFunc(func() {
 			// Ginkgo should wait for the goroutines started by this
 			// BeforeEach before moving on to the next testcase.
 			// Use a sync.WaitGroup to track and wait for those
@@ -95,7 +104,24 @@ func NewTestCase(name string, body func(tc *TestContext)) bool {
 
 		// Run the body
 		body(tc)
-	})
+	}
+
+	// Execute the testcase within a Describe block
+	if ordered {
+		return ginkgo.Describe(desc, ginkgo.Ordered, testCaseFunc)
+	} else {
+		return ginkgo.Describe(desc, testCaseFunc)
+	}
+}
+
+// NewTestCase runs the given testcase inside an unordered Describe container
+func NewTestCase(name string, body func(tc *TestContext)) bool {
+	return newTestCaseImpl(name, body, false)
+}
+
+// NewOrderedTestCase runs the given testcase inside an ordered Describe container
+func NewOrderedTestCase(name string, body func(tc *TestContext)) bool {
+	return newTestCaseImpl(name, body, true)
 }
 
 // setupBeforeAfterSuite registers Before and After Suite

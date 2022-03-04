@@ -5,20 +5,16 @@
 package e2e
 
 import (
-	"context"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 
-	crd_utils "github.com/mysql/ndb-operator/e2e-tests/utils/crd"
 	deployment_utils "github.com/mysql/ndb-operator/e2e-tests/utils/deployment"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbutils"
 	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
 	"github.com/mysql/ndb-operator/pkg/constants"
-	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 )
 
 var _ = ndbtest.NewTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
@@ -77,24 +73,5 @@ var _ = ndbtest.NewTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 						".*\nexample-ndb[ ]+2[ ]+Ready:2/2[ ]+Ready:2/2[ ]+Ready:2/2.*True"))
 			})
 		})
-	})
-
-	// TODO: Move this into a separate testcase and add more validation tests
-	ginkgo.When("a Ndb with a wrong config is applied", func() {
-		var ndbclient ndbclientset.Interface
-		ginkgo.BeforeEach(func() {
-			ndbclient = tc.NdbClientset()
-		})
-
-		ginkgo.It("should return an error", func() {
-			var err error
-
-			ndbobj := crd_utils.NewTestNdbCrd(ns, "test-ndb", 1, 2, 2)
-			_, err = ndbclient.MysqlV1alpha1().NdbClusters(ns).Create(context.TODO(), ndbobj, metav1.CreateOptions{})
-			ndbtest.ExpectError(err)
-			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
-				"Invalid value: 1: spec.nodeCount should be a multiple of the spec.redundancyLevel(=2)"))
-		})
-
 	})
 })
