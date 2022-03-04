@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // +genclient
@@ -107,6 +108,9 @@ type NdbClusterSpec struct {
 	// +kubebuilder:default="98M"
 	// +kubebuilder:validation:Pattern="[0-9]+[MGT]"
 	DataMemory string `json:"dataMemory,omitempty"`
+	// A map of default MySQL Cluster Data node configurations. More info :
+	// https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-ndbd.html
+	DataNodeConfig map[string]*intstr.IntOrString `json:"dataNodeConfig,omitempty"`
 
 	// The name of the MySQL Ndb Cluster image to be used.
 	// If not specified, "mysql/mysql-cluster:latest" will be used.

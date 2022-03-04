@@ -73,6 +73,15 @@ spec:
                   More info : https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datamemory'
                 pattern: '[0-9]+[MGT]'
                 type: string
+              dataNodeConfig:
+                additionalProperties:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  x-kubernetes-int-or-string: true
+                description: 'A map of default MySQL Cluster Data node configurations.
+                  More info : https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-ndbd.html'
+                type: object
               dataNodePVCSpec:
                 description: DataNodePVCSpec is the PersistentVolumeClaimSpec to be
                   used as the VolumeClaimTemplate of the data node statefulset. A

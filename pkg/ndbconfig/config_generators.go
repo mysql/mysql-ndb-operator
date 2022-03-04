@@ -28,6 +28,9 @@ NoOfReplicas={{.Spec.RedundancyLevel}}
 DataMemory={{.Spec.DataMemory}}
 # Use a fixed ServerPort for all data nodes
 ServerPort=1186
+{{- range $configKey, $configValue := .Spec.DataNodeConfig }}
+{{$configKey}}={{$configValue}}
+{{- end}}
 
 [tcp default]
 AllowUnresolvedHostnames=1
