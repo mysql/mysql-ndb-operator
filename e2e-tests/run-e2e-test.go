@@ -19,7 +19,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"syscall"
 
 	podutils "github.com/mysql/ndb-operator/e2e-tests/utils/pods"
@@ -30,6 +29,17 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+// logDrawLine draws a dashed line using log
+func logDrawLine() {
+	// Temporarily disable flags in log
+	logFlags := log.Flags()
+	log.SetFlags(0)
+	// Draw a dashed line
+	log.Println("\n------------------------------")
+	// Restore log flags
+	log.SetFlags(logFlags)
+}
 
 // Command line options
 var options struct {
@@ -297,25 +307,14 @@ func (k *kind) teardownK8sCluster(t *testRunner) {
 
 // testRunner is the struct used to run the e2e test
 type testRunner struct {
+	// ctx and the related cancel function
+	// to be used across this tool.
+	ctx    context.Context
+	cancel context.CancelFunc
 	// testDir is the absolute path of e2e test directory
 	testDir string
 	// p is the provider used to execute the test
 	p provider
-	// sigMutex is the mutex used to protect process
-	// and ignoreSignals access across goroutines
-	sigMutex sync.Mutex
-	// process started by the execCommand
-	// used to send signals when it is running
-	// Access should be protected by sigMutex
-	process *os.Process
-	// passSignals enables passing signals to the
-	// process started by the testRunner
-	// Access should be protected by sigMutex
-	passSignals bool
-	// runDone is the channel used to signal that
-	// the run method has completed. Used by
-	// signalHandler to stop listening for signals
-	runDone chan bool
 	// e2eTestImageName is the name of the e2e
 	// tests docker image
 	e2eTestImageName string
@@ -325,10 +324,12 @@ type testRunner struct {
 	// the test completes. The methods in the slice
 	// are run in reverse order.
 	cleanupMethods []func()
+	// Boolean flag that indicates if the test was aborted
+	aborted bool
 }
 
 // init sets up the testRunner
-func (t *testRunner) init() {
+func (t *testRunner) init(ctx context.Context) {
 	// Update log to print only line numbers
 	log.SetFlags(log.Lshortfile)
 
@@ -342,56 +343,54 @@ func (t *testRunner) init() {
 	// Run the pod in the default namespace
 	t.e2eTestPodNamespace = "default"
 	t.e2eTestPodName = "e2e-tests-pod"
+
+	// Create a context with cancel
+	// and store it in testRunner
+	t.ctx, t.cancel = context.WithCancel(ctx)
+	t.deferCleanup(func() {
+		t.cancel()
+	})
 }
 
 func (t *testRunner) startSignalHandler() {
-	// Create the runDone channel
-	t.runDone = make(chan bool)
 	// Start a go routine to handle signals
 	go func() {
 		// Create a channel to receive interrupt and kill signals
 		sigs := make(chan os.Signal, 2)
 		signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 
-		// Handle all the signals as follows
-		// - If a process is running and ignoreSignals
-		//   is enabled, send the signal to the process.
-		// - If a process is running and ignoreSignals
-		//   is disabled, ignore the signal
-		// - If no process is running, handle it appropriately
-		// - Return when the main return signals done
 		for {
 			select {
-			case sig := <-sigs:
-				t.sigMutex.Lock()
+			case <-sigs:
+				t.aborted = true
 				if !options.runOutOfCluster && t.p != nil && t.p.getClientset() != nil {
 					// The test is being aborted and test was to be run
 					// inside a pod. Delete the pod if it is running already.
 					_ = t.deleteE2eTestsPodIfExists()
 				}
-				if t.process != nil {
-					if t.passSignals {
-						// Pass the signal to the process
-						_ = t.process.Signal(sig)
-					} // else it is ignored
-				} else {
-					// no process running - handle it ourselves.
-					// cleanup and exit
-					t.cleanup()
-					log.Fatalf("⚠️  Test was aborted!")
-				}
-				t.sigMutex.Unlock()
-			case <-t.runDone:
-				// run method has completed - stop signal handler
+				// Cancel the current context and replace it with a
+				// new context for the rest of the execution. Any methods
+				// or commands running after this cancel (mostly test
+				// cleanup methods and commands) will use this new context.
+				// This also means that if required, the cleanup methods
+				// can again be interrupted by sending in a ctrl+c.
+				currentCtxCancel := t.cancel
+				t.ctx, t.cancel = context.WithCancel(context.Background())
+				currentCtxCancel()
+			case <-t.ctx.Done():
+				// Context is done => stopSignalHandler has been called.
+				// Note : The cancel called in the previous case will never
+				// trigger this case as the previous case replaces the t.ctx
+				// before calling cancel.
 				return
 			}
 		}
 	}()
 }
 
-// stopSignalHandler stops the signal handler
+// stopSignalHandler stops the signal handler by cancelling the t.ctx
 func (t *testRunner) stopSignalHandler() {
-	t.runDone <- true
+	t.cancel()
 }
 
 // deferCleanup adds the given method to the cleanupMethods slice
@@ -416,17 +415,21 @@ func (t *testRunner) cleanup() {
 // passed through commandAndArgs slice. commandName is a log
 // friendly name of the command to be used in the logs. The
 // command output can be suppressed by enabling the quiet
-// parameter. passSignals should be set to true if the
-// signals received by the testRunner needs be passed to the
-// process started by this function.
-// It returns true id command got executed successfully
-// and false otherwise.
+// parameter. killOnInterrupt should be set to true if the
+// command being run should be killed if this tool receives
+// an interrupt signal.
+// It returns true if the command got executed successfully
+// without any interruption and false otherwise.
 func (t *testRunner) execCommand(
-	commandAndArgs []string, commandName string, quiet bool, passSignals bool) bool {
+	commandAndArgs []string, commandName string, quiet bool, killOnInterrupt bool) (cmdSucceeded bool) {
 	// Create cmd struct
-	cmd := exec.Command(commandAndArgs[0], commandAndArgs[1:]...)
-
-	if !passSignals {
+	var cmd *exec.Cmd
+	if killOnInterrupt {
+		// Create the command with t.ctx so that when ctrl+c is
+		// called, the command can be killed by cancelling the context.
+		cmd = exec.CommandContext(t.ctx, commandAndArgs[0], commandAndArgs[1:]...)
+	} else {
+		cmd = exec.Command(commandAndArgs[0], commandAndArgs[1:]...)
 		// Disable the ctrl+c from passing to the command by
 		// requesting it to start in its own process group
 		cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -443,31 +446,8 @@ func (t *testRunner) execCommand(
 	// Enable DOCKER_BUILDKIT for docker commands
 	cmd.Env = append(os.Environ(), "DOCKER_BUILDKIT=1")
 
-	// Protect cmd.Start() by sigMutex to avoid signal
-	// handler wrongly processing the signals itself
-	// after the process has been started
-	t.sigMutex.Lock()
-
-	// Start the command
-	if err := cmd.Start(); err != nil {
-		log.Printf("❌ Starting '%s' failed : %s", commandName, err)
-		return false
-	}
-
-	// Setup variables to be used the signal handler
-	// before unlocking the sigMutex
-	t.process = cmd.Process
-	t.passSignals = passSignals
-	t.sigMutex.Unlock()
-	defer func() {
-		// Reset the signal handler variables before returning
-		t.sigMutex.Lock()
-		t.process = nil
-		t.sigMutex.Unlock()
-	}()
-
-	// Wait for the process to complete
-	if err := cmd.Wait(); err != nil {
+	// Run the command
+	if err := cmd.Run(); err != nil {
 		log.Printf("❌ Running '%s' failed : %s", commandName, err)
 		return false
 	}
@@ -517,11 +497,20 @@ func (t *testRunner) runGinkgoTests() bool {
 
 	// Execute it
 	log.Println("🔨 Running tests using ginkgo : " + strings.Join(ginkgoTestCmd, " "))
-	if t.execCommand(ginkgoTestCmd, "ginkgo", false, true) {
+	cmdSucceeded := t.execCommand(ginkgoTestCmd, "ginkgo", false, true)
+	// Draw a dashed line to mark the end of logs
+	logDrawLine()
+
+	if cmdSucceeded {
 		log.Println("😊 All tests ran successfully!")
 		return true
+	} else if t.aborted {
+		// The test was aborted.
+		log.Println("⚠️  Test was aborted!")
+		return false
 	}
 
+	// Or else, the test failed
 	log.Println("❌ There are test failures!")
 	return false
 }
@@ -610,7 +599,7 @@ func (t *testRunner) newE2ETestPod(command []string) *v1.Pod {
 // deleteE2eTestsPodIfExists deletes the e2e test pod if it is running
 func (t *testRunner) deleteE2eTestsPodIfExists() (err error) {
 	if err = podutils.DeletePodIfExists(
-		context.TODO(), t.p.getClientset(), t.e2eTestPodNamespace, t.e2eTestPodName); err != nil {
+		t.ctx, t.p.getClientset(), t.e2eTestPodNamespace, t.e2eTestPodName); err != nil {
 		log.Printf("❌ Failed to delete the e2e test pod : %s", err.Error())
 	}
 	return err
@@ -629,7 +618,7 @@ func (t *testRunner) dumpPodInfo(namespace, name string) {
 
 // waitForPodToStart waits until all the containers in the given pod are started
 func (t *testRunner) waitForPodToStart(namespace, name string) (podStarted bool) {
-	if err := podutils.WaitForPodToStart(t.p.getClientset(), namespace, name); err != nil {
+	if err := podutils.WaitForPodToStart(t.ctx, t.p.getClientset(), namespace, name); err != nil {
 		log.Printf("❌ Error waiting for the e2e-tests pod to start : %s", err)
 		return false
 	}
@@ -639,7 +628,7 @@ func (t *testRunner) waitForPodToStart(namespace, name string) (podStarted bool)
 
 // waitForPodToTerminate waits until all the containers in the given pod are terminated
 func (t *testRunner) waitForPodToTerminate(namespace, name string) (podTerminated bool) {
-	if err := podutils.WaitForPodToTerminate(t.p.getClientset(), namespace, name); err != nil {
+	if err := podutils.WaitForPodToTerminate(t.ctx, t.p.getClientset(), namespace, name); err != nil {
 		log.Printf("❌ Error waiting for the e2e-tests pod to terminate : %s", err)
 		return false
 	}
@@ -648,7 +637,7 @@ func (t *testRunner) waitForPodToTerminate(namespace, name string) (podTerminate
 }
 
 // runGinkgoTestsInsideK8sCluster runs the tests as a pod in the K8s Cluster
-func (t *testRunner) runGinkgoTestsInsideK8sCluster(ctx context.Context) (success bool) {
+func (t *testRunner) runGinkgoTestsInsideK8sCluster() (success bool) {
 	log.Println("🔨 Running tests from inside the K8s cluster")
 
 	// Get the kubectl command to be used for creating
@@ -686,7 +675,7 @@ func (t *testRunner) runGinkgoTestsInsideK8sCluster(ctx context.Context) (succes
 	// Create a pod that runs the tests using the above command
 	clientset := t.p.getClientset()
 	e2eTestPod := t.newE2ETestPod(ginkgoTestCmd)
-	_, err := clientset.CoreV1().Pods(e2eTestPod.Namespace).Create(ctx, e2eTestPod, metav1.CreateOptions{})
+	_, err := clientset.CoreV1().Pods(e2eTestPod.Namespace).Create(t.ctx, e2eTestPod, metav1.CreateOptions{})
 	if err != nil {
 		log.Printf("❌ Error creating e2e-test pod: %s", err)
 		return false
@@ -719,14 +708,23 @@ func (t *testRunner) runGinkgoTestsInsideK8sCluster(ctx context.Context) (succes
 		log.Println("❌ Failed to get e2e-tests pod logs.")
 		return false
 	}
-	log.Print("\n\n")
+
+	// Draw a dashed line to mark the end of logs
+	logDrawLine()
+
+	if t.aborted {
+		// The test was aborted.
+		// No need to check pod status.
+		log.Println("⚠️  Test was aborted!")
+		return false
+	}
 
 	// Wait for the pod to terminate
 	if !t.waitForPodToTerminate(e2eTestPod.Namespace, e2eTestPod.Name) {
 		return false
 	}
 
-	if !podutils.HasPodSucceeded(t.p.getClientset(), e2eTestPod.Namespace, e2eTestPod.Name) {
+	if !podutils.HasPodSucceeded(t.ctx, t.p.getClientset(), e2eTestPod.Namespace, e2eTestPod.Name) {
 		log.Println("❌ There are test failures!")
 		return false
 	}
@@ -736,7 +734,7 @@ func (t *testRunner) runGinkgoTestsInsideK8sCluster(ctx context.Context) (succes
 
 // run executes the complete e2e test
 // It returns true if all tests run successfully
-func (t *testRunner) run(ctx context.Context) bool {
+func (t *testRunner) run() bool {
 	// Choose a provider
 	var p provider
 	if options.useKind {
@@ -799,7 +797,7 @@ func (t *testRunner) run(ctx context.Context) bool {
 		return t.runGinkgoTests()
 	} else {
 		// run tests as K8s pods inside kind cluster
-		return t.runGinkgoTestsInsideK8sCluster(ctx)
+		return t.runGinkgoTestsInsideK8sCluster()
 	}
 }
 
@@ -866,8 +864,8 @@ func main() {
 	flag.Parse()
 	validateCommandlineArgs()
 	t := testRunner{}
-	t.init()
-	if !t.run(context.Background()) {
+	t.init(context.Background())
+	if !t.run() {
 		// exit with status code 1 on cluster setup failure or test failures
 		os.Exit(1)
 	}
