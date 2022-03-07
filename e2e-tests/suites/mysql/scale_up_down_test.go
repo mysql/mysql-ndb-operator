@@ -83,7 +83,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 	// NdbCluster in K8s Server and validate the status.
 	// Note : This JustBeforeEach only applies the NdbCluster object
 	// to K8s Cluster. The actual changes to the object are made by
-	// the BeforeAlls inside the Whens based on the Test requirements.
+	// the BeforeAlls inside the Whens based on the spec requirements.
 	ginkgo.JustBeforeEach(ginkgo.OncePerOrdered, func() {
 		ndbtest.KubectlApplyNdbObjNoWait(testNdb)
 		// validate the status updates made by the operator during the sync
@@ -134,7 +134,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 			}
 		})
 
-		ginkgo.It("should create a deployment of MySQL Servers with right replica", func() {
+		ginkgo.It("should create a deployment of MySQL Servers with given replica", func() {
 			deployment.ExpectHasReplicas(c, testNdb.Namespace, ndbName+"-mysqld", 2)
 		})
 
@@ -175,7 +175,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 			}
 		})
 
-		ginkgo.It("should create a deployment of MySQL Servers with right replica", func() {
+		ginkgo.It("should create a deployment of MySQL Servers with given replica", func() {
 			deployment.ExpectHasReplicas(c, testNdb.Namespace, ndbName+"-mysqld", 3)
 		})
 
