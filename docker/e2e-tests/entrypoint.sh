@@ -6,6 +6,9 @@
 
 # Entrypoint script to start the ginkgo tests and watch for any SIGTERM signals.
 
+# PID of the ginkgo process that will be started by this script
+ginkgoPid=0
+
 # Setup handler for SIGTERM signal
 handleSigterm() {
   echo "Test is being aborted.."
@@ -13,10 +16,10 @@ handleSigterm() {
   touch /tmp/abort
   # we have to forward the signal to the test process
   # whose executable name will be '<suite-name>.test'
-  if pid=$(pgrep test$); then
+  if testPid=$(pgrep test$); then
     # pid exists - send SIGTERM to the test process and wait
-    kill -s TERM "${pid}"
-    wait
+    kill -s TERM "${testPid}"
+    wait ${ginkgoPid}
   else
     # pid doesn't exist => the tests still are compiling
     # nothing to cleanup. exit.
@@ -25,8 +28,9 @@ handleSigterm() {
 }
 trap handleSigterm TERM
 
-# Run the actual command passed to the script
+# Run the ginkgo command passed to the script
 "${@}" &
+ginkgoPid=$!
 
-# wait for the command to complete
-wait
+# wait for the ginkgo tests to complete
+wait ${ginkgoPid}
