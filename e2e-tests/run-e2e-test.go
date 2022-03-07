@@ -48,6 +48,7 @@ var options struct {
 	runOutOfCluster bool
 	kindK8sVersion  string
 	suites          string
+	ginkgoFocusFile string
 	verbose         bool
 }
 
@@ -470,6 +471,10 @@ func (t *testRunner) getGinkgoTestCommand(suiteDir string) []string {
 		ginkgoTestCmd = append(ginkgoTestCmd, "-v")
 	}
 
+	if options.ginkgoFocusFile != "" {
+		ginkgoTestCmd = append(ginkgoTestCmd, "--focus-file="+options.ginkgoFocusFile)
+	}
+
 	if options.suites == "" {
 		// Run all test suites
 		ginkgoTestCmd = append(ginkgoTestCmd, suiteDir)
@@ -819,11 +824,18 @@ func init() {
 
 	// use v1.21 as default kind k8s version
 	flag.StringVar(&options.kindK8sVersion, "kind-k8s-version", "1.21",
-		"Kind k8s version used to run tests. Example usage: --kind-k8s-version=1.20")
+		"Kind k8s version used to run tests.\n"+
+			"Example usage: -kind-k8s-version=1.20")
 
 	// test suites to be run.
 	flag.StringVar(&options.suites, "suites", "",
-		"Test suites that needs to be run. Example usage: --suites=mysql,basic")
+		"Test suites that needs to be run.\n"+
+			"Example usage: -suites=mysql,basic")
+
+	flag.StringVar(&options.ginkgoFocusFile, "ginkgo.focus-file", "",
+		"Value to be passed to the ginkgo's focus-file flag.\n"+
+			"Use this to filter specs to run based on their location in files.\n"+
+			"More details : https://onsi.github.io/ginkgo/#location-based-filtering")
 
 	// Add verbose for extra logs.
 	flag.BoolVar(&options.verbose, "v", false,
