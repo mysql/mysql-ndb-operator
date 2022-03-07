@@ -10,6 +10,7 @@ import (
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/resources"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
@@ -21,7 +22,8 @@ const (
 	testRootPassword = "ndbpass"
 )
 
-func CreateSecretForMySQLRootAccount(clientset kubernetes.Interface, secretName, namespace string) {
+func CreateSecretForMySQLRootAccount(ctx context.Context, clientset kubernetes.Interface, secretName, namespace string) {
+	ginkgo.By("creating MySQL root account secret")
 	// build Secret, create it in K8s and return
 	rootPassSecret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -32,12 +34,13 @@ func CreateSecretForMySQLRootAccount(clientset kubernetes.Interface, secretName,
 		Type: v1.SecretTypeBasicAuth,
 	}
 
-	_, err := clientset.CoreV1().Secrets(namespace).Create(context.TODO(), rootPassSecret, metav1.CreateOptions{})
+	_, err := clientset.CoreV1().Secrets(namespace).Create(ctx, rootPassSecret, metav1.CreateOptions{})
 	gomega.Expect(err).Should(gomega.Succeed(), "failed to create the custom secret")
 }
 
-func DeleteSecret(clientset kubernetes.Interface, secretName, namespace string) {
-	err := clientset.CoreV1().Secrets(namespace).Delete(context.TODO(), secretName, metav1.DeleteOptions{})
+func DeleteSecret(ctx context.Context, clientset kubernetes.Interface, secretName, namespace string) {
+	ginkgo.By("deleting MySQL root account secret")
+	err := clientset.CoreV1().Secrets(namespace).Delete(ctx, secretName, metav1.DeleteOptions{})
 	gomega.Expect(err).Should(gomega.Succeed(), "failed to delete the custom secret")
 }
 

@@ -16,7 +16,6 @@ import (
 	"github.com/mysql/ndb-operator/e2e-tests/utils/mgmapi"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/mysql"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
-	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbutils"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/secret"
 )
 
@@ -34,40 +33,56 @@ func expectGlobalVariableValue(
 		"%q had an unexpected value", variableName)
 }
 
-var _ = ndbtest.NewTestCase("MySQL Custom cnf", func(tc *ndbtest.TestContext) {
-	var ns string
+var _ = ndbtest.NewOrderedTestCase("MySQL Custom cnf", func(tc *ndbtest.TestContext) {
 	var c clientset.Interface
-	var ndbName, mysqlRootSecretName string
 	var testNdb *v1alpha1.NdbCluster
+	var myCnf map[string]string
 
-	ginkgo.BeforeEach(func() {
+	ginkgo.BeforeAll(func() {
 		ginkgo.By("extracting values from TestContext")
-		ns = tc.Namespace()
+		ctx := tc.Ctx()
+		ns := tc.Namespace()
 		c = tc.K8sClientset()
+		myCnf = make(map[string]string)
+
+		// Create the NdbCluster object to be used by the testcases
+		ndbName := "ndb-custom-cnf-test"
+		testNdb = testutils.NewTestNdb(ns, ndbName, 2)
+
+		// create the secret in K8s
+		mysqlRootSecretName := ndbName + "-root-secret"
+		secretutils.CreateSecretForMySQLRootAccount(ctx, c, mysqlRootSecretName, ns)
+		testNdb.Spec.Mysqld.RootPasswordSecretName = mysqlRootSecretName
+
+		// Setup cleanup methods
+		ginkgo.DeferCleanup(func() {
+			// common cleanup for all specs cleanup
+			ndbtest.KubectlDeleteNdbObj(c, testNdb)
+			// delete the secret
+			secretutils.DeleteSecret(ctx, c, mysqlRootSecretName, ns)
+		})
 	})
 
-	ginkgo.When("a custom cnf property is specified for MySQL Server", func() {
+	// Use a OncePerOrdered JustBeforeEach to create/modify the
+	// NdbCluster in K8s Server.
+	ginkgo.JustBeforeEach(ginkgo.OncePerOrdered, func() {
+		// Generate my.cnf value
+		myCnfStr := "[mysqld]\n"
+		for key, value := range myCnf {
+			myCnfStr += key + "=" + value + "\n"
+		}
+		// Set the my.cnf value and create/update the NdbCluster
+		testNdb.Spec.Mysqld.MyCnf = myCnfStr
+		ndbtest.KubectlApplyNdbObj(c, testNdb)
+	})
 
-		ginkgo.BeforeEach(func() {
-			ndbName = "ndb-custom-cnf-test"
-			mysqlRootSecretName = ndbName + "-root-secret"
-			// create the secret first
-			secretutils.CreateSecretForMySQLRootAccount(c, mysqlRootSecretName, ns)
-			// create the Ndb resource
-			testNdb = testutils.NewTestNdb(ns, ndbName, 2)
-			testNdb.Spec.Mysqld.RootPasswordSecretName = mysqlRootSecretName
-			testNdb.Spec.Mysqld.MyCnf = "[mysqld]\nmax-user-connections=42\nlog-bin=ON"
-			ndbtest.KubectlApplyNdbObj(c, testNdb)
+	ginkgo.When("a custom my.cnf is specified in NdbCluster", func() {
+		ginkgo.BeforeAll(func() {
+			myCnf["max-user-connections"] = "42"
+			myCnf["log-bin"] = "ON"
 		})
 
-		ginkgo.AfterEach(func() {
-			// cleanup
-			ndbtest.KubectlDeleteNdbObj(c, testNdb)
-			// drop the secret
-			secretutils.DeleteSecret(c, mysqlRootSecretName, ns)
-		})
-
-		ginkgo.It("should start the server with those values as the defaults", func() {
+		ginkgo.It("should start MySQL Servers with the given configuration", func() {
 			// verify that max_user_connections is properly set in server
 			expectGlobalVariableValue(c, testNdb, "max_user_connections", 42)
 
@@ -76,25 +91,28 @@ var _ = ndbtest.NewTestCase("MySQL Custom cnf", func(tc *ndbtest.TestContext) {
 
 			// verify that the ndb_use_copying_alter_table variable has the default value
 			expectGlobalVariableValue(c, testNdb, "ndb_use_copying_alter_table", "OFF")
+		})
 
-			ginkgo.By("verifying that NdbCluster status was updated properly", func() {
-				// expects the status.generatedRootPasswordSecretName to be empty
-				// as spec.mysqld.rootPasswordSecretName is set
-				ndbutils.ValidateNdbClusterStatus(tc.Ctx(), tc.NdbClientset(), ns, ndbName)
-			})
-
+		ginkgo.It("should initialise the MySQL Cluster config version", func() {
 			mgmapiutils.ExpectConfigVersionInMySQLClusterNodes(c, testNdb, 1)
+		})
+	})
 
-			ginkgo.By("updating the my.cnf value", func() {
-				testNdb.Spec.Mysqld.MyCnf =
-					"[mysqld]\nmax-user-connections=42\nlog-bin=ON\nndb_use_copying_alter_table=ON\n"
-				ndbtest.KubectlApplyNdbObj(c, testNdb)
-			})
+	ginkgo.When("the custom my.cnf is updated", func() {
+		ginkgo.BeforeAll(func() {
+			myCnf["ndb_use_copying_alter_table"] = "ON"
+		})
 
+		ginkgo.It("should update the MySQL Servers with the new config", func() {
 			// verify that the ndb_use_copying_alter_table variable has the new value
 			expectGlobalVariableValue(c, testNdb, "ndb_use_copying_alter_table", "ON")
 
-			// verify that the mgmd and data nodes still have the previous config version
+			// verify that the other config values are preserved
+			expectGlobalVariableValue(c, testNdb, "max_user_connections", 42)
+			expectGlobalVariableValue(c, testNdb, "log_bin", "OFF")
+		})
+
+		ginkgo.It("should not update the MySQL Cluster config version", func() {
 			mgmapiutils.ExpectConfigVersionInMySQLClusterNodes(c, testNdb, 1)
 		})
 	})
