@@ -105,7 +105,7 @@ const (
 // to a NdbCluster status when a sync is ongoing. It returns when the
 // NdbCluster spec is finally in sync with the MySQL Cluster.
 func ValidateNdbClusterStatusUpdatesDuringSync(
-	ctx context.Context, ndbClient ndbclientset.Interface, ns, name string, initialSystemRestart bool) {
+	ctx context.Context, ndbClient ndbclientset.Interface, ns, name string) {
 
 	// create a context with timeout
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, watchTimeout)
@@ -118,9 +118,11 @@ func ValidateNdbClusterStatusUpdatesDuringSync(
 		})
 	gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	// Skip the first event as that just establishes the initial state
+	// Skip validating the first event as that just establishes the initial state
 	watchEvent := <-watcher.ResultChan()
 	nc := watchEvent.Object.(*v1alpha1.NdbCluster)
+	// MySQL Cluster nodes are going through ISR if this is the first generation being processed
+	initialSystemRestart := nc.Status.ProcessedGeneration == 0
 
 	// Loop and verify all other status updates until the sync completes
 	for nc.Generation != nc.Status.ProcessedGeneration {

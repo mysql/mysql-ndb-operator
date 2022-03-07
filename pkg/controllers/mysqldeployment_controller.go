@@ -121,7 +121,7 @@ func (mdc *mysqlDeploymentController) createDeployment(ctx context.Context, sc *
 	}
 
 	// New deployment was successfully created
-	klog.Errorf("Created the MySQL Server deployment %q", getNamespacedName(deployment))
+	klog.Infof("Created the MySQL Server deployment %q", getNamespacedName(deployment))
 	return nil
 
 }
