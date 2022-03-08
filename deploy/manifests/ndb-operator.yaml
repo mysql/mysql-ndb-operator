@@ -532,6 +532,16 @@ spec:
   selector:
     app: ndb-operator-webhook-server
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ndb-operator-svc
+  namespace: ndb-operator
+spec:
+  clusterIP: None
+  selector:
+    app: ndb-operator
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -600,7 +610,9 @@ spec:
         name: ndb-operator-controller
         ports:
         - containerPort: 1186
+      hostname: ndb-operator-pod
       serviceAccountName: ndb-operator-app-sa
+      subdomain: ndb-operator-svc
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration

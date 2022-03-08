@@ -41,6 +41,8 @@ type ConfigSummary struct {
 	defaultNdbdSection configparser.Section
 	// myCnfConfig has the parsed My.cnf config
 	myCnfConfig configparser.ConfigIni
+	// The host of the MySQL root user
+	MySQLRootHost string
 }
 
 // parseInt32 parses the given string into an Int32
@@ -73,6 +75,7 @@ func NewConfigSummary(configMapData map[string]string) (*ConfigSummary, error) {
 		RedundancyLevel: parseInt32(
 			config.GetValueFromSection("ndbd default", "NoOfReplicas")),
 		defaultNdbdSection: config.GetSection("ndbd default"),
+		MySQLRootHost:      configMapData[constants.MySQLRootHost],
 	}
 
 	// Update MySQL Config details if it exists

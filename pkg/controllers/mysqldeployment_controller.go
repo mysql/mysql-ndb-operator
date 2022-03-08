@@ -10,11 +10,15 @@ import (
 	"strconv"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/constants"
+	"github.com/mysql/ndb-operator/pkg/mysqlclient"
 	"github.com/mysql/ndb-operator/pkg/resources"
 
 	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/kubernetes"
@@ -233,6 +237,13 @@ func (mdc *mysqlDeploymentController) HandleScaleDown(ctx context.Context, sc *S
 
 	// scale down requested
 	if mysqldNodeCount == 0 {
+		// Delete the root user before deleting the MySQL deployment.
+		err := deleteRootUser(ctx, sc)
+		if err != nil {
+			klog.Errorf("error while deleting root user")
+			return errorWhileProcessing(err)
+		}
+
 		// scale down to 0 servers; delete the deployment
 		if err := mdc.deleteDeployment(ctx, deployment, ndbCluster); err != nil {
 			return errorWhileProcessing(err)
@@ -250,6 +261,84 @@ func (mdc *mysqlDeploymentController) HandleScaleDown(ctx context.Context, sc *S
 
 }
 
+// handleRootHostChanges detects any changes made to spec.mysqld.rootHost in NdbCluster spec and
+// updates the database accordingly. Since the old root host values were stored as the annotations
+// inside the deployment, this method must be called before the deployment is patched.
+func handleRootHostChanges(sc *SyncContext, newroothost string) error {
+	deployment := sc.mysqldDeployment
+	ndbCluster := sc.ndb
+
+	annotations := deployment.GetAnnotations()
+	oldroothost := annotations[resources.RootHost]
+
+	//get the ip address of a MySQL server pod in the MySQL Cluster
+	mysqlLabel := ndbCluster.GetCompleteLabels(map[string]string{
+		constants.ClusterNodeTypeLabel: sc.mysqldController.GetTypeName(),
+	})
+	mysqlpodlist, _ := sc.podLister.Pods(sc.ndb.Namespace).List(labels.SelectorFromSet(mysqlLabel))
+	mysqlServerIp := mysqlpodlist[0].Status.PodIP
+
+	if oldroothost != newroothost {
+		err := mysqlclient.UpdateUser(sc.controllerContext.kubeClientset, ndbCluster, newroothost, oldroothost, mysqlServerIp)
+		return err
+	}
+	return nil
+}
+
+// createRootUser creates a new "root" user in the database if the user does not exist already. This method is called
+// after a new deployment is created.
+func createRootUser(ctx context.Context, sc *SyncContext, newroothost string) error {
+
+	deployment := sc.mysqldDeployment
+	ndbCluster := sc.ndb
+
+	annotations := deployment.GetAnnotations()
+	roothost := annotations[resources.RootHost]
+
+	// Roothost from deployment differ from the roothost in config summary. This is an update scenario
+	// So just return.
+	if roothost != newroothost {
+		return nil
+	}
+
+	rootPasswordSecret := annotations[resources.RootPasswordSecret]
+	secret, err := sc.controllerContext.kubeClientset.CoreV1().Secrets(ndbCluster.Namespace).Get(ctx, rootPasswordSecret, metav1.GetOptions{})
+	if err != nil {
+		klog.Errorf("failed to retrieve the MySQL root password secret")
+		return err
+	}
+	password := string(secret.Data[v1.BasicAuthPasswordKey])
+	//get the ip address of a MySQL server pod in the MySQL Cluster
+	mysqlLabel := ndbCluster.GetCompleteLabels(map[string]string{
+		constants.ClusterNodeTypeLabel: sc.mysqldController.GetTypeName(),
+	})
+	mysqlpodlist, _ := sc.podLister.Pods(sc.ndb.Namespace).List(labels.SelectorFromSet(mysqlLabel))
+	mysqlServerIp := mysqlpodlist[0].Status.PodIP
+
+	err = mysqlclient.CreateUserIfNotExist(sc.controllerContext.kubeClientset, ndbCluster, password, newroothost, mysqlServerIp)
+	return err
+}
+
+// deleteRootUser deletes the "root" user in the database. This method must be called
+// before deleting the deployment.
+func deleteRootUser(ctx context.Context, sc *SyncContext) error {
+	deployment := sc.mysqldDeployment
+	ndbCluster := sc.ndb
+
+	annotations := deployment.GetAnnotations()
+	roothost := annotations[resources.RootHost]
+
+	//get the ip address of a MySQL server pod in the MySQL Cluster
+	mysqlLabel := ndbCluster.GetCompleteLabels(map[string]string{
+		constants.ClusterNodeTypeLabel: sc.mysqldController.GetTypeName(),
+	})
+	mysqlpodlist, _ := sc.podLister.Pods(sc.ndb.Namespace).List(labels.SelectorFromSet(mysqlLabel))
+	mysqlServerIp := mysqlpodlist[0].Status.PodIP
+
+	err := mysqlclient.DeleteUserIfItExists(sc.controllerContext.kubeClientset, ndbCluster, roothost, mysqlServerIp)
+	return err
+}
+
 // ReconcileDeployment compares the MySQL Server spec defined in NdbCluster resource
 // and applies any changes to the deployment if required. This method is called after
 // the new config has been ensured in both Management and Data Nodes.
@@ -257,6 +346,7 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(ctx context.Context, s
 	deployment := sc.mysqldDeployment
 	cs := sc.configSummary
 	ndbCluster := sc.ndb
+	rootHost := cs.MySQLRootHost
 
 	if deployment == nil {
 		// deployment doesn't exist yet
@@ -276,6 +366,12 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(ctx context.Context, s
 		return finishProcessing()
 	}
 
+	err := createRootUser(ctx, sc, rootHost)
+	if err != nil {
+		klog.Errorf("error while creating root user")
+		return errorWhileProcessing(err)
+	}
+
 	// At this point the deployment exists and has already been verified
 	// to be complete (i.e. no previous updates still being applied) by HandleScaleDown.
 	// Check if it has the recent config generation.
@@ -284,7 +380,14 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(ctx context.Context, s
 		return continueProcessing()
 	}
 
+	err = handleRootHostChanges(sc, rootHost)
+	if err != nil {
+		klog.Errorf("error while handling root host change")
+		return errorWhileProcessing(err)
+	}
+
 	// Deployment has to be patched
 	updatedDeployment := mdc.mysqlServerDeployment.NewDeployment(ndbCluster, cs, deployment)
 	return mdc.patchDeployment(deployment, updatedDeployment)
+
 }

@@ -121,7 +121,6 @@ func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorLis
 
 	var errList field.ErrorList
 	specPath := field.NewPath("spec")
-	mysqldPath := specPath.Child("mysqld")
 
 	if nc.Spec.RedundancyLevel == 1 {
 		// MySQL Cluster replica = 1 => updating MySQL config via
@@ -148,15 +147,6 @@ func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorLis
 		errList = append(errList,
 			field.Invalid(specPath.Child("redundancyLevel"), newNc.Spec.RedundancyLevel,
 				"spec.redundancyLevel cannot be updated once MySQL Cluster has been started"))
-	}
-
-	// Do not allow updating Spec.Mysqld.RootHost
-	if nc.Spec.Mysqld != nil &&
-		newNc.Spec.Mysqld != nil &&
-		(nc.Spec.Mysqld.RootHost != newNc.Spec.Mysqld.RootHost) {
-		errList = append(errList,
-			field.Invalid(mysqldPath.Child("rootHost"), newNc.Spec.Mysqld.RootHost,
-				"spec.mysqld.rootHost cannot be updated once MySQL Cluster has been started"))
 	}
 
 	// Check if the new NdbCluster valid is spec

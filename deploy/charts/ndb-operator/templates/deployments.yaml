@@ -67,6 +67,8 @@ spec:
       imagePullSecrets:
         - name: {{.Values.imagePullSecretName}}
       {{- end }}
+      hostname: ndb-operator-pod
+      subdomain: ndb-operator-svc
       containers:
         - name: ndb-operator-controller
           image: {{.Values.image}}
