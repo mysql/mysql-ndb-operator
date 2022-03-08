@@ -36,4 +36,6 @@ const (
 	NdbClusterGeneration = "ndb.generation"
 	// MySQLConfigKey is the key to the MySQL Server config(my.cnf) string
 	MySQLConfigKey = "my.cnf"
+	// MySQLRootHost is the key to the MySQL Server's root account's host.
+	MySQLRootHost = "mysqlRootHost"
 )

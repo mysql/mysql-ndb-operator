@@ -56,6 +56,8 @@ const (
 	LastAppliedMySQLServerConfigVersion = ndbcontroller.GroupName + "/last-applied-my-cnf-config-version"
 	// RootPasswordSecret is the name of the secret that holds the password for the root account
 	RootPasswordSecret = ndbcontroller.GroupName + "/root-password-secret"
+	// RootHost represent the host name from which the root can connect to the MySQL Server
+	RootHost = ndbcontroller.GroupName + "/root-host"
 )
 
 // getContainerFromDeployment returns the container with the given name from the deployment
@@ -301,25 +303,18 @@ func (msd *MySQLServerDeployment) createContainer(ndb *v1alpha1.NdbCluster, oldC
 				Name:  "MYSQL_ROOT_PASSWORD",
 				Value: mysqldRootPasswordMountPath + "/" + mysqldRootPasswordFileName,
 			},
-			// MYSQL_CLUSTER_ROOT_HOST and MYSQL_CLUSTER_EXPECTED_REPLICAS
-			// are consumed exactly once during the Deployment creation.
-			// There are neither updated nor consumed during further deployment updates
+
 			{
-				// Host from which the root user can be accessed
-				Name:  "MYSQL_CLUSTER_ROOT_HOST",
-				Value: ndb.Spec.Mysqld.RootHost,
-			},
-			{
-				// Expected replicas during initial setup
-				Name:  "MYSQL_CLUSTER_EXPECTED_REPLICAS",
-				Value: strconv.Itoa(int(ndb.GetMySQLServerNodeCount())),
+				// Host from which the ndb operator user account can be accessed.
+				// Use the hostname defined by the Ndb Operator deployment's template spec.
+				Name:  "NDB_OPERATOR_ROOT_HOST",
+				Value: "ndb-operator-pod.ndb-operator-svc." + ndb.Namespace + ".svc.cluster.local",
 			},
 		}
 	} else {
 		// This is an Update to Deployment. Copy env variables from oldContainer
-		// Although MYSQL_CLUSTER_ROOT_HOST and MYSQL_CLUSTER_EXPECTED_REPLICAS values
-		// won't be consumed hereafter, we retain the values so as not to trigger a
-		// template.spec update in the Deployments
+		// Although NDB_OPERATOR_ROOT_HOST value won't be consumed hereafter, we retain
+		// the values so as not to trigger a template.spec update in the Deployments
 		if oldContainer.Env != nil {
 			in, out := &oldContainer.Env, &container.Env
 			*out = make([]v1.EnvVar, len(*in))
@@ -374,6 +369,7 @@ func (msd *MySQLServerDeployment) NewDeployment(
 			OwnerReferences: ndb.GetOwnerReferences(),
 			Annotations: map[string]string{
 				RootPasswordSecret: rootPasswordSecret,
+				RootHost:           ndb.Spec.Mysqld.RootHost,
 				// Add the NdbCluster generation this deployment is based on to the annotation
 				LastAppliedConfigGeneration: strconv.FormatInt(cs.NdbClusterGeneration, 10),
 			},

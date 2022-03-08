@@ -7,6 +7,7 @@ package resources
 import (
 	"embed"
 	"fmt"
+
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
@@ -58,6 +59,13 @@ func updateMySQLConfig(
 			klog.Errorf("Failed to get the my.cnf config string : %s", err)
 			return err
 		}
+	}
+
+	// Update root host
+	if nc.Spec.Mysqld != nil {
+		data[constants.MySQLRootHost] = nc.Spec.Mysqld.RootHost
+	} else {
+		data[constants.MySQLRootHost] = ""
 	}
 
 	return nil
