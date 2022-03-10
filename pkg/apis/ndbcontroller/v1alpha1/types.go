@@ -15,7 +15,7 @@ import (
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig/configparser"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -45,6 +45,32 @@ type NdbCluster struct {
 	Status NdbClusterStatus `json:"status,omitempty"`
 }
 
+// NdbPodSpec contains a subset of PodSpec fields which when set
+// will be copied into to the podSpec of respective MySQL Cluster
+// node workload definitions.
+type NdbPodSpec struct {
+	// Total compute Resources required by this pod.
+	// Cannot be updated.
+	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
+	// +optional
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+	// NodeSelector is a selector which must be true for the pod to fit on a node.
+	// Selector which must match a node's labels for the pod to be scheduled on that node.
+	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+	// +optional
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	// If specified, the pod's scheduling constraints
+	// +optional
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+	// If specified, the pod will be dispatched by specified scheduler.
+	// If not specified, the pod will be dispatched by default scheduler.
+	// +optional
+	SchedulerName string `json:"schedulerName,omitempty"`
+	// If specified, the pod's tolerations.
+	// +optional
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+}
+
 // NdbMysqldSpec is the specification of MySQL Servers to be run as an SQL Frontend
 type NdbMysqldSpec struct {
 	// NodeCount is the number of MySQL Servers running in MySQL Cluster
@@ -65,6 +91,10 @@ type NdbMysqldSpec struct {
 	// Configuration options to pass to the MySQL Server when it is started.
 	// +optional
 	MyCnf string `json:"myCnf,omitempty"`
+	// PodSpec contains a subset of K8s PodSpec fields which when
+	// set will be copied into to the podSpec of MySQL Server Deployment.
+	// +optional
+	PodSpec *NdbPodSpec `json:"managementNodePodSpec,omitempty"`
 }
 
 // NdbClusterSpec defines the desired state of MySQL Ndb Cluster
@@ -105,6 +135,15 @@ type NdbClusterSpec struct {
 	// https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-ndbd.html
 	DataNodeConfig map[string]*intstr.IntOrString `json:"dataNodeConfig,omitempty"`
 
+	// DataNodePodSpec contains a subset of PodSpec fields which when
+	// set will be copied into to the podSpec of Data node statefulset.
+	// +optional
+	DataNodePodSpec *NdbPodSpec `json:"dataNodePodSpec,omitempty"`
+	// ManagementNodePodSpec contains a subset of PodSpec fields which when
+	// set will be copied into to the podSpec of Management node statefulset.
+	// +optional
+	ManagementNodePodSpec *NdbPodSpec `json:"managementNodePodSpec,omitempty"`
+
 	// The name of the MySQL Ndb Cluster image to be used.
 	// If not specified, "mysql/mysql-cluster:latest" will be used.
 	// Lowest supported version is 8.0.26.
@@ -116,7 +155,7 @@ type NdbClusterSpec struct {
 	// +kubebuilder:validation:Enum:={Always, Never, IfNotPresent}
 	// +kubebuilder:default:="IfNotPresent"
 	// +optional
-	ImagePullPolicy v1.PullPolicy `json:"imagePullPolicy,omitempty"`
+	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
 	// ImagePullSecretName optionally specifies the name of the secret that
 	// holds the credentials required for pulling the MySQL Cluster image.
 	// +optional
@@ -127,7 +166,7 @@ type NdbClusterSpec struct {
 	// for each data node by the statefulset controller and will be loaded into
 	// the data node pod and the container.
 	// +optional
-	DataNodePVCSpec *v1.PersistentVolumeClaimSpec `json:"dataNodePVCSpec,omitempty"`
+	DataNodePVCSpec *corev1.PersistentVolumeClaimSpec `json:"dataNodePVCSpec,omitempty"`
 
 	// +optional
 	Mysqld *NdbMysqldSpec `json:"mysqld,omitempty"`
@@ -162,7 +201,7 @@ type NdbClusterCondition struct {
 	// Type of NdbCluster condition.
 	Type NdbClusterConditionType `json:"type"`
 	// Status of the condition, one of True, False, Unknown.
-	Status v1.ConditionStatus `json:"status"`
+	Status corev1.ConditionStatus `json:"status"`
 	// Last time the condition transitioned from one status to another.
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 	// The reason for the condition's last transition.
