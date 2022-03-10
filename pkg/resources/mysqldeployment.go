@@ -349,6 +349,9 @@ func (msd *MySQLServerDeployment) NewDeployment(
 		}
 	}
 
+	// Copy values from spec.mysqld.podSpec into this podSpec
+	copyPodSpecFromNdbPodSpec(&podSpec, ndb.Spec.Mysqld.PodSpec)
+
 	// The deployment name to be used
 	deploymentName := ndb.Name + "-" + mysqldClientName
 

@@ -8,11 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"strings"
 
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig/configparser"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -117,10 +119,35 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 	return errList == nil, errList
 }
 
+func cannotUpdateFieldError(specPath *field.Path, newValue interface{}) *field.Error {
+	return field.Invalid(specPath, newValue,
+		fmt.Sprintf("%s cannot be updated once NdbCluster has been created", specPath.String()))
+}
+
+// validateNdbPodSpecResources verifies that the Resources field of the NdbPodSpec has not changes
+func validateNdbPodSpecResources(specPath *field.Path, oldNdbPodSpec, newNdbPodSpec *NdbPodSpec) *field.Error {
+	var oldResources, newResources *corev1.ResourceRequirements
+	if oldNdbPodSpec != nil {
+		oldResources = oldNdbPodSpec.Resources
+	}
+	if newNdbPodSpec != nil {
+		newResources = newNdbPodSpec.Resources
+	}
+
+	if !reflect.DeepEqual(oldResources, newResources) {
+		resourcesPath := specPath.Child("resources")
+		return field.Forbidden(resourcesPath,
+			fmt.Sprintf("%s cannot be updated once NdbCluster has been created", resourcesPath.String()))
+	}
+
+	return nil
+}
+
 func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorList) {
 
 	var errList field.ErrorList
 	specPath := field.NewPath("spec")
+	mysqldPath := specPath.Child("mysqld")
 
 	if nc.Spec.RedundancyLevel == 1 {
 		// MySQL Cluster replica = 1 => updating MySQL config via
@@ -145,8 +172,49 @@ func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorLis
 
 	if nc.Spec.RedundancyLevel != newNc.Spec.RedundancyLevel {
 		errList = append(errList,
-			field.Invalid(specPath.Child("redundancyLevel"), newNc.Spec.RedundancyLevel,
-				"spec.redundancyLevel cannot be updated once MySQL Cluster has been started"))
+			cannotUpdateFieldError(specPath.Child("redundancyLevel"), newNc.Spec.RedundancyLevel))
+	}
+
+	// Do not allow updating Resource field of various ndbPodSpecs
+	if err := validateNdbPodSpecResources(
+		specPath.Child("managementNodePodSpec"),
+		nc.Spec.ManagementNodePodSpec, newNc.Spec.ManagementNodePodSpec); err != nil {
+		errList = append(errList, err)
+	}
+	if err := validateNdbPodSpecResources(
+		specPath.Child("dataNodePodSpec"), nc.Spec.DataNodePodSpec, newNc.Spec.DataNodePodSpec); err != nil {
+		errList = append(errList, err)
+	}
+	if nc.GetMySQLServerNodeCount() != 0 &&
+		newNc.GetMySQLServerNodeCount() != 0 {
+		if err := validateNdbPodSpecResources(
+			mysqldPath.Child("podSpec"), nc.Spec.Mysqld.PodSpec, newNc.Spec.Mysqld.PodSpec); err != nil {
+			errList = append(errList, err)
+		}
+	}
+
+	// For now disallow *any* updates to NdbPodSpec as operator handle it, yet.
+	// TODO: Remove these validations once NDB Operator supports updating NdbPodSpec
+	if !reflect.DeepEqual(nc.Spec.ManagementNodePodSpec, newNc.Spec.ManagementNodePodSpec) {
+		ndbPodSpecPath := specPath.Child("managementNodePodSpec")
+		errList = append(errList, field.Forbidden(ndbPodSpecPath,
+			fmt.Sprintf("Operator doesn't yet support updating %s once NdbCluster has been created",
+				ndbPodSpecPath.String())))
+	}
+	if !reflect.DeepEqual(nc.Spec.DataNodePodSpec, newNc.Spec.DataNodePodSpec) {
+		ndbPodSpecPath := specPath.Child("dataNodePodSpec")
+		errList = append(errList, field.Forbidden(ndbPodSpecPath,
+			fmt.Sprintf("Operator doesn't yet support updating %s once NdbCluster has been created",
+				ndbPodSpecPath.String())))
+	}
+	if nc.GetMySQLServerNodeCount() != 0 &&
+		newNc.GetMySQLServerNodeCount() != 0 {
+		if !reflect.DeepEqual(nc.Spec.Mysqld.PodSpec, nc.Spec.Mysqld.PodSpec) {
+			ndbPodSpecPath := mysqldPath.Child("podSpec")
+			errList = append(errList, field.Forbidden(ndbPodSpecPath,
+				fmt.Sprintf("Operator doesn't yet support updating %s once NdbCluster has been created",
+					ndbPodSpecPath.String())))
+		}
 	}
 
 	// Check if the new NdbCluster valid is spec
