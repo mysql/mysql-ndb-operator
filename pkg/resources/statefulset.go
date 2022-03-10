@@ -269,6 +269,8 @@ func (mss *mgmdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1al
 	podSpec := &statefulSetSpec.Template.Spec
 	podSpec.Containers = mss.getContainers(nc)
 	podSpec.Volumes = mss.getPodVolumes(nc)
+	// Copy down any podSpec specified via CRD
+	copyPodSpecFromNdbPodSpec(podSpec, nc.Spec.ManagementNodePodSpec)
 
 	return statefulSet
 }
@@ -418,6 +420,8 @@ func (nss *ndbdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1al
 	podSpec := &statefulSetSpec.Template.Spec
 	podSpec.Containers = nss.getContainers(nc)
 	podSpec.Volumes = nss.getPodVolumes(nc)
+	// Copy down any podSpec specified via CRD
+	copyPodSpecFromNdbPodSpec(podSpec, nc.Spec.DataNodePodSpec)
 
 	return statefulSet
 }
