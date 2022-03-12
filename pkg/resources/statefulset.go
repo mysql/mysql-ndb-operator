@@ -254,13 +254,20 @@ func (mss *mgmdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 	return mss.createContainers(nc, cmdAndArgs, volumeMounts, startupProbe, readinessProbe)
 }
 
+func (mss *mgmdStatefulSet) getPodAntiAffinity() *v1.PodAntiAffinity {
+	// Default pod AntiAffinity rules for Management Nodes
+	return getPodAntiAffinityRules([]string{
+		mysqldClientName, sfsetTypeNdbd, sfsetTypeMgmd,
+	})
+}
+
 // NewStatefulSet returns the StatefulSet specification to start and manage the Management nodes.
 func (mss *mgmdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) *apps.StatefulSet {
 	statefulSet := mss.newStatefulSet(nc)
 	statefulSetSpec := &statefulSet.Spec
 
 	// Fill in mgmd specific values
-	replicas := int32(cs.NumOfManagementNodes)
+	replicas := cs.NumOfManagementNodes
 	statefulSetSpec.Replicas = &replicas
 	// Set pod management policy to start Management nodes one by one
 	statefulSetSpec.PodManagementPolicy = apps.OrderedReadyPodManagement
@@ -269,6 +276,10 @@ func (mss *mgmdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1al
 	podSpec := &statefulSetSpec.Template.Spec
 	podSpec.Containers = mss.getContainers(nc)
 	podSpec.Volumes = mss.getPodVolumes(nc)
+	// Set default AntiAffinity rules
+	podSpec.Affinity = &v1.Affinity{
+		PodAntiAffinity: mss.getPodAntiAffinity(),
+	}
 	// Copy down any podSpec specified via CRD
 	copyPodSpecFromNdbPodSpec(podSpec, nc.Spec.ManagementNodePodSpec)
 
@@ -396,13 +407,20 @@ func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 	return nss.createContainers(nc, cmdAndArgs, volumeMounts, startupProbe, nil)
 }
 
+func (nss *ndbdStatefulSet) getPodAntiAffinity() *v1.PodAntiAffinity {
+	// Default pod AntiAffinity rules for Data Nodes
+	return getPodAntiAffinityRules([]string{
+		sfsetTypeMgmd, mysqldClientName, sfsetTypeNdbd,
+	})
+}
+
 // NewStatefulSet returns the StatefulSet specification to start and manage the Data nodes.
 func (nss *ndbdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) *apps.StatefulSet {
 	statefulSet := nss.newStatefulSet(nc)
 	statefulSetSpec := &statefulSet.Spec
 
 	// Fill in ndbd specific values
-	replicas := int32(cs.NumOfDataNodes)
+	replicas := cs.NumOfDataNodes
 	statefulSetSpec.Replicas = &replicas
 	// Set pod management policy to start Data nodes in parallel
 	statefulSetSpec.PodManagementPolicy = apps.ParallelPodManagement
@@ -420,6 +438,10 @@ func (nss *ndbdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1al
 	podSpec := &statefulSetSpec.Template.Spec
 	podSpec.Containers = nss.getContainers(nc)
 	podSpec.Volumes = nss.getPodVolumes(nc)
+	// Set default AntiAffinity rules
+	podSpec.Affinity = &v1.Affinity{
+		PodAntiAffinity: nss.getPodAntiAffinity(),
+	}
 	// Copy down any podSpec specified via CRD
 	copyPodSpecFromNdbPodSpec(podSpec, nc.Spec.DataNodePodSpec)
 
