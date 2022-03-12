@@ -349,6 +349,12 @@ func (msd *MySQLServerDeployment) NewDeployment(
 		}
 	}
 
+	// Default PodAntiAffinity for MySQL Servers
+	podSpec.Affinity = &v1.Affinity{
+		PodAntiAffinity: getPodAntiAffinityRules([]string{
+			sfsetTypeMgmd, sfsetTypeNdbd, mysqldClientName,
+		}),
+	}
 	// Copy values from spec.mysqld.podSpec into this podSpec
 	copyPodSpecFromNdbPodSpec(&podSpec, ndb.Spec.Mysqld.PodSpec)
 
