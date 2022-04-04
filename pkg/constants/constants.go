@@ -34,6 +34,10 @@ const (
 	FreeApiSlots = "freeApiSlots"
 	// NdbClusterGeneration stores the generation the config map is based on.
 	NdbClusterGeneration = "ndb.generation"
+	// ManagementLoadBalancer indicates if the load balancer service for management nodes needs to be enabled
+	ManagementLoadBalancer = "managementLoadBalancer"
+	// MySQLLoadBalancer indicates if the load balancer service for MySQL servers needs to be enabled
+	MySQLLoadBalancer = "mysqlLoadBalancer"
 	// MySQLConfigKey is the key to the MySQL Server config(my.cnf) string
 	MySQLConfigKey = "my.cnf"
 )

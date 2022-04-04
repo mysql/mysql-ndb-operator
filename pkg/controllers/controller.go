@@ -70,6 +70,7 @@ type Controller struct {
 	ndbdController      StatefulSetControlInterface
 	mysqldController    DeploymentControlInterface
 	configMapController ConfigMapControlInterface
+	serviceController   ServiceControlInterface
 	pdbController       PodDisruptionBudgetControlInterface
 
 	// K8s Listers
@@ -111,15 +112,16 @@ func NewController(
 		pdbInformer.Informer().HasSynced,
 	}
 
+	serviceLister := serviceInformer.Lister()
 	statefulSetLister := statefulSetInformer.Lister()
 
 	controller := &Controller{
 		controllerContext:     controllerContext,
 		informerSyncedMethods: informerSyncedMethods,
 		ndbsLister:            ndbClusterInformer.Lister(),
-		serviceLister:         serviceInformer.Lister(),
 		podLister:             podInformer.Lister(),
 		configMapController:   NewConfigMapControl(controllerContext.kubeClientset),
+		serviceController:     NewServiceControl(controllerContext.kubeClientset, serviceLister),
 		workqueue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Ndbs"),
 		recorder:              newEventRecorder(controllerContext.kubeClientset),
 
@@ -396,6 +398,7 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
 		ndbdController:      c.ndbdController,
 		mysqldController:    c.mysqldController,
 		configMapController: c.configMapController,
+		serviceController:   c.serviceController,
 		pdbController:       c.pdbController,
 		ndb:                 ndb,
 		controllerContext:   c.controllerContext,

@@ -39,6 +39,10 @@ type ConfigSummary struct {
 	RedundancyLevel int32
 	// defaultNdbdConfigs has the values extracted from the default ndbd section of the management config.
 	defaultNdbdSection configparser.Section
+	// MySQLLoadBalancer indicates if the load balancer service for MySQL servers needs to be enabled
+	MySQLLoadBalancer bool
+	// ManagementLoadBalancer indicates if the load balancer service for management nodes needs to be enabled
+	ManagementLoadBalancer bool
 	// myCnfConfig has the parsed My.cnf config
 	myCnfConfig configparser.ConfigIni
 }
@@ -50,6 +54,15 @@ func parseInt32(strValue string) int32 {
 		debug.Panic(fmt.Sprintf("parseUint32 failed to parse %s : %s", strValue, err.Error()))
 	}
 	return int32(value)
+}
+
+// parseBool parses the given string into an Bool
+func parseBool(strValue string) bool {
+	value, err := strconv.ParseBool(strValue)
+	if err != nil {
+		debug.Panic(fmt.Sprintf("parseBool failed to parse %s : %s", strValue, err.Error()))
+	}
+	return bool(value)
 }
 
 // NewConfigSummary creates a new ConfigSummary with the information extracted from the config map.
@@ -72,7 +85,9 @@ func NewConfigSummary(configMapData map[string]string) (*ConfigSummary, error) {
 		TotalNumOfApiSlots:   int32(config.GetNumberOfSections("api")),
 		RedundancyLevel: parseInt32(
 			config.GetValueFromSection("ndbd default", "NoOfReplicas")),
-		defaultNdbdSection: config.GetSection("ndbd default"),
+		MySQLLoadBalancer:      parseBool(configMapData[constants.MySQLLoadBalancer]),
+		ManagementLoadBalancer: parseBool(configMapData[constants.ManagementLoadBalancer]),
+		defaultNdbdSection:     config.GetSection("ndbd default"),
 	}
 
 	// Update MySQL Config details if it exists

@@ -91,6 +91,14 @@ type NdbMysqldSpec struct {
 	// Configuration options to pass to the MySQL Server when it is started.
 	// +optional
 	MyCnf string `json:"myCnf,omitempty"`
+	// EnableLoadBalancer exposes the MySQL servers externally using the kubernetes cloud
+	// provider's load balancer. By default, the operator creates a ClusterIP type service
+	// to expose the MySQL server pods internally within the kubernetes cluster. If
+	// EnableLoadBalancer is set to true, a LoadBalancer type service will be created instead,
+	// exposing the MySQL servers outside the kubernetes cluster.
+	// +kubebuilder:default=false
+	// +optional
+	EnableLoadBalancer bool `json:"enableLoadBalancer,omitempty"`
 	// PodSpec contains a subset of K8s PodSpec fields which when
 	// set will be copied into to the podSpec of MySQL Server Deployment.
 	// +optional
@@ -168,6 +176,14 @@ type NdbClusterSpec struct {
 	// +optional
 	DataNodePVCSpec *corev1.PersistentVolumeClaimSpec `json:"dataNodePVCSpec,omitempty"`
 
+	// EnableManagementNodeLoadBalancer exposes the management servers externally using the
+	// kubernetes cloud provider's load balancer. By default, the operator creates a ClusterIP
+	// type service to expose the management server pods internally within the kubernetes cluster.
+	// If EnableLoadBalancer is set to true, a LoadBalancer type service will be created instead,
+	// exposing the management Servers outside the kubernetes cluster.
+	// +kubebuilder:default=false
+	// +optional
+	EnableManagementNodeLoadBalancer bool `json:"enableManagementNodeLoadBalancer,omitempty"`
 	// +optional
 	Mysqld *NdbMysqldSpec `json:"mysqld,omitempty"`
 }

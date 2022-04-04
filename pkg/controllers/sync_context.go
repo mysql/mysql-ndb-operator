@@ -7,9 +7,9 @@ package controllers
 import (
 	"context"
 	"fmt"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
@@ -23,7 +23,6 @@ import (
 	"github.com/mysql/ndb-operator/pkg/helpers"
 	"github.com/mysql/ndb-operator/pkg/mgmapi"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
-	"github.com/mysql/ndb-operator/pkg/resources"
 )
 
 // SyncContext stores all information collected in/for a single run of syncHandler
@@ -46,6 +45,7 @@ type SyncContext struct {
 	mgmdController      StatefulSetControlInterface
 	ndbdController      StatefulSetControlInterface
 	configMapController ConfigMapControlInterface
+	serviceController   ServiceControlInterface
 	pdbController       PodDisruptionBudgetControlInterface
 
 	controllerContext *ControllerContext
@@ -82,88 +82,43 @@ func (sc *SyncContext) isOwnedByNdbCluster(object metav1.Object) error {
 	return nil
 }
 
-// ensureService creates a service if it doesn't exist yet
-func (sc *SyncContext) ensureService(
-	ctx context.Context, port int32,
-	selector string, createLoadBalancer bool) (svc *corev1.Service, existed bool, err error) {
-
-	serviceName := sc.ndb.GetServiceName(selector)
-	if createLoadBalancer {
-		serviceName += "-ext"
-	}
-
-	svc, err = sc.serviceLister.Services(sc.ndb.Namespace).Get(serviceName)
-
-	if err == nil {
-		// Service exists already
-		if err = sc.isOwnedByNdbCluster(svc); err != nil {
-			// But it is not owned by the NdbCluster resource
-			return nil, false, err
-		}
-
-		// Service exists and is owned by the current NdbCluster
-		return svc, true, nil
-	}
-
-	if !apierrors.IsNotFound(err) {
-		return nil, false, err
-	}
-
-	// Service not found - create it
-	klog.Infof("Creating a new Service %s for cluster %q", serviceName, getNamespacedName(sc.ndb))
-	svc = resources.NewService(sc.ndb, port, selector, createLoadBalancer)
-	svc, err = sc.kubeClientset().CoreV1().Services(sc.ndb.Namespace).Create(ctx, svc, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		// Create failed. Ignore AlreadyExists error as it might
-		// have been caused due to a previous, outdated, cache read.
-		return nil, false, err
-	}
-	return svc, false, err
-}
-
 // ensureServices creates all the necessary services for the
 // MySQL Cluster if they do not exist yet.
 // at this stage of the functionality we can still create resources even if
 // the config is invalid as services are only based on Ndb CRD name
 // which is obviously immutable for each individual Ndb CRD
 func (sc *SyncContext) ensureServices(
-	ctx context.Context) (svcs []*corev1.Service, allServicesExisted bool, err error) {
+	ctx context.Context) (allServicesExisted bool, err error) {
+	var enableLoadBalancer bool
 
-	// create a headless service for management nodes
-	svc, existed, err := sc.ensureService(ctx, 1186, sc.mgmdController.GetTypeName(), false)
-	if err != nil {
-		return nil, false, err
-	}
-	allServicesExisted = existed
-	svcs = append(svcs, svc)
+	enableLoadBalancer = sc.configSummary.ManagementLoadBalancer
 
-	// create a load balancer service for management servers
-	svc, existed, err = sc.ensureService(ctx, 1186, sc.mgmdController.GetTypeName(), true)
+	// create a service for management servers
+	svc, existed, err := sc.serviceController.EnsureService(sc, ctx, 1186, sc.mgmdController.GetTypeName(), enableLoadBalancer, false)
 	if err != nil {
-		return nil, false, err
+		return false, err
 	}
 	allServicesExisted = allServicesExisted && existed
-	svcs = append(svcs, svc)
 	// store the management IP and port
 	sc.ManagementServerIP, sc.ManagementServerPort = helpers.GetServiceAddressAndPort(svc)
 
 	// create a headless service for data nodes
-	svc, existed, err = sc.ensureService(ctx, 1186, sc.ndbdController.GetTypeName(), false)
+	svc, existed, err = sc.serviceController.EnsureService(sc, ctx, 1186, sc.ndbdController.GetTypeName(), false, true)
 	if err != nil {
-		return nil, false, err
+		return false, err
 	}
 	allServicesExisted = allServicesExisted && existed
-	svcs = append(svcs, svc)
 
-	// create a loadbalancer for MySQL Servers in the deployment
-	svc, existed, err = sc.ensureService(ctx, 3306, sc.mysqldController.GetTypeName(), true)
+	enableLoadBalancer = sc.configSummary.MySQLLoadBalancer
+
+	// create a service for MySQL Servers
+	svc, existed, err = sc.serviceController.EnsureService(sc, ctx, 3306, sc.mysqldController.GetTypeName(), enableLoadBalancer, false)
 	if err != nil {
-		return nil, false, err
+		return false, err
 	}
 	allServicesExisted = allServicesExisted && existed
-	svcs = append(svcs, svc)
 
-	return svcs, allServicesExisted, nil
+	return allServicesExisted, nil
 }
 
 // ensureManagementServerStatefulSet creates the StatefulSet for
@@ -396,15 +351,6 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 	var err error
 	var resourceExists bool
 
-	// create all services required by the StatefulSets running the
-	// MySQL Cluster nodes and to expose the services offered by those nodes.
-	if _, resourceExists, err = sc.ensureServices(ctx); err != nil {
-		return errorWhileProcessing(err)
-	}
-	if !resourceExists {
-		klog.Info("Created resource : Services")
-	}
-
 	// create pod disruption budgets
 	if resourceExists, err = sc.ensurePodDisruptionBudget(ctx); err != nil {
 		return errorWhileProcessing(err)
@@ -427,6 +373,15 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 		// less likely to happen as the only possible error is a config
 		// parse error, and the configString was generated by the operator
 		return errorWhileProcessing(err)
+	}
+
+	// create all services required by the StatefulSets running the
+	// MySQL Cluster nodes and to expose the services offered by those nodes.
+	if resourceExists, err = sc.ensureServices(ctx); err != nil {
+		return errorWhileProcessing(err)
+	}
+	if !resourceExists {
+		klog.Info("Created resource : Services")
 	}
 
 	// create the management stateful set if it doesn't exist
