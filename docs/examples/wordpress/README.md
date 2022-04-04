@@ -5,7 +5,7 @@ created using ndb-operator.
 
 ## License
 
-Copyright (c) 2021, Oracle and/or its affiliates.
+Copyright (c) 2021, 2022 Oracle and/or its affiliates.
 
 License information can be found in the LICENSE file. This distribution may include materials developed by third parties. For license and attribution notices for these materials, please refer to the LICENSE file.
 
@@ -13,9 +13,8 @@ License information can be found in the LICENSE file. This distribution may incl
 
 ### **wordpress-ndb.yaml**
 
-Deploys ndb cluster with two ndbd, two mysqld and two mgmd(defaut).
-Services to access ndb cluster is created. Generates a "secret"
-that will be used by wordpress app to authenticate to mysqld.
+Deploys a MySQL Cluster with two Management Nodes, two Data Nodes and two MySQL Servers.
+Services to access ndb cluster is created. Generates a "secret" that will be used by wordpress app to authenticate to mysqld.
 
 ### **wordpress-deployment.yaml**
 
@@ -27,39 +26,25 @@ PersistentVolumeClaim is created to persist wordpress website data files.
 
 Instructions to deploy NDB Cluster and Wordpress.
 
-## Deploy ndb cluster in K8s
+## Deploy MySQL NDB Cluster in K8s
 
-**Prerequisite**: ndb operator is running.
+**Prerequisite**: NDB Operator is running.
 
 ```sh
-# create a custom resource of type Ndb
+# create a custom resource of type NdbCluster
 kubectl apply -f wordpress-ndb.yaml
 
 ```
 
-## Expose K8s services (Optional)
-
-**Note**: If minikube is used, make sure you have created a tunnel, to ensure
-          K8s services are externally available.
-
-## Check readiness of ndb cluster
+## Wait for the MySQL Cluster to start
 
 ```sh
-
-# retrieve mgmd LoadBalancer service IP  using the service name
-MGMD_SERVICE=$(kubectl get service "wordpress-ndb-mgmd-ext" \
-  -o jsonpath={.status.loadBalancer.ingress[0].ip})
-
-# check cluster status using ndb_mgm's 'show' command
-ndb_mgm -c ${MGMD_SERVICE} -e "show"
+# wait for the NdbCluster resource to become UpToDate
+kubectl wait --for=condition=UpToDate ndb wordpress-ndb --timeout=10m
 
 ```
 
-Ensure all ndb cluster nodes are connected to mgmd.
-
 ## Deploy wordpress app
-
-**Prerequisite**: [Check readiness of ndb cluster](#check-readiness-of-ndb-cluster)
 
 ```sh
 # create a wordpress deployment
@@ -68,16 +53,18 @@ kubectl apply -f wordpress-deployment.yaml
 ```
 
 This creates a wordpress app connected to mysqld created by ndb-operator.
-A LoadBalancer service is created to access the wordpress application
-deployed in K8s cluster.
+A ClusterIP service is created to access the wordpress application deployed in K8s cluster.
+
+## Expose wordpress services
+
+Use the `kubectl port-forward` command to forward a port from the local machine to the port wordpress web app is listening inside the K8s node
+
+```sh
+# expose wordpress service port to local machine
+kubectl port-forward service/wordpress 80:80
+
+```
 
 ## Using wordpress
 
-```sh
-# retrieve wordpress LoadBalancer service IP address using the service name
-kubectl get service "wordpress" \
- -o jsonpath={.status.loadBalancer.ingress[0].ip}
-
- ```
- Open a web browser and type in the IP address obtained, in the search bar
- to start using the wordpress app.
+ Open a web browser and type in the IP address and port used with port-forward, in the search bar to start using the wordpress app.

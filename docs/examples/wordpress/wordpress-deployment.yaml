@@ -11,7 +11,7 @@ spec:
   selector:
     app: wordpress
     tier: frontend
-  type: LoadBalancer
+  type: ClusterIP
 ---
 # Persistent volume claim to persist website data files
 apiVersion: v1
@@ -52,8 +52,8 @@ spec:
           env:
             - name: WORDPRESS_DB_HOST
               # To connect to mysqld service created by ndb-operator, use
-              # WORDPRESS_DB_HOST as <cluster-name>-mysqld-ext
-              value: wordpress-ndb-mysqld-ext
+              # WORDPRESS_DB_HOST as <cluster-name>-mysqld
+              value: wordpress-ndb-mysqld
             - name: WORDPRESS_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
