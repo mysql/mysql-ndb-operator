@@ -423,29 +423,26 @@ func TestCreatesCluster(t *testing.T) {
 	// create new controller
 	f.newController()
 
-	// 2 services for mgmd
-	omd := getObjectMetadata("test-mgmd", ndb)
-	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
-
-	omd.Name = "test-mgmd-ext"
-	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
-
-	// one headless service for data nodes
-	omd.Name = "test-ndbd"
-	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
-
-	// one loadbalancer service for MySQL Servers
-	omd.Name = "test-mysqld-ext"
-	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
-
 	// One PDB for data nodes
-	omd.Name = "test-pdb-ndbd"
+	omd := getObjectMetadata("test-pdb-ndbd", ndb)
 	f.expectCreateAction(ns, "policy", "v1beta1", "poddisruptionbudgets",
 		&policyv1beta1.PodDisruptionBudget{ObjectMeta: *omd})
 
 	// One configmap for NdbCluster resource
 	omd.Name = "test-config"
 	f.expectCreateAction(ns, "", "v1", "configmaps", &corev1.ConfigMap{ObjectMeta: *omd})
+
+	// one service for mgmd
+	omd.Name = "test-mgmd"
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
+
+	// one headless service for data nodes
+	omd.Name = "test-ndbd"
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
+
+	// one service for MySQL Servers
+	omd.Name = "test-mysqld"
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
 	// One StatefulSet for management nodes
 	omd.Name = "test-mgmd"
