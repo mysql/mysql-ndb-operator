@@ -6,6 +6,7 @@ package mgmapiutils
 
 import (
 	"fmt"
+
 	"github.com/mysql/ndb-operator/e2e-tests/utils/service"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/mgmapi"
@@ -18,7 +19,7 @@ import (
 // represented by the ndb object and returns a mgmapi.MgmClient
 func ConnectToMgmd(clientset kubernetes.Interface, ndb *v1alpha1.NdbCluster) mgmapi.MgmClient {
 	ginkgo.By("connecting to the Management Node service")
-	serviceName := ndb.GetServiceName("mgmd") + "-ext"
+	serviceName := ndb.GetServiceName("mgmd")
 	host, port := service.GetServiceAddressAndPort(clientset, ndb.Namespace, serviceName)
 	mgmClient, err := mgmapi.NewMgmClient(fmt.Sprintf("%s:%d", host, port))
 	gomega.Expect(err).Should(gomega.Succeed())

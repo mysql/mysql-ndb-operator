@@ -26,7 +26,7 @@ func Connect(clientset kubernetes.Interface, nc *v1alpha1.NdbCluster, dbname str
 		gomega.BeZero(), fmt.Sprintf("No MySQL Servers configured for NdbCluster %q", nc.Name))
 
 	ginkgo.By("connecting to the MySQL Load balancer")
-	serviceName := nc.GetServiceName("mysqld") + "-ext"
+	serviceName := nc.GetServiceName("mysqld")
 	host, port := service.GetServiceAddressAndPort(clientset, nc.Namespace, serviceName)
 	user := "root"
 	password := secretutils.GetMySQLRootPassword(context.TODO(), clientset, nc)

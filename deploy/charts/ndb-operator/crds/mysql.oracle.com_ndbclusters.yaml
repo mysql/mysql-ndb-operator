@@ -902,6 +902,16 @@ spec:
                       type: object
                     type: array
                 type: object
+              enableManagementNodeLoadBalancer:
+                default: false
+                description: EnableManagementNodeLoadBalancer exposes the management
+                  servers externally using the kubernetes cloud provider's load balancer.
+                  By default, the operator creates a ClusterIP type service to expose
+                  the management server pods internally within the kubernetes cluster.
+                  If EnableLoadBalancer is set to true, a LoadBalancer type service
+                  will be created instead, exposing the management Servers outside
+                  the kubernetes cluster.
+                type: boolean
               freeAPISlots:
                 default: 5
                 description: The number of API sections declared in the MySQL Cluster,
@@ -1641,6 +1651,16 @@ spec:
                 description: NdbMysqldSpec is the specification of MySQL Servers to
                   be run as an SQL Frontend
                 properties:
+                  enableLoadBalancer:
+                    default: false
+                    description: EnableLoadBalancer exposes the MySQL servers externally
+                      using the kubernetes cloud provider's load balancer. By default,
+                      the operator creates a ClusterIP type service to expose the
+                      MySQL server pods internally within the kubernetes cluster.
+                      If EnableLoadBalancer is set to true, a LoadBalancer type service
+                      will be created instead, exposing the MySQL servers outside
+                      the kubernetes cluster.
+                    type: boolean
                   managementNodePodSpec:
                     description: PodSpec contains a subset of K8s PodSpec fields which
                       when set will be copied into to the podSpec of MySQL Server

@@ -20,6 +20,13 @@ func errorIfNotEqual(t *testing.T, expected, actual int32, desc string) {
 	}
 }
 
+func errorIfNotEqualBool(t *testing.T, expected, actual bool, desc string) {
+	t.Helper()
+	if expected != actual {
+		t.Errorf("Actual '%s' value(%v) didn't match the expected value(%v).", desc, actual, expected)
+	}
+}
+
 func Test_NewConfigSummary(t *testing.T) {
 
 	// just testing actual extraction of ConfigHash - not ini-file reading
@@ -45,10 +52,12 @@ func Test_NewConfigSummary(t *testing.T) {
 	`
 
 	cs, err := NewConfigSummary(map[string]string{
-		constants.ConfigIniKey:         testini,
-		constants.NdbClusterGeneration: "3",
-		constants.NumOfMySQLServers:    "3",
-		constants.FreeApiSlots:         "10",
+		constants.ConfigIniKey:           testini,
+		constants.NdbClusterGeneration:   "3",
+		constants.NumOfMySQLServers:      "3",
+		constants.FreeApiSlots:           "10",
+		constants.ManagementLoadBalancer: "false",
+		constants.MySQLLoadBalancer:      "true",
 	})
 
 	if err != nil {
@@ -65,6 +74,8 @@ func Test_NewConfigSummary(t *testing.T) {
 	errorIfNotEqual(t, 10, cs.NumOfFreeApiSlots, "cs.NumOfFreeApiSlots")
 	dataMemory, _ := cs.defaultNdbdSection.GetValue("DataMemory")
 	errorIfNotEqual(t, 42, parseInt32(dataMemory), "DataMemory")
+	errorIfNotEqualBool(t, false, cs.ManagementLoadBalancer, "cs.ManagementLoadBalancer")
+	errorIfNotEqualBool(t, true, cs.MySQLLoadBalancer, "cs.MySQLLoadBalancer")
 }
 
 func Test_GetConfigString(t *testing.T) {

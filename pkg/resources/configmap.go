@@ -42,6 +42,9 @@ func updateManagementConfig(
 	data[constants.FreeApiSlots] = fmt.Sprintf("%d", ndb.Spec.FreeAPISlots)
 	data[constants.NumOfMySQLServers] = fmt.Sprintf("%d", ndb.GetMySQLServerNodeCount())
 
+	// add/update service type info for management nodes
+	data[constants.ManagementLoadBalancer] = fmt.Sprintf("%v", ndb.Spec.EnableManagementNodeLoadBalancer)
+
 	return nil
 }
 
@@ -58,6 +61,13 @@ func updateMySQLConfig(
 			klog.Errorf("Failed to get the my.cnf config string : %s", err)
 			return err
 		}
+	}
+
+	// Add/update service type info and root host for MySQL servers
+	if nc.Spec.Mysqld != nil {
+		data[constants.MySQLLoadBalancer] = fmt.Sprintf("%v", nc.Spec.Mysqld.EnableLoadBalancer)
+	} else {
+		data[constants.MySQLLoadBalancer] = "false"
 	}
 
 	return nil
