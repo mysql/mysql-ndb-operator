@@ -103,7 +103,7 @@ func (sc *SyncContext) ensureServices(
 	sc.ManagementServerIP, sc.ManagementServerPort = helpers.GetServiceAddressAndPort(svc)
 
 	// create a headless service for data nodes
-	svc, existed, err = sc.serviceController.EnsureService(sc, ctx, 1186, sc.ndbdController.GetTypeName(), false, true)
+	_, existed, err = sc.serviceController.EnsureService(sc, ctx, 1186, sc.ndbdController.GetTypeName(), false, true)
 	if err != nil {
 		return false, err
 	}
@@ -112,7 +112,7 @@ func (sc *SyncContext) ensureServices(
 	enableLoadBalancer = sc.configSummary.MySQLLoadBalancer
 
 	// create a service for MySQL Servers
-	svc, existed, err = sc.serviceController.EnsureService(sc, ctx, 3306, sc.mysqldController.GetTypeName(), enableLoadBalancer, false)
+	_, existed, err = sc.serviceController.EnsureService(sc, ctx, 3306, sc.mysqldController.GetTypeName(), enableLoadBalancer, false)
 	if err != nil {
 		return false, err
 	}
