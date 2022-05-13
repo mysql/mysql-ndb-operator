@@ -41,7 +41,9 @@ type NdbCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   NdbClusterSpec   `json:"spec"`
+	// The desired state of a MySQL NDB Cluster.
+	Spec NdbClusterSpec `json:"spec"`
+	// The status of the NdbCluster resource and the MySQL Cluster managed by it.
 	Status NdbClusterStatus `json:"status,omitempty"`
 }
 
@@ -51,11 +53,13 @@ type NdbCluster struct {
 type NdbPodSpec struct {
 	// Total compute Resources required by this pod.
 	// Cannot be updated.
+	//
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 	// +optional
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 	// NodeSelector is a selector which must be true for the pod to fit on a node.
 	// Selector which must match a node's labels for the pod to be scheduled on that node.
+	//
 	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
@@ -102,53 +106,64 @@ type NdbMysqldSpec struct {
 	// PodSpec contains a subset of K8s PodSpec fields which when
 	// set will be copied into to the podSpec of MySQL Server Deployment.
 	// +optional
-	PodSpec *NdbPodSpec `json:"managementNodePodSpec,omitempty"`
+	PodSpec *NdbPodSpec `json:"podSpec,omitempty"`
 }
 
-// NdbClusterSpec defines the desired state of MySQL Ndb Cluster
+// NdbClusterSpec defines the desired state of a MySQL NDB Cluster
 type NdbClusterSpec struct {
-	// The number of data replicas or copies of data stored in Ndb Cluster.
-	// Supported and allowed values are 1, 2, 3, and 4.
-	// A redundancy level of 1 creates a sharded cluster providing
-	// NO fault tolerance in case of node failure.
-	// With a redundancy level of 2 or higher cluster will continue
-	// serving client requests even in case of failures.
-	// 2 is the normal and most common value and the default.
-	// A redundancy level of 3 provides additional protection.
-	// For a redundancy level of 1 one management server will be created.
-	// For 2 or higher two management servers will be used.
-	// Once a cluster has been created, this number can NOT be easily changed.
+	// The number of copies of all data stored in MySQL Cluster.
+	// This also defines the number of nodes in a node group.
+	// Supported values are 1, 2, 3, and 4.
+	// Note that, setting this to 1 means that there is only a
+	// single copy of all MySQL Cluster data and failure of any
+	// Data node will cause the entire MySQL Cluster to fail.
+	// The operator also implicitly decides the number of
+	// Management nodes to be added to the MySQL Cluster
+	// configuration based on this value. For a redundancy level
+	// of 1, one Management node will be created. For 2 or
+	// higher, two Management nodes will be created.
+	// This value is immutable.
+	//
 	// More info :
 	// https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-ndbd-definition.html#ndbparam-ndbd-noofreplicas
 	// +kubebuilder:default=2
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=4
+	// +optional
 	RedundancyLevel int32 `json:"redundancyLevel,omitempty"`
-	// The total number of data nodes in cluster.
-	// The node count needs to be a multiple of the redundancyLevel.
-	// Currently the maximum is 144 data nodes.
+	// The total number of data nodes in MySQL Cluster.
+	// The node count needs to be a multiple of the
+	// redundancyLevel. A maximum of 144 data nodes are
+	// allowed to run in a single MySQL Cluster.
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=144
 	NodeCount int32 `json:"nodeCount"`
-	// The number of API sections declared in the MySQL Cluster, in
-	// addition to the API sections declared for the MySQL Servers.
+	// The number of extra API sections declared in the MySQL Cluster
+	// config, in addition to the API sections declared implicitly
+	// by the NDB Operator for the MySQL Servers.
 	// Any NDBAPI application can connect to the MySQL Cluster via
 	// these free slots. These slots will also enable the NDB
 	// Operator to scale up the MySQL Servers, when requested,
 	// without having to perform a rolling restart of all nodes
 	// to add more API sections in the MySQL Cluster config.
 	// +kubebuilder:default=5
+	// +optional
 	FreeAPISlots int32 `json:"freeAPISlots,omitempty"`
-	// A map of default MySQL Cluster Data node configurations. More info :
+	// A map of default MySQL Cluster Data node configurations.
+	//
+	// More info :
 	// https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-ndbd.html
+	// +optional
 	DataNodeConfig map[string]*intstr.IntOrString `json:"dataNodeConfig,omitempty"`
 
 	// DataNodePodSpec contains a subset of PodSpec fields which when
-	// set will be copied into to the podSpec of Data node statefulset.
+	// set will be copied into to the podSpec of Data node's statefulset
+	// definition.
 	// +optional
 	DataNodePodSpec *NdbPodSpec `json:"dataNodePodSpec,omitempty"`
 	// ManagementNodePodSpec contains a subset of PodSpec fields which when
-	// set will be copied into to the podSpec of Management node statefulset.
+	// set will be copied into to the podSpec of Management node's
+	// statefulset definition.
 	// +optional
 	ManagementNodePodSpec *NdbPodSpec `json:"managementNodePodSpec,omitempty"`
 
@@ -184,6 +199,7 @@ type NdbClusterSpec struct {
 	// +kubebuilder:default=false
 	// +optional
 	EnableManagementNodeLoadBalancer bool `json:"enableManagementNodeLoadBalancer,omitempty"`
+	// Mysqld specifies the configuration of the MySQL Servers running in the cluster.
 	// +optional
 	Mysqld *NdbMysqldSpec `json:"mysqld,omitempty"`
 }
@@ -192,7 +208,7 @@ type NdbClusterSpec struct {
 type NdbClusterConditionType string
 
 const (
-	// NdbClusterUpToDate describes if the spec of the MySQL Cluster
+	// NdbClusterUpToDate specifies if the spec of the MySQL Cluster
 	// is up-to-date with the NdbCluster resource spec
 	NdbClusterUpToDate NdbClusterConditionType = "UpToDate"
 )
