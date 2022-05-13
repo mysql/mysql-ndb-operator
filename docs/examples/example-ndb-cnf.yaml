@@ -1,3 +1,4 @@
+# MySQL Cluster with custom cnf config for the MySQL Servers
 apiVersion: v1
 kind: Secret
 metadata:
@@ -16,6 +17,7 @@ spec:
   mysqld:
     nodeCount: 2
     rootPasswordSecretName: ndbop-mysql-secret
+    # Pass the configuration as a multiline string
     myCnf: |
       [mysqld]
       max-user-connections=42

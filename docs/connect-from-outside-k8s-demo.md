@@ -1,30 +1,45 @@
 # Connect to MySQL Cluster from outside K8s
 
-This demonstration is an extension to the example specified in the [README.md](../README.md#deploy-mysql-ndb-cluster-in-k8s-cluster) file.
+This demonstration is an extension to the example specified in the [Getting Started](getting-started.md#access-mysql-cluster-from-outside-k8s) wiki.
 
-## Using LoadBalancer Services
+## Enable the Load Balancers
 
-The operator creates LoadBalancer services to allow access to the Management server and the MySQL Servers running inside the K8s cluster.
+By default, the Management and MySQL services created by the NDB Operator are of type [ClusterIP](https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types) and are accessible only from within the K8s Cluster. 
 
-The load balancer service names will be of the following format :
- * Management Server LoadBalancer : "\<NdbCluster.Name\>-mgmd-ext"
- * MySQL Server LoadBalancer : "\<NdbCluster.Name\>-mysqld-ext"
-
-If the K8s provider has support for LoadBalancer provisioning, the services will be assigned a LoadBalancer with an external IP.
+To list all the services created for the `example-ndb` NdbCluster, run :
 
 ```sh
 kubectl get services -l mysql.oracle.com/v1alpha1=example-ndb
-
-NAME                     TYPE           CLUSTER-IP       EXTERNAL-IP      PORT(S)          AGE
-example-ndb-mgmd         ClusterIP      None             <none>           1186/TCP         10m2s
-example-ndb-mgmd-ext     LoadBalancer   10.100.164.172   10.100.164.172   1186:30390/TCP   10m2s
-example-ndb-mysqld-ext   LoadBalancer   10.109.197.3     10.109.197.3     3306:32451/TCP   10m2s
-example-ndb-ndbd         ClusterIP      None             <none>           1186/TCP         10m2s
 ```
 
-The IP addresses can also be extracted using `kubectl`
+The output will be similar to :
+```
+NAME                 TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+example-ndb-mgmd     ClusterIP   10.101.29.155   <none>        1186/TCP   4m29s
+example-ndb-mysqld   ClusterIP   10.103.117.50   <none>        3306/TCP   4m29s
+example-ndb-ndbd     ClusterIP   None            <none>        1186/TCP   4m29s
+```
+
+The `example-ndb-mgmd` and `example-ndb-mysqld` services are the Management and MySQL Services respectively. Note that they both are of type ClusterIP Service. They have to be upgraded to LoadBalancer service type to make them accessible from outside the K8s Cluster. This can be done by setting the `spec.enableManagementNodeLoadBalancer` and `spec.mysqld.enableLoadBalancer` fields of the NdbCluster resource to true. These options can be enabled when the NdbCluster resource object is created or via an update to the object when the MySQL Cluster is already running. 
+
+To enable both the LoadBalancers, patch the NdbCluster object by running :
 ```sh
-ndbConnectstring=$(kubectl get service "example-ndb-mgmd-ext" \
+kubectl patch ndb example-ndb --type='merge' -p '{"spec":{"enableManagementNodeLoadBalancer":true,"mysqld":{"enableLoadBalancer":true}}}'
+```
+
+Verify that the services have been upgraded :
+```
+NAME                 TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)          AGE
+example-ndb-mgmd     LoadBalancer   10.101.29.155   10.101.29.155   1186:32490/TCP   31m
+example-ndb-mysqld   LoadBalancer   10.103.117.50   10.103.117.50   3306:32334/TCP   31m
+example-ndb-ndbd     ClusterIP      None            <none>          1186/TCP         31m
+```
+
+The services will now be available outside the Kubernetes Cluster at the `EXTERNAL-IP` assigned to them by the cloud provider. Not that this demo uses minikube so the EXTERNAL-IP is same as the CLUSTER-IP, but it will vary in a production setting depending on the cloud provider used.
+
+The IP addresses can also be extracted using `kubectl`. For example to extract the Management Node service's IP, run :
+```sh
+ndbConnectstring=$(kubectl get service "example-ndb-mgmd" \
   -o jsonpath={.status.loadBalancer.ingress[0].ip})
 ```
 
@@ -34,9 +49,9 @@ The IP address returned by the command can be used as the connectstring to the `
 ndb_mgm -c $(ndbConnectstring)
 ```
 
-Similarly, the MySQL Server LoadBalancer service can be used to access the MySQL Server.
+Similarly, the MySQL Server host can be extracted from the service :
 ```sh
-mysqlHost=$(kubectl get service "example-ndb-mysqld-ext" \
+mysqlHost=$(kubectl get service "example-ndb-mysqld" \
             -o jsonpath={.status.loadBalancer.ingress[0].ip})
 ```
 
@@ -47,26 +62,26 @@ mysql --protocol=tcp -h $mysqlHost -u root -p
 
 ## Using kubectl port-forward
 
-Another way is to use the `kubectl port-forward` command to forward a port from the local machine to a port inside the K8s node.
+One can also use the `kubectl port-forward` command to access the services without enabling the LoadBalancers.
 
-For the Management Server,
+To access the Management Server,
 
 ```sh
 kubectl port-forward service/example-ndb-mgmd 1186:1186
 ```
+This will now forward any data sent to the local 1186 port to the 1186 port of the pods running the Management Server inside the K8s Cluster. Now to connect to the Management Server, run the following command from another terminal :
 
-Then in another terminal connect to the Management Server using
 ```sh
 ndb_mgm
 ```
 
-Similarly, for MySQL Servers, forward the port by issuing :
+Similarly, for MySQL Servers, forward the port by running :
 
 ```sh
 kubectl port-forward service/example-ndb-mysqld-ext 3306:3306
 ```
 
-And in another terminal, connect to the MySQL Server :
+And in another terminal, connect to the MySQL Server as you would normally do with a local MySQL Server :
 
 ```sh
 mysql --protocol=tcp -u root -p
