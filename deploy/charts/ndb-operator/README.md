@@ -12,18 +12,39 @@ License information can be found in the LICENSE file. This distribution may incl
 
 - Kubernetes v1.19.0+
 
-## Installing the Chart
+## Install the Chart
+
+The `helm install` command can be used to create the NdbCluster CRD, deploy the NDB Operator and the webhook server to the Kubernetes Cluster.
+The [configuration](#configuration) section lists the configurable options provided by the helm chart.
+
+### Install from helm repo
+
+The NDB Operator helm repository is hosted at `https://mysql.github.io/mysql-ndb-operator/`.
+
+To add the chart repository :
+
+```bash
+helm repo add ndb-operator-repo https://mysql.github.io/mysql-ndb-operator/
+helm repo update
+```
 
 To install the chart with the release name `ndbop`:
 
 ```bash
 helm install \
   --namespace=ndb-operator --create-namespace \
-  ndbop deploy/charts/ndb-operator
+  ndbop ndb-operator-repo/ndb-operator
 ```
 
-The command creates the NdbCluster CRD, deploys the NDB Operator and the webhook server to the Kubernetes cluster with the default configuration in the `ndb-operator` namespace.
-The [configuration](#configuration) section lists the configurable options provided by the helm chart.
+### Install from source code
+
+To install the chart from the source code, with the release name `ndbop`:
+
+```bash
+helm install \
+  --namespace=ndb-operator --create-namespace \
+  ndbop deploy/charts/ndb-operator
+```
 
 ## Uninstalling the Chart
 

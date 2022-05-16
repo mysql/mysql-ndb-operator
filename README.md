@@ -17,12 +17,19 @@ License information can be found in the LICENSE file. This distribution may incl
 
 ### Install using helm
 
-Ndb operator comes with a helm chart that can install the NdbCluster CRD, deploy the operator and the webhook server in the K8s cluster.
+Ndb operator comes with a [Helm](https://helm.sh/docs/intro/quickstart/) chart that can install the NdbCluster CRD, deploy the operator and the webhook server in the K8s cluster.
+
+Add the NDB Operator helm chart repository :
+
+```sh
+helm repo add ndb-operator-repo https://mysql.github.io/mysql-ndb-operator/
+helm repo update
+```
 
 Install the NDB Operator and other related resources in the `ndb-operator` namespace using :
 
 ```sh
-helm install ndb-operator deploy/charts/ndb-operator \
+helm install ndb-operator ndb-operator-repo/ndb-operator \
     --namespace=ndb-operator --create-namespace
 ```
 More information on using the helm chart is available at [deploy/charts/ndb-operator/README.md](deploy/charts/ndb-operator/README.md)
@@ -61,7 +68,7 @@ ndb-operator-webhook-server-d67c97d54-zdhhp   1/1     Running   0          13s
 
 The pod `ndb-operator-555b7b65-7fmv8` runs the NDB Operator and the other pod `ndb-operator-webhook-server-d67c97d54-zdhhp` runs a server that acts as an admission controller for the NdbCluster resource. The NDB Operator is ready to handle NdbCluster resource when both these pods are ready.
 
-### Deploy the example MySQL NDB Cluster
+## Deploy the example MySQL NDB Cluster
 
 The configuration of the MySQL Cluster to be deployed in the K8s Cluster can be defined using the NdbCluster Custom resource. The example at [docs/examples/example-ndb.yaml](docs/examples/example-ndb.yaml) defines a simple MySQL Cluster with 2 data nodes and 2 MySQL Servers. To create this object in the default namespace of the K8s Cluster, run :
 
