@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+# Copyright (c) 2020, 2022, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -126,7 +126,7 @@ fi
 
 # Executable files to be copied inside the Docker image
 exes_to_sbin=("ndbmtd" "ndb_mgmd" "mysqld" "mysqladmin")
-exes_to_bin=("ndb_mgm" "mysql" "mysql_tzinfo_to_sql")
+exes_to_bin=("ndb_mgm" "mysql" "mysql_tzinfo_to_sql" "ndb_config" "ndbinfo_select_all")
 # TODO : Add more ndb_ tools and libs in the image and enable dynamic linking of libs
 
 # copy all the required binaries to docker context
