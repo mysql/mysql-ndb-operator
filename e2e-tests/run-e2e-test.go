@@ -785,9 +785,9 @@ func (t *testRunner) run() bool {
 
 	// Some providers require manual loading of images into their nodes.
 	// Load the operator docker image in the K8s Cluster nodes
-	if !p.loadImageIntoK8sCluster(t, "mysql/ndb-operator:latest") {
+	/*if !p.loadImageIntoK8sCluster(t, "mydocker.mysql.oraclecorp.com/qa/ndb-operator:8.0.29-0.2.0") {
 		return false
-	}
+	}*/
 
 	if !options.runOutOfCluster {
 		// Load e2e-tests docker image into cluster nodes for in-cluster runs
