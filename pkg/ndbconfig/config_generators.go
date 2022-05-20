@@ -101,7 +101,7 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 			}
 			return nodeIds
 		},
-		"GetDataDir": func() string { return constants.DataDir },
+		"GetDataDir": func() string { return constants.DataDir + "/data" },
 		"GetConfigVersion": func() int32 {
 			if oldConfigSummary == nil {
 				// First version of the management config based on newly added NdbCluster spec.

@@ -27,13 +27,20 @@ const (
 	sfsetTypeNdbd = "ndbd"
 	// statefulset generated PVC name prefix
 	volumeClaimTemplateName = "ndb-pvc"
-	// config-volume for the management pods
-	mgmdConfigMapVolumeName = sfsetTypeMgmd + "-config-volume"
 
-	// datanode-healthcheck.sh configmap key, volume and mount path
-	dataNodeHealthCheckKey       = "datanode-healthcheck.sh"
-	dataNodeHealthCheckVolName   = "datanode-healthcheck-vol"
-	dataNodeHealthCheckMountPath = constants.DataDir + "/scripts"
+	// common data directory path for both mgmd and ndbd
+	dataDirectoryMountPath = constants.DataDir + "/data"
+
+	// config.ini volume and mount path for the management pods
+	mgmdConfigIniVolumeName = sfsetTypeMgmd + "-config-volume"
+	mgmdConfigIniMountPath  = constants.DataDir + "/config"
+
+	// Volume name and mount path for data node helper scripts
+	dataNodeHelperScriptsVolName   = "datanode-helper-scripts-vol"
+	dataNodeHelperScriptsMountPath = constants.DataDir + "/scripts"
+
+	// datanode-healthcheck.sh configmap key
+	dataNodeHealthCheckKey = "datanode-healthcheck.sh"
 )
 
 // StatefulSetInterface is the interface for a statefulset of NDB management or data nodes
@@ -177,7 +184,7 @@ func (mss *mgmdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []v1.Volume {
 
 	// Append the configmap's config.ini as a volume to the Management pods
 	podVolumes = append(podVolumes, v1.Volume{
-		Name: mgmdConfigMapVolumeName,
+		Name: mgmdConfigIniVolumeName,
 		VolumeSource: v1.VolumeSource{
 			ConfigMap: &v1.ConfigMapVolumeSource{
 				LocalObjectReference: v1.LocalObjectReference{
@@ -205,13 +212,13 @@ func (mss *mgmdStatefulSet) getVolumeMounts() []v1.VolumeMount {
 	// Append the empty dir volume mount to be used as a config directory
 	volumeMounts = append(volumeMounts, v1.VolumeMount{
 		Name:      mss.getEmptyDirVolumeName(),
-		MountPath: constants.DataDir,
+		MountPath: dataDirectoryMountPath,
 	})
 
 	// Mount the config map volume holding the MySQL Cluster configuration
 	volumeMounts = append(volumeMounts, v1.VolumeMount{
-		Name:      mgmdConfigMapVolumeName,
-		MountPath: constants.DataDir + "/config",
+		Name:      mgmdConfigIniVolumeName,
+		MountPath: mgmdConfigIniMountPath,
 	})
 
 	return volumeMounts
@@ -223,8 +230,7 @@ func (mss *mgmdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 	// Command and args to run the management server
 	cmdAndArgs := []string{
 		"/usr/sbin/ndb_mgmd",
-		"-f", "/var/lib/ndb/config/config.ini",
-		"--configdir=" + constants.DataDir,
+		"-f", mgmdConfigIniMountPath + "/config.ini",
 		"--initial",
 		"--nodaemon",
 		"--config-cache=0",
@@ -304,11 +310,11 @@ type ndbdStatefulSet struct {
 // made available to the data node pods.
 func (nss *ndbdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []v1.Volume {
 
-	// Load the data node healthcheck script from
+	// Load the data node scripts from
 	// the configmap into the pod via a volume
 	podVolumes := []v1.Volume{
 		{
-			Name: dataNodeHealthCheckVolName,
+			Name: dataNodeHelperScriptsVolName,
 			VolumeSource: v1.VolumeSource{
 				ConfigMap: &v1.ConfigMapVolumeSource{
 					LocalObjectReference: v1.LocalObjectReference{
@@ -354,12 +360,12 @@ func (nss *ndbdStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []v1.Volume
 		{
 			// Volume mount for data directory
 			Name:      dataDirVolumeName,
-			MountPath: constants.DataDir,
+			MountPath: dataDirectoryMountPath,
 		},
 		{
-			// Volume mount for healthcheck script
-			Name:      dataNodeHealthCheckVolName,
-			MountPath: dataNodeHealthCheckMountPath,
+			// Volume mount for helper scripts
+			Name:      dataNodeHelperScriptsVolName,
+			MountPath: dataNodeHelperScriptsMountPath,
 		},
 	}
 }
@@ -392,7 +398,7 @@ func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 				// datanode-healthcheck.sh <mgmd service> <data node start node id>
 				Command: []string{
 					"/bin/bash",
-					dataNodeHealthCheckMountPath + "/" + dataNodeHealthCheckKey,
+					dataNodeHelperScriptsMountPath + "/" + dataNodeHealthCheckKey,
 					nc.GetConnectstring(),
 					strconv.Itoa(int(dataNodeStartNodeId)),
 				},
