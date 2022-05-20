@@ -2716,7 +2716,7 @@ spec:
         - -service=ndb-operator-webhook-service
         command:
         - ndb-operator-webhook
-        image: mysql/ndb-operator:latest
+        image: mydocker.mysql.oraclecorp.com/qa/ndb-operator:8.0.29-0.2.0
         imagePullPolicy: IfNotPresent
         name: ndb-operator-webhook
         ports:
@@ -2754,7 +2754,7 @@ spec:
         - -cluster-scoped=true
         command:
         - ndb-operator
-        image: mysql/ndb-operator:latest
+        image: mydocker.mysql.oraclecorp.com/qa/ndb-operator:8.0.29-0.2.0
         imagePullPolicy: IfNotPresent
         name: ndb-operator-controller
         ports:
