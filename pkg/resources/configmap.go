@@ -80,32 +80,21 @@ func updateMySQLConfig(
 // scripts used for the MySQL Server initialisation & health
 // probes and Data node health probe.
 func updateHelperScripts(data map[string]string) error {
-	// Extract and add the MySQL Server initializer file
-	fileBytes, err := scriptsFS.ReadFile("scripts/" + mysqldInitScriptKey)
-	if err != nil {
-		klog.Errorf("Failed to read MySQL Server init script at %q : %v",
-			mysqldInitScriptKey, err)
-		return err
+	for key, desc := range map[string]string{
+		mysqldInitScriptKey:       "MySQL Server init",
+		mysqldHealthCheckKey:      "MySQL Server Healthcheck",
+		dataNodeInitScriptKey:     "Data Node init",
+		dataNodeStartupProbeKey:   "Data Node Startup Probe",
+		waitForDNSUpdateScriptKey: "DNS Update Waiter",
+	} {
+		fileBytes, err := scriptsFS.ReadFile("scripts/" + key)
+		if err != nil {
+			klog.Errorf("Failed to read %s script at %q : %v",
+				desc, key, err)
+			return err
+		}
+		data[key] = string(fileBytes)
 	}
-	data[mysqldInitScriptKey] = string(fileBytes)
-
-	// Extract and add the healthcheck script
-	fileBytes, err = scriptsFS.ReadFile("scripts/" + mysqldHealthCheckKey)
-	if err != nil {
-		klog.Errorf("Failed to read MySQL Server healthcheck script at %q : %v",
-			mysqldHealthCheckKey, err)
-		return err
-	}
-	data[mysqldHealthCheckKey] = string(fileBytes)
-
-	// Extract and add the data node healthcheck script
-	fileBytes, err = scriptsFS.ReadFile("scripts/" + dataNodeHealthCheckKey)
-	if err != nil {
-		klog.Errorf("Failed to read Data node healthcheck script at %q : %v",
-			dataNodeHealthCheckKey, err)
-		return err
-	}
-	data[dataNodeHealthCheckKey] = string(fileBytes)
 	return nil
 }
 
