@@ -5,7 +5,6 @@
 package resources
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/mysql/ndb-operator/config/debug"
@@ -30,6 +29,8 @@ const (
 
 	// common data directory path for both mgmd and ndbd
 	dataDirectoryMountPath = constants.DataDir + "/data"
+	// dataNodeIdFilePath is the location of the file that has the data node's nodeId
+	dataNodeIdFilePath = dataDirectoryMountPath + "/nodeId.val"
 
 	// config.ini volume and mount path for the management pods
 	mgmdConfigIniVolumeName = sfsetTypeMgmd + "-config-volume"
@@ -39,8 +40,14 @@ const (
 	dataNodeHelperScriptsVolName   = "datanode-helper-scripts-vol"
 	dataNodeHelperScriptsMountPath = constants.DataDir + "/scripts"
 
-	// datanode-healthcheck.sh configmap key
-	dataNodeHealthCheckKey = "datanode-healthcheck.sh"
+	// datanode-startup-probe.sh configmap key
+	dataNodeStartupProbeKey = "datanode-startup-probe.sh"
+
+	// datanode init container script key
+	dataNodeInitScriptKey = "datanode-init-script.sh"
+
+	// Configmap key for the DNS update waiter script
+	waitForDNSUpdateScriptKey = "wait-for-dns-update.sh"
 )
 
 // StatefulSetInterface is the interface for a statefulset of NDB management or data nodes
@@ -86,24 +93,58 @@ func (bss *baseStatefulSet) getEmptyDirPodVolume() *v1.Volume {
 // createContainers creates a new container for the stateful set.
 func (bss *baseStatefulSet) createContainers(
 	nc *v1alpha1.NdbCluster, commandAndArgs []string, volumeMounts []v1.VolumeMount,
-	startupProbe, readinessProbe *v1.Probe) []v1.Container {
+	startupProbe, readinessProbe *v1.Probe, initContainer bool) []v1.Container {
 
-	if debug.Enabled {
-		// Increase verbosity
-		commandAndArgs = append(commandAndArgs, "-v")
+	var containerName string
+	var ports []v1.ContainerPort
+
+	if initContainer {
+		containerName = bss.GetTypeName() + "-init-container"
+		klog.Infof("Creating %q init-container", bss.typeName)
+	} else {
+		containerName = bss.GetTypeName() + "-container"
+		// Expose the port 1186 for both mgmd and ndbd containers
+		ports = []v1.ContainerPort{
+			{
+				ContainerPort: 1186,
+			},
+		}
+		if debug.Enabled {
+			// Increase verbosity
+			commandAndArgs = append(commandAndArgs, "-v")
+		}
+		klog.Infof("Creating %q container from image %s", bss.typeName, nc.Spec.Image)
 	}
 
-	klog.Infof("Creating %q container from image %s", bss.typeName, nc.Spec.Image)
 	return []v1.Container{
 		{
-			Name: bss.GetTypeName() + "-container",
+			Name: containerName,
 			// Use the image provided in spec
 			Image:           nc.Spec.Image,
 			ImagePullPolicy: nc.Spec.ImagePullPolicy,
 			// Expose the port 1186 for both mgmd and ndbd containers
-			Ports: []v1.ContainerPort{
+			Ports: ports,
+			// Export the Pod IP, Namespace and connectstring to Pod env
+			Env: []v1.EnvVar{
 				{
-					ContainerPort: 1186,
+					Name: "NDB_POD_IP",
+					ValueFrom: &v1.EnvVarSource{
+						FieldRef: &v1.ObjectFieldSelector{
+							FieldPath: "status.podIP",
+						},
+					},
+				},
+				{
+					Name: "NDB_POD_NAMESPACE",
+					ValueFrom: &v1.EnvVarSource{
+						FieldRef: &v1.ObjectFieldSelector{
+							FieldPath: "metadata.namespace",
+						},
+					},
+				},
+				{
+					Name:  "NDB_CONNECTSTRING",
+					Value: nc.GetConnectstring(),
 				},
 			},
 			VolumeMounts:   volumeMounts,
@@ -116,7 +157,8 @@ func (bss *baseStatefulSet) createContainers(
 
 // newStatefulSet defines a new StatefulSet that will be
 // used by the mgmd and ndbd StatefulSets
-func (bss *baseStatefulSet) newStatefulSet(nc *v1alpha1.NdbCluster) *apps.StatefulSet {
+func (bss *baseStatefulSet) newStatefulSet(
+	nc *v1alpha1.NdbCluster, cs *ndbconfig.ConfigSummary) *apps.StatefulSet {
 
 	// Fill in the podSpec with any provided ImagePullSecrets
 	var podSpec v1.PodSpec
@@ -257,7 +299,7 @@ func (mss *mgmdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 		Handler: portCheckHandler,
 	}
 
-	return mss.createContainers(nc, cmdAndArgs, volumeMounts, startupProbe, readinessProbe)
+	return mss.createContainers(nc, cmdAndArgs, volumeMounts, startupProbe, readinessProbe, false)
 }
 
 func (mss *mgmdStatefulSet) getPodAntiAffinity() *v1.PodAntiAffinity {
@@ -269,7 +311,7 @@ func (mss *mgmdStatefulSet) getPodAntiAffinity() *v1.PodAntiAffinity {
 
 // NewStatefulSet returns the StatefulSet specification to start and manage the Management nodes.
 func (mss *mgmdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) *apps.StatefulSet {
-	statefulSet := mss.newStatefulSet(nc)
+	statefulSet := mss.newStatefulSet(nc, cs)
 	statefulSetSpec := &statefulSet.Spec
 
 	// Fill in mgmd specific values
@@ -310,6 +352,7 @@ type ndbdStatefulSet struct {
 // made available to the data node pods.
 func (nss *ndbdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []v1.Volume {
 
+	ownerCanExecMode := int32(0744)
 	// Load the data node scripts from
 	// the configmap into the pod via a volume
 	podVolumes := []v1.Volume{
@@ -320,10 +363,21 @@ func (nss *ndbdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []v1.Volume {
 					LocalObjectReference: v1.LocalObjectReference{
 						Name: nc.GetConfigMapName(),
 					},
+					DefaultMode: &ownerCanExecMode,
 					Items: []v1.KeyToPath{
 						{
-							Key:  dataNodeHealthCheckKey,
-							Path: dataNodeHealthCheckKey,
+							Key:  dataNodeStartupProbeKey,
+							Path: dataNodeStartupProbeKey,
+						},
+						{
+							Key:  dataNodeInitScriptKey,
+							Path: dataNodeInitScriptKey,
+						},
+						{
+							// Load the wait-for-dns-update script.
+							// It will be used by the init container.
+							Key:  waitForDNSUpdateScriptKey,
+							Path: waitForDNSUpdateScriptKey,
 						},
 					},
 				},
@@ -370,14 +424,28 @@ func (nss *ndbdStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []v1.Volume
 	}
 }
 
+// getInitContainers returns the init containers to be used by the data Node
+func (nss *ndbdStatefulSet) getInitContainers(nc *v1alpha1.NdbCluster) []v1.Container {
+	// Command and args to run the Data node init script
+	cmdAndArgs := []string{
+		dataNodeHelperScriptsMountPath + "/" + dataNodeInitScriptKey,
+		nc.GetConnectstring(),
+	}
+
+	return nss.createContainers(nc, cmdAndArgs, nss.getVolumeMounts(nc), nil, nil, true)
+}
+
 // getContainers returns the containers to run a data Node
 func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Container {
 
-	// Command and args to run the management server
+	// Command and args to run the Data node
 	cmdAndArgs := []string{
 		"/usr/sbin/ndbmtd",
 		"-c", nc.GetConnectstring(),
 		"--foreground",
+		// Pass the nodeId to be used to prevent invalid
+		// nodeId allocation during statefulset patching.
+		"--ndb-nodeid=$(cat " + dataNodeIdFilePath + ")",
 	}
 
 	volumeMounts := nss.getVolumeMounts(nc)
@@ -391,16 +459,13 @@ func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 	// is going through the start phases, the Management node will be
 	// rescheduled immediately and will become ready within a few seconds,
 	// enabling the data node startup probe to succeed.
-	dataNodeStartNodeId := nc.GetManagementNodeCount() + 1
 	startupProbe := &v1.Probe{
 		Handler: v1.Handler{
 			Exec: &v1.ExecAction{
-				// datanode-healthcheck.sh <mgmd service> <data node start node id>
+				// datanode-startup-probe.sh
 				Command: []string{
 					"/bin/bash",
-					dataNodeHelperScriptsMountPath + "/" + dataNodeHealthCheckKey,
-					nc.GetConnectstring(),
-					strconv.Itoa(int(dataNodeStartNodeId)),
+					dataNodeHelperScriptsMountPath + "/" + dataNodeStartupProbeKey,
 				},
 			},
 		},
@@ -410,7 +475,7 @@ func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 		FailureThreshold: 450,
 	}
 
-	return nss.createContainers(nc, cmdAndArgs, volumeMounts, startupProbe, nil)
+	return nss.createContainers(nc, cmdAndArgs, volumeMounts, startupProbe, nil, false)
 }
 
 func (nss *ndbdStatefulSet) getPodAntiAffinity() *v1.PodAntiAffinity {
@@ -422,7 +487,7 @@ func (nss *ndbdStatefulSet) getPodAntiAffinity() *v1.PodAntiAffinity {
 
 // NewStatefulSet returns the StatefulSet specification to start and manage the Data nodes.
 func (nss *ndbdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) *apps.StatefulSet {
-	statefulSet := nss.newStatefulSet(nc)
+	statefulSet := nss.newStatefulSet(nc, cs)
 	statefulSetSpec := &statefulSet.Spec
 
 	// Fill in ndbd specific values
@@ -442,6 +507,7 @@ func (nss *ndbdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1al
 
 	// Update template pod spec
 	podSpec := &statefulSetSpec.Template.Spec
+	podSpec.InitContainers = nss.getInitContainers(nc)
 	podSpec.Containers = nss.getContainers(nc)
 	podSpec.Volumes = nss.getPodVolumes(nc)
 	// Set default AntiAffinity rules
