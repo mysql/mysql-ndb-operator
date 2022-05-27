@@ -2568,6 +2568,7 @@ rules:
   verbs:
   - list
   - watch
+  - delete
 - apiGroups:
   - ""
   resources:
@@ -2606,6 +2607,7 @@ rules:
   - statefulsets
   verbs:
   - create
+  - patch
   - list
   - watch
 - apiGroups:

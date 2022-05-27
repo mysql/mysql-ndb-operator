@@ -6,11 +6,17 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/ndbconfig"
 	"github.com/mysql/ndb-operator/pkg/resources"
+
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/kubernetes"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/klog/v2"
@@ -21,6 +27,8 @@ import (
 type StatefulSetControlInterface interface {
 	GetTypeName() string
 	EnsureStatefulSet(ctx context.Context, sc *SyncContext) (*apps.StatefulSet, bool, error)
+	ReconcileStatefulSet(
+		ctx context.Context, sfset *apps.StatefulSet, cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) syncResult
 }
 
 // ndbNodeStatefulSetImpl implements the StatefulSetControlInterface to manage MySQL Cluster data nodes
@@ -97,4 +105,74 @@ func (ndbSfset *ndbNodeStatefulSetImpl) EnsureStatefulSet(
 	}
 
 	return sfset, false, nil
+}
+
+// patchStatefulSet generates and applies the patch to the StatefulSet
+func (ndbSfset *ndbNodeStatefulSetImpl) patchStatefulSet(ctx context.Context,
+	existingStatefulSet *apps.StatefulSet, updatedStatefulSet *apps.StatefulSet) syncResult {
+	// JSON encode both StatefulSets
+	existingJSON, err := json.Marshal(existingStatefulSet)
+	if err != nil {
+		klog.Errorf("Failed to encode existing StatefulSet: %v", err)
+		return errorWhileProcessing(err)
+	}
+	updatedJSON, err := json.Marshal(updatedStatefulSet)
+	if err != nil {
+		klog.Errorf("Failed to encode updated StatefulSet: %v", err)
+		return errorWhileProcessing(err)
+	}
+
+	// Generate the patch to be applied
+	patch, err := strategicpatch.CreateTwoWayMergePatch(existingJSON, updatedJSON, apps.StatefulSet{})
+	if err != nil {
+		klog.Errorf("Failed to generate the patch to be applied: %v", err)
+		return errorWhileProcessing(err)
+	}
+
+	// klog.Infof("Patching deployments.\nExisting : %v\n. Modified : %v\nPatch : %v", string(existingJSON), string(updatedJSON), string(patch))
+
+	// Patch the StatefulSet
+	sfsetInterface := ndbSfset.client.AppsV1().StatefulSets(existingStatefulSet.Namespace)
+	updatedStatefulSet, err = sfsetInterface.Patch(
+		ctx, existingStatefulSet.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
+	if err != nil {
+		klog.Errorf("Failed to apply the patch to the StatefulSet %q : %s", getNamespacedName(existingStatefulSet), err)
+		return errorWhileProcessing(err)
+	}
+
+	// Successfully applied the patch - StatefulSet has been updated.
+	klog.Infof("StatefulSet %q has been patched successfully", getNamespacedName(updatedStatefulSet))
+
+	if updatedStatefulSet.Generation == existingStatefulSet.Generation {
+		// No changes to StatefulSet spec. Only annotations/labels were updated.
+		// Continue processing
+		return continueProcessing()
+	}
+
+	// StatefulSet was patched successfully.
+	//
+	// For the management node StatefulSet, the controller will
+	// handle rolling out the update to all the pods. Reconciliation
+	// will continue once the update has been rolled out, so finish
+	// processing.
+	//
+	// For the data node StatefulSet, the operator will handle
+	// rolling out the update over multiple reconciliation loops.
+	// The controller will update the status of the data node
+	// StatefulSet and that will immediately trigger the next
+	// reconciliation loop, so finish processing.
+	return finishProcessing()
+}
+
+func (ndbSfset *ndbNodeStatefulSetImpl) ReconcileStatefulSet(
+	ctx context.Context, sfset *apps.StatefulSet, cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) syncResult {
+
+	if workloadHasConfigGeneration(sfset, cs.NdbClusterGeneration) {
+		// StatefulSet upto date
+		return continueProcessing()
+	}
+
+	// StatefulSet has to be patched
+	newSfset := ndbSfset.ndbNodeStatefulset.NewStatefulSet(cs, nc)
+	return ndbSfset.patchStatefulSet(ctx, sfset, newSfset)
 }

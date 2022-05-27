@@ -282,9 +282,31 @@ func NewController(
 						return
 					}
 
-					if statefulsetReady(newStatefulSet) {
-						klog.Infof("StatefulSet %q is ready", getNamespacedName(newStatefulSet))
+					if oldStatefulSet.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType {
+						oldStatus, newStatus := oldStatefulSet.Status, newStatefulSet.Status
+						if (oldStatus.CurrentReplicas != newStatus.CurrentReplicas ||
+							oldStatus.CurrentRevision != newStatus.CurrentRevision) &&
+							oldStatus.UpdatedReplicas == newStatus.UpdatedReplicas &&
+							oldStatus.UpdateRevision == newStatus.UpdateRevision &&
+							oldStatus.ReadyReplicas == newStatus.ReadyReplicas &&
+							oldStatus.Replicas == newStatus.Replicas &&
+							oldStatus.ObservedGeneration == newStatus.ObservedGeneration {
+							// https://github.com/kubernetes/kubernetes/issues/106055
+							// CurrentRevision not updated if OnDelete update strategy is used.
+							// But the CurrentReplicas get erroneously updated on some occasions.
+							// Ignore any status updated made only to those fields if the
+							// UpdateStrategy is OnDelete.
+							return
+						}
+					} else if oldStatefulSet.Spec.UpdateStrategy.Type == appsv1.RollingUpdateStatefulSetStrategyType {
+						// Default statefulset update strategy.
+						// No need to trigger reconciliation if the StatefulSet
+						// controller is yet to complete roll out of an update.
+						if !statefulsetUpdateComplete(newStatefulSet) {
+							return
+						}
 					}
+
 					controller.extractAndEnqueueNdbCluster(newStatefulSet)
 				},
 			},

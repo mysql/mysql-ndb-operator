@@ -193,30 +193,6 @@ func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorLis
 		}
 	}
 
-	// For now disallow *any* updates to NdbPodSpec as operator handle it, yet.
-	// TODO: Remove these validations once NDB Operator supports updating NdbPodSpec
-	if !reflect.DeepEqual(nc.Spec.ManagementNodePodSpec, newNc.Spec.ManagementNodePodSpec) {
-		ndbPodSpecPath := specPath.Child("managementNodePodSpec")
-		errList = append(errList, field.Forbidden(ndbPodSpecPath,
-			fmt.Sprintf("Operator doesn't yet support updating %s once NdbCluster has been created",
-				ndbPodSpecPath.String())))
-	}
-	if !reflect.DeepEqual(nc.Spec.DataNodePodSpec, newNc.Spec.DataNodePodSpec) {
-		ndbPodSpecPath := specPath.Child("dataNodePodSpec")
-		errList = append(errList, field.Forbidden(ndbPodSpecPath,
-			fmt.Sprintf("Operator doesn't yet support updating %s once NdbCluster has been created",
-				ndbPodSpecPath.String())))
-	}
-	if nc.GetMySQLServerNodeCount() != 0 &&
-		newNc.GetMySQLServerNodeCount() != 0 {
-		if !reflect.DeepEqual(nc.Spec.Mysqld.PodSpec, nc.Spec.Mysqld.PodSpec) {
-			ndbPodSpecPath := mysqldPath.Child("podSpec")
-			errList = append(errList, field.Forbidden(ndbPodSpecPath,
-				fmt.Sprintf("Operator doesn't yet support updating %s once NdbCluster has been created",
-					ndbPodSpecPath.String())))
-		}
-	}
-
 	// Check if the new NdbCluster valid is spec
 	if isValid, specErrList := newNc.HasValidSpec(); !isValid {
 		errList = append(errList, specErrList...)

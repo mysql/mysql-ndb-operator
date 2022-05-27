@@ -1,11 +1,14 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
 package controllers
 
 import (
+	"strconv"
+
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/resources"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -36,13 +39,32 @@ func deploymentComplete(deployment *appsv1.Deployment) bool {
 		deployment.Status.ObservedGeneration >= deployment.Generation
 }
 
-// statefulsetReady considers a StatefulSet to be ready once any ongoing
-// rolling upgrade is complete and all the updated pods are ready.
-func statefulsetReady(statefulset *appsv1.StatefulSet) bool {
-	// CurrentReplicas is set to UpdatedReplicas and they both are equal
-	// to statefulset.Spec.Replicas once rolling update is complete.
+// statefulsetUpdateComplete returns true when all the pods
+// controlled by the given statefulSet have been updated to
+// the latest version and are ready.
+func statefulsetUpdateComplete(statefulset *appsv1.StatefulSet) bool {
 	return statefulset.Status.UpdatedReplicas == *(statefulset.Spec.Replicas) &&
-		statefulset.Status.CurrentReplicas == *(statefulset.Spec.Replicas) &&
 		statefulset.Status.ReadyReplicas == *(statefulset.Spec.Replicas) &&
-		statefulset.Status.ObservedGeneration >= statefulset.Generation
+		statefulset.Status.ObservedGeneration >= statefulset.Generation &&
+		// CurrentRevision/Replicas not updated if OnDelete update strategy is used.
+		// So skip checking statefulset.Status.CurrentReplicas for OnDelete
+		// https://github.com/kubernetes/kubernetes/issues/106055
+		(statefulset.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType ||
+			statefulset.Status.UpdatedReplicas == *(statefulset.Spec.Replicas))
+}
+
+// statefulsetReady considers a StatefulSet to be ready
+// if all the pods created by the statefulSet are ready.
+func statefulsetReady(statefulset *appsv1.StatefulSet) bool {
+	return statefulset.Status.ReadyReplicas == *(statefulset.Spec.Replicas) &&
+		statefulset.Status.ObservedGeneration == statefulset.Generation
+}
+
+// workloadHasConfigGeneration returns true if the expectedConfigGeneration
+// has already been applied to the given Deployment/StatefulSet.
+func workloadHasConfigGeneration(obj v1.Object, expectedConfigGeneration int64) bool {
+	// Get the last applied Config Generation
+	annotations := obj.GetAnnotations()
+	existingConfigGeneration, _ := strconv.ParseInt(annotations[resources.LastAppliedConfigGeneration], 10, 64)
+	return existingConfigGeneration == expectedConfigGeneration
 }

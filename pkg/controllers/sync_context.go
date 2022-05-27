@@ -148,94 +148,53 @@ func (sc *SyncContext) ensurePodDisruptionBudget(ctx context.Context) (existed b
 		ctx, sc, sc.ndbdController.GetTypeName())
 }
 
-// ensureDataNodeConfigVersion checks if all the data nodes have the
-// desired configuration. If not, it safely restarts them without
-// affecting the availability of MySQL Cluster.
-//
-// The method chooses one data node per nodegroup and checks their config
-// version. The nodes that have an outdated config version will be stopped
-// together via the mgm client. The K8s statefulset controller will then
-// restart those nodes using the latest config available in the config map.
-// When the chosen data nodes are being restarted in this way, any further
-// reconciliation is stopped, and is resumed only after the restarted data
-// nodes become ready. At any given time, only one data node per group will
-// be affected by this maneuver thus ensuring MySQL Cluster's availability.
-func (sc *SyncContext) ensureDataNodeConfigVersion() syncResult {
+// reconcileManagementNodeStatefulSet patches the Management Node
+// StatefulSet with the spec from the latest generation of NdbCluster.
+func (sc *SyncContext) reconcileManagementNodeStatefulSet(ctx context.Context) syncResult {
+	return sc.mgmdController.ReconcileStatefulSet(ctx, sc.mgmdNodeSfset, sc.configSummary, sc.ndb)
+}
 
-	// Get the node and nodegroup details via clusterStatus
-	mgmClient, err := sc.connectToManagementServer()
+// reconcileDataNodeStatefulSet patches the Data Node StatefulSet
+// with the spec from the latest generation of NdbCluster.
+func (sc *SyncContext) reconcileDataNodeStatefulSet(ctx context.Context) syncResult {
+	return sc.ndbdController.ReconcileStatefulSet(ctx, sc.dataNodeSfSet, sc.configSummary, sc.ndb)
+}
+
+// ensurePodVersion checks if the pod with the given name has the desired pod version.
+// If the pod is running with an old spec version, it will be deleted allowing the
+// statefulSet controller to restart it with the latest pod definition.
+func (sc *SyncContext) ensurePodVersion(
+	ctx context.Context, namespace, podName, desiredPodVersion, podDescription string) (
+	podDeleted bool, err error) {
+
+	// Retrieve the pod and extract its version
+	pod, err := sc.podLister.Pods(namespace).Get(podName)
 	if err != nil {
-		return errorWhileProcessing(err)
+		klog.Errorf("Failed to find pod '%s/%s' running %s : %s", namespace, podName, podDescription, err)
+		return false, err
 	}
-	defer mgmClient.Disconnect()
-	clusterStatus, err := mgmClient.GetStatus()
+
+	podVersion := pod.GetLabels()["controller-revision-hash"]
+	klog.Infof("Version of %s's pod : %s", podDescription, podVersion)
+
+	if podVersion == desiredPodVersion {
+		klog.Infof("%s has the desired version of podSpec", podDescription)
+		return false, nil
+	}
+
+	klog.Infof("%s does not have desired version of podSpec", podDescription)
+
+	// The Pod does not have the desired version.
+	// Delete it and let the statefulset controller restart it with the latest pod definition.
+	err = sc.kubeClientset().CoreV1().Pods(namespace).Delete(ctx, podName, metav1.DeleteOptions{})
 	if err != nil {
-		klog.Errorf("Error getting cluster status from management server: %s", err)
-		return errorWhileProcessing(err)
+		klog.Errorf("Failed to delete pod '%s/%s' running %s : %s", namespace, podName, podDescription, err)
+		return false, err
 	}
 
-	// Group the nodes based on nodegroup.
-	// The node ids are sorted within the sub arrays and the array
-	// itself is sorted based on the node groups. Every sub array
-	// will have RedundancyLevel number of node ids.
-	nodesGroupedByNodegroups := clusterStatus.GetNodesGroupedByNodegroup()
-	if nodesGroupedByNodegroups == nil {
-		err := fmt.Errorf("internal error: could not extract nodes and node groups from cluster status")
-		return errorWhileProcessing(err)
-	}
-
-	// Pick up the i'th node id from every sub array of
-	// nodesGroupedByNodegroups during every iteration and
-	// ensure that they all have the expected config version.
-	desiredConfigVersion := sc.configSummary.MySQLClusterConfigVersion
-	redundancyLevel := sc.configSummary.RedundancyLevel
-	for i := 0; i < int(redundancyLevel); i++ {
-		// Note down the node ids to be ensured
-		candidateNodeIds := make([]int, 0, redundancyLevel)
-		for _, nodesInNodegroup := range nodesGroupedByNodegroups {
-			candidateNodeIds = append(candidateNodeIds, nodesInNodegroup[i])
-		}
-
-		var nodesWithOldConfig []int
-		// Check if the data nodes have the expected config version
-		for _, nodeID := range candidateNodeIds {
-			nodeConfigVersion, err := mgmClient.GetConfigVersion(nodeID)
-			if err != nil {
-				return errorWhileProcessing(err)
-			}
-
-			if desiredConfigVersion != int32(nodeConfigVersion) {
-				// data node runs with an old versioned config
-				nodesWithOldConfig = append(nodesWithOldConfig, nodeID)
-			}
-		}
-
-		if len(nodesWithOldConfig) > 0 {
-			// Stop all the data nodes that has old config version
-			klog.Infof("Identified %d data node(s) with old config version : %v",
-				len(nodesWithOldConfig), nodesWithOldConfig)
-
-			err := mgmClient.StopNodes(nodesWithOldConfig)
-			if err != nil {
-				klog.Infof("Error stopping data nodes %v : %v", nodesWithOldConfig, err)
-				return errorWhileProcessing(err)
-			}
-
-			// The data nodes have started to stop.
-			// Exit here and allow them to be restarted by the statefulset controllers.
-			// Continue syncing once they are up, in a later reconciliation loop.
-			klog.Infof("The data nodes %v, identified with old config version, are being restarted", nodesWithOldConfig)
-			// Stop processing. Reconciliation will continue
-			// once the StatefulSet is fully ready again.
-			return finishProcessing()
-		}
-
-		klog.Infof("The data nodes %v have desired config version %d", candidateNodeIds, desiredConfigVersion)
-	}
-
-	// All data nodes have the desired config version. Continue with rest of the sync process.
-	klog.Info("All data nodes have the desired config version")
-	return continueProcessing()
+	// The pod has been deleted.
+	klog.Infof("Pod running %s is being restarted with the desired configuration", podDescription)
+	return true, nil
 }
 
 // connectToManagementServer connects to a management server and returns the mgmapi.MgmClient
@@ -286,58 +245,100 @@ func (sc *SyncContext) connectToManagementServer(managementNodeId ...int) (mgmap
 	return mgmClient, nil
 }
 
-// ensureManagementServerConfigVersion checks if all the management nodes
-// have the desired configuration. If not, it safely restarts them without
-// affecting the availability of MySQL Cluster.
-func (sc *SyncContext) ensureManagementServerConfigVersion() syncResult {
-	desiredConfigVersion := sc.configSummary.MySQLClusterConfigVersion
-	klog.Infof("Ensuring Management Server(s) have the desired config version, %d", desiredConfigVersion)
-
-	// Management servers have the first one/two node ids
-	for nodeID := 1; nodeID <= (int)(sc.ndb.GetManagementNodeCount()); nodeID++ {
-		mgmClient, err := sc.connectToManagementServer(nodeID)
-		if err != nil {
-			return errorWhileProcessing(err)
-		}
-
-		version, err := mgmClient.GetConfigVersion()
-		if err != nil {
-			klog.Error("GetConfigVersion failed :", err)
-			return errorWhileProcessing(err)
-		}
-
-		klog.Infof("Config version of the Management server(nodeId=%d) : %d", nodeID, version)
-
-		if int32(version) == desiredConfigVersion {
-			klog.Infof("Management server(nodeId=%d) has the desired config version", nodeID)
-
-			// This Management Server already has the desired config version.
-			mgmClient.Disconnect()
-			continue
-		}
-
-		klog.Infof("Management server(nodeId=%d) does not have desired config version", nodeID)
-
-		// The Management Server does not have the desired config version.
-		// Stop it and let the statefulset controller start the server with the correct, recent config.
-		nodeIDs := []int{nodeID}
-		err = mgmClient.StopNodes(nodeIDs)
-		if err != nil {
-			klog.Errorf("Error stopping management node %v", err)
-		}
-		mgmClient.Disconnect()
-
-		// Management Server has been stopped. Trigger only one restart
-		// at a time and handle the rest in later reconciliations.
-		klog.Infof("Management server(nodeId=%d) is being restarted with the desired configuration", nodeID)
-		// Stop processing. Reconciliation will continue
-		// once the StatefulSet is fully ready again.
-		return finishProcessing()
+// ensureDataNodePodVersion checks if all the Data Node pods
+// have the latest podSpec defined by the StatefulSet. If not, it safely
+// restarts them without affecting the availability of MySQL Cluster.
+//
+// The method chooses one data node per nodegroup and checks their PodSpec
+// version. The nodes that have an outdated PodSpec version among them
+// will be deleted together allowing the K8s StatefulSet controller to
+// restart them with the latest pod definition along with the latest
+// config available in the config map. When the chosen data nodes are
+// being restarted and updated, any further reconciliation is stopped, and
+// is resumed only after the restarted data nodes become ready. At any
+// given time, only one data node per group will be affected by this
+// maneuver, ensuring MySQL Cluster's availability.
+func (sc *SyncContext) ensureDataNodePodVersion(ctx context.Context) syncResult {
+	ndbdSfset := sc.dataNodeSfSet
+	if statefulsetUpdateComplete(ndbdSfset) {
+		// All data nodes have the desired pod version.
+		// Continue with rest of the sync process.
+		klog.Info("All Data node pods are up-to-date and ready")
+		return continueProcessing()
 	}
 
-	// All Management Servers have the latest config.
-	// Continue further processing and sync.
-	klog.Info("All management nodes have the desired config version")
+	desiredPodRevisionHash := ndbdSfset.Status.UpdateRevision
+	klog.Infof("Ensuring Data Node pods have the desired podSpec version, %s", desiredPodRevisionHash)
+
+	// Get the node and nodegroup details via clusterStatus
+	mgmClient, err := sc.connectToManagementServer()
+	if err != nil {
+		return errorWhileProcessing(err)
+	}
+	defer mgmClient.Disconnect()
+	clusterStatus, err := mgmClient.GetStatus()
+	if err != nil {
+		klog.Errorf("Error getting cluster status from management server: %s", err)
+		return errorWhileProcessing(err)
+	}
+
+	// Group the nodes based on nodegroup.
+	// The node ids are sorted within the sub arrays and the array
+	// itself is sorted based on the node groups. Every sub array
+	// will have RedundancyLevel number of node ids.
+	nodesGroupedByNodegroups := clusterStatus.GetNodesGroupedByNodegroup()
+	if nodesGroupedByNodegroups == nil {
+		err := fmt.Errorf("internal error: could not extract nodes and node groups from cluster status")
+		return errorWhileProcessing(err)
+	}
+
+	// Pick up the i'th node id from every sub array of
+	// nodesGroupedByNodegroups during every iteration and
+	// ensure that they all have the latest Pod definition.
+	redundancyLevel := sc.configSummary.RedundancyLevel
+	for i := 0; i < int(redundancyLevel); i++ {
+		// Note down the node ids to be ensured
+		candidateNodeIds := make([]int, 0, redundancyLevel)
+		for _, nodesInNodegroup := range nodesGroupedByNodegroups {
+			candidateNodeIds = append(candidateNodeIds, nodesInNodegroup[i])
+		}
+
+		// Check the pods running MySQL Cluster nodes with candidateNodeIds
+		// and delete them if they have an older pod definition.
+		var nodesBeingUpdated []int
+		for _, nodeId := range candidateNodeIds {
+			// Generate the pod name using nodeId.
+			// Data node with nodeId 'i' runs in a pod with ordinal index 'i-1-numberOfMgmdNodes'
+			ndbdPodName := fmt.Sprintf(
+				"%s-%d", ndbdSfset.Name, nodeId-1-int(sc.configSummary.NumOfManagementNodes))
+
+			// Check the pod version and delete it if its outdated
+			podDeleted, err := sc.ensurePodVersion(
+				ctx, ndbdSfset.Namespace, ndbdPodName, desiredPodRevisionHash,
+				fmt.Sprintf("Data Node(nodeId=%d)", nodeId))
+			if err != nil {
+				return errorWhileProcessing(err)
+			}
+
+			if podDeleted {
+				nodesBeingUpdated = append(nodesBeingUpdated, nodeId)
+			}
+		}
+
+		if len(nodesBeingUpdated) > 0 {
+			// The outdated data nodes are being updated.
+			// Exit here and allow them to be restarted by the statefulset controllers.
+			// Continue syncing once they are up, in a later reconciliation loop.
+			klog.Infof("The data nodes %v, identified with old pod version, are being restarted", nodesBeingUpdated)
+			// Stop processing. Reconciliation will continue
+			// once the StatefulSet is fully ready again.
+			return finishProcessing()
+		}
+
+		klog.Infof("The data nodes %v have the desired pod version %s", candidateNodeIds, desiredPodRevisionHash)
+	}
+
+	// Control will never reach here but to make compiler happy return continue.
 	return continueProcessing()
 }
 
@@ -397,7 +398,7 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 		return finishProcessing()
 	}
 	initialSystemRestart := sc.ndb.Status.ProcessedGeneration == 0
-	if initialSystemRestart && !statefulsetReady(sc.mgmdNodeSfset) {
+	if initialSystemRestart && !statefulsetUpdateComplete(sc.mgmdNodeSfset) {
 		// Management nodes are starting for the first time, and
 		// one of them is not ready yet which implies that this
 		// reconciliation was triggered only to update the
@@ -418,7 +419,7 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 		klog.Infof("Reconciliation will continue after all the data nodes are ready.")
 		return finishProcessing()
 	}
-	if initialSystemRestart && !statefulsetReady(sc.dataNodeSfSet) {
+	if initialSystemRestart && !statefulsetUpdateComplete(sc.dataNodeSfSet) {
 		// Data nodes are starting for the first time, and some of
 		// them are not ready yet which implies that this
 		// reconciliation was triggered only to update the NdbCluster
@@ -468,10 +469,10 @@ func (sc *SyncContext) ensureWorkloadsReadiness() syncResult {
 	return finishProcessing()
 }
 
-// sync updates the MySQL Cluster configuration running inside
-// the K8s Cluster based on the NdbCluster spec. This is the
-// core reconciliation loop, and the complete sync takes place
-// over multiple calls.
+// sync updates the configuration of the MySQL Cluster running
+// inside the K8s Cluster based on the NdbCluster spec. This is
+// the core reconciliation loop, and a complete update takes
+// place over multiple sync calls.
 func (sc *SyncContext) sync(ctx context.Context) syncResult {
 
 	// Multiple resources are required to start
@@ -512,14 +513,21 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 		return sr
 	}
 
-	// make sure management server(s) have the correct config version
-	if sr := sc.ensureManagementServerConfigVersion(); sr.stopSync() {
+	// Reconcile Management Server by updating the statefulSet definition.
+	// Management StatefulSet uses the default RollingUpdate strategy and
+	// the update will be rolled out by the controller once the StatefulSet
+	// is patched.
+	if sr := sc.reconcileManagementNodeStatefulSet(ctx); sr.stopSync() {
 		return sr
 	}
 
-	// make sure all data nodes have the correct config version
-	// data nodes a restarted with respect to
-	if sr := sc.ensureDataNodeConfigVersion(); sr.stopSync() {
+	// Reconcile Data Nodes by updating their statefulSet definition
+	if sr := sc.reconcileDataNodeStatefulSet(ctx); sr.stopSync() {
+		return sr
+	}
+
+	// Restart Data Node pods, if required, to update their definitions
+	if sr := sc.ensureDataNodePodVersion(ctx); sr.stopSync() {
 		return sr
 	}
 
