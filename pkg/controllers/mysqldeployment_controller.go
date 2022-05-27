@@ -7,8 +7,6 @@ package controllers
 import (
 	"context"
 	"encoding/json"
-	"strconv"
-
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/mysqlclient"
@@ -26,14 +24,6 @@ import (
 	listerappsv1 "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/klog/v2"
 )
-
-// deploymentHasConfigGeneration returns true if the expectedConfigGeneration has already been applied to the given deployment
-func deploymentHasConfigGeneration(deployment *appsv1.Deployment, expectedConfigGeneration int64) bool {
-	// Get the last applied Config Generation
-	annotations := deployment.GetAnnotations()
-	existingConfigGeneration, _ := strconv.ParseInt(annotations[resources.LastAppliedConfigGeneration], 10, 64)
-	return existingConfigGeneration == expectedConfigGeneration
-}
 
 // DeploymentControlInterface is the interface for deployment controllers
 type DeploymentControlInterface interface {
@@ -165,7 +155,7 @@ func (mdc *mysqlDeploymentController) deleteDeployment(
 }
 
 // patchDeployment generates and applies the patch to the deployment
-func (mdc *mysqlDeploymentController) patchDeployment(
+func (mdc *mysqlDeploymentController) patchDeployment(ctx context.Context,
 	existingDeployment *appsv1.Deployment, updatedDeployment *appsv1.Deployment) syncResult {
 	// JSON encode both deployments
 	existingJSON, err := json.Marshal(existingDeployment)
@@ -191,7 +181,7 @@ func (mdc *mysqlDeploymentController) patchDeployment(
 	// Patch the deployment
 	deploymentInterface := mdc.deploymentInterface(existingDeployment.Namespace)
 	deployment, err := deploymentInterface.Patch(
-		context.TODO(), existingDeployment.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
+		ctx, existingDeployment.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
 	if err != nil {
 		klog.Errorf("Failed to apply the patch to the deployment %q : %s", getNamespacedName(existingDeployment), err)
 		return errorWhileProcessing(err)
@@ -238,7 +228,7 @@ func (mdc *mysqlDeploymentController) HandleScaleDown(ctx context.Context, sc *S
 	// scale down requested
 	if mysqldNodeCount == 0 {
 		// Delete the root user before deleting the MySQL deployment.
-		err := deleteRootUser(ctx, sc)
+		err := deleteRootUser(sc)
 		if err != nil {
 			klog.Errorf("error while deleting root user")
 			return errorWhileProcessing(err)
@@ -257,7 +247,7 @@ func (mdc *mysqlDeploymentController) HandleScaleDown(ctx context.Context, sc *S
 	//        during ReconcileDeployment
 	updatedDeployment := deployment.DeepCopy()
 	updatedDeployment.Spec.Replicas = &mysqldNodeCount
-	return mdc.patchDeployment(deployment, updatedDeployment)
+	return mdc.patchDeployment(ctx, deployment, updatedDeployment)
 
 }
 
@@ -321,7 +311,7 @@ func createRootUser(ctx context.Context, sc *SyncContext, newroothost string) er
 
 // deleteRootUser deletes the "root" user in the database. This method must be called
 // before deleting the deployment.
-func deleteRootUser(ctx context.Context, sc *SyncContext) error {
+func deleteRootUser(sc *SyncContext) error {
 	deployment := sc.mysqldDeployment
 	ndbCluster := sc.ndb
 
@@ -375,7 +365,7 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(ctx context.Context, s
 	// At this point the deployment exists and has already been verified
 	// to be complete (i.e. no previous updates still being applied) by HandleScaleDown.
 	// Check if it has the recent config generation.
-	if deploymentHasConfigGeneration(deployment, cs.NdbClusterGeneration) {
+	if workloadHasConfigGeneration(deployment, cs.NdbClusterGeneration) {
 		// Deployment upto date
 		return continueProcessing()
 	}
@@ -388,6 +378,6 @@ func (mdc *mysqlDeploymentController) ReconcileDeployment(ctx context.Context, s
 
 	// Deployment has to be patched
 	updatedDeployment := mdc.mysqlServerDeployment.NewDeployment(ndbCluster, cs, deployment)
-	return mdc.patchDeployment(deployment, updatedDeployment)
+	return mdc.patchDeployment(ctx, deployment, updatedDeployment)
 
 }

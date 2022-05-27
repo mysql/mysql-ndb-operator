@@ -120,18 +120,14 @@ func Test_Validation(t *testing.T) {
 		ndbUpdateTests(2, 2, 5, 2, 2, 2, !shouldFail, "allow increasing mysqld node count"),
 		ndbUpdateTests(1, 2, 5, 1, 2, 2, shouldFail, "update spec with replica = 1"),
 
-		// TODO: Test currently fails as updating NdbPodSpec is denied - fix
-		//       it once NDB Operator starts supporting NdbPodSpec update
 		ndbUpdateNdbPodSpecTests(func(defaultSpec *NdbClusterSpec) {
 			defaultSpec.DataNodePodSpec = nil
 		}, func(defaultSpec *NdbClusterSpec) {
 			defaultSpec.DataNodePodSpec = &NdbPodSpec{
 				SchedulerName: "custom-scheduler",
 			}
-		}, shouldFail, "allow update to non-resource fields"),
+		}, !shouldFail, "allow update to non-resource fields"),
 
-		// TODO: Test currently fails as updating NdbPodSpec is denied - fix
-		//       it once NDB Operator starts supporting NdbPodSpec update
 		ndbUpdateNdbPodSpecTests(func(defaultSpec *NdbClusterSpec) {
 			defaultSpec.DataNodePodSpec = &NdbPodSpec{
 				NodeSelector: map[string]string{
@@ -140,7 +136,7 @@ func Test_Validation(t *testing.T) {
 			}
 		}, func(defaultSpec *NdbClusterSpec) {
 			defaultSpec.DataNodePodSpec = nil
-		}, shouldFail, "allow update to non-resource fields(2)"),
+		}, !shouldFail, "allow update to non-resource fields(2)"),
 
 		ndbUpdateNdbPodSpecTests(func(defaultSpec *NdbClusterSpec) {
 			defaultSpec.DataNodePodSpec = nil
@@ -184,8 +180,6 @@ func Test_Validation(t *testing.T) {
 			}
 		}, shouldFail, "should not update data node resource requirements definition"),
 
-		// TODO: Test currently fails as updating NdbPodSpec is denied - fix
-		//       it once NDB Operator starts supporting NdbPodSpec update
 		ndbUpdateNdbPodSpecTests(func(defaultSpec *NdbClusterSpec) {
 			defaultSpec.ManagementNodePodSpec = &NdbPodSpec{
 				Resources: &corev1.ResourceRequirements{
@@ -203,7 +197,7 @@ func Test_Validation(t *testing.T) {
 				},
 				SchedulerName: "custom-scheduler",
 			}
-		}, shouldFail, "allow update if Resources did not change"),
+		}, !shouldFail, "allow update if Resources did not change"),
 
 		ndbUpdateNdbPodSpecTests(func(defaultSpec *NdbClusterSpec) {
 			defaultSpec.Mysqld = &NdbMysqldSpec{

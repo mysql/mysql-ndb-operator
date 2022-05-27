@@ -27,6 +27,16 @@ func GetPodNameWithLabel(ctx context.Context, clientset kubernetes.Interface, na
 	return podList.Items[0].Name
 }
 
+// GetPodsWithLabel returns a slice of pods that have the given label
+func GetPodsWithLabel(ctx context.Context, clientset kubernetes.Interface,
+	namespace string, labelSelector labels.Selector) []corev1.Pod {
+	podList, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector.String(),
+	})
+	gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "List pods failed with an error")
+	return podList.Items
+}
+
 // CollectPodLogs streams all the logs of a pod until it either fails
 // or completes and then returns the collected logs in a bytes.Buffer.
 // Note : This function will block the caller until the pod stops as

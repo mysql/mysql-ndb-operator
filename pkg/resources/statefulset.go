@@ -5,6 +5,7 @@
 package resources
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/mysql/ndb-operator/config/debug"
@@ -195,6 +196,10 @@ func (bss *baseStatefulSet) newStatefulSet(
 			Labels: bss.getStatefulSetLabels(nc),
 			// Owner reference pointing to the Ndb resource
 			OwnerReferences: nc.GetOwnerReferences(),
+			Annotations: map[string]string{
+				// Add the NdbCluster generation this deployment is based on to the annotation
+				LastAppliedConfigGeneration: strconv.FormatInt(cs.NdbClusterGeneration, 10),
+			},
 		},
 		Spec: apps.StatefulSetSpec{
 			Selector: &metav1.LabelSelector{
@@ -204,6 +209,11 @@ func (bss *baseStatefulSet) newStatefulSet(
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: podLabels,
+					// Annotate the spec template with the config.ini version.
+					// A change in the config will create a new version of the spec template.
+					Annotations: map[string]string{
+						LastAppliedMySQLClusterConfigVersion: strconv.FormatInt(int64(cs.MySQLClusterConfigVersion), 10),
+					},
 				},
 				Spec: podSpec,
 			},
@@ -547,6 +557,12 @@ func (nss *ndbdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1al
 	statefulSetSpec.Replicas = &replicas
 	// Set pod management policy to start Data nodes in parallel
 	statefulSetSpec.PodManagementPolicy = apps.ParallelPodManagement
+
+	// Use the legacy OnDelete update strategy to get more
+	// control over how the update is rolled out to data nodes
+	statefulSetSpec.UpdateStrategy = apps.StatefulSetUpdateStrategy{
+		Type: apps.OnDeleteStatefulSetStrategyType,
+	}
 
 	// Add VolumeClaimTemplate if data node PVC Spec exists
 	if nc.Spec.DataNodePVCSpec != nil {
