@@ -86,6 +86,7 @@ func updateHelperScripts(data map[string]string) error {
 		dataNodeInitScriptKey:     "Data Node init",
 		dataNodeStartupProbeKey:   "Data Node Startup Probe",
 		waitForDNSUpdateScriptKey: "DNS Update Waiter",
+		mgmdStartupProbeKey:       "Mgmd Startup Probe",
 	} {
 		fileBytes, err := scriptsFS.ReadFile("scripts/" + key)
 		if err != nil {

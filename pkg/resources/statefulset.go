@@ -32,13 +32,13 @@ const (
 	// dataNodeIdFilePath is the location of the file that has the data node's nodeId
 	dataNodeIdFilePath = dataDirectoryMountPath + "/nodeId.val"
 
+	// Common volume name and mount path for data node and mgmd node helper scripts
+	helperScriptsVolName   = "helper-scripts-vol"
+	helperScriptsMountPath = constants.DataDir + "/scripts"
+
 	// config.ini volume and mount path for the management pods
 	mgmdConfigIniVolumeName = sfsetTypeMgmd + "-config-volume"
 	mgmdConfigIniMountPath  = constants.DataDir + "/config"
-
-	// Volume name and mount path for data node helper scripts
-	dataNodeHelperScriptsVolName   = "datanode-helper-scripts-vol"
-	dataNodeHelperScriptsMountPath = constants.DataDir + "/scripts"
 
 	// datanode-startup-probe.sh configmap key
 	dataNodeStartupProbeKey = "datanode-startup-probe.sh"
@@ -48,7 +48,13 @@ const (
 
 	// Configmap key for the DNS update waiter script
 	waitForDNSUpdateScriptKey = "wait-for-dns-update.sh"
+
+	// Management node startup probe script key
+	mgmdStartupProbeKey = "mgmd-startup-probe.sh"
 )
+
+// Permissions to be set to the helper scripts loaded through configmap
+var ownerCanExecMode = int32(0744)
 
 // StatefulSetInterface is the interface for a statefulset of NDB management or data nodes
 type StatefulSetInterface interface {
@@ -87,6 +93,15 @@ func (bss *baseStatefulSet) getEmptyDirPodVolume() *v1.Volume {
 		VolumeSource: v1.VolumeSource{
 			EmptyDir: &v1.EmptyDirVolumeSource{},
 		},
+	}
+}
+
+// getHelperScriptVolumeMount returns the VolumeMount for the helper scripts
+func (bss *baseStatefulSet) getHelperScriptVolumeMount() v1.VolumeMount {
+	return v1.VolumeMount{
+		// Volume mount for helper scripts
+		Name:      helperScriptsVolName,
+		MountPath: helperScriptsMountPath,
 	}
 }
 
@@ -218,52 +233,84 @@ type mgmdStatefulSet struct {
 // made available to the management server pods.
 func (mss *mgmdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []v1.Volume {
 
-	// Management Server pods have an empty directory volume
-	// for storing local config cache and a config map
-	// volume that has the MySQL Cluster configuration.
-	var podVolumes []v1.Volume
-	podVolumes = append(podVolumes, *mss.getEmptyDirPodVolume())
+	return []v1.Volume{
+		// Empty Dir volume for the mgmd data dir
+		*mss.getEmptyDirPodVolume(),
 
-	// Append the configmap's config.ini as a volume to the Management pods
-	podVolumes = append(podVolumes, v1.Volume{
-		Name: mgmdConfigIniVolumeName,
-		VolumeSource: v1.VolumeSource{
-			ConfigMap: &v1.ConfigMapVolumeSource{
-				LocalObjectReference: v1.LocalObjectReference{
-					Name: nc.GetConfigMapName(),
-				},
-				// Load only the config.ini key
-				Items: []v1.KeyToPath{
-					{
-						Key:  constants.ConfigIniKey,
-						Path: constants.ConfigIniKey,
+		// Load the config.ini script via a volume
+		{
+			Name: mgmdConfigIniVolumeName,
+			VolumeSource: v1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: nc.GetConfigMapName(),
+					},
+					// Load only the config.ini key
+					Items: []v1.KeyToPath{
+						{
+							Key:  constants.ConfigIniKey,
+							Path: constants.ConfigIniKey,
+						},
 					},
 				},
 			},
 		},
-	})
 
-	return podVolumes
+		// Load the helper scripts from
+		// the configmap into the pod via a volume
+		{
+			Name: helperScriptsVolName,
+			VolumeSource: v1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: nc.GetConfigMapName(),
+					},
+					DefaultMode: &ownerCanExecMode,
+					Items: []v1.KeyToPath{
+						{
+							// Load the wait-for-dns-update script.
+							// It will be used by the init container.
+							Key:  waitForDNSUpdateScriptKey,
+							Path: waitForDNSUpdateScriptKey,
+						},
+						{
+							// Load the startup probe
+							Key:  mgmdStartupProbeKey,
+							Path: mgmdStartupProbeKey,
+						},
+					},
+				},
+			},
+		},
+	}
 }
 
 // getVolumeMounts returns the volumes to be mounted to the mgmd containers
 func (mss *mgmdStatefulSet) getVolumeMounts() []v1.VolumeMount {
+	return []v1.VolumeMount{
+		// Append the empty dir volume mount to be used as a data dir
+		{
+			Name:      mss.getEmptyDirVolumeName(),
+			MountPath: dataDirectoryMountPath,
+		},
+		// Mount the config map volume holding the MySQL Cluster configuration
+		{
+			Name:      mgmdConfigIniVolumeName,
+			MountPath: mgmdConfigIniMountPath,
+		},
+		// Mount the helper scripts
+		mss.getHelperScriptVolumeMount(),
+	}
+}
 
-	var volumeMounts []v1.VolumeMount
+// getInitContainers returns the init containers to be used by the management Node
+func (mss *mgmdStatefulSet) getInitContainers(nc *v1alpha1.NdbCluster) []v1.Container {
+	// Command and args to run the mgmd init script
+	cmdAndArgs := []string{
+		helperScriptsMountPath + "/" + waitForDNSUpdateScriptKey,
+	}
 
-	// Append the empty dir volume mount to be used as a config directory
-	volumeMounts = append(volumeMounts, v1.VolumeMount{
-		Name:      mss.getEmptyDirVolumeName(),
-		MountPath: dataDirectoryMountPath,
-	})
-
-	// Mount the config map volume holding the MySQL Cluster configuration
-	volumeMounts = append(volumeMounts, v1.VolumeMount{
-		Name:      mgmdConfigIniVolumeName,
-		MountPath: mgmdConfigIniMountPath,
-	})
-
-	return volumeMounts
+	return mss.createContainers(nc, cmdAndArgs, mss.getVolumeMounts(), nil, nil, true)
 }
 
 // getContainers returns the containers to run a Management Node
@@ -287,10 +334,18 @@ func (mss *mgmdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 		},
 	}
 
-	// Startup probe - expects mgmd to get ready within a minute
 	startupProbe := &v1.Probe{
-		Handler:          portCheckHandler,
+		Handler: v1.Handler{
+			Exec: &v1.ExecAction{
+				Command: []string{
+					"/bin/bash",
+					helperScriptsMountPath + "/" + mgmdStartupProbeKey,
+				},
+			},
+		},
+		// Startup probe - expects mgmd to get ready within a minute
 		PeriodSeconds:    1,
+		TimeoutSeconds:   3,
 		FailureThreshold: 60,
 	}
 
@@ -322,6 +377,7 @@ func (mss *mgmdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1al
 
 	// Update template pod spec
 	podSpec := &statefulSetSpec.Template.Spec
+	podSpec.InitContainers = mss.getInitContainers(nc)
 	podSpec.Containers = mss.getContainers(nc)
 	podSpec.Volumes = mss.getPodVolumes(nc)
 	// Set default AntiAffinity rules
@@ -352,12 +408,11 @@ type ndbdStatefulSet struct {
 // made available to the data node pods.
 func (nss *ndbdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []v1.Volume {
 
-	ownerCanExecMode := int32(0744)
 	// Load the data node scripts from
 	// the configmap into the pod via a volume
 	podVolumes := []v1.Volume{
 		{
-			Name: dataNodeHelperScriptsVolName,
+			Name: helperScriptsVolName,
 			VolumeSource: v1.VolumeSource{
 				ConfigMap: &v1.ConfigMapVolumeSource{
 					LocalObjectReference: v1.LocalObjectReference{
@@ -416,11 +471,8 @@ func (nss *ndbdStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []v1.Volume
 			Name:      dataDirVolumeName,
 			MountPath: dataDirectoryMountPath,
 		},
-		{
-			// Volume mount for helper scripts
-			Name:      dataNodeHelperScriptsVolName,
-			MountPath: dataNodeHelperScriptsMountPath,
-		},
+		// Volume mount for helper scripts
+		nss.getHelperScriptVolumeMount(),
 	}
 }
 
@@ -428,7 +480,7 @@ func (nss *ndbdStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []v1.Volume
 func (nss *ndbdStatefulSet) getInitContainers(nc *v1alpha1.NdbCluster) []v1.Container {
 	// Command and args to run the Data node init script
 	cmdAndArgs := []string{
-		dataNodeHelperScriptsMountPath + "/" + dataNodeInitScriptKey,
+		helperScriptsMountPath + "/" + dataNodeInitScriptKey,
 		nc.GetConnectstring(),
 	}
 
@@ -465,7 +517,7 @@ func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []v1.Containe
 				// datanode-startup-probe.sh
 				Command: []string{
 					"/bin/bash",
-					dataNodeHelperScriptsMountPath + "/" + dataNodeStartupProbeKey,
+					helperScriptsMountPath + "/" + dataNodeStartupProbeKey,
 				},
 			},
 		},
