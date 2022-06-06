@@ -13,7 +13,7 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // TestContext has the necessary information to run a test.

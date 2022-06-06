@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"github.com/onsi/gomega"
 	"io/ioutil"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	"path/filepath"
 	"runtime"
 )

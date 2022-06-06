@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	typedappsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	listerappsv1 "k8s.io/client-go/listers/apps/v1"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // deploymentHasConfigGeneration returns true if the expectedConfigGeneration has already been applied to the given deployment

@@ -9,7 +9,7 @@ import (
 	"net"
 	"text/template"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
