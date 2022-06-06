@@ -13,7 +13,7 @@ import (
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // Embed the helper scripts in the ndb operator binary

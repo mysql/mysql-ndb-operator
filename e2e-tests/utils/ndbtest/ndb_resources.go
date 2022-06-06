@@ -15,7 +15,7 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // waitForNdbSync waits for a ReasonSyncSuccess event to occur

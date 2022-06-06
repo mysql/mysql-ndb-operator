@@ -7,7 +7,7 @@ package ndbtest
 import (
 	yaml_utils "github.com/mysql/ndb-operator/e2e-tests/utils/yaml"
 	"github.com/onsi/gomega"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	"strings"
 	"time"
 )
