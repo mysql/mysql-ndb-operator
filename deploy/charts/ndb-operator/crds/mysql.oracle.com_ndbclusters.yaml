@@ -944,6 +944,15 @@ spec:
                   the secret that holds the credentials required for pulling the MySQL
                   Cluster image.
                 type: string
+              managementNodeConfig:
+                additionalProperties:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  x-kubernetes-int-or-string: true
+                description: "A map of default MySQL Cluster Management node configurations.
+                  \n More info : https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-mgmd.html"
+                type: object
               managementNodePodSpec:
                 description: ManagementNodePodSpec contains a subset of PodSpec fields
                   which when set will be copied into to the podSpec of Management

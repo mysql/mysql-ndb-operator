@@ -26,6 +26,7 @@ type MgmClient interface {
 	GetConfigVersion(nodeID ...int) (uint32, error)
 	StopNodes(nodeIds []int) error
 	GetDataMemory(dataNodeId int) (uint64, error)
+	GetMgmdArbitrationRank() (uint32, error)
 }
 
 // mgmClientImpl implements the MgmClient interface
@@ -598,4 +599,13 @@ func (mci *mgmClientImpl) GetDataMemory(dataNodeId int) (uint64, error) {
 		return 0, err
 	}
 	return value.(uint64), nil
+}
+
+// GetMgmdArbitrationRank returns the arbitration rank of the connected mgmd node
+func (mci *mgmClientImpl) GetMgmdArbitrationRank() (uint32, error) {
+	value, err := mci.getConfig(0, cfgSectionTypeMGM, nodeCfgArbitRank, true)
+	if err != nil {
+		return 0, err
+	}
+	return value.(uint32), nil
 }

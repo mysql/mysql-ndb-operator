@@ -251,6 +251,20 @@ map[string]*<a href="https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntO
 </tr>
 <tr>
 <td>
+<code>managementNodeConfig</code><br/>
+<em>
+map[string]*<a href="https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntOrString">Kubernetes util/intstr.IntOrString</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>A map of default MySQL Cluster Management node configurations.</p>
+<p>More info :
+<a href="https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-mgmd.html">https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-mgmd.html</a></p>
+</td>
+</tr>
+<tr>
+<td>
 <code>dataNodePodSpec</code><br/>
 <em>
 <a href="#mysql.oracle.com/v1alpha1.NdbPodSpec">NdbPodSpec</a>

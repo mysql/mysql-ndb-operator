@@ -65,11 +65,26 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster validation", func(tc *ndbtest.Tes
 			_, err := ndbclient.MysqlV1alpha1().NdbClusters(ns).Create(ctx, testNdb, metav1.CreateOptions{})
 			ndbtest.ExpectError(err)
 			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
-				"spec.dataNodeConfig.NoOfReplicas: Forbidden: config param \"NoOfReplicas\" is not allowed in .spec.dataNodeConfig"))
+				"spec.dataNodeConfig.NoOfReplicas: Forbidden: config param \"NoOfReplicas\" is not allowed in spec.dataNodeConfig"))
 			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
-				"spec.dataNodeConfig.dataDir: Forbidden: config param \"dataDir\" is not allowed in .spec.dataNodeConfig"))
+				"spec.dataNodeConfig.dataDir: Forbidden: config param \"dataDir\" is not allowed in spec.dataNodeConfig"))
 			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
-				"spec.dataNodeConfig.HostName: Forbidden: config param \"HostName\" is not allowed in .spec.dataNodeConfig"))
+				"spec.dataNodeConfig.HostName: Forbidden: config param \"HostName\" is not allowed in spec.dataNodeConfig"))
+		})
+	})
+
+	ginkgo.When("a disallowed management node config param is specified in NdbCluster spec", func() {
+		ginkgo.It("should throw appropriate errors", func() {
+			testNdb.Spec.ManagementNodeConfig = map[string]*intstr.IntOrString{
+				"PortNumber": getIntStrPtrFromString("33333"),
+				"HostName":   getIntStrPtrFromString("localhost"),
+			}
+			_, err := ndbclient.MysqlV1alpha1().NdbClusters(ns).Create(ctx, testNdb, metav1.CreateOptions{})
+			ndbtest.ExpectError(err)
+			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
+				"spec.managementNodeConfig.PortNumber: Forbidden: config param \"PortNumber\" is not allowed in spec.managementNodeConfig"))
+			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
+				"spec.managementNodeConfig.HostName: Forbidden: config param \"HostName\" is not allowed in spec.managementNodeConfig"))
 		})
 	})
 })

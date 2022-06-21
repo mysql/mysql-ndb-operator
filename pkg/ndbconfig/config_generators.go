@@ -23,6 +23,11 @@ var mgmtConfigTmpl = `{{- /* Template to generate management config ini */ -}}
 ConfigGenerationNumber={{GetConfigVersion}}
 Name={{.Name}}
 
+{{if .Spec.ManagementNodeConfig}}[ndb_mgmd default]{{end}}
+{{- range $configKey, $configValue := .Spec.ManagementNodeConfig }}
+{{$configKey}}={{$configValue}}
+{{- end}}
+
 [ndbd default]
 NoOfReplicas={{.Spec.RedundancyLevel}}
 # Use a fixed ServerPort for all data nodes
