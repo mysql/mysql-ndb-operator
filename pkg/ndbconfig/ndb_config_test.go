@@ -91,6 +91,9 @@ func Test_GetConfigString(t *testing.T) {
 		"ThreadConfig": getIntStrPtr(
 			intstr.FromString("ldm={count=2,cpubind=1,2},main={cpubind=12},rep={cpubind=11}")),
 	}
+	ndb.Spec.ManagementNodeConfig = map[string]*intstr.IntOrString{
+		"ExtraSendBufferMemory": getIntStrPtr(intstr.FromString("30M")),
+	}
 	configString, err := GetConfigString(ndb, nil)
 	if err != nil {
 		t.Errorf("Failed to generate config string from Ndb : %s", err)
@@ -101,6 +104,9 @@ func Test_GetConfigString(t *testing.T) {
 [system]
 ConfigGenerationNumber=1
 Name=example-ndb
+
+[ndb_mgmd default]
+ExtraSendBufferMemory=30M
 
 [ndbd default]
 NoOfReplicas=2

@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -15,9 +15,10 @@ const (
 
 // Common node parameters
 const (
-	nodeCfgNodeId  uint32 = 3
-	nodeCfgHost    uint32 = 5
-	nodeCfgDatadir uint32 = 7
+	nodeCfgNodeId    uint32 = 3
+	nodeCfgHost      uint32 = 5
+	nodeCfgDatadir   uint32 = 7
+	nodeCfgArbitRank uint32 = 200
 )
 
 // Data node config param ids

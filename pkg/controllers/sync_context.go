@@ -520,6 +520,7 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 	if sr := sc.reconcileManagementNodeStatefulSet(ctx); sr.stopSync() {
 		return sr
 	}
+	klog.Info("All Management node pods are up-to-date and ready")
 
 	// Reconcile Data Nodes by updating their statefulSet definition
 	if sr := sc.reconcileDataNodeStatefulSet(ctx); sr.stopSync() {

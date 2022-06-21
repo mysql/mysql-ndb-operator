@@ -37,8 +37,10 @@ type ConfigSummary struct {
 	TotalNumOfApiSlots int32
 	// RedundancyLevel is the number of replicas of the data stored in MySQL Cluster.
 	RedundancyLevel int32
-	// defaultNdbdConfigs has the values extracted from the default ndbd section of the management config.
+	// defaultNdbdSection has the values extracted from the default ndbd section of the management config.
 	defaultNdbdSection configparser.Section
+	// defaultMgmdSection has the values extracted from the default ndbd section of the management config.
+	defaultMgmdSection configparser.Section
 	// MySQLLoadBalancer indicates if the load balancer service for MySQL servers needs to be enabled
 	MySQLLoadBalancer bool
 	// ManagementLoadBalancer indicates if the load balancer service for management nodes needs to be enabled
@@ -90,6 +92,7 @@ func NewConfigSummary(configMapData map[string]string) (*ConfigSummary, error) {
 		MySQLLoadBalancer:      parseBool(configMapData[constants.MySQLLoadBalancer]),
 		ManagementLoadBalancer: parseBool(configMapData[constants.ManagementLoadBalancer]),
 		defaultNdbdSection:     config.GetSection("ndbd default"),
+		defaultMgmdSection:     config.GetSection("mgmd default"),
 		MySQLRootHost:          configMapData[constants.MySQLRootHost],
 	}
 
@@ -145,6 +148,20 @@ func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1alpha1.NdbCluster) 
 	if nc.Spec.FreeAPISlots != cs.NumOfFreeApiSlots {
 		// Number of free slots have been changed. Regenerate config and apply it.
 		return true
+	}
+
+	// Check if the default mgmd section has been updated
+	newMgmdConfig := nc.Spec.ManagementNodeConfig
+	if len(newMgmdConfig) != len(cs.defaultMgmdSection) {
+		// A config has been added (or) removed from default mgmd section
+		return true
+	}
+	// Check if all configs exist and their value has not changed
+	for configKey, configValue := range newMgmdConfig {
+		if value, exists := cs.defaultMgmdSection.GetValue(configKey); !exists || value != configValue.String() {
+			// Either the config doesn't exist or the value has been changed
+			return true
+		}
 	}
 
 	// No update required to the MySQL Cluster config.

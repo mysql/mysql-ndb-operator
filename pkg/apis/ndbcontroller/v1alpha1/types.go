@@ -155,6 +155,12 @@ type NdbClusterSpec struct {
 	// https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-ndbd.html
 	// +optional
 	DataNodeConfig map[string]*intstr.IntOrString `json:"dataNodeConfig,omitempty"`
+	// A map of default MySQL Cluster Management node configurations.
+	//
+	// More info :
+	// https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-mgmd.html
+	// +optional
+	ManagementNodeConfig map[string]*intstr.IntOrString `json:"managementNodeConfig,omitempty"`
 
 	// DataNodePodSpec contains a subset of PodSpec fields which when
 	// set will be copied into to the podSpec of Data node's statefulset

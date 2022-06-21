@@ -111,6 +111,21 @@ func (in *NdbClusterSpec) DeepCopyInto(out *NdbClusterSpec) {
 			(*out)[key] = outVal
 		}
 	}
+	if in.ManagementNodeConfig != nil {
+		in, out := &in.ManagementNodeConfig, &out.ManagementNodeConfig
+		*out = make(map[string]*intstr.IntOrString, len(*in))
+		for key, val := range *in {
+			var outVal *intstr.IntOrString
+			if val == nil {
+				(*out)[key] = nil
+			} else {
+				in, out := &val, &outVal
+				*out = new(intstr.IntOrString)
+				**out = **in
+			}
+			(*out)[key] = outVal
+		}
+	}
 	if in.DataNodePodSpec != nil {
 		in, out := &in.DataNodePodSpec, &out.DataNodePodSpec
 		*out = new(NdbPodSpec)
