@@ -42,8 +42,8 @@ type SyncContext struct {
 
 	// controller handling creation and changes of resources
 	mysqldController    DeploymentControlInterface
-	mgmdController      StatefulSetControlInterface
-	ndbdController      StatefulSetControlInterface
+	mgmdController      NdbStatefulSetControlInterface
+	ndbdController      NdbStatefulSetControlInterface
 	configMapController ConfigMapControlInterface
 	serviceController   ServiceControlInterface
 	pdbController       PodDisruptionBudgetControlInterface

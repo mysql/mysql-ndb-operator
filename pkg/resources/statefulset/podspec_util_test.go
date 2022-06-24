@@ -2,16 +2,18 @@
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-package resources
+package statefulset
 
 import (
 	"encoding/json"
+	"reflect"
+	"testing"
+
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"reflect"
-	"testing"
 )
 
 func errorIfNotEqual(t *testing.T, actual interface{}, expectedJsonStr, desc string) {
@@ -171,7 +173,7 @@ func Test_setPodSpecFromNdbPodSpec_Resources(t *testing.T) {
 		}
 
 		// Set and verify if the values are set properly
-		copyPodSpecFromNdbPodSpec(&podSpec, tc.ndbPodSpec)
+		CopyPodSpecFromNdbPodSpec(&podSpec, tc.ndbPodSpec)
 		errorIfNotEqual(t, podSpec.Containers[0].Resources, tc.expectedResourceInPodSpec, tc.desc)
 	}
 }
@@ -363,7 +365,7 @@ func Test_setPodSpecFromNdbPodSpec_Affinity(t *testing.T) {
 		}
 
 		// Set and verify if the values are set properly
-		copyPodSpecFromNdbPodSpec(&podSpec, tc.ndbPodSpec)
+		CopyPodSpecFromNdbPodSpec(&podSpec, tc.ndbPodSpec)
 		errorIfNotEqual(t, podSpec.Affinity, tc.expectedAffinityInPodSpec, tc.desc)
 	}
 }
@@ -392,7 +394,7 @@ func Test_setPodSpecFromNdbPodSpec_Misc(t *testing.T) {
 	var podSpec corev1.PodSpec
 
 	// Set and verify if the values are set properly
-	copyPodSpecFromNdbPodSpec(&podSpec, ndbPodSpec)
+	CopyPodSpecFromNdbPodSpec(&podSpec, ndbPodSpec)
 	errorIfNotEqual(t, podSpec.NodeSelector, expectedNodeSelectorInPodSpec, "NodeSelector")
 	errorIfNotEqual(t, podSpec.Tolerations, expectedTolerations, "Tolerations")
 	if podSpec.SchedulerName != ndbPodSpec.SchedulerName {

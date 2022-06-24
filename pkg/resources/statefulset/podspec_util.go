@@ -2,7 +2,7 @@
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-package resources
+package statefulset
 
 import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
@@ -10,14 +10,14 @@ import (
 )
 
 // Copy values from ndbPodSpec into podSpec
-func copyPodSpecFromNdbPodSpec(podSpec *corev1.PodSpec, ndbPodSpec *v1alpha1.NdbPodSpec) {
+func CopyPodSpecFromNdbPodSpec(podSpec *corev1.PodSpec, ndbPodSpec *v1alpha1.NdbPodSpec) {
 	if ndbPodSpec == nil {
 		// Nothing to do
 		return
 	}
 
 	if podSpec == nil {
-		panic("nil podSpec sent to copyPodSpecFromNdbPodSpec")
+		panic("nil podSpec sent to CopyPodSpecFromNdbPodSpec")
 	}
 
 	// Copy the Resource requests/limits
@@ -25,7 +25,7 @@ func copyPodSpecFromNdbPodSpec(podSpec *corev1.PodSpec, ndbPodSpec *v1alpha1.Ndb
 		resources := ndbPodSpec.Resources
 		// Set the Resources request via the pod's container
 		if len(podSpec.Containers) == 0 {
-			panic("copyPodSpecFromNdbPodSpec should be called only after the containers are set")
+			panic("CopyPodSpecFromNdbPodSpec should be called only after the containers are set")
 		}
 		containerResources := &podSpec.Containers[0].Resources
 

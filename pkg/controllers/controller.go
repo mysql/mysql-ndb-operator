@@ -30,7 +30,7 @@ import (
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	ndbinformers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
 	ndblisters "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
-	"github.com/mysql/ndb-operator/pkg/resources"
+	"github.com/mysql/ndb-operator/pkg/resources/statefulset"
 )
 
 // ControllerContext summarizes the context in which it is running
@@ -66,8 +66,8 @@ type Controller struct {
 	ndbsLister ndblisters.NdbClusterLister
 
 	// Controllers for various resources
-	mgmdController      StatefulSetControlInterface
-	ndbdController      StatefulSetControlInterface
+	mgmdController      NdbStatefulSetControlInterface
+	ndbdController      NdbStatefulSetControlInterface
 	mysqldController    DeploymentControlInterface
 	configMapController ConfigMapControlInterface
 	serviceController   ServiceControlInterface
@@ -126,9 +126,9 @@ func NewController(
 		recorder:              newEventRecorder(controllerContext.kubeClientset),
 
 		mgmdController: NewNdbNodesStatefulSetControlInterface(
-			controllerContext.kubeClientset, statefulSetLister, resources.NewMgmdStatefulSet()),
+			controllerContext.kubeClientset, statefulSetLister, statefulset.NewMgmdStatefulSet()),
 		ndbdController: NewNdbNodesStatefulSetControlInterface(
-			controllerContext.kubeClientset, statefulSetLister, resources.NewNdbdStatefulSet()),
+			controllerContext.kubeClientset, statefulSetLister, statefulset.NewNdbdStatefulSet()),
 		mysqldController: NewMySQLDeploymentController(
 			controllerContext.kubeClientset, deploymentInformer.Lister()),
 

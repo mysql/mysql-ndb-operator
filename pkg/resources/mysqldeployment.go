@@ -13,6 +13,7 @@ import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
+	"github.com/mysql/ndb-operator/pkg/resources/statefulset"
 
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -21,7 +22,7 @@ import (
 )
 
 const (
-	mysqldClientName = "mysqld"
+	mysqldClientName = constants.NdbNodeTypeMySQLD
 	// MySQL Server runtime directory
 	mysqldDir = constants.DataDir + "/mysqld"
 	// Data directory volume and mount path
@@ -351,12 +352,12 @@ func (msd *MySQLServerDeployment) NewDeployment(
 
 	// Default PodAntiAffinity for MySQL Servers
 	podSpec.Affinity = &v1.Affinity{
-		PodAntiAffinity: getPodAntiAffinityRules([]string{
-			sfsetTypeMgmd, sfsetTypeNdbd, mysqldClientName,
+		PodAntiAffinity: statefulset.GetPodAntiAffinityRules([]string{
+			constants.NdbNodeTypeMgmd, constants.NdbNodeTypeNdbmtd, constants.NdbNodeTypeMySQLD,
 		}),
 	}
 	// Copy values from spec.mysqld.podSpec into this podSpec
-	copyPodSpecFromNdbPodSpec(&podSpec, ndb.Spec.Mysqld.PodSpec)
+	statefulset.CopyPodSpecFromNdbPodSpec(&podSpec, ndb.Spec.Mysqld.PodSpec)
 
 	// The deployment name to be used
 	deploymentName := ndb.Name + "-" + mysqldClientName
