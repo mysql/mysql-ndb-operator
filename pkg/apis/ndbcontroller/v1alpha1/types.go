@@ -392,3 +392,8 @@ func (nc *NdbCluster) GetMySQLCnf() string {
 
 	return myCnf
 }
+
+// GetWorkloadName returns the name K8s workload that manages the given NdbNodeType
+func (nc *NdbCluster) GetWorkloadName(nodeType constants.NdbNodeType) string {
+	return nc.Name + "-" + nodeType
+}

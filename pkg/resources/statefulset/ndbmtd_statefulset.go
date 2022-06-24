@@ -19,14 +19,19 @@ const (
 	volumeClaimTemplateName = "ndb-pvc"
 )
 
-// ndbdStatefulSet implements the NdbStatefulSetInterface to control a set of data nodes
-type ndbdStatefulSet struct {
+var (
+	// Ports to be exposed by the container and service
+	ndbmtdPorts = []int32{1186}
+)
+
+// ndbmtdStatefulSet implements the NdbStatefulSetInterface to control a set of data nodes
+type ndbmtdStatefulSet struct {
 	baseStatefulSet
 }
 
 // getPodVolumes returns a slice of volumes to be
 // made available to the data node pods.
-func (nss *ndbdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []corev1.Volume {
+func (nss *ndbmtdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []corev1.Volume {
 
 	// Load the data node scripts from
 	// the configmap into the pod via a volume
@@ -71,8 +76,8 @@ func (nss *ndbdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []corev1.Volu
 	return podVolumes
 }
 
-// getVolumeMounts returns the volumes to be mounted to the ndbd containers
-func (nss *ndbdStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []corev1.VolumeMount {
+// getVolumeMounts returns the volumes to be mounted to the ndbmtd containers
+func (nss *ndbmtdStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []corev1.VolumeMount {
 
 	var dataDirVolumeName string
 	if nc.Spec.DataNodePVCSpec == nil {
@@ -97,7 +102,7 @@ func (nss *ndbdStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []corev1.Vo
 }
 
 // getInitContainers returns the init containers to be used by the data Node
-func (nss *ndbdStatefulSet) getInitContainers(nc *v1alpha1.NdbCluster) []corev1.Container {
+func (nss *ndbmtdStatefulSet) getInitContainers(nc *v1alpha1.NdbCluster) []corev1.Container {
 	// Command and args to run the Data node init script
 	cmdAndArgs := []string{
 		helperScriptsMountPath + "/" + constants.DataNodeInitScript,
@@ -107,12 +112,12 @@ func (nss *ndbdStatefulSet) getInitContainers(nc *v1alpha1.NdbCluster) []corev1.
 	return []corev1.Container{
 		nss.createContainer(nc,
 			nss.getContainerName(true),
-			cmdAndArgs, nss.getVolumeMounts(nc)),
+			cmdAndArgs, nss.getVolumeMounts(nc), nil),
 	}
 }
 
 // getContainers returns the containers to run a data Node
-func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Container {
+func (nss *ndbmtdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Container {
 
 	// Command and args to run the Data node
 	cmdAndArgs := []string{
@@ -129,9 +134,9 @@ func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Cont
 		cmdAndArgs = append(cmdAndArgs, "-v")
 	}
 
-	ndbdContainer := nss.createContainer(
+	ndbmtdContainer := nss.createContainer(
 		nc, nss.getContainerName(false), cmdAndArgs,
-		nss.getVolumeMounts(nc), 1186)
+		nss.getVolumeMounts(nc), ndbmtdPorts)
 
 	// Setup startup probe for data nodes.
 	// The probe uses a script that checks if a data node has started, by
@@ -142,7 +147,7 @@ func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Cont
 	// is going through the start phases, the Management node will be
 	// rescheduled immediately and will become ready within a few seconds,
 	// enabling the data node startup probe to succeed.
-	ndbdContainer.StartupProbe = &corev1.Probe{
+	ndbmtdContainer.StartupProbe = &corev1.Probe{
 		Handler: corev1.Handler{
 			Exec: &corev1.ExecAction{
 				// datanode-startup-probe.sh
@@ -158,10 +163,10 @@ func (nss *ndbdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Cont
 		FailureThreshold: 450,
 	}
 
-	return []corev1.Container{ndbdContainer}
+	return []corev1.Container{ndbmtdContainer}
 }
 
-func (nss *ndbdStatefulSet) getPodAntiAffinity() *corev1.PodAntiAffinity {
+func (nss *ndbmtdStatefulSet) getPodAntiAffinity() *corev1.PodAntiAffinity {
 	// Default pod AntiAffinity rules for Data Nodes
 	return GetPodAntiAffinityRules([]constants.NdbNodeType{
 		constants.NdbNodeTypeMgmd, constants.NdbNodeTypeMySQLD, constants.NdbNodeTypeNdbmtd,
@@ -169,11 +174,11 @@ func (nss *ndbdStatefulSet) getPodAntiAffinity() *corev1.PodAntiAffinity {
 }
 
 // NewStatefulSet returns the StatefulSet specification to start and manage the Data nodes.
-func (nss *ndbdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) *appsv1.StatefulSet {
+func (nss *ndbmtdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) *appsv1.StatefulSet {
 	statefulSet := nss.newStatefulSet(nc, cs)
 	statefulSetSpec := &statefulSet.Spec
 
-	// Fill in ndbd specific values
+	// Fill in ndbmtd specific values
 	replicas := cs.NumOfDataNodes
 	statefulSetSpec.Replicas = &replicas
 	// Set pod management policy to start Data nodes in parallel
@@ -209,9 +214,9 @@ func (nss *ndbdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1al
 	return statefulSet
 }
 
-// NewNdbdStatefulSet returns a new NdbStatefulSetInterface for data nodes
-func NewNdbdStatefulSet() NdbStatefulSetInterface {
-	return &ndbdStatefulSet{
+// NewNdbmtdStatefulSet returns a new NdbStatefulSetInterface for data nodes
+func NewNdbmtdStatefulSet() NdbStatefulSetInterface {
+	return &ndbmtdStatefulSet{
 		baseStatefulSet{
 			nodeType: constants.NdbNodeTypeNdbmtd,
 		},

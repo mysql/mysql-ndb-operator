@@ -14,8 +14,8 @@
 # ensures that there is the following co-relation between
 # the pod's StatefulSet's ordinal index and the nodeIds :
 #     data node's id = first data node's id + ordinal index.
-# i.e. if the *-ndbd-0 pod's nodeId is 3,
-#         then *-ndbd-2 pod's nodeId = 3+2 = 5.
+# i.e. if the *-ndbmtd-0 pod's nodeId is 3,
+#         then *-ndbmtd-2 pod's nodeId = 3+2 = 5.
 # Based on these, deduce the nodeId of the current data node pod.
 mgmdConnectstrings=(${NDB_CONNECTSTRING//,/ })
 sfsetPodOrdinalIdx=${HOSTNAME##*-}

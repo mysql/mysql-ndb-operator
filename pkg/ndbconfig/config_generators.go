@@ -40,17 +40,17 @@ ServerPort=1186
 AllowUnresolvedHostnames=1
 
 {{$hostnameSuffix := GetHostnameSuffix -}}
-{{range $idx, $nodeId := GetNodeIds "mgmd" -}}
+{{range $idx, $nodeId := GetNodeIds NdbNodeTypeMgmd -}}
 [ndb_mgmd]
 NodeId={{$nodeId}}
-Hostname={{$.Name}}-mgmd-{{$idx}}.{{$.GetServiceName "mgmd"}}.{{$hostnameSuffix}}
+Hostname={{$.Name}}-{{NdbNodeTypeMgmd}}-{{$idx}}.{{$.GetServiceName NdbNodeTypeMgmd}}.{{$hostnameSuffix}}
 DataDir={{GetDataDir}}
 
 {{end -}}
-{{range $idx, $nodeId := GetNodeIds "ndbd" -}}
+{{range $idx, $nodeId := GetNodeIds NdbNodeTypeNdbmtd -}}
 [ndbd]
 NodeId={{$nodeId}}
-Hostname={{$.Name}}-ndbd-{{$idx}}.{{$.GetServiceName "ndbd"}}.{{$hostnameSuffix}}
+Hostname={{$.Name}}-{{NdbNodeTypeNdbmtd}}-{{$idx}}.{{$.GetServiceName NdbNodeTypeNdbmtd}}.{{$hostnameSuffix}}
 DataDir={{GetDataDir}}
 
 {{end -}}
@@ -84,10 +84,10 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 			var startNodeId *int
 			var numberOfNodes int32
 			switch nodeType {
-			case "mgmd":
+			case constants.NdbNodeTypeMgmd:
 				startNodeId = &ndbdMgmdStartNodeId
 				numberOfNodes = ndb.GetManagementNodeCount()
-			case "ndbd":
+			case constants.NdbNodeTypeNdbmtd:
 				startNodeId = &ndbdMgmdStartNodeId
 				numberOfNodes = ndb.Spec.NodeCount
 			case "api":
@@ -130,6 +130,8 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 				return ndb.Namespace + k8sCname[len("kubernetes.default"):len(k8sCname)-1]
 			}
 		},
+		"NdbNodeTypeMgmd":   func() string { return constants.NdbNodeTypeMgmd },
+		"NdbNodeTypeNdbmtd": func() string { return constants.NdbNodeTypeNdbmtd },
 	})
 
 	if _, err := tmpl.Parse(mgmtConfigTmpl); err != nil {

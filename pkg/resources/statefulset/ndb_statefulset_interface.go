@@ -79,7 +79,7 @@ func (bss *baseStatefulSet) getHelperScriptVolumeMount() corev1.VolumeMount {
 // createContainer creates a new container for the StatefulSet with default values
 func (bss *baseStatefulSet) createContainer(
 	nc *v1alpha1.NdbCluster, containerName string, commandAndArgs []string,
-	volumeMounts []corev1.VolumeMount, portNumbers ...int32) corev1.Container {
+	volumeMounts []corev1.VolumeMount, portNumbers []int32) corev1.Container {
 
 	// Expose the ports passed via portNumbers
 	var ports []corev1.ContainerPort
@@ -125,7 +125,7 @@ func (bss *baseStatefulSet) createContainer(
 }
 
 // newStatefulSet defines a new StatefulSet that will be
-// used by the mgmd and ndbd StatefulSets
+// used by the mgmd and ndbmtd StatefulSets
 func (bss *baseStatefulSet) newStatefulSet(
 	nc *v1alpha1.NdbCluster, cs *ndbconfig.ConfigSummary) *appsv1.StatefulSet {
 
@@ -179,7 +179,7 @@ func (bss *baseStatefulSet) newStatefulSet(
 
 // GetName returns the name of the baseStatefulSet
 func (bss *baseStatefulSet) GetName(nc *v1alpha1.NdbCluster) string {
-	return nc.Name + "-" + bss.nodeType
+	return nc.GetWorkloadName(bss.nodeType)
 }
 
 // GetTypeName returns the type name of baseStatefulSet

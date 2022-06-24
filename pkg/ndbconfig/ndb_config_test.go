@@ -132,12 +132,12 @@ DataDir=/var/lib/ndb/data
 
 [ndbd]
 NodeId=3
-Hostname=example-ndb-ndbd-0.example-ndb-ndbd.default
+Hostname=example-ndb-ndbmtd-0.example-ndb-ndbmtd.default
 DataDir=/var/lib/ndb/data
 
 [ndbd]
 NodeId=4
-Hostname=example-ndb-ndbd-1.example-ndb-ndbd.default
+Hostname=example-ndb-ndbmtd-1.example-ndb-ndbmtd.default
 DataDir=/var/lib/ndb/data
 
 [api]

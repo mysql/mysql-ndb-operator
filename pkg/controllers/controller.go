@@ -67,7 +67,7 @@ type Controller struct {
 
 	// Controllers for various resources
 	mgmdController      NdbStatefulSetControlInterface
-	ndbdController      NdbStatefulSetControlInterface
+	ndbmtdController    NdbStatefulSetControlInterface
 	mysqldController    DeploymentControlInterface
 	configMapController ConfigMapControlInterface
 	serviceController   ServiceControlInterface
@@ -127,8 +127,8 @@ func NewController(
 
 		mgmdController: NewNdbNodesStatefulSetControlInterface(
 			controllerContext.kubeClientset, statefulSetLister, statefulset.NewMgmdStatefulSet()),
-		ndbdController: NewNdbNodesStatefulSetControlInterface(
-			controllerContext.kubeClientset, statefulSetLister, statefulset.NewNdbdStatefulSet()),
+		ndbmtdController: NewNdbNodesStatefulSetControlInterface(
+			controllerContext.kubeClientset, statefulSetLister, statefulset.NewNdbmtdStatefulSet()),
 		mysqldController: NewMySQLDeploymentController(
 			controllerContext.kubeClientset, deploymentInformer.Lister()),
 
@@ -417,7 +417,7 @@ func (c *Controller) processNextWorkItem() (continueProcessing bool) {
 func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
 	return &SyncContext{
 		mgmdController:      c.mgmdController,
-		ndbdController:      c.ndbdController,
+		ndbmtdController:    c.ndbmtdController,
 		mysqldController:    c.mysqldController,
 		configMapController: c.configMapController,
 		serviceController:   c.serviceController,
