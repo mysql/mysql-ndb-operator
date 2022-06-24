@@ -9,8 +9,9 @@ import (
 	"encoding/json"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
-	"github.com/mysql/ndb-operator/pkg/resources"
+	"github.com/mysql/ndb-operator/pkg/resources/statefulset"
 
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -22,27 +23,27 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// StatefulSetControlInterface defines the interface that
+// NdbStatefulSetControlInterface defines the interface that
 // wraps around the create and update of StatefulSets for node types
-type StatefulSetControlInterface interface {
-	GetTypeName() string
+type NdbStatefulSetControlInterface interface {
+	GetTypeName() constants.NdbNodeType
 	EnsureStatefulSet(ctx context.Context, sc *SyncContext) (*apps.StatefulSet, bool, error)
 	ReconcileStatefulSet(
 		ctx context.Context, sfset *apps.StatefulSet, cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) syncResult
 }
 
-// ndbNodeStatefulSetImpl implements the StatefulSetControlInterface to manage MySQL Cluster data nodes
+// ndbNodeStatefulSetImpl implements the NdbStatefulSetControlInterface to manage MySQL Cluster data nodes
 type ndbNodeStatefulSetImpl struct {
 	client             kubernetes.Interface
 	statefulSetLister  appslisters.StatefulSetLister
-	ndbNodeStatefulset resources.StatefulSetInterface
+	ndbNodeStatefulset statefulset.NdbStatefulSetInterface
 }
 
 // NewNdbNodesStatefulSetControlInterface creates a new ndbNodeStatefulSetImpl
 func NewNdbNodesStatefulSetControlInterface(
 	client kubernetes.Interface,
 	statefulSetLister appslisters.StatefulSetLister,
-	ndbNodeStatefulset resources.StatefulSetInterface) StatefulSetControlInterface {
+	ndbNodeStatefulset statefulset.NdbStatefulSetInterface) NdbStatefulSetControlInterface {
 	return &ndbNodeStatefulSetImpl{
 		client:             client,
 		statefulSetLister:  statefulSetLister,
@@ -51,7 +52,7 @@ func NewNdbNodesStatefulSetControlInterface(
 }
 
 // GetTypeName returns the type of the statefulSetInterface
-// being controlled by the StatefulSetControlInterface
+// being controlled by the NdbStatefulSetControlInterface
 func (ndbSfset *ndbNodeStatefulSetImpl) GetTypeName() string {
 	return ndbSfset.ndbNodeStatefulset.GetTypeName()
 }

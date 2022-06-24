@@ -2,7 +2,7 @@
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-package resources
+package statefulset
 
 import (
 	"github.com/mysql/ndb-operator/pkg/constants"
@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// getPodAntiAffinityRules returns the PodAntiAffinity definition
+// GetPodAntiAffinityRules returns the PodAntiAffinity definition
 // with the given mySQLClusterNodeTypes. The mySQLClusterNodeTypes
 // should be in the order of most to least preferred node type for
 // co-location. The defined PodAntiAffinity rules ensure that the
@@ -20,9 +20,9 @@ import (
 // running. If no such worker node is available, then the new pod
 // will be co-located with existing MySQL Cluster node pods based
 // on the preference specified via mySQLClusterNodeTypes.
-func getPodAntiAffinityRules(mySQLClusterNodeTypes []string) *corev1.PodAntiAffinity {
+func GetPodAntiAffinityRules(mySQLClusterNodeTypes []constants.NdbNodeType) *corev1.PodAntiAffinity {
 	if len(mySQLClusterNodeTypes) != 3 {
-		panic("getPodAntiAffinityRules can handle only 3 MySQL Cluster NodeTypes")
+		panic("GetPodAntiAffinityRules can handle only 3 MySQL Cluster NodeTypes")
 	}
 	// Use weights based on node type preference. Lower weights for
 	// node types with higher preference and vice versa as the

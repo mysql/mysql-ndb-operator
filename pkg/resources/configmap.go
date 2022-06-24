@@ -11,13 +11,14 @@ import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 )
 
 // Embed the helper scripts in the ndb operator binary
-//go:embed scripts
+//go:embed statefulset/scripts
 var scriptsFS embed.FS
 
 // updateManagementConfig updates the Data map with a new config.ini
@@ -80,21 +81,22 @@ func updateMySQLConfig(
 // scripts used for the MySQL Server initialisation & health
 // probes and Data node health probe.
 func updateHelperScripts(data map[string]string) error {
-	for key, desc := range map[string]string{
-		mysqldInitScriptKey:       "MySQL Server init",
-		mysqldHealthCheckKey:      "MySQL Server Healthcheck",
-		dataNodeInitScriptKey:     "Data Node init",
-		dataNodeStartupProbeKey:   "Data Node Startup Probe",
-		waitForDNSUpdateScriptKey: "DNS Update Waiter",
-		mgmdStartupProbeKey:       "Mgmd Startup Probe",
+	for fileName, desc := range map[string]string{
+		mysqldInitScriptKey:                  "MySQL Server init",
+		mysqldHealthCheckKey:                 "MySQL Server Healthcheck",
+		constants.DataNodeInitScript:         "Data Node init",
+		constants.DataNodeStartupProbeScript: "Data Node Startup Probe",
+		constants.WaitForDNSUpdateScript:     "DNS Update Waiter",
+		constants.MgmdStartupProbeScript:     "Mgmd Startup Probe",
 	} {
-		fileBytes, err := scriptsFS.ReadFile("scripts/" + key)
+		fileBytes, err := scriptsFS.ReadFile("statefulset/scripts/" + fileName)
 		if err != nil {
 			klog.Errorf("Failed to read %s script at %q : %v",
-				desc, key, err)
+				desc, fileName, err)
 			return err
 		}
-		data[key] = string(fileBytes)
+		// Use the script file name as the key in configmap.
+		data[fileName] = string(fileBytes)
 	}
 	return nil
 }
