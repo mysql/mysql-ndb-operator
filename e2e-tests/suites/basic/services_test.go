@@ -17,6 +17,7 @@ import (
 
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 	"github.com/mysql/ndb-operator/pkg/mgmapi"
 )
@@ -76,16 +77,16 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster Services", func(tc *ndbtest.TestC
 
 	ginkgo.When("the NdbCluster is created with default field values", func() {
 		ginkgo.It("should create ClusterIP services for Management and MySQL Servers", func() {
-			expectServiceType(ctx, svcInterface, testNdb, "mgmd", v1.ServiceTypeClusterIP)
-			expectServiceType(ctx, svcInterface, testNdb, "mysqld", v1.ServiceTypeClusterIP)
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMgmd, v1.ServiceTypeClusterIP)
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMySQLD, v1.ServiceTypeClusterIP)
 		})
 
 		ginkgo.It("should create headless service for Data Nodes", func() {
-			expectServiceType(ctx, svcInterface, testNdb, "ndbd", ServiceTypeHeadless)
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeNdbmtd, ServiceTypeHeadless)
 		})
 
 		ginkgo.It("should be able to access mgmd via the service", func() {
-			serviceName := testNdb.GetServiceName("mgmd") + "." + testNdb.Namespace
+			serviceName := testNdb.GetServiceName(constants.NdbNodeTypeMgmd) + "." + testNdb.Namespace
 			testMgmdConnection(serviceName)
 		})
 	})
@@ -140,15 +141,15 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster Services", func(tc *ndbtest.TestC
 		})
 
 		ginkgo.It("should create LoadBalancer services for Management Server", func() {
-			expectServiceType(ctx, svcInterface, testNdb, "mgmd", v1.ServiceTypeLoadBalancer)
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMgmd, v1.ServiceTypeLoadBalancer)
 		})
 
 		ginkgo.It("should create ClusterIP services for MySQL Servers", func() {
-			expectServiceType(ctx, svcInterface, testNdb, "mysqld", v1.ServiceTypeClusterIP)
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMySQLD, v1.ServiceTypeClusterIP)
 		})
 
 		ginkgo.It("should create headless service for Data Nodes", func() {
-			expectServiceType(ctx, svcInterface, testNdb, "ndbd", ServiceTypeHeadless)
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeNdbmtd, ServiceTypeHeadless)
 		})
 	})
 
@@ -160,12 +161,12 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster Services", func(tc *ndbtest.TestC
 		})
 
 		ginkgo.It("should create LoadBalancer services for Management and MySQL Server", func() {
-			expectServiceType(ctx, svcInterface, testNdb, "mgmd", v1.ServiceTypeLoadBalancer)
-			expectServiceType(ctx, svcInterface, testNdb, "mysqld", v1.ServiceTypeLoadBalancer)
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMgmd, v1.ServiceTypeLoadBalancer)
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMySQLD, v1.ServiceTypeLoadBalancer)
 		})
 
 		ginkgo.It("should create headless service for Data Nodes", func() {
-			expectServiceType(ctx, svcInterface, testNdb, "ndbd", ServiceTypeHeadless)
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeNdbmtd, ServiceTypeHeadless)
 		})
 	})
 })

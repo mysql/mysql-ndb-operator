@@ -39,7 +39,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Cluster config update", func(tc *ndbte
 		ns = tc.Namespace()
 		c = tc.K8sClientset()
 		// Create a new NdbCluster resource to be used by the test
-		testNdb = testutils.NewTestNdb(ns, "ndbd-config-test", 2)
+		testNdb = testutils.NewTestNdb(ns, "ndb-config-test", 2)
 		testNdb.Spec.Mysqld.NodeCount = 1
 		testNdb.Spec.DataNodeConfig = make(map[string]*intstr.IntOrString)
 		testNdb.Spec.ManagementNodeConfig = make(map[string]*intstr.IntOrString)

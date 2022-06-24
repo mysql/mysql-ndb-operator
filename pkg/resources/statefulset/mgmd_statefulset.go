@@ -21,6 +21,11 @@ const (
 	mgmdConfigIniMountPath  = constants.DataDir + "/config"
 )
 
+var (
+	// Ports to be exposed by the container and service
+	mgmdPorts = []int32{1186}
+)
+
 // mgmdStatefulSet implements the NdbStatefulSetInterface to control a set of management nodes
 type mgmdStatefulSet struct {
 	baseStatefulSet
@@ -110,7 +115,7 @@ func (mss *mgmdStatefulSet) getInitContainers(nc *v1alpha1.NdbCluster) []corev1.
 	return []corev1.Container{
 		mss.createContainer(nc,
 			mss.getContainerName(true),
-			cmdAndArgs, mss.getVolumeMounts()),
+			cmdAndArgs, mss.getVolumeMounts(), nil),
 	}
 }
 
@@ -133,7 +138,7 @@ func (mss *mgmdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Cont
 
 	mgmdContainer := mss.createContainer(nc,
 		mss.getContainerName(false),
-		cmdAndArgs, mss.getVolumeMounts(), 1186)
+		cmdAndArgs, mss.getVolumeMounts(), mgmdPorts)
 
 	// Startup probe for the mgmd container
 	mgmdContainer.StartupProbe = &corev1.Probe{

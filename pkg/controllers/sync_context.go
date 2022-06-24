@@ -43,7 +43,7 @@ type SyncContext struct {
 	// controller handling creation and changes of resources
 	mysqldController    DeploymentControlInterface
 	mgmdController      NdbStatefulSetControlInterface
-	ndbdController      NdbStatefulSetControlInterface
+	ndbmtdController    NdbStatefulSetControlInterface
 	configMapController ConfigMapControlInterface
 	serviceController   ServiceControlInterface
 	pdbController       PodDisruptionBudgetControlInterface
@@ -103,7 +103,7 @@ func (sc *SyncContext) ensureServices(
 	sc.ManagementServerIP, sc.ManagementServerPort = helpers.GetServiceAddressAndPort(svc)
 
 	// create a headless service for data nodes
-	_, existed, err = sc.serviceController.EnsureService(sc, ctx, 1186, sc.ndbdController.GetTypeName(), false, true)
+	_, existed, err = sc.serviceController.EnsureService(sc, ctx, 1186, sc.ndbmtdController.GetTypeName(), false, true)
 	if err != nil {
 		return false, err
 	}
@@ -131,8 +131,8 @@ func (sc *SyncContext) ensureManagementServerStatefulSet(
 // ensureDataNodeStatefulSet creates the StatefulSet for
 // Data Nodes in the K8s Server if they don't exist yet.
 func (sc *SyncContext) ensureDataNodeStatefulSet(
-	ctx context.Context) (ndbdStatefulSet *appsv1.StatefulSet, existed bool, err error) {
-	return sc.ndbdController.EnsureStatefulSet(ctx, sc)
+	ctx context.Context) (ndbmtdStatefulSet *appsv1.StatefulSet, existed bool, err error) {
+	return sc.ndbmtdController.EnsureStatefulSet(ctx, sc)
 }
 
 // validateMySQLServerDeployment retrieves the MySQL Server deployment from K8s.
@@ -143,9 +143,9 @@ func (sc *SyncContext) validateMySQLServerDeployment() (*appsv1.Deployment, erro
 
 // ensurePodDisruptionBudgets creates PodDisruptionBudgets for data nodes
 func (sc *SyncContext) ensurePodDisruptionBudget(ctx context.Context) (existed bool, err error) {
-	// ensure ndbd PDB
+	// ensure ndbmtd PDB
 	return sc.pdbController.EnsurePodDisruptionBudget(
-		ctx, sc, sc.ndbdController.GetTypeName())
+		ctx, sc, sc.ndbmtdController.GetTypeName())
 }
 
 // reconcileManagementNodeStatefulSet patches the Management Node
@@ -157,7 +157,7 @@ func (sc *SyncContext) reconcileManagementNodeStatefulSet(ctx context.Context) s
 // reconcileDataNodeStatefulSet patches the Data Node StatefulSet
 // with the spec from the latest generation of NdbCluster.
 func (sc *SyncContext) reconcileDataNodeStatefulSet(ctx context.Context) syncResult {
-	return sc.ndbdController.ReconcileStatefulSet(ctx, sc.dataNodeSfSet, sc.configSummary, sc.ndb)
+	return sc.ndbmtdController.ReconcileStatefulSet(ctx, sc.dataNodeSfSet, sc.configSummary, sc.ndb)
 }
 
 // ensurePodVersion checks if the pod with the given name has the desired pod version.
@@ -259,15 +259,15 @@ func (sc *SyncContext) connectToManagementServer(managementNodeId ...int) (mgmap
 // given time, only one data node per group will be affected by this
 // maneuver, ensuring MySQL Cluster's availability.
 func (sc *SyncContext) ensureDataNodePodVersion(ctx context.Context) syncResult {
-	ndbdSfset := sc.dataNodeSfSet
-	if statefulsetUpdateComplete(ndbdSfset) {
+	ndbmtdSfset := sc.dataNodeSfSet
+	if statefulsetUpdateComplete(ndbmtdSfset) {
 		// All data nodes have the desired pod version.
 		// Continue with rest of the sync process.
 		klog.Info("All Data node pods are up-to-date and ready")
 		return continueProcessing()
 	}
 
-	desiredPodRevisionHash := ndbdSfset.Status.UpdateRevision
+	desiredPodRevisionHash := ndbmtdSfset.Status.UpdateRevision
 	klog.Infof("Ensuring Data Node pods have the desired podSpec version, %s", desiredPodRevisionHash)
 
 	// Get the node and nodegroup details via clusterStatus
@@ -309,12 +309,12 @@ func (sc *SyncContext) ensureDataNodePodVersion(ctx context.Context) syncResult 
 		for _, nodeId := range candidateNodeIds {
 			// Generate the pod name using nodeId.
 			// Data node with nodeId 'i' runs in a pod with ordinal index 'i-1-numberOfMgmdNodes'
-			ndbdPodName := fmt.Sprintf(
-				"%s-%d", ndbdSfset.Name, nodeId-1-int(sc.configSummary.NumOfManagementNodes))
+			ndbmtdPodName := fmt.Sprintf(
+				"%s-%d", ndbmtdSfset.Name, nodeId-1-int(sc.configSummary.NumOfManagementNodes))
 
 			// Check the pod version and delete it if its outdated
 			podDeleted, err := sc.ensurePodVersion(
-				ctx, ndbdSfset.Namespace, ndbdPodName, desiredPodRevisionHash,
+				ctx, ndbmtdSfset.Namespace, ndbmtdPodName, desiredPodRevisionHash,
 				fmt.Sprintf("Data Node(nodeId=%d)", nodeId))
 			if err != nil {
 				return errorWhileProcessing(err)

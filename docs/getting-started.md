@@ -36,15 +36,15 @@ To list all the pods created by the NDB Operator, run :
 kubectl get pods -l mysql.oracle.com/v1alpha1=example-ndb
 ```
 
-For `example-ndb` NdbCluster object, two management nodes (\*-mgmd-\* pods), two multi-threaded data nodes (\*-ndbd-\* pods) and two MySQL Servers (\*-mysqld-\*) would have been created by the NDB operator :
+For `example-ndb` NdbCluster object, two management nodes (\*-mgmd-\* pods), two multi-threaded data nodes (\*-ndbmtd-\* pods) and two MySQL Servers (\*-mysqld-\*) would have been created by the NDB operator :
 ```sh
 NAME                                  READY   STATUS    RESTARTS   AGE
 example-ndb-mgmd-0                    1/1     Running   0          3m53s
 example-ndb-mgmd-1                    1/1     Running   0          2m5s
 example-ndb-mysqld-599bcfbd45-b4vld   1/1     Running   0          78s
 example-ndb-mysqld-599bcfbd45-bgnpz   1/1     Running   0          78s
-example-ndb-ndbd-0                    1/1     Running   0          3m53s
-example-ndb-ndbd-1                    1/1     Running   0          3m53s
+example-ndb-ndbmtd-0                  1/1     Running   0          3m53s
+example-ndb-ndbmtd-1                  1/1     Running   0          3m53s
 ```
 
 ## Connect to the MySQL Cluster
@@ -61,7 +61,7 @@ The above command will generate an output similar to :
 NAME                 TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
 example-ndb-mgmd     ClusterIP   10.100.207.255   <none>        1186/TCP   5m
 example-ndb-mysqld   ClusterIP   10.103.182.157   <none>        3306/TCP   5m
-example-ndb-ndbd     ClusterIP   None             <none>        1186/TCP   5m
+example-ndb-ndbmtd   ClusterIP   None             <none>        1186/TCP   5m
 ```
 
 The NDB Operator will also create a `root` user with a random password on all the MySQL Servers. The root password will be stored in a K8s Secret which can be retrieved from the NdbCluster object status :

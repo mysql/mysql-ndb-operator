@@ -424,7 +424,7 @@ func TestCreatesCluster(t *testing.T) {
 	f.newController()
 
 	// One PDB for data nodes
-	omd := getObjectMetadata("test-pdb-ndbd", ndb)
+	omd := getObjectMetadata("test-pdb-ndbmtd", ndb)
 	f.expectCreateAction(ns, "policy", "v1beta1", "poddisruptionbudgets",
 		&policyv1beta1.PodDisruptionBudget{ObjectMeta: *omd})
 
@@ -437,7 +437,7 @@ func TestCreatesCluster(t *testing.T) {
 	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
 	// one headless service for data nodes
-	omd.Name = "test-ndbd"
+	omd.Name = "test-ndbmtd"
 	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
 	// one service for MySQL Servers

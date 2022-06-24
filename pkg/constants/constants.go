@@ -11,7 +11,7 @@ type NdbNodeType = string
 
 const (
 	NdbNodeTypeMgmd   NdbNodeType = "mgmd"
-	NdbNodeTypeNdbmtd NdbNodeType = "ndbd"
+	NdbNodeTypeNdbmtd NdbNodeType = "ndbmtd"
 	NdbNodeTypeMySQLD NdbNodeType = "mysqld"
 )
 

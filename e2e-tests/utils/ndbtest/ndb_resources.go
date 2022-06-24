@@ -11,6 +11,7 @@ import (
 	yaml_utils "github.com/mysql/ndb-operator/e2e-tests/utils/yaml"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/controllers"
 
 	"github.com/onsi/ginkgo/v2"
@@ -25,11 +26,11 @@ func waitForNdbSync(clientset kubernetes.Interface, namespace string, lastKnownE
 }
 
 func waitForNdbDelete(clientset kubernetes.Interface, namespace, ndbName string) {
-	err := sfset_utils.WaitForStatefulSetToDisappear(clientset, namespace, ndbName+"-ndbd")
+	err := sfset_utils.WaitForStatefulSetToDisappear(clientset, namespace, ndbName+"-"+constants.NdbNodeTypeNdbmtd)
 	ExpectNoError(err, "timed out waiting for ndb statefulset to disappear")
-	err = sfset_utils.WaitForStatefulSetToDisappear(clientset, namespace, ndbName+"-mgmd")
+	err = sfset_utils.WaitForStatefulSetToDisappear(clientset, namespace, ndbName+"-"+constants.NdbNodeTypeMgmd)
 	ExpectNoError(err, "timed out waiting for mgmd statefulset to disappear")
-	err = deployment_utils.WaitForDeploymentToDisappear(clientset, namespace, ndbName+"-mysqld")
+	err = deployment_utils.WaitForDeploymentToDisappear(clientset, namespace, ndbName+"-"+constants.NdbNodeTypeMySQLD)
 	ExpectNoError(err, "timed out waiting for mysqld deployment to disappear")
 }
 

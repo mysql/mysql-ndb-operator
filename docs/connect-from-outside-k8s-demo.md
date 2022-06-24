@@ -17,7 +17,7 @@ The output will be similar to :
 NAME                 TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
 example-ndb-mgmd     ClusterIP   10.101.29.155   <none>        1186/TCP   4m29s
 example-ndb-mysqld   ClusterIP   10.103.117.50   <none>        3306/TCP   4m29s
-example-ndb-ndbd     ClusterIP   None            <none>        1186/TCP   4m29s
+example-ndb-ndbmtd   ClusterIP   None            <none>        1186/TCP   4m29s
 ```
 
 The `example-ndb-mgmd` and `example-ndb-mysqld` services are the Management and MySQL Services respectively. Note that they both are of type ClusterIP Service. They have to be upgraded to LoadBalancer service type to make them accessible from outside the K8s Cluster. This can be done by setting the `spec.enableManagementNodeLoadBalancer` and `spec.mysqld.enableLoadBalancer` fields of the NdbCluster resource to true. These options can be enabled when the NdbCluster resource object is created or via an update to the object when the MySQL Cluster is already running. 
@@ -32,7 +32,7 @@ Verify that the services have been upgraded :
 NAME                 TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)          AGE
 example-ndb-mgmd     LoadBalancer   10.101.29.155   10.101.29.155   1186:32490/TCP   31m
 example-ndb-mysqld   LoadBalancer   10.103.117.50   10.103.117.50   3306:32334/TCP   31m
-example-ndb-ndbd     ClusterIP      None            <none>          1186/TCP         31m
+example-ndb-ndbmtd   ClusterIP      None            <none>          1186/TCP         31m
 ```
 
 The services will now be available outside the Kubernetes Cluster at the `EXTERNAL-IP` assigned to them by the cloud provider. Not that this demo uses minikube so the EXTERNAL-IP is same as the CLUSTER-IP, but it will vary in a production setting depending on the cloud provider used.

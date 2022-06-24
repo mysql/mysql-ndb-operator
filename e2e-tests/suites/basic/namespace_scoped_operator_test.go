@@ -13,7 +13,9 @@ import (
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
+
 	"github.com/onsi/ginkgo/v2"
 
 	clientset "k8s.io/client-go/kubernetes"
@@ -32,9 +34,9 @@ type testContext struct {
 
 func verifyNdbNodesInEachNs(clientset clientset.Interface, namespace string, testNdbCluster *v1alpha1.NdbCluster) {
 	ginkgo.By("Verifying that all ndb nodes were deployed in each namespace")
-	sfset_utils.ExpectHasReplicas(clientset, namespace, testNdbCluster.Name+"-mgmd", 1)
-	sfset_utils.ExpectHasReplicas(clientset, namespace, testNdbCluster.Name+"-ndbd", 2)
-	deployment_utils.ExpectHasReplicas(clientset, namespace, testNdbCluster.Name+"-mysqld", 2)
+	sfset_utils.ExpectHasReplicas(clientset, namespace, testNdbCluster.GetWorkloadName(constants.NdbNodeTypeMgmd), 1)
+	sfset_utils.ExpectHasReplicas(clientset, namespace, testNdbCluster.GetWorkloadName(constants.NdbNodeTypeNdbmtd), 2)
+	deployment_utils.ExpectHasReplicas(clientset, namespace, testNdbCluster.GetWorkloadName(constants.NdbNodeTypeMySQLD), 2)
 }
 
 var _ = ginkgo.Describe("Multiple NDB Clusters released in different Namespaces", func() {

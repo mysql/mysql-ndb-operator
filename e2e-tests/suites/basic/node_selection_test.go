@@ -122,11 +122,11 @@ var _ = ndbtest.NewOrderedTestCase("Node Selectors and Pod affinity", func(tc *n
 				nodeType := pod.GetLabels()[constants.ClusterNodeTypeLabel]
 				var expectedWorkerNode string
 				switch nodeType {
-				case "mgmd":
+				case constants.NdbNodeTypeMgmd:
 					expectedWorkerNode = nodeLabels[getNodeLabel(0)]
-				case "ndbd":
+				case constants.NdbNodeTypeNdbmtd:
 					expectedWorkerNode = nodeLabels[getNodeLabel(1)]
-				case "mysqld":
+				case constants.NdbNodeTypeMySQLD:
 					expectedWorkerNode = nodeLabels[getNodeLabel(2)]
 				default:
 					panic("unrecognised node type" + nodeType)
@@ -154,17 +154,9 @@ var _ = ndbtest.NewOrderedTestCase("Node Selectors and Pod affinity", func(tc *n
 					// This pod is being terminated
 					continue
 				}
+				// Collect similar nodeTypes under a single key
 				nodeType := pod.GetLabels()[constants.ClusterNodeTypeLabel]
-				switch nodeType {
-				case "mgmd":
-					scheduledWorkerNodes["mgmd"] = append(scheduledWorkerNodes["mgmd"], pod.Spec.NodeName)
-				case "ndbd":
-					scheduledWorkerNodes["ndbd"] = append(scheduledWorkerNodes["ndbd"], pod.Spec.NodeName)
-				case "mysqld":
-					scheduledWorkerNodes["mysqld"] = append(scheduledWorkerNodes["mysqld"], pod.Spec.NodeName)
-				default:
-					panic("unrecognised node type" + nodeType)
-				}
+				scheduledWorkerNodes[nodeType] = append(scheduledWorkerNodes[nodeType], pod.Spec.NodeName)
 			}
 
 			// Verify the scheduled nodes are different per nodeType
