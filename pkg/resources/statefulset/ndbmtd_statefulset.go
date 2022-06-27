@@ -29,6 +29,10 @@ type ndbmtdStatefulSet struct {
 	baseStatefulSet
 }
 
+func (nss *ndbmtdStatefulSet) NewGoverningService(nc *v1alpha1.NdbCluster) *corev1.Service {
+	return newService(nc, ndbmtdPorts, nss.nodeType, true, false)
+}
+
 // getPodVolumes returns a slice of volumes to be
 // made available to the data node pods.
 func (nss *ndbmtdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []corev1.Volume {

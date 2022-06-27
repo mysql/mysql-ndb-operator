@@ -38,13 +38,13 @@ kubectl get pods -l mysql.oracle.com/v1alpha1=example-ndb
 
 For `example-ndb` NdbCluster object, two management nodes (\*-mgmd-\* pods), two multi-threaded data nodes (\*-ndbmtd-\* pods) and two MySQL Servers (\*-mysqld-\*) would have been created by the NDB operator :
 ```sh
-NAME                                  READY   STATUS    RESTARTS   AGE
-example-ndb-mgmd-0                    1/1     Running   0          3m53s
-example-ndb-mgmd-1                    1/1     Running   0          2m5s
-example-ndb-mysqld-599bcfbd45-b4vld   1/1     Running   0          78s
-example-ndb-mysqld-599bcfbd45-bgnpz   1/1     Running   0          78s
-example-ndb-ndbmtd-0                  1/1     Running   0          3m53s
-example-ndb-ndbmtd-1                  1/1     Running   0          3m53s
+NAME                   READY   STATUS    RESTARTS   AGE
+example-ndb-mgmd-0     1/1     Running   0          3m53s
+example-ndb-mgmd-1     1/1     Running   0          2m5s
+example-ndb-mysqld-0   1/1     Running   0          78s
+example-ndb-mysqld-1   1/1     Running   0          78s
+example-ndb-ndbmtd-0   1/1     Running   0          3m53s
+example-ndb-ndbmtd-1   1/1     Running   0          3m53s
 ```
 
 ## Connect to the MySQL Cluster

@@ -22,7 +22,8 @@ import (
 type NdbStatefulSetInterface interface {
 	GetTypeName() constants.NdbNodeType
 	GetName(nc *v1alpha1.NdbCluster) string
-	NewStatefulSet(cs *ndbconfig.ConfigSummary, cluster *v1alpha1.NdbCluster) *appsv1.StatefulSet
+	NewGoverningService(nc *v1alpha1.NdbCluster) *corev1.Service
+	NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) *appsv1.StatefulSet
 }
 
 type baseStatefulSet struct {

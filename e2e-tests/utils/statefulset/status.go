@@ -11,6 +11,7 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 )
@@ -30,4 +31,12 @@ func ExpectHasReplicas(c clientset.Interface, namespace, sfsetName string, repli
 
 	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 	gomega.ExpectWithOffset(1, int(sfset.Status.Replicas)).To(gomega.Equal(replicas))
+}
+
+// ExpectToBeNil expects the given StatefulSet to be empty.
+func ExpectToBeNil(c clientset.Interface, namespace, sfsetName string) {
+	ginkgo.By("verifying that the StatefulSet doesn't exist")
+	_, err := c.AppsV1().StatefulSets(namespace).Get(context.TODO(), sfsetName, metav1.GetOptions{})
+
+	gomega.ExpectWithOffset(1, errors.IsNotFound(err)).To(gomega.BeTrue())
 }

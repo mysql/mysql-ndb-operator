@@ -59,7 +59,7 @@ func updateMySQLConfig(
 		return err
 	} else if needsUpdate {
 		// Update the my.cnf key in configmap
-		if data[mysqldMyCnfKey], err = ndbconfig.GetMySQLConfigString(nc, oldConfigSummary); err != nil {
+		if data[constants.MySQLConfigKey], err = ndbconfig.GetMySQLConfigString(nc, oldConfigSummary); err != nil {
 			klog.Errorf("Failed to get the my.cnf config string : %s", err)
 			return err
 		}
@@ -82,8 +82,8 @@ func updateMySQLConfig(
 // probes and Data node health probe.
 func updateHelperScripts(data map[string]string) error {
 	for fileName, desc := range map[string]string{
-		mysqldInitScriptKey:                  "MySQL Server init",
-		mysqldHealthCheckKey:                 "MySQL Server Healthcheck",
+		constants.MysqldInitScript:           "MySQL Server init",
+		constants.MysqldHealthCheckScript:    "MySQL Server Healthcheck",
 		constants.DataNodeInitScript:         "Data Node init",
 		constants.DataNodeStartupProbeScript: "Data Node Startup Probe",
 		constants.WaitForDNSUpdateScript:     "DNS Update Waiter",

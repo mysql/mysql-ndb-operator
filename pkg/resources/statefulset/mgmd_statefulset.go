@@ -31,6 +31,10 @@ type mgmdStatefulSet struct {
 	baseStatefulSet
 }
 
+func (mss *mgmdStatefulSet) NewGoverningService(nc *v1alpha1.NdbCluster) *corev1.Service {
+	return newService(nc, mgmdPorts, mss.nodeType, false, nc.Spec.EnableManagementNodeLoadBalancer)
+}
+
 // getPodVolumes returns a slice of volumes to be
 // made available to the management server pods.
 func (mss *mgmdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []corev1.Volume {

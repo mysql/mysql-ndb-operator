@@ -11,7 +11,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 
-	deployment_utils "github.com/mysql/ndb-operator/e2e-tests/utils/deployment"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbutils"
 	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
@@ -61,12 +60,12 @@ var _ = ndbtest.NewTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 			ginkgo.By("running the correct number of various Ndb nodes")
 			sfset_utils.ExpectHasReplicas(c, ns, testNdb.GetWorkloadName(constants.NdbNodeTypeMgmd), 2)
 			sfset_utils.ExpectHasReplicas(c, ns, testNdb.GetWorkloadName(constants.NdbNodeTypeNdbmtd), 2)
-			deployment_utils.ExpectHasReplicas(c, ns, testNdb.GetWorkloadName(constants.NdbNodeTypeMySQLD), 2)
+			sfset_utils.ExpectHasReplicas(c, ns, testNdb.GetWorkloadName(constants.NdbNodeTypeMySQLD), 2)
 
 			ginkgo.By("having the right labels for the pods")
 			sfset_utils.ExpectHasLabel(c, ns, testNdb.GetWorkloadName(constants.NdbNodeTypeMgmd), constants.ClusterLabel, "example-ndb")
 			sfset_utils.ExpectHasLabel(c, ns, testNdb.GetWorkloadName(constants.NdbNodeTypeNdbmtd), constants.ClusterLabel, "example-ndb")
-			deployment_utils.ExpectHasLabel(c, ns, testNdb.GetWorkloadName(constants.NdbNodeTypeMySQLD), constants.ClusterLabel, "example-ndb")
+			sfset_utils.ExpectHasLabel(c, ns, testNdb.GetWorkloadName(constants.NdbNodeTypeMySQLD), constants.ClusterLabel, "example-ndb")
 
 			ginkgo.By("updating the NdbCluster resource status", func() {
 				ndbutils.ValidateNdbClusterStatus(tc.Ctx(), tc.NdbClientset(), ns, ndbName)

@@ -5,7 +5,6 @@
 package ndbtest
 
 import (
-	deployment_utils "github.com/mysql/ndb-operator/e2e-tests/utils/deployment"
 	event_utils "github.com/mysql/ndb-operator/e2e-tests/utils/events"
 	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
 	yaml_utils "github.com/mysql/ndb-operator/e2e-tests/utils/yaml"
@@ -30,7 +29,7 @@ func waitForNdbDelete(clientset kubernetes.Interface, namespace, ndbName string)
 	ExpectNoError(err, "timed out waiting for ndb statefulset to disappear")
 	err = sfset_utils.WaitForStatefulSetToDisappear(clientset, namespace, ndbName+"-"+constants.NdbNodeTypeMgmd)
 	ExpectNoError(err, "timed out waiting for mgmd statefulset to disappear")
-	err = deployment_utils.WaitForDeploymentToDisappear(clientset, namespace, ndbName+"-"+constants.NdbNodeTypeMySQLD)
+	err = sfset_utils.WaitForStatefulSetToDisappear(clientset, namespace, ndbName+"-"+constants.NdbNodeTypeMySQLD)
 	ExpectNoError(err, "timed out waiting for mysqld deployment to disappear")
 }
 

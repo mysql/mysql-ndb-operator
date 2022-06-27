@@ -68,7 +68,7 @@ type Controller struct {
 	// Controllers for various resources
 	mgmdController      NdbStatefulSetControlInterface
 	ndbmtdController    NdbStatefulSetControlInterface
-	mysqldController    DeploymentControlInterface
+	mysqldController    *MySQLDStatefulSetController
 	configMapController ConfigMapControlInterface
 	serviceController   ServiceControlInterface
 	pdbController       PodDisruptionBudgetControlInterface
@@ -129,8 +129,8 @@ func NewController(
 			controllerContext.kubeClientset, statefulSetLister, statefulset.NewMgmdStatefulSet()),
 		ndbmtdController: NewNdbNodesStatefulSetControlInterface(
 			controllerContext.kubeClientset, statefulSetLister, statefulset.NewNdbmtdStatefulSet()),
-		mysqldController: NewMySQLDeploymentController(
-			controllerContext.kubeClientset, deploymentInformer.Lister()),
+		mysqldController: NewMySQLDStatefulSetController(
+			controllerContext.kubeClientset, statefulSetLister, statefulset.NewMySQLdStatefulSet()),
 
 		pdbController: NewPodDisruptionBudgetControl(
 			controllerContext.kubeClientset, pdbInformer.Lister()),
@@ -231,15 +231,6 @@ func NewController(
 					}
 					controller.extractAndEnqueueNdbCluster(newDeployment)
 				},
-
-				// When a deployment owned by a NdbCluster resource
-				// is deleted, add the NdbCluster resource to the
-				// workqueue to start the next reconciliation loop.
-				DeleteFunc: func(obj interface{}) {
-					deployment := obj.(*appsv1.Deployment)
-					klog.Infof("Deployment %q is deleted", getNamespacedName(deployment))
-					controller.extractAndEnqueueNdbCluster(deployment)
-				},
 			},
 		},
 
@@ -256,8 +247,8 @@ func NewController(
 				// NdbCluster resources. The StatefulSet labels
 				// will have the names of their respective
 				// NdbCluster owners.
-				statefulset := obj.(*appsv1.StatefulSet)
-				_, clusterLabelExists := statefulset.GetLabels()[constants.ClusterLabel]
+				sfset := obj.(*appsv1.StatefulSet)
+				_, clusterLabelExists := sfset.GetLabels()[constants.ClusterLabel]
 				return clusterLabelExists
 			},
 
@@ -308,6 +299,15 @@ func NewController(
 					}
 
 					controller.extractAndEnqueueNdbCluster(newStatefulSet)
+				},
+
+				// When a statefulset owned by a NdbCluster resource
+				// is deleted, add the NdbCluster resource to the
+				// workqueue to start the next reconciliation loop.
+				DeleteFunc: func(obj interface{}) {
+					sfset := obj.(*appsv1.StatefulSet)
+					klog.Infof("StatefulSet %q is deleted", getNamespacedName(sfset))
+					controller.extractAndEnqueueNdbCluster(sfset)
 				},
 			},
 		},

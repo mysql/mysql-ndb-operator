@@ -5,7 +5,7 @@ This demonstration is an extension to the example specified in the [Getting Star
 Exec into a pod that has the required client tools. Note : A MySQL Server pod started by the NDB Operator is used here. But the methods described here should work on any pod running inside the K8s Server that has the required MySQL and NDB clients.
 
 ```sh
-kubectl exec -it example-ndb-mysqld-599bcfbd45-hq8ll -- bash
+kubectl exec -it example-ndb-mysqld-0 -- bash
 ```
 
 Connect to the Management Server using the `example-ndb-mgmd` service created by the NDB Operator, as a connectstring :
