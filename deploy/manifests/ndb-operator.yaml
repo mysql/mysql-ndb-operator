@@ -1682,7 +1682,7 @@ spec:
                   podSpec:
                     description: PodSpec contains a subset of K8s PodSpec fields which
                       when set will be copied into to the podSpec of MySQL Server
-                      Deployment.
+                      StatefulSet.
                     properties:
                       affinity:
                         description: If specified, the pod's scheduling constraints
@@ -2587,6 +2587,7 @@ rules:
   - watch
   - create
   - patch
+  - delete
 - apiGroups:
   - ""
   resources:
@@ -2619,6 +2620,7 @@ rules:
   - patch
   - list
   - watch
+  - delete
 - apiGroups:
   - apps
   resources:

@@ -103,8 +103,8 @@ type NdbMysqldSpec struct {
 	// +kubebuilder:default=false
 	// +optional
 	EnableLoadBalancer bool `json:"enableLoadBalancer,omitempty"`
-	// PodSpec contains a subset of K8s PodSpec fields which when
-	// set will be copied into to the podSpec of MySQL Server Deployment.
+	// PodSpec contains a subset of K8s PodSpec fields which when set
+	// will be copied into to the podSpec of MySQL Server StatefulSet.
 	// +optional
 	PodSpec *NdbPodSpec `json:"podSpec,omitempty"`
 }

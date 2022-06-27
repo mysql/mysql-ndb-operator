@@ -109,8 +109,8 @@ func (f *fixture) close() {
 	close(f.stopCh)
 }
 
-// runController runs the controller and validate the actions
-func (f *fixture) runController(nc *ndbcontroller.NdbCluster, expectError bool, expectedErrors []string) {
+// runControllerAndValidateActions runs the controller and validate the actions
+func (f *fixture) runControllerAndValidateActions(nc *ndbcontroller.NdbCluster, expectError bool, expectedErrors []string) {
 
 	ndbKey := getKey(nc, f.t)
 
@@ -145,7 +145,7 @@ func (f *fixture) runController(nc *ndbcontroller.NdbCluster, expectError bool, 
 	} else {
 		// NO error is expected
 		if err == nil {
-			f.t.Logf("Successfully syncing ndb")
+			f.t.Logf("Successfully completed one reconciliation loop")
 		} else {
 			f.t.Errorf("Recieved unexpected error : %s", err)
 		}
@@ -413,6 +413,24 @@ func getObjectMetadata(name string, ndb *ndbcontroller.NdbCluster) *metav1.Objec
 	}
 }
 
+// Channel to wait for the StatefulSets to become ready
+var sfsetReady = make(chan bool)
+
+func markStatefulSetAsReadyOnAdd(f *fixture) {
+	f.k8sIf.Apps().V1().StatefulSets().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			sfset := obj.(*appsv1.StatefulSet)
+			// Immediately mark the StatefulSet as ready once it is added
+			sfset.Status.ReadyReplicas = *sfset.Spec.Replicas
+			sfset.Status.UpdatedReplicas = *sfset.Spec.Replicas
+			sfset.Status.Replicas = *sfset.Spec.Replicas
+			sfset.Status.CurrentReplicas = *sfset.Spec.Replicas
+			// Send a signal to the sfsetReady channel to denote the sfset readiness
+			sfsetReady <- true
+		},
+	})
+}
+
 func TestCreatesCluster(t *testing.T) {
 
 	ns := metav1.NamespaceDefault
@@ -423,6 +441,10 @@ func TestCreatesCluster(t *testing.T) {
 	// create new controller
 	f.newController()
 
+	// Register handler to make StatefulSets ready as soon as they are created
+	markStatefulSetAsReadyOnAdd(f)
+
+	// Expect actions for first loop
 	// One PDB for data nodes
 	omd := getObjectMetadata("test-pdb-ndbmtd", ndb)
 	f.expectCreateAction(ns, "policy", "v1beta1", "poddisruptionbudgets",
@@ -436,14 +458,6 @@ func TestCreatesCluster(t *testing.T) {
 	omd.Name = "test-mgmd"
 	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
 
-	// one headless service for data nodes
-	omd.Name = "test-ndbmtd"
-	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
-
-	// one service for MySQL Servers
-	omd.Name = "test-mysqld"
-	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
-
 	// One StatefulSet for management nodes
 	omd.Name = "test-mgmd"
 	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
@@ -452,5 +466,45 @@ func TestCreatesCluster(t *testing.T) {
 	f.expectNdbClusterStatusUpdateAction(ns, "mysql.oracle.com", "v1alpha1", "ndbclusters")
 
 	// The reconciliation loop ends here. It continues only after the management nodes are ready.
-	f.runController(ndb, false, nil)
+	f.runControllerAndValidateActions(ndb, false, nil)
+
+	// Wait for mgmd sfset to become ready
+	<-sfsetReady
+
+	// Expect Actions for the next loop
+	// one headless service for data nodes
+	omd.Name = "test-ndbmtd"
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
+
+	// One StatefulSet for Data nodes
+	omd.Name = "test-ndbmtd"
+	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
+
+	// Expect an update on ndbcluster/status
+	f.expectNdbClusterStatusUpdateAction(ns, "mysql.oracle.com", "v1alpha1", "ndbclusters")
+
+	// The reconciliation loop ends here. It continues only after the data nodes are ready.
+	f.runControllerAndValidateActions(ndb, false, nil)
+
+	// Wait for ndbmtd sfset to become ready
+	<-sfsetReady
+
+	// Expect Actions for the next loop
+	// Secret for the MySQL Server root password
+	omd.Name = "test-mysqld-root-password"
+	f.expectCreateAction(ns, "", "v1", "secrets", &corev1.Secret{ObjectMeta: *omd})
+
+	// Governing Service
+	omd.Name = "test-mysqld"
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
+
+	// One StatefulSet for MySQL Servers
+	omd.Name = "test-mysqld"
+	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
+
+	// Expect an update on ndbcluster/status
+	f.expectNdbClusterStatusUpdateAction(ns, "mysql.oracle.com", "v1alpha1", "ndbclusters")
+
+	// The reconciliation loop ends here.
+	f.runControllerAndValidateActions(ndb, false, nil)
 }

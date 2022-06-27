@@ -54,8 +54,8 @@ func (sc *SyncContext) calculateNdbClusterStatus() *v1alpha1.NdbClusterStatus {
 	// Node ready status and generatedRootPasswordSecretName for MySQL Servers
 	numOfReadyMySQLNodes := int32(0)
 	numOfMySQLServersRequired := nc.GetMySQLServerNodeCount()
-	if sc.mysqldDeployment != nil {
-		numOfReadyMySQLNodes = sc.mysqldDeployment.Status.ReadyReplicas
+	if sc.mysqldSfset != nil {
+		numOfReadyMySQLNodes = sc.mysqldSfset.Status.ReadyReplicas
 		// Update generatedRootPasswordSecretName if one exists
 		if numOfMySQLServersRequired > 0 {
 			if secretName, customSecret := resources.GetMySQLRootPasswordSecretName(nc); !customSecret {

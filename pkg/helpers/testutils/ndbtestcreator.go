@@ -17,8 +17,9 @@ func NewTestNdb(namespace string, name string, noOfNodes int32) *ndbcontroller.N
 			APIVersion: ndbcontroller.SchemeGroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:       name,
+			Namespace:  namespace,
+			Generation: 1,
 		},
 		Spec: ndbcontroller.NdbClusterSpec{
 			NodeCount:       noOfNodes,

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"strconv"
 
-	deployment_utils "github.com/mysql/ndb-operator/e2e-tests/utils/deployment"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/k8sutils"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
@@ -36,7 +35,7 @@ func verifyNdbNodesInEachNs(clientset clientset.Interface, namespace string, tes
 	ginkgo.By("Verifying that all ndb nodes were deployed in each namespace")
 	sfset_utils.ExpectHasReplicas(clientset, namespace, testNdbCluster.GetWorkloadName(constants.NdbNodeTypeMgmd), 1)
 	sfset_utils.ExpectHasReplicas(clientset, namespace, testNdbCluster.GetWorkloadName(constants.NdbNodeTypeNdbmtd), 2)
-	deployment_utils.ExpectHasReplicas(clientset, namespace, testNdbCluster.GetWorkloadName(constants.NdbNodeTypeMySQLD), 2)
+	sfset_utils.ExpectHasReplicas(clientset, namespace, testNdbCluster.GetWorkloadName(constants.NdbNodeTypeMySQLD), 2)
 }
 
 var _ = ginkgo.Describe("Multiple NDB Clusters released in different Namespaces", func() {

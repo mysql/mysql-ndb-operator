@@ -156,7 +156,7 @@ var myCnfTemplate = `{{- /* Template to generate my.cnf config ini */ -}}
 `
 
 // GetMySQLConfigString returns the MySQL Server config(my.cnf)
-// to be used by the MySQL deployments.
+// to be used by the MySQL Server StatefulSet.
 func GetMySQLConfigString(nc *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) (string, error) {
 
 	if nc.GetMySQLCnf() == "" {

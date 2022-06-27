@@ -10,10 +10,12 @@ import (
 	"fmt"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/secret"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/service"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/constants"
+
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes"
@@ -26,7 +28,7 @@ func Connect(clientset kubernetes.Interface, nc *v1alpha1.NdbCluster, dbname str
 		gomega.BeZero(), fmt.Sprintf("No MySQL Servers configured for NdbCluster %q", nc.Name))
 
 	ginkgo.By("connecting to the MySQL Load balancer")
-	serviceName := nc.GetServiceName("mysqld")
+	serviceName := nc.GetServiceName(constants.NdbNodeTypeMySQLD)
 	host, port := service.GetServiceAddressAndPort(clientset, nc.Namespace, serviceName)
 	user := "root"
 	password := secretutils.GetMySQLRootPassword(context.TODO(), clientset, nc)

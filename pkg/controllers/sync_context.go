@@ -17,7 +17,9 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 
+	"github.com/mysql/ndb-operator/config/debug"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/constants"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	ndblisters "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/helpers"
@@ -31,17 +33,14 @@ type SyncContext struct {
 	configSummary *ndbconfig.ConfigSummary
 
 	// Workload resources
-	mgmdNodeSfset    *appsv1.StatefulSet
-	dataNodeSfSet    *appsv1.StatefulSet
-	mysqldDeployment *appsv1.Deployment
-
-	ManagementServerPort int32
-	ManagementServerIP   string
+	mgmdNodeSfset *appsv1.StatefulSet
+	dataNodeSfSet *appsv1.StatefulSet
+	mysqldSfset   *appsv1.StatefulSet
 
 	ndb *v1alpha1.NdbCluster
 
 	// controller handling creation and changes of resources
-	mysqldController    DeploymentControlInterface
+	mysqldController    *MySQLDStatefulSetController
 	mgmdController      NdbStatefulSetControlInterface
 	ndbmtdController    NdbStatefulSetControlInterface
 	configMapController ConfigMapControlInterface
@@ -82,45 +81,6 @@ func (sc *SyncContext) isOwnedByNdbCluster(object metav1.Object) error {
 	return nil
 }
 
-// ensureServices creates all the necessary services for the
-// MySQL Cluster if they do not exist yet.
-// at this stage of the functionality we can still create resources even if
-// the config is invalid as services are only based on Ndb CRD name
-// which is obviously immutable for each individual Ndb CRD
-func (sc *SyncContext) ensureServices(
-	ctx context.Context) (allServicesExisted bool, err error) {
-	var enableLoadBalancer bool
-
-	enableLoadBalancer = sc.configSummary.ManagementLoadBalancer
-
-	// create a service for management servers
-	svc, existed, err := sc.serviceController.EnsureService(sc, ctx, 1186, sc.mgmdController.GetTypeName(), enableLoadBalancer, false)
-	if err != nil {
-		return false, err
-	}
-	allServicesExisted = allServicesExisted && existed
-	// store the management IP and port
-	sc.ManagementServerIP, sc.ManagementServerPort = helpers.GetServiceAddressAndPort(svc)
-
-	// create a headless service for data nodes
-	_, existed, err = sc.serviceController.EnsureService(sc, ctx, 1186, sc.ndbmtdController.GetTypeName(), false, true)
-	if err != nil {
-		return false, err
-	}
-	allServicesExisted = allServicesExisted && existed
-
-	enableLoadBalancer = sc.configSummary.MySQLLoadBalancer
-
-	// create a service for MySQL Servers
-	_, existed, err = sc.serviceController.EnsureService(sc, ctx, 3306, sc.mysqldController.GetTypeName(), enableLoadBalancer, false)
-	if err != nil {
-		return false, err
-	}
-	allServicesExisted = allServicesExisted && existed
-
-	return allServicesExisted, nil
-}
-
 // ensureManagementServerStatefulSet creates the StatefulSet for
 // Management Server in the K8s Server if they don't exist yet.
 func (sc *SyncContext) ensureManagementServerStatefulSet(
@@ -135,10 +95,10 @@ func (sc *SyncContext) ensureDataNodeStatefulSet(
 	return sc.ndbmtdController.EnsureStatefulSet(ctx, sc)
 }
 
-// validateMySQLServerDeployment retrieves the MySQL Server deployment from K8s.
-// If the deployment exists, it verifies if it is owned by the NdbCluster resource.
-func (sc *SyncContext) validateMySQLServerDeployment() (*appsv1.Deployment, error) {
-	return sc.mysqldController.GetDeployment(sc)
+// validateMySQLServerStatefulSet retrieves the MySQL Server statefulset from K8s.
+// If the statefulset exists, it verifies if it is owned by the NdbCluster resource.
+func (sc *SyncContext) validateMySQLServerStatefulSet() (*appsv1.StatefulSet, error) {
+	return sc.mysqldController.GetStatefulSet(sc)
 }
 
 // ensurePodDisruptionBudgets creates PodDisruptionBudgets for data nodes
@@ -151,13 +111,13 @@ func (sc *SyncContext) ensurePodDisruptionBudget(ctx context.Context) (existed b
 // reconcileManagementNodeStatefulSet patches the Management Node
 // StatefulSet with the spec from the latest generation of NdbCluster.
 func (sc *SyncContext) reconcileManagementNodeStatefulSet(ctx context.Context) syncResult {
-	return sc.mgmdController.ReconcileStatefulSet(ctx, sc.mgmdNodeSfset, sc.configSummary, sc.ndb)
+	return sc.mgmdController.ReconcileStatefulSet(ctx, sc.mgmdNodeSfset, sc)
 }
 
 // reconcileDataNodeStatefulSet patches the Data Node StatefulSet
 // with the spec from the latest generation of NdbCluster.
 func (sc *SyncContext) reconcileDataNodeStatefulSet(ctx context.Context) syncResult {
-	return sc.ndbmtdController.ReconcileStatefulSet(ctx, sc.dataNodeSfSet, sc.configSummary, sc.ndb)
+	return sc.ndbmtdController.ReconcileStatefulSet(ctx, sc.dataNodeSfSet, sc)
 }
 
 // ensurePodVersion checks if the pod with the given name has the desired pod version.
@@ -231,7 +191,13 @@ func (sc *SyncContext) connectToManagementServer(managementNodeId ...int) (mgmap
 		// Connect to the Management server via load balancer.
 		// The MgmClient will retry connecting via the load balancer
 		// until a connection is established to the desired node.
-		connectstring = fmt.Sprintf("%s:%d", sc.ManagementServerIP, sc.ManagementServerPort)
+		nc := sc.ndb
+		svc, err := sc.serviceLister.Services(nc.Namespace).Get(nc.GetServiceName(constants.NdbNodeTypeMgmd))
+		if err != nil {
+			return nil, debug.InternalError("connectToManagementServer called before mgmd sfset was created : " + err.Error())
+		}
+		mgmdServiceIP, mgmdServicePort := helpers.GetServiceAddressAndPort(svc)
+		connectstring = fmt.Sprintf("%s:%d", mgmdServiceIP, mgmdServicePort)
 	}
 
 	mgmClient, err := mgmapi.NewMgmClient(connectstring, nodeId)
@@ -376,15 +342,6 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 		return errorWhileProcessing(err)
 	}
 
-	// create all services required by the StatefulSets running the
-	// MySQL Cluster nodes and to expose the services offered by those nodes.
-	if resourceExists, err = sc.ensureServices(ctx); err != nil {
-		return errorWhileProcessing(err)
-	}
-	if !resourceExists {
-		klog.Info("Created resource : Services")
-	}
-
 	// create the management stateful set if it doesn't exist
 	if sc.mgmdNodeSfset, resourceExists, err = sc.ensureManagementServerStatefulSet(ctx); err != nil {
 		return errorWhileProcessing(err)
@@ -427,13 +384,13 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 		return finishProcessing()
 	}
 
-	// MySQL Server deployment will be created only if required.
+	// MySQL Server StatefulSet will be created only if required.
 	// For now, just verify that if it exists, it is indeed owned by the NdbCluster resource.
-	if sc.mysqldDeployment, err = sc.validateMySQLServerDeployment(); err != nil {
+	if sc.mysqldSfset, err = sc.validateMySQLServerStatefulSet(); err != nil {
 		return errorWhileProcessing(err)
 	}
-	if sc.mysqldDeployment != nil && !deploymentComplete(sc.mysqldDeployment) {
-		// MySQL Server deployment exists, but it is not complete yet
+	if sc.mysqldSfset != nil && !statefulsetUpdateComplete(sc.mysqldSfset) {
+		// MySQL Server StatefulSet exists, but it is not complete yet
 		// which implies that this reconciliation was triggered only
 		// to update the NdbCluster status. No need to proceed further.
 		return finishProcessing()
@@ -452,11 +409,11 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 // NdbCluster resource are ready. The sync is stopped if they are not ready.
 func (sc *SyncContext) ensureWorkloadsReadiness() syncResult {
 	// Both mgmd and data node StatefulSets should be ready and
-	// the MySQL deployment should be complete if it exists.
+	// the MySQL StatefulSet should be complete if it exists.
 	if statefulsetReady(sc.mgmdNodeSfset) &&
 		statefulsetReady(sc.dataNodeSfSet) &&
-		(sc.mysqldDeployment == nil ||
-			deploymentComplete(sc.mysqldDeployment)) {
+		(sc.mysqldSfset == nil ||
+			statefulsetUpdateComplete(sc.mysqldSfset)) {
 		klog.Infof("All workloads owned by the NdbCluster resource %q are ready", getNamespacedName(sc.ndb))
 		return continueProcessing()
 	}
@@ -533,8 +490,8 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 	}
 
 	// Second pass of MySQL Server reconciliation
-	// Reconcile the rest of spec/config change in MySQL Server Deployment
-	if sr := sc.mysqldController.ReconcileDeployment(ctx, sc); sr.stopSync() {
+	// Reconcile the rest of spec/config change in MySQL Server StatefulSet
+	if sr := sc.mysqldController.ReconcileStatefulSet(ctx, sc); sr.stopSync() {
 		return sr
 	}
 

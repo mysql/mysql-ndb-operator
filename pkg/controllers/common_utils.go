@@ -8,9 +8,10 @@ import (
 	"strconv"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/mysql/ndb-operator/pkg/resources"
+	"github.com/mysql/ndb-operator/pkg/resources/statefulset"
+
 	appsv1 "k8s.io/api/apps/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -19,8 +20,14 @@ const (
 
 // getNamespacedName returns the name of the object
 // along with the Namespace of form <namespace>/<name>.
-func getNamespacedName(obj v1.Object) string {
+func getNamespacedName(obj metav1.Object) string {
 	return obj.GetNamespace() + Separator + obj.GetName()
+}
+
+// getNamespacedName2 combines and returns the name and
+// namespace in the form <namespace>/<name>.
+func getNamespacedName2(namespace, name string) string {
+	return namespace + Separator + name
 }
 
 // getNdbClusterKey returns a key for the
@@ -43,14 +50,15 @@ func deploymentComplete(deployment *appsv1.Deployment) bool {
 // controlled by the given statefulSet have been updated to
 // the latest version and are ready.
 func statefulsetUpdateComplete(statefulset *appsv1.StatefulSet) bool {
-	return statefulset.Status.UpdatedReplicas == *(statefulset.Spec.Replicas) &&
+	return statefulset.Status.Replicas == *(statefulset.Spec.Replicas) &&
 		statefulset.Status.ReadyReplicas == *(statefulset.Spec.Replicas) &&
+		statefulset.Status.UpdatedReplicas == *(statefulset.Spec.Replicas) &&
 		statefulset.Status.ObservedGeneration >= statefulset.Generation &&
 		// CurrentRevision/Replicas not updated if OnDelete update strategy is used.
 		// So skip checking statefulset.Status.CurrentReplicas for OnDelete
 		// https://github.com/kubernetes/kubernetes/issues/106055
 		(statefulset.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType ||
-			statefulset.Status.UpdatedReplicas == *(statefulset.Spec.Replicas))
+			statefulset.Status.CurrentReplicas == *(statefulset.Spec.Replicas))
 }
 
 // statefulsetReady considers a StatefulSet to be ready
@@ -62,9 +70,9 @@ func statefulsetReady(statefulset *appsv1.StatefulSet) bool {
 
 // workloadHasConfigGeneration returns true if the expectedConfigGeneration
 // has already been applied to the given Deployment/StatefulSet.
-func workloadHasConfigGeneration(obj v1.Object, expectedConfigGeneration int64) bool {
+func workloadHasConfigGeneration(obj metav1.Object, expectedConfigGeneration int64) bool {
 	// Get the last applied Config Generation
 	annotations := obj.GetAnnotations()
-	existingConfigGeneration, _ := strconv.ParseInt(annotations[resources.LastAppliedConfigGeneration], 10, 64)
+	existingConfigGeneration, _ := strconv.ParseInt(annotations[statefulset.LastAppliedConfigGeneration], 10, 64)
 	return existingConfigGeneration == expectedConfigGeneration
 }

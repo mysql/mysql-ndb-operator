@@ -49,6 +49,7 @@ rules:
       - watch
       - create
       - patch
+      - delete
 
   - apiGroups: [""]
     resources: ["configmaps"]
@@ -77,6 +78,7 @@ rules:
       - patch
       - list
       - watch
+      - delete
 
   - apiGroups: ["apps"]
     resources: ["deployments"]

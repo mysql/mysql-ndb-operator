@@ -66,4 +66,10 @@ const (
 
 	// DataNodeStartupProbeScript is the Data Nodes' Startup Probe
 	DataNodeStartupProbeScript = "datanode-startup-probe.sh"
+
+	// MysqldInitScript is used to initialize the data directory of the MySQL Servers
+	MysqldInitScript = "ndbcluster-init-script.sh"
+
+	// MysqldHealthCheckScript is the script that checks MySQL Server's health
+	MysqldHealthCheckScript = "ndbcluster-healthcheck.sh"
 )
