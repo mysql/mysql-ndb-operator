@@ -5,13 +5,18 @@
 package statefulset
 
 import (
+	"strconv"
+
 	"github.com/mysql/ndb-operator/config/debug"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
+	"github.com/mysql/ndb-operator/pkg/mgmapi"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -105,6 +110,130 @@ func (nss *ndbmtdStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []corev1.
 	}
 }
 
+// getResourceRequestRequirements computes minimum memory required by the datanode
+// from the MySQL Cluster config and returns the ResourceList with the calculated memory
+func (nss *ndbmtdStatefulSet) getResourceRequestRequirements(nc *v1alpha1.NdbCluster) (corev1.ResourceList, error) {
+
+	// Connect to the Management Server
+	mgmClient, err := mgmapi.NewMgmClient(nc.GetConnectstring())
+	if err != nil {
+		klog.Errorf("Failed to connect to Management Server : %s", err)
+		return nil, err
+	}
+
+	// Retrieve all the config values required to compute the memory requirements
+	dataMemory, err := mgmClient.GetDataMemory(0)
+	if err != nil {
+		klog.Errorf("GetDataMemory failed with error %s", err)
+		return nil, err
+	}
+
+	maxNoOfTables, err := mgmClient.GetMaxNoOfTables(0)
+	if err != nil {
+		klog.Errorf("GetMaxNoOfTables failed with error %s", err)
+		return nil, err
+	}
+
+	maxNoOfAttributes, err := mgmClient.GetMaxNoOfAttributes(0)
+	if err != nil {
+		klog.Errorf("GetMaxNoOfAttributes failed with error %s", err)
+		return nil, err
+	}
+
+	maxNoOfOrderedIndexes, err := mgmClient.GetMaxNoOfOrderedIndexes(0)
+	if err != nil {
+		klog.Errorf("GetMaxNoOfOrderedIndexes failed with error %s", err)
+		return nil, err
+	}
+
+	maxNoOfUniqueHashIndexes, err := mgmClient.GetMaxNoOfUniqueHashIndexes(0)
+	if err != nil {
+		klog.Errorf("GetMaxNoOfUniqueHashIndexes failed with error %s", err)
+		return nil, err
+	}
+
+	maxNoOfConcurrentOperations, err := mgmClient.GetMaxNoOfConcurrentOperations(0)
+	if err != nil {
+		klog.Errorf("GetMaxNoOfConcurrentOperations failed with error %s", err)
+		return nil, err
+	}
+
+	transactionBufferMemory, err := mgmClient.GetTransactionBufferMemory(0)
+	if err != nil {
+		klog.Errorf("GetTransactionBufferMemory failed with error %s", err)
+		return nil, err
+	}
+
+	indexMemory, err := mgmClient.GetIndexMemory(0)
+	if err != nil {
+		klog.Errorf("GetIndexMemory failed with error %s", err)
+		return nil, err
+	}
+
+	redoBuffer, err := mgmClient.GetRedoBuffer(0)
+	if err != nil {
+		klog.Infof("GetRedoBuffer failed with error %s", err)
+		return nil, err
+	}
+
+	longMessageBuffer, err := mgmClient.GetLongMessageBuffer(0)
+	if err != nil {
+		klog.Errorf("GetLongMessageBuffer failed with error %s", err)
+		return nil, err
+	}
+
+	diskPageBufferMemory, err := mgmClient.GetDiskPageBufferMemory(0)
+	if err != nil {
+		klog.Errorf("GetDiskPageBufferMemory failed with error %s", err)
+		return nil, err
+	}
+
+	sharedGlobalMemory, err := mgmClient.GetSharedGlobalMemory(0)
+	if err != nil {
+		klog.Errorf("GetSharedGlobalMemory failed with error %s", err)
+		return nil, err
+	}
+
+	transactionMemory, err := mgmClient.GetTransactionMemory(0)
+	if err != nil {
+		klog.Errorf("GetTransactionMemory failed with error %s", err)
+		return nil, err
+	}
+
+	noOfFragmentLogParts, err := mgmClient.GetNoOfFragmentLogParts(0)
+	if err != nil {
+		klog.Errorf("GetNoOfFragmentLogParts failed with error %s", err)
+		return nil, err
+	}
+
+	//size of the ndbmtd executable inside the pod
+	//mysql version: 8.0.29
+	binarySize := uint64(12746520)
+
+	if transactionMemory == 0 {
+		transactionMemory = dataMemory / 10
+	}
+
+	totalMemory := dataMemory +
+		uint64(maxNoOfTables) +
+		uint64(maxNoOfAttributes) +
+		uint64(maxNoOfOrderedIndexes) +
+		uint64(maxNoOfUniqueHashIndexes) +
+		uint64(maxNoOfConcurrentOperations) +
+		uint64(transactionBufferMemory) +
+		indexMemory +
+		uint64(redoBuffer*noOfFragmentLogParts) + uint64(noOfFragmentLogParts) +
+		uint64(longMessageBuffer) +
+		diskPageBufferMemory +
+		sharedGlobalMemory +
+		transactionMemory +
+		binarySize
+
+	return corev1.ResourceList{
+		"memory": resource.MustParse(strconv.FormatUint(totalMemory, 10)),
+	}, nil
+}
+
 // getInitContainers returns the init containers to be used by the data Node
 func (nss *ndbmtdStatefulSet) getInitContainers(nc *v1alpha1.NdbCluster) []corev1.Container {
 	// Command and args to run the Data node init script
@@ -165,6 +294,16 @@ func (nss *ndbmtdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Co
 		PeriodSeconds:    2,
 		TimeoutSeconds:   2,
 		FailureThreshold: 450,
+	}
+
+	// Set resource request to data node container
+	resList, err := nss.getResourceRequestRequirements(nc)
+	if err == nil {
+		ndbmtdContainer.Resources = corev1.ResourceRequirements{
+			Requests: resList,
+		}
+	} else {
+		klog.Warningf("Failed to set ResourceRequirements to %s", ndbmtdContainer.Name)
 	}
 
 	return []corev1.Container{ndbmtdContainer}

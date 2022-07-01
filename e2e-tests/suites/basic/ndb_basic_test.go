@@ -5,29 +5,38 @@
 package e2e
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 
+	"github.com/mysql/ndb-operator/e2e-tests/utils/k8sutils"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbutils"
 	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
+	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 )
 
-var _ = ndbtest.NewTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
+var _ = ndbtest.NewOrderedTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 	var ns string
 	var c clientset.Interface
 	var ndbName string
+	var testNdb *v1alpha1.NdbCluster
 
 	ginkgo.BeforeEach(func() {
 		ginkgo.By("extracting values from TestContext")
 		ndbName = "example-ndb"
 		ns = tc.Namespace()
 		c = tc.K8sClientset()
+		// dummy NdbCluster object to use helper functions
+		testNdb = testutils.NewTestNdb(ns, ndbName, 2)
 	})
 
 	/*
@@ -49,13 +58,6 @@ var _ = ndbtest.NewTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 		})
 
 		ginkgo.It("should deploy MySQL cluster in K8s", func() {
-
-			// dummy NdbCluster object to use helper functions
-			testNdb := v1alpha1.NdbCluster{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: ndbName,
-				},
-			}
 
 			ginkgo.By("running the correct number of various Ndb nodes")
 			sfset_utils.ExpectHasReplicas(c, ns, testNdb.GetWorkloadName(constants.NdbNodeTypeMgmd), 2)
@@ -80,6 +82,34 @@ var _ = ndbtest.NewTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 					gomega.MatchRegexp(
 						".*\nexample-ndb[ ]+2[ ]+Ready:2/2[ ]+Ready:2/2[ ]+Ready:2/2.*True"))
 			})
+		})
+
+		// This test checks if the difference between the requested memory and
+		// the actual memory for datanode doesn't exceed more than 50%.
+		//
+		// If the difference is more than 50%, then the formula used to calculate
+		// the minimum memory required by the datanode needs to be re-checked.
+		ginkgo.It("should set memory requirement to a value not less than 50% of the actual value", func() {
+
+			// Retrieve a data node pod
+			ndbmtdPodName := fmt.Sprintf("%s-0", testNdb.GetWorkloadName(constants.NdbNodeTypeNdbmtd))
+			pod, err := c.CoreV1().Pods(ns).Get(tc.Ctx(), ndbmtdPodName, metav1.GetOptions{})
+			ndbtest.ExpectNoError(err, "failed to get ndbmtd pod")
+
+			// Execute 'cat /sys/fs/cgroup/memory/memory.usage_in_bytes' to
+			// retrieve the actual memory used by the data node.
+			cmd := []string{
+				"sh",
+				"-c",
+				"cat /sys/fs/cgroup/memory/memory.usage_in_bytes",
+			}
+			stdout, _, err := k8sutils.Exec(c, pod.Name, ns, cmd)
+			ndbtest.ExpectNoError(err, "Failure executing command %s", cmd)
+			trimString := strings.TrimSuffix(stdout.String(), "\n")
+			actualMemory, err := strconv.ParseInt(trimString, 10, 64)
+			ndbtest.ExpectNoError(err, "failed to parse actualMemory %s", stdout.String())
+			requestedMemory := pod.Spec.Containers[0].Resources.Requests.Memory().Value()
+			gomega.Expect(actualMemory/2 < requestedMemory).To(gomega.Equal(true))
 		})
 	})
 })

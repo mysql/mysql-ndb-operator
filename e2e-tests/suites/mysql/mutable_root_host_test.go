@@ -100,10 +100,10 @@ var _ = ndbtest.NewOrderedTestCase("Mutable root host", func(tc *ndbtest.TestCon
 		ginkgo.It("ensure that root user is not accessible from any of the mysql pod in cluster", func() {
 			cmd := buildExecCmd(ctx, c, testNdb, ns)
 
-			err := k8sutils.Exec(c, mysqlpodlist.Items[0].Name, ns, cmd)
+			_, _, err := k8sutils.Exec(c, mysqlpodlist.Items[0].Name, ns, cmd)
 			ndbtest.ExpectError(err, "Expecting failure but succeed")
 
-			err = k8sutils.Exec(c, mysqlpodlist.Items[1].Name, ns, cmd)
+			_, _, err = k8sutils.Exec(c, mysqlpodlist.Items[1].Name, ns, cmd)
 			ndbtest.ExpectError(err, "Expecting failure but succeed")
 		})
 	})
@@ -118,10 +118,10 @@ var _ = ndbtest.NewOrderedTestCase("Mutable root host", func(tc *ndbtest.TestCon
 		ginkgo.It("ensure that root user is accessible from only one pod", func() {
 			cmd := buildExecCmd(ctx, c, testNdb, ns)
 
-			err := k8sutils.Exec(c, mysqlpodlist.Items[0].Name, ns, cmd)
+			_, _, err := k8sutils.Exec(c, mysqlpodlist.Items[0].Name, ns, cmd)
 			ndbtest.ExpectNoError(err, "Failure executing command %s", cmd)
 
-			err = k8sutils.Exec(c, mysqlpodlist.Items[1].Name, ns, cmd)
+			_, _, err = k8sutils.Exec(c, mysqlpodlist.Items[1].Name, ns, cmd)
 			ndbtest.ExpectError(err, "Expecting failure but succeed")
 		})
 	})
@@ -136,10 +136,10 @@ var _ = ndbtest.NewOrderedTestCase("Mutable root host", func(tc *ndbtest.TestCon
 		ginkgo.It("ensure that root user is accessible from all pod", func() {
 			cmd := buildExecCmd(ctx, c, testNdb, ns)
 
-			err := k8sutils.Exec(c, mysqlpodlist.Items[0].Name, ns, cmd)
+			_, _, err := k8sutils.Exec(c, mysqlpodlist.Items[0].Name, ns, cmd)
 			ndbtest.ExpectNoError(err, "Failure executing command %s", cmd)
 
-			err = k8sutils.Exec(c, mysqlpodlist.Items[1].Name, ns, cmd)
+			_, _, err = k8sutils.Exec(c, mysqlpodlist.Items[1].Name, ns, cmd)
 			ndbtest.ExpectNoError(err, "Failure executing command %s", cmd)
 		})
 
@@ -170,10 +170,10 @@ var _ = ndbtest.NewOrderedTestCase("Mutable root host", func(tc *ndbtest.TestCon
 			}
 			cmd := buildExecCmd(ctx, c, testNdb, ns)
 
-			err := k8sutils.Exec(c, mysqlpodlist.Items[0].Name, ns, cmd)
+			_, _, err := k8sutils.Exec(c, mysqlpodlist.Items[0].Name, ns, cmd)
 			ndbtest.ExpectError(err, "Expecting failure but succeed")
 
-			err = k8sutils.Exec(c, mysqlpodlist.Items[1].Name, ns, cmd)
+			_, _, err = k8sutils.Exec(c, mysqlpodlist.Items[1].Name, ns, cmd)
 			ndbtest.ExpectError(err, "Expecting failure but succeed")
 		})
 	})
