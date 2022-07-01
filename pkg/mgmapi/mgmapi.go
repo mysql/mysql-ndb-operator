@@ -27,6 +27,19 @@ type MgmClient interface {
 	StopNodes(nodeIds []int) error
 	GetDataMemory(dataNodeId int) (uint64, error)
 	GetMgmdArbitrationRank() (uint32, error)
+	GetMaxNoOfTables(dataNodeId int) (uint32, error)
+	GetMaxNoOfAttributes(dataNodeId int) (uint32, error)
+	GetMaxNoOfOrderedIndexes(dataNodeId int) (uint32, error)
+	GetMaxNoOfUniqueHashIndexes(dataNodeId int) (uint32, error)
+	GetMaxNoOfConcurrentOperations(dataNodeId int) (uint32, error)
+	GetTransactionBufferMemory(dataNodeId int) (uint32, error)
+	GetIndexMemory(dataNodeId int) (uint64, error)
+	GetRedoBuffer(dataNodeId int) (uint32, error)
+	GetLongMessageBuffer(dataNodeId int) (uint32, error)
+	GetDiskPageBufferMemory(dataNodeId int) (uint64, error)
+	GetSharedGlobalMemory(dataNodeId int) (uint64, error)
+	GetTransactionMemory(dataNodeId int) (uint64, error)
+	GetNoOfFragmentLogParts(dataNodeId int) (uint32, error)
 }
 
 // mgmClientImpl implements the MgmClient interface
@@ -611,15 +624,6 @@ func (mci *mgmClientImpl) GetConfigVersion(nodeId ...int) (uint32, error) {
 	return value.(uint32), nil
 }
 
-// GetDataMemory returns the data memory of the datanode with id dataNodeId
-func (mci *mgmClientImpl) GetDataMemory(dataNodeId int) (uint64, error) {
-	value, err := mci.getConfig(dataNodeId, cfgSectionTypeNDB, dbCfgDataMemory, false)
-	if err != nil {
-		return 0, err
-	}
-	return value.(uint64), nil
-}
-
 // GetMgmdArbitrationRank returns the arbitration rank of the connected mgmd node
 func (mci *mgmClientImpl) GetMgmdArbitrationRank() (uint32, error) {
 	value, err := mci.getConfig(0, cfgSectionTypeMGM, nodeCfgArbitRank, true)
@@ -627,4 +631,92 @@ func (mci *mgmClientImpl) GetMgmdArbitrationRank() (uint32, error) {
 		return 0, err
 	}
 	return value.(uint32), nil
+}
+
+// getDataNodeConfigValueUint32 returns the value of the uint32 dbCfgKey config of the data node with id dataNodeId
+func (mci *mgmClientImpl) getDataNodeConfigValueUint32(dataNodeId int, dbCfgKey uint32) (uint32, error) {
+	value, err := mci.getConfig(dataNodeId, cfgSectionTypeNDB, dbCfgKey, false)
+	if err != nil {
+		return 0, err
+	}
+	return value.(uint32), nil
+}
+
+// getDataNodeConfigValueUint64 returns the value of the uint64 dbCfgKey config of the data node with id dataNodeId
+func (mci *mgmClientImpl) getDataNodeConfigValueUint64(dataNodeId int, dbCfgKey uint32) (uint64, error) {
+	value, err := mci.getConfig(dataNodeId, cfgSectionTypeNDB, dbCfgKey, false)
+	if err != nil {
+		return 0, err
+	}
+	return value.(uint64), nil
+}
+
+// GetDataMemory returns the data memory of the datanode with id dataNodeId
+func (mci *mgmClientImpl) GetDataMemory(dataNodeId int) (uint64, error) {
+	return mci.getDataNodeConfigValueUint64(dataNodeId, dbCfgDataMemory)
+}
+
+// GetMaxNoOfTables returns the maximum number of tables as per the datanode with id dataNodeId
+func (mci *mgmClientImpl) GetMaxNoOfTables(dataNodeId int) (uint32, error) {
+	return mci.getDataNodeConfigValueUint32(dataNodeId, dbCfgNoTables)
+}
+
+// GetMaxNoOfAttributes returns the maximum number of attributes as per the datanode with id dataNodeId
+func (mci *mgmClientImpl) GetMaxNoOfAttributes(dataNodeId int) (uint32, error) {
+	return mci.getDataNodeConfigValueUint32(dataNodeId, dbCfgNoAttributes)
+}
+
+// GetMaxNoOfOrderedIndexes returns the maximum number of ordered indexes as per the datanode with id dataNodeId
+func (mci *mgmClientImpl) GetMaxNoOfOrderedIndexes(dataNodeId int) (uint32, error) {
+	return mci.getDataNodeConfigValueUint32(dataNodeId, dbCfgNoOrderedIndexes)
+}
+
+// GetMaxNoOfUniqueHashIndexes returns the maximum number of unique hash indexes as per the datanode with id dataNodeId
+func (mci *mgmClientImpl) GetMaxNoOfUniqueHashIndexes(dataNodeId int) (uint32, error) {
+	return mci.getDataNodeConfigValueUint32(dataNodeId, dbCfgNoUniqueHashIndexes)
+}
+
+// GetMaxNoOfConcurrentOperations returns the maximum number of concurrent operations as per the datanode with id dataNodeId
+func (mci *mgmClientImpl) GetMaxNoOfConcurrentOperations(dataNodeId int) (uint32, error) {
+	return mci.getDataNodeConfigValueUint32(dataNodeId, dbCfgNoOps)
+}
+
+// GetTransactionBufferMemory returns the transaction buffer memory of the datanode with id dataNodeId
+func (mci *mgmClientImpl) GetTransactionBufferMemory(dataNodeId int) (uint32, error) {
+	return mci.getDataNodeConfigValueUint32(dataNodeId, dbCfgTransBufferMem)
+}
+
+// GetIndexMemory returns the index memory of the datanode with id dataNodeId
+func (mci *mgmClientImpl) GetIndexMemory(dataNodeId int) (uint64, error) {
+	return mci.getDataNodeConfigValueUint64(dataNodeId, dbCfgIndexMem)
+}
+
+// GetRedoBuffer returns the redo buffer of the datanode with id dataNodeId
+func (mci *mgmClientImpl) GetRedoBuffer(dataNodeId int) (uint32, error) {
+	return mci.getDataNodeConfigValueUint32(dataNodeId, dbCfgRedoBuffer)
+}
+
+// GetLongMessageBuffer returns the message buffer of the datanode with id dataNodeId
+func (mci *mgmClientImpl) GetLongMessageBuffer(dataNodeId int) (uint32, error) {
+	return mci.getDataNodeConfigValueUint32(dataNodeId, dbCfgLongSignalBuffer)
+}
+
+// GetDiskPageBufferMemory returns the disk page buffer memory of the datanode with id dataNodeId
+func (mci *mgmClientImpl) GetDiskPageBufferMemory(dataNodeId int) (uint64, error) {
+	return mci.getDataNodeConfigValueUint64(dataNodeId, dbCfgDiskPageBufferMemory)
+}
+
+// GetSharedGlobalMemory returns the shared global memory of the datanode with id dataNodeId
+func (mci *mgmClientImpl) GetSharedGlobalMemory(dataNodeId int) (uint64, error) {
+	return mci.getDataNodeConfigValueUint64(dataNodeId, dbCfgSga)
+}
+
+// GetTransactionMemory returns the transaction memory of the datanode with id dataNodeId
+func (mci *mgmClientImpl) GetTransactionMemory(dataNodeId int) (uint64, error) {
+	return mci.getDataNodeConfigValueUint64(dataNodeId, dbCfgTransactionMemory)
+}
+
+// GetNoOfFragmentLogParts returns the number of fragment log parts in the datanode with id dataNodeId
+func (mci *mgmClientImpl) GetNoOfFragmentLogParts(dataNodeId int) (uint32, error) {
+	return mci.getDataNodeConfigValueUint32(dataNodeId, dbCfgNoRedologParts)
 }
