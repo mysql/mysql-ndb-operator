@@ -17,14 +17,13 @@ import (
 
 // Exec executes the given cmd from the pod with the given podName.
 func Exec(client kubernetes.Interface, podName string,
-	namespace string, cmd []string) error {
+	namespace string, cmd []string) (*bytes.Buffer, *bytes.Buffer, error) {
 
 	config, _ := restclient.InClusterConfig()
 
 	// Create a Rest request to the pod using k8s rest client api
 	req := client.CoreV1().RESTClient().Post().Resource("pods").Name(podName).Namespace(namespace).SubResource("exec")
 
-	// Exec function is used only to execute MySQL queries. So, input buffer is not required
 	option := &v1.PodExecOptions{
 		Command: cmd,
 		Stdin:   false,
@@ -36,7 +35,7 @@ func Exec(client kubernetes.Interface, podName string,
 	scheme := runtime.NewScheme()
 	if err := v1.AddToScheme(scheme); err != nil {
 		klog.Infof("error adding to scheme: %s", err)
-		return err
+		return nil, nil, err
 	}
 
 	parameterCodec := runtime.NewParameterCodec(scheme)
@@ -49,10 +48,11 @@ func Exec(client kubernetes.Interface, podName string,
 	exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
 	if err != nil {
 		klog.Infof("error executing SPDY request: %s", err)
-		return err
+		return nil, nil, err
 	}
 
-	var stdout, stderr bytes.Buffer
+	var stderr bytes.Buffer
+	var stdout bytes.Buffer
 
 	// Connect to the pod, execute the shell commands in the request and gets the output and error streams
 	err = exec.Stream(remotecommand.StreamOptions{
@@ -63,10 +63,10 @@ func Exec(client kubernetes.Interface, podName string,
 	})
 
 	if err != nil {
-		klog.Infof("error executing commands")
-		return err
+		klog.Infof("Error executing command : %s", err)
+		return nil, nil, err
 	}
 
 	klog.Infof("OUTPUT: %s ERR: %s", stdout.String(), stderr.String())
-	return nil
+	return &stdout, &stderr, nil
 }
