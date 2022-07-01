@@ -33,6 +33,21 @@ func getConnectionToMgmd(t *testing.T) *mgmClientImpl {
 	return mgmClient
 }
 
+// expectReturnValue checks that the returned value is same as the expected value
+func expectReturnValue(t *testing.T, err error, returnValue uint64, expectedValue uint64) {
+	t.Helper()
+
+	if err != nil {
+		t.Errorf("getting value for config parameter from mgm server failed : %s", err)
+		return
+	}
+
+	if returnValue != expectedValue {
+		t.Errorf("default value for the config parameter differ from the returned value. Returned value:%d expected value:%d", returnValue, expectedValue)
+		return
+	}
+}
+
 // getAnyConnectedNodeId returns id of a connected node of type nodeType
 func getAnyConnectedNodeId(t *testing.T, mc MgmClient, nodeType NodeTypeEnum) int {
 	t.Helper()
@@ -404,6 +419,59 @@ func TestMgmClientImpl_getConfig(t *testing.T) {
 		t.Errorf("getting config failed : %s", err)
 		return
 	}
+}
+
+func TestMgmClientImpl_getDefaultConfig(t *testing.T) {
+	mci := getConnectionToMgmd(t)
+	defer mci.Disconnect()
+
+	dataNodeId := getAnyConnectedNodeId(t, mci, NodeTypeNDB)
+	if dataNodeId == 0 {
+		return
+	}
+
+	returnValue, err := mci.GetDataMemory(dataNodeId)
+	expectReturnValue(t, err, returnValue, 102760448)
+
+	returnValue32, err := mci.GetMaxNoOfTables(dataNodeId)
+	expectReturnValue(t, err, uint64(returnValue32), 128)
+
+	returnValue32, err = mci.GetMaxNoOfAttributes(dataNodeId)
+	expectReturnValue(t, err, uint64(returnValue32), 1000)
+
+	returnValue32, err = mci.GetMaxNoOfOrderedIndexes(dataNodeId)
+	expectReturnValue(t, err, uint64(returnValue32), 128)
+
+	returnValue32, err = mci.GetMaxNoOfUniqueHashIndexes(dataNodeId)
+	expectReturnValue(t, err, uint64(returnValue32), 64)
+
+	returnValue32, err = mci.GetMaxNoOfConcurrentOperations(dataNodeId)
+	expectReturnValue(t, err, uint64(returnValue32), 32768)
+
+	returnValue32, err = mci.GetTransactionBufferMemory(dataNodeId)
+	expectReturnValue(t, err, uint64(returnValue32), 1048576)
+
+	returnValue, err = mci.GetIndexMemory(dataNodeId)
+	expectReturnValue(t, err, returnValue, 0)
+
+	returnValue32, err = mci.GetRedoBuffer(dataNodeId)
+	expectReturnValue(t, err, uint64(returnValue32), 33554432)
+
+	returnValue32, err = mci.GetLongMessageBuffer(dataNodeId)
+	expectReturnValue(t, err, uint64(returnValue32), 67108864)
+
+	returnValue, err = mci.GetDiskPageBufferMemory(dataNodeId)
+	expectReturnValue(t, err, returnValue, 67108864)
+
+	returnValue, err = mci.GetSharedGlobalMemory(dataNodeId)
+	expectReturnValue(t, err, returnValue, 134217728)
+
+	returnValue, err = mci.GetTransactionMemory(dataNodeId)
+	expectReturnValue(t, err, returnValue, 0)
+
+	returnValue32, err = mci.GetNoOfFragmentLogParts(dataNodeId)
+	expectReturnValue(t, err, uint64(returnValue32), 4)
+
 }
 
 func TestMgmClientImpl_GetConfigVersionFromNode(t *testing.T) {
