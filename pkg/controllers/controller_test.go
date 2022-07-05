@@ -224,9 +224,6 @@ func extractObjectMetaData(actual core.Action, extO, actO runtime.Object, t *tes
 	case "secrets":
 		expOM = extO.(*corev1.Secret).ObjectMeta
 		actOM = actO.(*corev1.Secret).ObjectMeta
-	case "deployments":
-		expOM = extO.(*appsv1.Deployment).ObjectMeta
-		actOM = actO.(*appsv1.Deployment).ObjectMeta
 	case "ndbclusters":
 		expOM = extO.(*ndbcontroller.NdbCluster).ObjectMeta
 		actOM = actO.(*ndbcontroller.NdbCluster).ObjectMeta
@@ -349,8 +346,6 @@ func filterInformerActions(actions []core.Action) []core.Action {
 				action.Matches("watch", "services") ||
 				action.Matches("list", "poddisruptionbudgets") ||
 				action.Matches("watch", "poddisruptionbudgets") ||
-				action.Matches("list", "deployments") ||
-				action.Matches("watch", "deployments") ||
 				action.Matches("list", "statefulsets") ||
 				action.Matches("watch", "statefulsets") ||
 				action.Matches("list", "validatingwebhookconfigurations")) {
