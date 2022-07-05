@@ -97,7 +97,6 @@ func NewController(
 	// Register for all the required informers
 	ndbClusterInformer := ndbSharedIndexInformer.Mysql().V1alpha1().NdbClusters()
 	statefulSetInformer := k8sSharedIndexInformer.Apps().V1().StatefulSets()
-	deploymentInformer := k8sSharedIndexInformer.Apps().V1().Deployments()
 	podInformer := k8sSharedIndexInformer.Core().V1().Pods()
 	serviceInformer := k8sSharedIndexInformer.Core().V1().Services()
 	pdbInformer := k8sSharedIndexInformer.Policy().V1beta1().PodDisruptionBudgets()
@@ -106,7 +105,6 @@ func NewController(
 	informerSyncedMethods := []cache.InformerSynced{
 		ndbClusterInformer.Informer().HasSynced,
 		statefulSetInformer.Informer().HasSynced,
-		deploymentInformer.Informer().HasSynced,
 		podInformer.Informer().HasSynced,
 		serviceInformer.Informer().HasSynced,
 		pdbInformer.Informer().HasSynced,
@@ -190,53 +188,6 @@ func NewController(
 			klog.Infof("NdbCluster resource '%s' was deleted", getNdbClusterKey(ndb))
 		},
 	})
-
-	// Set up event handlers for deployment resource changes
-	deploymentInformer.Informer().AddEventHandlerWithResyncPeriod(
-
-		cache.FilteringResourceEventHandler{
-			FilterFunc: func(obj interface{}) bool {
-				// Filter out all deployments not owned by any
-				// NdbCluster resources. The deployment labels
-				// will have the names of their respective
-				// NdbCluster owners.
-				deployment := obj.(*appsv1.Deployment)
-				_, clusterLabelExists := deployment.GetLabels()[constants.ClusterLabel]
-				return clusterLabelExists
-			},
-
-			Handler: cache.ResourceEventHandlerFuncs{
-				// When a deployment owned by a NdbCluster resource
-				// is updated, either
-				//  a) it is complete, in which case, start the
-				//     next reconciliation loop (or)
-				//  b) one or more pods status have become ready/unready,
-				//     in which case the status of the NdbCluster resource
-				//     needs to be updated, which also happens through a
-				//     reconciliation loop.
-				//  So, add the NdbCluster item to the workqueue for both cases.
-				UpdateFunc: func(oldObj, newObj interface{}) {
-					oldDeployment := oldObj.(*appsv1.Deployment)
-					newDeployment := newObj.(*appsv1.Deployment)
-
-					if reflect.DeepEqual(oldDeployment.Status, newDeployment.Status) {
-						// No updates to status => this event was triggered
-						// by an update to the Deployment spec by the operator.
-						// No need to enqueue for reconciliation.
-						return
-					}
-
-					if deploymentComplete(newDeployment) {
-						klog.Infof("Deployment %q is complete", getNamespacedName(newDeployment))
-					}
-					controller.extractAndEnqueueNdbCluster(newDeployment)
-				},
-			},
-		},
-
-		// Set resyncPeriod to 0 to ignore all re-sync events
-		0,
-	)
 
 	// Set up event handlers for StatefulSet resource changes
 	statefulSetInformer.Informer().AddEventHandlerWithResyncPeriod(

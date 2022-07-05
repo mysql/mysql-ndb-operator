@@ -36,16 +36,6 @@ func getNdbClusterKey(nc *v1alpha1.NdbCluster) string {
 	return getNamespacedName(nc)
 }
 
-// deploymentComplete considers a deployment to be complete
-// once all of its desired replicas are updated and available,
-// and no old pods are running.
-func deploymentComplete(deployment *appsv1.Deployment) bool {
-	return deployment.Status.UpdatedReplicas == *(deployment.Spec.Replicas) &&
-		deployment.Status.Replicas == *(deployment.Spec.Replicas) &&
-		deployment.Status.AvailableReplicas == *(deployment.Spec.Replicas) &&
-		deployment.Status.ObservedGeneration >= deployment.Generation
-}
-
 // statefulsetUpdateComplete returns true when all the pods
 // controlled by the given statefulSet have been updated to
 // the latest version and are ready.

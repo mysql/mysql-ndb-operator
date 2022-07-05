@@ -2622,16 +2622,6 @@ rules:
   - watch
   - delete
 - apiGroups:
-  - apps
-  resources:
-  - deployments
-  verbs:
-  - create
-  - list
-  - patch
-  - watch
-  - delete
-- apiGroups:
   - policy
   resources:
   - poddisruptionbudgets
