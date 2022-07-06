@@ -6,13 +6,26 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller"
+	"github.com/mysql/ndb-operator/pkg/mysqlclient"
+	"github.com/mysql/ndb-operator/pkg/resources"
 	"github.com/mysql/ndb-operator/pkg/resources/statefulset"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
 	listerappsv1 "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/klog/v2"
+)
+
+const (
+	// rootHost is the annotation key which stores the Root user's current host
+	rootHost = ndbcontroller.GroupName + "/root-host"
+	// rootUserGeneration is the annotation key which stores the NdbCluster
+	// generation whose spec has been applied to the Root user.
+	rootUserGeneration = ndbcontroller.GroupName + "/root-user-generation"
 )
 
 type MySQLDStatefulSetController struct {
@@ -70,9 +83,9 @@ func (mssc *MySQLDStatefulSetController) HandleScaleDown(ctx context.Context, sc
 	if mysqldNodeCount == 0 {
 		// The StatefulSet has to be deleted
 		// Delete the root user first.
-		err := deleteRootUser(sc)
-		if err != nil {
-			klog.Errorf("error while deleting root user")
+		rootHost := mysqldSfset.GetAnnotations()[rootHost]
+		if err := mysqlclient.DeleteRootUserIfExists(mysqldSfset, rootHost); err != nil {
+			klog.Errorf("Failed to delete root user")
 			return errorWhileProcessing(err)
 		}
 
@@ -83,7 +96,7 @@ func (mssc *MySQLDStatefulSetController) HandleScaleDown(ctx context.Context, sc
 		if secretClient.IsControlledBy(ctx, secretName, nc) {
 			// The given NdbCluster is set as the Owner of the secret,
 			// which implies that this was created by the operator.
-			err = secretClient.Delete(ctx, mysqldSfset.Namespace, secretName)
+			err := secretClient.Delete(ctx, mysqldSfset.Namespace, secretName)
 			if err != nil && !errors.IsNotFound(err) {
 				// Delete failed with an error.
 				// Ignore NotFound error as this delete might be a redundant
@@ -147,15 +160,6 @@ func (mssc *MySQLDStatefulSetController) ReconcileStatefulSet(ctx context.Contex
 
 	// At this point the statefulset exists and has already been verified
 	// to be complete (i.e. no previous updates still being applied) by HandleScaleDown.
-
-	// Create root user if it does not exist
-	rootHost := cs.MySQLRootHost
-	err := createRootUser(ctx, sc, rootHost)
-	if err != nil {
-		klog.Errorf("Failed to create MySQL root user : %s", err)
-		return errorWhileProcessing(err)
-	}
-
 	// Check if the statefulset has the recent config generation.
 	if workloadHasConfigGeneration(mysqldSfset, cs.NdbClusterGeneration) {
 		// Statefulset upto date
@@ -163,20 +167,68 @@ func (mssc *MySQLDStatefulSetController) ReconcileStatefulSet(ctx context.Contex
 		return continueProcessing()
 	}
 
-	err = handleRootHostChanges(sc, rootHost)
-	if err != nil {
-		klog.Errorf("Failed to update MySQL root user's host : %s", err)
-		return errorWhileProcessing(err)
-	}
-
 	// Statefulset has to be patched
 	// Patch the Governing Service first
-	if err = sc.serviceController.patchService(ctx, sc, mssc.ndbNodeStatefulset); err != nil {
+	if err := sc.serviceController.patchService(ctx, sc, mssc.ndbNodeStatefulset); err != nil {
 		return errorWhileProcessing(err)
 	}
 
 	// Patch the StatefulSet
 	updatedStatefulSet := mssc.ndbNodeStatefulset.NewStatefulSet(cs, nc)
 	return mssc.patchStatefulSet(ctx, mysqldSfset, updatedStatefulSet)
+}
 
+// reconcileRootUser creates or updates the root user with the recent NdbCluster spec
+func (mssc *MySQLDStatefulSetController) reconcileRootUser(ctx context.Context, sc *SyncContext) syncResult {
+	mysqldSfset := sc.mysqldSfset
+	if mysqldSfset == nil {
+		// Nothing to do as the MySQL Servers do not exist
+		return continueProcessing()
+	}
+
+	// Get the last applied NdbCluster Generation to the Root User
+	annotations := mysqldSfset.GetAnnotations()
+	var rootUserGen int64
+	if genString, exists := annotations[rootUserGeneration]; exists {
+		rootUserGen, _ = strconv.ParseInt(genString, 10, 64)
+	}
+
+	recentNdbGen := sc.configSummary.NdbClusterGeneration
+	if rootUserGen == recentNdbGen {
+		// The Root user spec is up-to-date
+		return continueProcessing()
+	}
+
+	// The root user needs be created or updated
+	nc := sc.ndb
+	newRootHost := nc.Spec.Mysqld.RootHost
+	if existingRootHost, exists := annotations[rootHost]; !exists {
+		// Root user doesn't exist yet - create it.
+		// Extract password.
+		secretName, _ := resources.GetMySQLRootPasswordSecretName(nc)
+		secretClient := NewMySQLRootPasswordSecretInterface(sc.kubeClientset())
+		password, err := secretClient.ExtractPassword(ctx, mysqldSfset.Namespace, secretName)
+		if err != nil {
+			return errorWhileProcessing(err)
+		}
+		// Create Root user
+		if err = mysqlclient.CreateRootUserIfNotExist(mysqldSfset, newRootHost, password); err != nil {
+			klog.Errorf("Failed to create root user")
+			return errorWhileProcessing(err)
+		}
+	} else if newRootHost != existingRootHost {
+		// Root Host needs to be updated
+		if err := mysqlclient.UpdateRootUser(mysqldSfset, existingRootHost, newRootHost); err != nil {
+			klog.Errorf("Failed to update root user")
+			return errorWhileProcessing(err)
+		}
+	}
+
+	// Successfully applied the changes to root user
+	// Patch the StatefulSet to mark the changes as done
+	updatedMysqldSfset := mysqldSfset.DeepCopy()
+	annotations = updatedMysqldSfset.Annotations
+	annotations[rootHost] = newRootHost
+	annotations[rootUserGeneration] = fmt.Sprintf("%d", recentNdbGen)
+	return mssc.patchStatefulSet(ctx, mysqldSfset, updatedMysqldSfset)
 }

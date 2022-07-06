@@ -9,7 +9,7 @@ import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/resources"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -19,8 +19,9 @@ import (
 
 type SecretControlInterface interface {
 	IsControlledBy(ctx context.Context, secretName string, ndb *v1alpha1.NdbCluster) bool
-	Ensure(ctx context.Context, ndb *v1alpha1.NdbCluster) (*v1.Secret, error)
+	Ensure(ctx context.Context, ndb *v1alpha1.NdbCluster) (*corev1.Secret, error)
 	Delete(ctx context.Context, namespace, secretName string) error
+	ExtractPassword(ctx context.Context, namespace, name string) (string, error)
 }
 
 // secretDefaults implements the default methods and fields for all secret types
@@ -49,6 +50,19 @@ func (sd *secretDefaults) Delete(ctx context.Context, namespace, secretName stri
 	return sd.secretInterface(namespace).Delete(ctx, secretName, metav1.DeleteOptions{})
 }
 
+// ExtractPassword extracts the password from the given secret
+func (sd *secretDefaults) ExtractPassword(ctx context.Context, namespace, name string) (string, error) {
+	// Check if the secret exists
+	secret, err := sd.secretInterface(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		// Secret does not exist
+		klog.Errorf("Failed to retrieve Secret %q : %s", name, err)
+		return "", err
+	}
+
+	return string(secret.Data[corev1.BasicAuthPasswordKey]), nil
+}
+
 // mysqlRootPasswordSecrets implements SecretControlInterface and
 // can handle a password required for the MySQL root account.
 type mysqlRootPasswordSecrets struct {
@@ -66,7 +80,7 @@ func NewMySQLRootPasswordSecretInterface(client kubernetes.Interface) SecretCont
 
 // Ensure checks if a secret with the given name exists
 // and creates a new one if it doesn't exist already
-func (mrps *mysqlRootPasswordSecrets) Ensure(ctx context.Context, ndb *v1alpha1.NdbCluster) (*v1.Secret, error) {
+func (mrps *mysqlRootPasswordSecrets) Ensure(ctx context.Context, ndb *v1alpha1.NdbCluster) (*corev1.Secret, error) {
 	secretName, customSecret := resources.GetMySQLRootPasswordSecretName(ndb)
 
 	// Check if the secret exists
