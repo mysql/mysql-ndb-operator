@@ -495,6 +495,11 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 		return sr
 	}
 
+	// Reconcile the Root user
+	if sr := sc.mysqldController.reconcileRootUser(ctx, sc); sr.stopSync() {
+		return sr
+	}
+
 	// At this point, the MySQL Cluster is in sync with the configuration in the config map.
 	// The configuration in the config map has to be checked to see if it is still the
 	// desired config specified in the Ndb object.

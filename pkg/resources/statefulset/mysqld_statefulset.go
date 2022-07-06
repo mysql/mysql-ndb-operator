@@ -43,8 +43,6 @@ const (
 	LastAppliedMySQLServerConfigVersion = ndbcontroller.GroupName + "/last-applied-my-cnf-config-version"
 	// RootPasswordSecret is the name of the secret that holds the password for the root account
 	RootPasswordSecret = ndbcontroller.GroupName + "/root-password-secret"
-	// RootHost represent the host name from which the root can connect to the MySQL Server
-	RootHost = ndbcontroller.GroupName + "/root-host"
 )
 
 var (
@@ -285,7 +283,6 @@ func (mss *mysqldStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 
 	// Update statefulset annotation
 	statefulSetAnnotations := statefulSet.GetAnnotations()
-	statefulSetAnnotations[RootHost] = nc.Spec.Mysqld.RootHost
 	statefulSetAnnotations[RootPasswordSecret], _ = resources.GetMySQLRootPasswordSecretName(nc)
 
 	// Update template pod spec
