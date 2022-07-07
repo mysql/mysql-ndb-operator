@@ -38,4 +38,4 @@ annotations:
   artifacthub.io/license: UPL-1.0
   artifacthub.io/prerelease: "true"
   artifacthub.io/operator: "true"
-  artifacthub.io/operatorCapabilities: Basic Install
+  artifacthub.io/operatorCapabilities: Seamless Upgrades
