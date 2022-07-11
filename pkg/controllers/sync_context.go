@@ -17,12 +17,9 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 
-	"github.com/mysql/ndb-operator/config/debug"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	"github.com/mysql/ndb-operator/pkg/constants"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	ndblisters "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
-	"github.com/mysql/ndb-operator/pkg/helpers"
 	"github.com/mysql/ndb-operator/pkg/mgmapi"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
 )
@@ -157,60 +154,6 @@ func (sc *SyncContext) ensurePodVersion(
 	return true, nil
 }
 
-// connectToManagementServer connects to a management server and returns the mgmapi.MgmClient
-// An optional managementNodeId can be passed to force the method to connect to the mgmd with the id.
-func (sc *SyncContext) connectToManagementServer(managementNodeId ...int) (mgmapi.MgmClient, error) {
-
-	if len(managementNodeId) > 1 {
-		// connectToManagementServer usage error
-		panic("nodeId can take in only one optional management node id to connect to")
-	}
-
-	// By default, connect to the mgmd with nodeId 1
-	nodeId := 1
-	if len(managementNodeId) == 1 {
-		nodeId = managementNodeId[0]
-	}
-
-	// Deduce the connectstring
-	var connectstring string
-	if sc.controllerContext.runningInsideK8s {
-		// Operator is running inside a K8s pod.
-		// Directly connect to the desired management server's pod using its IP
-		podName := fmt.Sprintf("%s-%d", sc.ndb.GetServiceName("mgmd"), nodeId-1)
-		pod, err := sc.podLister.Pods(sc.ndb.Namespace).Get(podName)
-		if err != nil {
-			klog.Errorf("Failed to find Management server with node id '%d' and pod '%s/%s' : %s",
-				nodeId, sc.ndb.Namespace, podName, err)
-			return nil, err
-		}
-		connectstring = fmt.Sprintf("%s:%d", pod.Status.PodIP, 1186)
-		klog.V(2).Infof("Using pod %s/%s for management server with node id %d", sc.ndb.Namespace, podName, nodeId)
-	} else {
-		// Operator is running from outside K8s.
-		// Connect to the Management server via load balancer.
-		// The MgmClient will retry connecting via the load balancer
-		// until a connection is established to the desired node.
-		nc := sc.ndb
-		svc, err := sc.serviceLister.Services(nc.Namespace).Get(nc.GetServiceName(constants.NdbNodeTypeMgmd))
-		if err != nil {
-			return nil, debug.InternalError("connectToManagementServer called before mgmd sfset was created : " + err.Error())
-		}
-		mgmdServiceIP, mgmdServicePort := helpers.GetServiceAddressAndPort(svc)
-		connectstring = fmt.Sprintf("%s:%d", mgmdServiceIP, mgmdServicePort)
-	}
-
-	mgmClient, err := mgmapi.NewMgmClient(connectstring, nodeId)
-	if err != nil {
-		klog.Errorf(
-			"Failed to connect to the Management Server with desired node id %d : %s",
-			nodeId, err)
-		return nil, err
-	}
-
-	return mgmClient, nil
-}
-
 // ensureDataNodePodVersion checks if all the Data Node pods
 // have the latest podSpec defined by the StatefulSet. If not, it safely
 // restarts them without affecting the availability of MySQL Cluster.
@@ -237,11 +180,12 @@ func (sc *SyncContext) ensureDataNodePodVersion(ctx context.Context) syncResult 
 	klog.Infof("Ensuring Data Node pods have the desired podSpec version, %s", desiredPodRevisionHash)
 
 	// Get the node and nodegroup details via clusterStatus
-	mgmClient, err := sc.connectToManagementServer()
+	mgmClient, err := mgmapi.NewMgmClient(sc.ndb.GetConnectstring())
 	if err != nil {
 		return errorWhileProcessing(err)
 	}
 	defer mgmClient.Disconnect()
+
 	clusterStatus, err := mgmClient.GetStatus()
 	if err != nil {
 		klog.Errorf("Error getting cluster status from management server: %s", err)

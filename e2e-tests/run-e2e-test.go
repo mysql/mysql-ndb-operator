@@ -463,8 +463,8 @@ func (t *testRunner) getGinkgoTestCommand(suiteDir string) []string {
 	// The ginkgo test command
 	ginkgoTestCmd := []string{
 		"go", "run", "github.com/onsi/ginkgo/v2/ginkgo",
-		"-r",             // recursively run all suites in the given directory
-		"-keep-going",    // keep running all test suites even if one fails
+		"-r",          // recursively run all suites in the given directory
+		"-keep-going", // keep running all test suites even if one fails
 		"-timeout=2h", // increase total Ginkgo run timeout
 	}
 

@@ -63,15 +63,34 @@ func NewMgmClient(connectstring string, desiredNodeId ...int) (*mgmClientImpl, e
 // Note : always use NewMgmClient to create a client rather
 //        than directly using mgmClientImpl and connect
 func (mci *mgmClientImpl) connect(connectstring string) error {
+
+	// Parse the addresses from connectstring and dial them one
+	// by one until a connection can be established.
+	// Connectstring can be of form :
+	// [nodeid=node_id, ]host-definition[, host-definition[, ...]]
+	//
+	// host-definition:
+	//    host_name[:port_number]
+	//
+	// Note : connection string with bind-address is not supported
 	var err error
-	mci.connection, err = net.Dial("tcp", connectstring)
-	if err != nil {
-		mci.connection = nil
-		return err
+	for _, host := range strings.Split(connectstring, ",") {
+		if strings.HasPrefix(host, "nodeid=") {
+			// Ignore this token
+			continue
+		}
+
+		mci.connection, err = net.Dial("tcp", host)
+		if err != nil {
+			klog.V(4).Infof("Failed to connect to Management Node at %q : %s", host, err)
+			// Try the next host in the connectstring
+			continue
+		}
+		klog.V(4).Infof("Management server connected to node at %q", host)
+		break
 	}
 
-	klog.V(4).Infof("Management server connected.")
-	return nil
+	return err
 }
 
 // connectToNodeId creates a tcp connection to the mgmd with the given id

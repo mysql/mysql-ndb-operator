@@ -29,7 +29,9 @@ func updateManagementConfig(
 	// Update management if required
 	if oldConfigSummary == nil || oldConfigSummary.MySQLClusterConfigNeedsUpdate(ndb) {
 		// get the updated config string
-		klog.Infof("MySQL Cluster config for NdbCluster resource %q needs to be updated", ndb.Name)
+		if oldConfigSummary != nil {
+			klog.Infof("MySQL Cluster config for NdbCluster resource %q needs to be updated", ndb.Name)
+		}
 		configString, err := ndbconfig.GetConfigString(ndb, oldConfigSummary)
 		if err != nil {
 			klog.Errorf("Failed to get the config string : %v", err)
