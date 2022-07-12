@@ -11,6 +11,8 @@ import (
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
+
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 
@@ -126,11 +128,16 @@ func ValidateNdbClusterStatusUpdatesDuringSync(
 
 	// Loop and verify all other status updates until the sync completes
 	for nc.Generation != nc.Status.ProcessedGeneration {
-		watchEvent = <-watcher.ResultChan()
-		if watchEvent.Type == watch.Modified {
-			// Validate the Node ready status
-			nc = watchEvent.Object.(*v1alpha1.NdbCluster)
-			expectValidInfoInStatus(nc, initialSystemRestart)
+		select {
+		case <-ctxWithTimeout.Done():
+			// Timed out waiting for status updates
+			ginkgo.Fail("Timed out waiting for NdbCluster status updates")
+		case watchEvent = <-watcher.ResultChan():
+			if watchEvent.Type == watch.Modified {
+				// Validate the Node ready status
+				nc = watchEvent.Object.(*v1alpha1.NdbCluster)
+				expectValidInfoInStatus(nc, initialSystemRestart)
+			}
 		}
 	}
 }
