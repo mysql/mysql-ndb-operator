@@ -174,7 +174,11 @@ func (mssc *MySQLDStatefulSetController) ReconcileStatefulSet(ctx context.Contex
 	}
 
 	// Patch the StatefulSet
-	updatedStatefulSet := mssc.ndbNodeStatefulset.NewStatefulSet(cs, nc)
+	updatedStatefulSet, err := mssc.ndbNodeStatefulset.NewStatefulSet(cs, nc)
+	if err != nil {
+		return errorWhileProcessing(err)
+	}
+
 	return mssc.patchStatefulSet(ctx, mysqldSfset, updatedStatefulSet)
 }
 

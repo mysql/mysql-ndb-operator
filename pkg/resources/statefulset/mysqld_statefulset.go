@@ -17,6 +17,8 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	listerscorev1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -52,6 +54,7 @@ var (
 // to control a set of MySQL Servers
 type mysqldStatefulSet struct {
 	baseStatefulSet
+	configMapLister listerscorev1.ConfigMapLister
 }
 
 func (mss *mysqldStatefulSet) NewGoverningService(nc *v1alpha1.NdbCluster) *corev1.Service {
@@ -59,7 +62,7 @@ func (mss *mysqldStatefulSet) NewGoverningService(nc *v1alpha1.NdbCluster) *core
 }
 
 // getPodVolumes returns the volumes to be used by the pod
-func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) []corev1.Volume {
+func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) ([]corev1.Volume, error) {
 	allowOnlyOwnerToReadMode := int32(0400)
 	rootPasswordSecretName, _ := resources.GetMySQLRootPasswordSecretName(ndb)
 	podVolumes := []corev1.Volume{
@@ -82,24 +85,6 @@ func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) []corev1.V
 				},
 			},
 		},
-		// Use the init script as a volume
-		{
-			Name: mysqldInitScriptsVolName,
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: ndb.GetConfigMapName(),
-					},
-					// Load only the MySQL Server init scripts
-					Items: []corev1.KeyToPath{
-						{
-							Key:  constants.MysqldInitScript,
-							Path: constants.MysqldInitScript,
-						},
-					},
-				},
-			},
-		},
 		// Load the healthcheck script via a volume
 		{
 			Name: helperScriptsVolName,
@@ -118,6 +103,77 @@ func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) []corev1.V
 			},
 		},
 	}
+
+	// Create a projected volume source to load all custom init scripts
+	initScriptPvs := &corev1.ProjectedVolumeSource{
+		Sources: []corev1.VolumeProjection{
+			// Load the ndbcluster-init-script first
+			{
+				ConfigMap: &corev1.ConfigMapProjection{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: ndb.GetConfigMapName(),
+					},
+					Items: []corev1.KeyToPath{
+						{
+							Key: constants.MysqldInitScript,
+							// The docker entrypoint runs the init scripts in alphabetical order.
+							// So, prefix the ndbcluster-init-script with 00 to ensure that it
+							// gets run first before all the other custom SQL init scripts.
+							Path: "00_" + constants.MysqldInitScript,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Create projections for all the scripts and append it to the initScriptPvs
+	for configMapName, configMapKeys := range ndb.Spec.Mysqld.InitScripts {
+		cm, err := mss.configMapLister.ConfigMaps(ndb.Namespace).Get(configMapName)
+		if err != nil {
+			klog.Errorf("Failed to get configMap '%s/%s' : %s", ndb.Namespace, configMapName, err)
+			return nil, err
+		}
+
+		// Create a VolumeProjection with the configMap name
+		volProjection := corev1.VolumeProjection{
+			ConfigMap: &corev1.ConfigMapProjection{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: configMapName,
+				},
+			},
+		}
+
+		appendKeyToPathFromConfigMapKey := func(configMapName, key string, projection *corev1.ConfigMapProjection) {
+			projection.Items = append(projection.Items, corev1.KeyToPath{
+				Key: key,
+				// Prefix the custom SQL scripts with 10 to ensure
+				// that they get run after the ndbcluster-init-script.
+				Path: "10_" + configMapName + "_" + key + ".sql",
+			})
+		}
+
+		if len(configMapKeys) == 0 {
+			// Keys not mentioned - extract all keys
+			for key := range cm.Data {
+				appendKeyToPathFromConfigMapKey(configMapName, key, volProjection.ConfigMap)
+			}
+		} else {
+			// Keys from which the sql scripts have to be loaded are given.
+			for _, key := range configMapKeys {
+				appendKeyToPathFromConfigMapKey(configMapName, key, volProjection.ConfigMap)
+			}
+		}
+		initScriptPvs.Sources = append(initScriptPvs.Sources, volProjection)
+	}
+
+	// Append the custom init script volume to the podVolumes
+	podVolumes = append(podVolumes, corev1.Volume{
+		Name: mysqldInitScriptsVolName,
+		VolumeSource: corev1.VolumeSource{
+			Projected: initScriptPvs,
+		},
+	})
 
 	if len(ndb.GetMySQLCnf()) > 0 {
 		// Load the cnf configmap key as a volume
@@ -139,7 +195,7 @@ func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) []corev1.V
 		})
 	}
 
-	return podVolumes
+	return podVolumes, nil
 }
 
 // getVolumeMounts returns pod volumes to be mounted into the container
@@ -262,7 +318,7 @@ func (mss *mysqldStatefulSet) getPodAntiAffinity() *corev1.PodAntiAffinity {
 }
 
 // NewStatefulSet creates a new MySQL Server StatefulSet for the given NdbCluster.
-func (mss *mysqldStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) *appsv1.StatefulSet {
+func (mss *mysqldStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) (*appsv1.StatefulSet, error) {
 
 	statefulSet := mss.newStatefulSet(nc, cs)
 	statefulSetSpec := &statefulSet.Spec
@@ -280,7 +336,14 @@ func (mss *mysqldStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 	// Update template pod spec
 	podSpec := &statefulSetSpec.Template.Spec
 	podSpec.Containers = mss.getContainers(nc)
-	podSpec.Volumes = append(podSpec.Volumes, mss.getPodVolumes(nc)...)
+
+	podVolumes, err := mss.getPodVolumes(nc)
+	if err != nil {
+		klog.Errorf("Failed to get pod volumes for the statefulset %s", statefulSet.Name)
+		return nil, err
+	}
+	podSpec.Volumes = append(podSpec.Volumes, podVolumes...)
+
 	// Set default AntiAffinity rules
 	podSpec.Affinity = &corev1.Affinity{
 		PodAntiAffinity: mss.getPodAntiAffinity(),
@@ -293,14 +356,15 @@ func (mss *mysqldStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 	podAnnotations := statefulSetSpec.Template.GetAnnotations()
 	podAnnotations[LastAppliedMySQLServerConfigVersion] = strconv.FormatInt(int64(cs.MySQLServerConfigVersion), 10)
 
-	return statefulSet
+	return statefulSet, nil
 }
 
 // NewMySQLdStatefulSet returns a new mysqldStatefulSet
-func NewMySQLdStatefulSet() NdbStatefulSetInterface {
+func NewMySQLdStatefulSet(configMapLister listerscorev1.ConfigMapLister) NdbStatefulSetInterface {
 	return &mysqldStatefulSet{
 		baseStatefulSet{
 			nodeType: constants.NdbNodeTypeMySQLD,
 		},
+		configMapLister,
 	}
 }

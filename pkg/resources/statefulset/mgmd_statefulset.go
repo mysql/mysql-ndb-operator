@@ -163,7 +163,7 @@ func (mss *mgmdStatefulSet) getPodAntiAffinity() *corev1.PodAntiAffinity {
 }
 
 // NewStatefulSet returns the StatefulSet specification to start and manage the Management nodes.
-func (mss *mgmdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) *appsv1.StatefulSet {
+func (mss *mgmdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) (*appsv1.StatefulSet, error) {
 	statefulSet := mss.newStatefulSet(nc, cs)
 	statefulSetSpec := &statefulSet.Spec
 
@@ -184,7 +184,7 @@ func (mss *mgmdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1al
 	// Copy down any podSpec specified via CRD
 	CopyPodSpecFromNdbPodSpec(podSpec, nc.Spec.ManagementNodePodSpec)
 
-	return statefulSet
+	return statefulSet, nil
 }
 
 // NewMgmdStatefulSet returns a new NdbStatefulSetInterface for management nodes

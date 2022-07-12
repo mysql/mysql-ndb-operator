@@ -57,6 +57,8 @@ rules:
       - get
       - create
       - patch
+      - list
+      - watch
 
   - apiGroups: [""]
     resources: ["secrets"]

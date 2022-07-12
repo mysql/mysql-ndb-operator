@@ -100,6 +100,7 @@ func NewController(
 	podInformer := k8sSharedIndexInformer.Core().V1().Pods()
 	serviceInformer := k8sSharedIndexInformer.Core().V1().Services()
 	pdbInformer := k8sSharedIndexInformer.Policy().V1beta1().PodDisruptionBudgets()
+	configmapInformer := k8sSharedIndexInformer.Core().V1().ConfigMaps()
 
 	// Extract all the InformerSynced methods
 	informerSyncedMethods := []cache.InformerSynced{
@@ -108,10 +109,12 @@ func NewController(
 		podInformer.Informer().HasSynced,
 		serviceInformer.Informer().HasSynced,
 		pdbInformer.Informer().HasSynced,
+		configmapInformer.Informer().HasSynced,
 	}
 
 	serviceLister := serviceInformer.Lister()
 	statefulSetLister := statefulSetInformer.Lister()
+	configmapLister := configmapInformer.Lister()
 
 	controller := &Controller{
 		controllerContext:     controllerContext,
@@ -128,7 +131,7 @@ func NewController(
 		ndbmtdController: NewNdbNodesStatefulSetControlInterface(
 			controllerContext.kubeClientset, statefulSetLister, statefulset.NewNdbmtdStatefulSet()),
 		mysqldController: NewMySQLDStatefulSetController(
-			controllerContext.kubeClientset, statefulSetLister, statefulset.NewMySQLdStatefulSet()),
+			controllerContext.kubeClientset, statefulSetLister, statefulset.NewMySQLdStatefulSet(configmapLister)),
 
 		pdbController: NewPodDisruptionBudgetControl(
 			controllerContext.kubeClientset, pdbInformer.Lister()),
