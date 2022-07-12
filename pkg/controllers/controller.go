@@ -270,12 +270,34 @@ func NewController(
 	return controller
 }
 
+// ndbClusterExists returns true if a NdbCluster object exists with the given namespace/name
+func (c *Controller) ndbClusterExists(namespace, name string) (bool, error) {
+	_, err := c.ndbsLister.NdbClusters(namespace).Get(name)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// NdbCluster doesn't exists
+			return false, nil
+		}
+
+		// Some error occurred when Getting NdbCluster
+		klog.Errorf("Failed to retrieve NdbCluster resource %q", getNamespacedName2(namespace, name))
+		return false, err
+	}
+
+	return true, nil
+}
+
 // extractAndEnqueueNdbCluster extracts the key of NdbCluster that owns
 // the given Workload object (i.e. a deployment or a statefulset) and
 // then adds it to the controller's workqueue for reconciliation.
 func (c *Controller) extractAndEnqueueNdbCluster(obj metav1.Object) {
 	ndbClusterName := obj.GetLabels()[constants.ClusterLabel]
-	key := obj.GetNamespace() + Separator + ndbClusterName
+	if exists, _ := c.ndbClusterExists(obj.GetNamespace(), ndbClusterName); !exists {
+		// Some error occurred during Get or the object doesn't exist
+		// Skip enqueuing the object for reconciliation
+		return
+	}
+	key := getNamespacedName2(obj.GetNamespace(), ndbClusterName)
 	klog.Infof("NdbCluster resource %q is re-queued for further reconciliation", key)
 	c.workqueue.Add(key)
 }
