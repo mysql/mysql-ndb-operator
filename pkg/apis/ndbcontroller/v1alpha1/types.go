@@ -107,6 +107,14 @@ type NdbMysqldSpec struct {
 	// will be copied into to the podSpec of MySQL Server StatefulSet.
 	// +optional
 	PodSpec *NdbPodSpec `json:"podSpec,omitempty"`
+	// InitScripts is a map of configMap names from the same namespace and
+	// optionally an array of keys which store the SQL scripts to be executed
+	// during MySQL Server initialization. If key names are omitted, contents
+	// of all the keys will be treated as initialization SQL scripts. All
+	// scripts will be mounted into the MySQL pods and will be executed in the
+	// alphabetical order of configMap names and key names.
+	// +optional
+	InitScripts map[string][]string `json:"initScripts,omitempty"`
 }
 
 // NdbClusterSpec defines the desired state of a MySQL NDB Cluster

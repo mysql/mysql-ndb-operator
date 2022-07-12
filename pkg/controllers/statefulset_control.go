@@ -7,6 +7,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/resources/statefulset"
 
@@ -100,7 +101,10 @@ func (ndbSfset *ndbNodeStatefulSetImpl) createStatefulSet(
 	// Create StatefulSet
 	nc := sc.ndb
 	sfsetName := ndbSfset.ndbNodeStatefulset.GetName(nc)
-	sfset = ndbSfset.ndbNodeStatefulset.NewStatefulSet(sc.configSummary, nc)
+	sfset, err = ndbSfset.ndbNodeStatefulset.NewStatefulSet(sc.configSummary, nc)
+	if err != nil {
+		return nil, err
+	}
 	klog.Infof("Creating StatefulSet %q of type %q with Replica = %d",
 		getNamespacedName2(nc.Namespace, sfsetName), ndbSfset.ndbNodeStatefulset.GetTypeName(), *sfset.Spec.Replicas)
 	sfsetInterface := ndbSfset.statefulSetInterface(nc.Namespace)
@@ -234,6 +238,9 @@ func (ndbSfset *ndbNodeStatefulSetImpl) ReconcileStatefulSet(
 
 	// Patch the StatefulSet
 	nc := sc.ndb
-	updatedStatefulSet := ndbSfset.ndbNodeStatefulset.NewStatefulSet(cs, nc)
+	updatedStatefulSet, err := ndbSfset.ndbNodeStatefulset.NewStatefulSet(cs, nc)
+	if err != nil {
+		return errorWhileProcessing(err)
+	}
 	return ndbSfset.patchStatefulSet(ctx, sfset, updatedStatefulSet)
 }

@@ -295,7 +295,7 @@ func (nss *ndbmtdStatefulSet) getPodAntiAffinity() *corev1.PodAntiAffinity {
 }
 
 // NewStatefulSet returns the StatefulSet specification to start and manage the Data nodes.
-func (nss *ndbmtdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) *appsv1.StatefulSet {
+func (nss *ndbmtdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) (*appsv1.StatefulSet, error) {
 	statefulSet := nss.newStatefulSet(nc, cs)
 	statefulSetSpec := &statefulSet.Spec
 
@@ -332,7 +332,7 @@ func (nss *ndbmtdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 	// Copy down any podSpec specified via CRD
 	CopyPodSpecFromNdbPodSpec(podSpec, nc.Spec.DataNodePodSpec)
 
-	return statefulSet
+	return statefulSet, nil
 }
 
 // NewNdbmtdStatefulSet returns a new NdbStatefulSetInterface for data nodes
