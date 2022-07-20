@@ -174,9 +174,9 @@ type NdbClusterSpec struct {
 	ManagementNodePodSpec *NdbPodSpec `json:"managementNodePodSpec,omitempty"`
 
 	// The name of the MySQL Ndb Cluster image to be used.
-	// If not specified, "mysql/mysql-cluster:8.0.29" will be used.
+	// If not specified, "mysql/mysql-cluster:8.0.30" will be used.
 	// Lowest supported version is 8.0.26.
-	// +kubebuilder:default="mysql/mysql-cluster:8.0.29"
+	// +kubebuilder:default="mysql/mysql-cluster:8.0.30"
 	// +optional
 	Image string `json:"image,omitempty"`
 	// ImagePullPolicy describes a policy for if/when to
