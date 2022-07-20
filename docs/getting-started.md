@@ -80,7 +80,7 @@ One can also specify the password and host to be used with the `root` account vi
 
 ### Access MySQL Cluster from inside K8s
 
-To connect to the Management and MySQL Servers from within the Kubernetes Cluster,  you can straightaway use the `example-ndb-mgmd` and `example-ndb-mysqld` services as the MySQL Cluster connectstring and MySQL host respectively.
+To connect to the Management and MySQL Servers from within the Kubernetes Cluster,  you can use the `example-ndb-mgmd` and `example-ndb-mysqld` services as the MySQL Cluster connectstring and MySQL host respectively. You can also use the mgmd and mysqld pods' hostnames to directly connect to that particular pod.
 The mysql, ndb_mgm clients and any other ndb tools will work as expected.
 
 A demonstration is available at [connect-from-inside-k8s-demo.md](connect-from-inside-k8s-demo.md).
@@ -131,3 +131,7 @@ kubectl delete -f docs/examples/example-ndb.yaml
 kubectl delete ndb example-ndb
 ```
 This will delete all the data, the pods running the MySQL Cluster nodes and also delete all other associated K8s resources created by the NDB Operator.
+
+## Further reading
+
+Please read the documentation on [NdbPodSpec](NdbPodSpec-doc.md) to understand more about how to assign MySQL Cluster nodes on desired worker nodes. The document also explains the defaults defined by the NDB Operator and how that affects the schduling behaviour.
