@@ -60,7 +60,7 @@ type NdbPodSpec struct {
 	// NodeSelector is a selector which must be true for the pod to fit on a node.
 	// Selector which must match a node's labels for the pod to be scheduled on that node.
 	//
-	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+	// More info: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 	// If specified, the pod's scheduling constraints
