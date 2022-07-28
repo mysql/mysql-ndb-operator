@@ -5,6 +5,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ import (
 )
 
 var _ = ndbtest.NewOrderedTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
+	var ctx context.Context
 	var ns string
 	var c clientset.Interface
 	var ndbName string
@@ -35,6 +37,7 @@ var _ = ndbtest.NewOrderedTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 		ndbName = "example-ndb"
 		ns = tc.Namespace()
 		c = tc.K8sClientset()
+		ctx = tc.Ctx()
 		// dummy NdbCluster object to use helper functions
 		testNdb = testutils.NewTestNdb(ns, ndbName, 2)
 	})
@@ -49,11 +52,11 @@ var _ = ndbtest.NewOrderedTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 	*/
 	ginkgo.When("the example-ndb yaml is applied", func() {
 
-		ginkgo.BeforeEach(func() {
+		ginkgo.BeforeAll(func() {
 			ndbtest.KubectlApplyNdbYaml(c, ns, "docs/examples", ndbName)
 		})
 
-		ginkgo.AfterEach(func() {
+		ginkgo.AfterAll(func() {
 			ndbtest.KubectlDeleteNdbYaml(c, ns, ndbName, "docs/examples", ndbName)
 		})
 
@@ -70,7 +73,7 @@ var _ = ndbtest.NewOrderedTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 			sfset_utils.ExpectHasLabel(c, ns, testNdb.GetWorkloadName(constants.NdbNodeTypeMySQLD), constants.ClusterLabel, "example-ndb")
 
 			ginkgo.By("updating the NdbCluster resource status", func() {
-				ndbutils.ValidateNdbClusterStatus(tc.Ctx(), tc.NdbClientset(), ns, ndbName)
+				ndbutils.ValidateNdbClusterStatus(ctx, tc.NdbClientset(), ns, ndbName)
 			})
 
 			ginkgo.By("verifying that 'kubectl get ndb' reports the status of ndbcluster resource", func() {
@@ -93,7 +96,7 @@ var _ = ndbtest.NewOrderedTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 
 			// Retrieve a data node pod
 			ndbmtdPodName := fmt.Sprintf("%s-0", testNdb.GetWorkloadName(constants.NdbNodeTypeNdbmtd))
-			pod, err := c.CoreV1().Pods(ns).Get(tc.Ctx(), ndbmtdPodName, metav1.GetOptions{})
+			pod, err := c.CoreV1().Pods(ns).Get(ctx, ndbmtdPodName, metav1.GetOptions{})
 			ndbtest.ExpectNoError(err, "failed to get ndbmtd pod")
 
 			// Execute 'cat /sys/fs/cgroup/memory/memory.usage_in_bytes' to
