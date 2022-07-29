@@ -11,6 +11,7 @@ import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
+	"github.com/mysql/ndb-operator/pkg/helpers"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
 	"github.com/mysql/ndb-operator/pkg/resources"
 
@@ -247,6 +248,7 @@ func (mss *mysqldStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Co
 	}
 
 	// Add Env variables required by MySQL Server
+	ndbOperatorPodNamespace, _ := helpers.GetCurrentNamespace()
 	mysqldContainer.Env = append(mysqldContainer.Env, corev1.EnvVar{
 		// Path to the file that has the password of the root user
 		// This will be consumed by the image entrypoint script
@@ -256,7 +258,7 @@ func (mss *mysqldStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Co
 		// Host from which the ndb operator user account can be accessed.
 		// Use the hostname defined by the Ndb Operator deployment's template spec.
 		Name:  "NDB_OPERATOR_ROOT_HOST",
-		Value: "ndb-operator-pod.ndb-operator-svc." + nc.Namespace + ".svc.cluster.local",
+		Value: "ndb-operator-pod.ndb-operator-svc." + ndbOperatorPodNamespace + ".svc.%",
 	})
 
 	return []corev1.Container{mysqldContainer}
