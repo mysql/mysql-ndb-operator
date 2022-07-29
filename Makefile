@@ -51,7 +51,7 @@ DOCKER_CMD := DOCKER_BUILDKIT=1 docker
 # Build NDB Operator container image
 .PHONY: operator-image
 operator-image: build
-	$(DOCKER_CMD) build -t mysql/ndb-operator:latest -f docker/ndb-operator/Dockerfile .
+	$(DOCKER_CMD) build -t mysql/ndb-operator:$(shell cat VERSION) -f docker/ndb-operator/Dockerfile .
 
 # Build e2e-tests-tests image in docker
 .PHONY: e2e-tests-image

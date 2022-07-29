@@ -787,7 +787,16 @@ func (t *testRunner) run() bool {
 
 	// Some providers require manual loading of images into their nodes.
 	// Load the operator docker image in the K8s Cluster nodes
-	if !p.loadImageIntoK8sCluster(t, "mysql/ndb-operator:latest") {
+	operatorVersionFile := filepath.Join(t.testDir, "..", "VERSION")
+	versionBytes, err := os.ReadFile(operatorVersionFile)
+	if err != nil {
+		log.Printf("❌ Failed to read NDB Operator version : %s", err)
+		return false
+	}
+	version := string(versionBytes)
+	// trim the newline from version
+	version = version[:len(version)-1]
+	if !p.loadImageIntoK8sCluster(t, "mysql/ndb-operator:"+version) {
 		return false
 	}
 
