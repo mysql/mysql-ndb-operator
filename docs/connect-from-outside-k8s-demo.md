@@ -78,7 +78,7 @@ ndb_mgm
 Similarly, for MySQL Servers, forward the port by running :
 
 ```sh
-kubectl port-forward service/example-ndb-mysqld-ext 3306:3306
+kubectl port-forward service/example-ndb-mysqld 3306:3306
 ```
 
 And in another terminal, connect to the MySQL Server as you would normally do with a local MySQL Server :
