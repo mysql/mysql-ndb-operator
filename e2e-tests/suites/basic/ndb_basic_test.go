@@ -99,12 +99,14 @@ var _ = ndbtest.NewOrderedTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 			pod, err := c.CoreV1().Pods(ns).Get(ctx, ndbmtdPodName, metav1.GetOptions{})
 			ndbtest.ExpectNoError(err, "failed to get ndbmtd pod")
 
-			// Execute 'cat /sys/fs/cgroup/memory/memory.usage_in_bytes' to
-			// retrieve the actual memory used by the data node.
+			// Extract the memory used by the data node pod.
+			// If the pod uses cgroupv1, the memory usage is at
+			// /sys/fs/cgroup/memory/memory.usage_in_bytes and for
+			// cgroupv2, at it is at /sys/fs/cgroup/memory.current
 			cmd := []string{
 				"sh",
 				"-c",
-				"cat /sys/fs/cgroup/memory/memory.usage_in_bytes",
+				"cat /sys/fs/cgroup/memory/memory.usage_in_bytes || cat /sys/fs/cgroup/memory.current",
 			}
 			stdout, _, err := k8sutils.Exec(c, pod.Name, ns, cmd)
 			ndbtest.ExpectNoError(err, "Failure executing command %s", cmd)
