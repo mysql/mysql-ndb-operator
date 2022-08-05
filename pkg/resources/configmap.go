@@ -43,7 +43,6 @@ func updateManagementConfig(
 	}
 
 	// add/update the API slot information
-	data[constants.FreeApiSlots] = fmt.Sprintf("%d", ndb.Spec.FreeAPISlots)
 	data[constants.NumOfMySQLServers] = fmt.Sprintf("%d", ndb.GetMySQLServerNodeCount())
 
 	// add/update service type info for management nodes

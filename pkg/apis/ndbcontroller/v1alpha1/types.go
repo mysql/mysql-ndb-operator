@@ -142,10 +142,7 @@ type NdbClusterSpec struct {
 	// config, in addition to the API sections declared implicitly
 	// by the NDB Operator for the MySQL Servers.
 	// Any NDBAPI application can connect to the MySQL Cluster via
-	// these free slots. These slots will also enable the NDB
-	// Operator to scale up the MySQL Servers, when requested,
-	// without having to perform a rolling restart of all nodes
-	// to add more API sections in the MySQL Cluster config.
+	// these free slots.
 	// +kubebuilder:default=5
 	// +optional
 	FreeAPISlots int32 `json:"freeAPISlots,omitempty"`

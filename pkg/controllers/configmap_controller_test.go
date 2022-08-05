@@ -102,7 +102,8 @@ func validateMgmtConfig(t *testing.T, cm *corev1.ConfigMap, ndb *v1alpha1.NdbClu
 	// Validate the number of sections
 	validateConfigIniSectionCount(t, cfg, "ndb_mgmd", int(ndb.GetManagementNodeCount()))
 	validateConfigIniSectionCount(t, cfg, "ndbd", int(ndb.Spec.NodeCount))
-	validateConfigIniSectionCount(t, cfg, "api", int(ndb.GetMySQLServerNodeCount()+1+ndb.Spec.FreeAPISlots))
+	validateConfigIniSectionCount(t, cfg, "api", int(1+ndb.Spec.FreeAPISlots))
+	validateConfigIniSectionCount(t, cfg, "mysqld", int(ndb.GetMySQLServerNodeCount()))
 }
 
 func TestCreateConfigMap(t *testing.T) {
@@ -110,6 +111,7 @@ func TestCreateConfigMap(t *testing.T) {
 	ns := metav1.NamespaceDefault
 	ndb := testutils.NewTestNdb(ns, "test", 2)
 	ndb.Spec.Mysqld.NodeCount = 7
+	ndb.Spec.FreeAPISlots = 5
 
 	f := newFixture(t, ndb)
 	defer f.close()

@@ -35,6 +35,8 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 		ns = tc.Namespace()
 		c = tc.K8sClientset()
 
+		ginkgo.Skip("Temporarily disable the testcase")
+
 		// Create the NdbCluster object to be used by the testcases
 		ndbName = "mysqld-scaling-test"
 		testNdb = testutils.NewTestNdb(ns, ndbName, 2)

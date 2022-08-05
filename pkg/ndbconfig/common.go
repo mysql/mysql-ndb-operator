@@ -8,35 +8,17 @@ import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 )
 
-// getNumOfRequiredAPISections returns the number of [API] sections
-// required by the MySQL Servers and the operator. This does not
-// include the FreeApiSlots declared in the NdbCluster.Spec.
-func getNumOfRequiredAPISections(nc *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) int32 {
+// getNumOfFreeAPISections returns the total number of free
+// [API] sections required. This does not include the exclusive mysqld
+// sections used by the MySQL Servers.
+func getNumOfFreeAPISections(nc *v1alpha1.NdbCluster) int32 {
 	// Reserve one API section for the operator
 	numOfSectionsForOperator := int32(1)
+	return nc.Spec.FreeAPISlots + numOfSectionsForOperator
+}
 
-	requiredNumOfSlotsForMySQLServer := nc.GetMySQLServerNodeCount()
-	if requiredNumOfSlotsForMySQLServer == 0 {
-		// No sections required for MySQL Servers
-		return numOfSectionsForOperator
-	}
-
-	if oldConfigSummary != nil {
-		// An update has been applied to the Ndb resource.
-		// If the new update has requested for more MySQL Servers,
-		// increase the slots if required, but if a scale down has
-		// been requested, do not decrease the slots. This is to
-		// avoid a potential issue where the remaining MySQL
-		// Servers after the scale down might have mismatching NodeIds
-		// with the ones specified in the config file causing the
-		// setup to go into a degraded state.
-		// TODO: Revisit this when the MySQL Servers are deployed as a SfSet
-		existingNumOfSlotsForMySQLServer := oldConfigSummary.NumOfMySQLServers
-		if requiredNumOfSlotsForMySQLServer < existingNumOfSlotsForMySQLServer {
-			// Scale down requested - retain the existingNumOfSlotsForMySQLServer
-			requiredNumOfSlotsForMySQLServer = existingNumOfSlotsForMySQLServer
-		}
-	}
-
-	return requiredNumOfSlotsForMySQLServer + numOfSectionsForOperator
+// getNumOfSectionsRequiredForMySQLServers returns the
+// number of sections required by the MySQL Servers.
+func getNumOfSectionsRequiredForMySQLServers(nc *v1alpha1.NdbCluster) int32 {
+	return nc.GetMySQLServerNodeCount()
 }

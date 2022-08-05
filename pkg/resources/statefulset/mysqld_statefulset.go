@@ -199,6 +199,7 @@ func (mss *mysqldStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Co
 		"--ndb-connectstring="+nc.GetConnectstring(),
 		"--user=mysql",
 		"--datadir="+dataDirectoryMountPath,
+		"--ndb-nodeid=$(cat "+NodeIdFilePath+")",
 	)
 
 	if debug.Enabled {

@@ -31,10 +31,10 @@ type ConfigSummary struct {
 	// NumOfMySQLServers is the number of MySQL Servers
 	// expected to connect to the MySQL Cluster data nodes.
 	NumOfMySQLServers int32
+	// NumOfMySQLServerSlots is the total number of [mysqld] sections required by the MySQL Servers.
+	NumOfMySQLServerSlots int32
 	// NumOfFreeApiSlots is the number of [api] sections declared in the config based on spec.freeApiSlots
 	NumOfFreeApiSlots int32
-	// TotalNumOfApiSlots is the total number of sections declared as [api] in the config.
-	TotalNumOfApiSlots int32
 	// RedundancyLevel is the number of replicas of the data stored in MySQL Cluster.
 	RedundancyLevel int32
 	// defaultNdbdSection has the values extracted from the default ndbd section of the management config.
@@ -66,7 +66,7 @@ func parseBool(strValue string) bool {
 	if err != nil {
 		debug.Panic(fmt.Sprintf("parseBool failed to parse %s : %s", strValue, err.Error()))
 	}
-	return bool(value)
+	return value
 }
 
 // NewConfigSummary creates a new ConfigSummary with the information extracted from the config map.
@@ -82,11 +82,11 @@ func NewConfigSummary(configMapData map[string]string) (*ConfigSummary, error) {
 		NdbClusterGeneration: int64(parseInt32(configMapData[constants.NdbClusterGeneration])),
 		MySQLClusterConfigVersion: parseInt32(
 			config.GetValueFromSection("system", "ConfigGenerationNumber")),
-		NumOfManagementNodes: int32(config.GetNumberOfSections("ndb_mgmd")),
-		NumOfDataNodes:       int32(config.GetNumberOfSections("ndbd")),
-		NumOfMySQLServers:    parseInt32(configMapData[constants.NumOfMySQLServers]),
-		NumOfFreeApiSlots:    parseInt32(configMapData[constants.FreeApiSlots]),
-		TotalNumOfApiSlots:   int32(config.GetNumberOfSections("api")),
+		NumOfManagementNodes:  int32(config.GetNumberOfSections("ndb_mgmd")),
+		NumOfDataNodes:        int32(config.GetNumberOfSections("ndbd")),
+		NumOfMySQLServers:     parseInt32(configMapData[constants.NumOfMySQLServers]),
+		NumOfMySQLServerSlots: int32(config.GetNumberOfSections("mysqld")),
+		NumOfFreeApiSlots:     int32(config.GetNumberOfSections("api")),
 		RedundancyLevel: parseInt32(
 			config.GetValueFromSection("ndbd default", "NoOfReplicas")),
 		MySQLLoadBalancer:      parseBool(configMapData[constants.MySQLLoadBalancer]),
@@ -131,21 +131,14 @@ func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1alpha1.NdbCluster) 
 		}
 	}
 
-	// Check if the number of API sections declared in the config is
-	// sufficient. Calculate the total number of slots required for
-	// the MySQL Servers and the NDB Operator. Update the config if
-	// the existing number of sections are not enough.
-	// Note : A MySQL scale up request will not trigger a config
-	// update if the new requirements for the API slots can be
-	// satisfied by the existing FreeApiSlots.
-	totalApiSlotsRequired := getNumOfRequiredAPISections(nc, cs)
-	if totalApiSlotsRequired > cs.TotalNumOfApiSlots {
-		// We need more API slots than the ones already declared in the config.
+	// Check if there is a change in the number of MySQL server
+	// slots or number of free api slots.
+	if cs.NumOfMySQLServerSlots != getNumOfSectionsRequiredForMySQLServers(nc) {
 		return true
 	}
 
 	// Check if more freeAPISlots slots are being declared by the new spec.
-	if nc.Spec.FreeAPISlots != cs.NumOfFreeApiSlots {
+	if cs.NumOfFreeApiSlots != getNumOfFreeAPISections(nc) {
 		// Number of free slots have been changed. Regenerate config and apply it.
 		return true
 	}
