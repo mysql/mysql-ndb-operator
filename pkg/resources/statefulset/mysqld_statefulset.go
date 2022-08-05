@@ -208,8 +208,6 @@ func (mss *mysqldStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Co
 		"--ndb-connectstring="+nc.GetConnectstring(),
 		"--user=mysql",
 		"--datadir="+mysqldDataDir,
-		// Disable binlogging as these MySQL Servers won't be acting as replication sources
-		"--skip-log-bin",
 	)
 
 	if debug.Enabled {

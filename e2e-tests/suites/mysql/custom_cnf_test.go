@@ -79,15 +79,11 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Custom cnf", func(tc *ndbtest.TestCont
 	ginkgo.When("a custom my.cnf is specified in NdbCluster", func() {
 		ginkgo.BeforeAll(func() {
 			myCnf["max-user-connections"] = "42"
-			myCnf["log-bin"] = "ON"
 		})
 
 		ginkgo.It("should start MySQL Servers with the given configuration", func() {
 			// verify that max_user_connections is properly set in server
 			expectGlobalVariableValue(c, testNdb, "max_user_connections", 42)
-
-			// verify that the defaults doesn't override the value set by the operator
-			expectGlobalVariableValue(c, testNdb, "log_bin", "OFF")
 
 			// verify that the ndb_use_copying_alter_table variable has the default value
 			expectGlobalVariableValue(c, testNdb, "ndb_use_copying_alter_table", "OFF")
