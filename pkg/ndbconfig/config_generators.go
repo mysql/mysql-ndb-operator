@@ -54,7 +54,15 @@ Hostname={{$.Name}}-{{NdbNodeTypeNdbmtd}}-{{$idx}}.{{$.GetServiceName NdbNodeTyp
 DataDir={{GetDataDir}}
 
 {{end -}}
-{{range $nodeId := GetNodeIds "api" -}}
+# MySQLD sections to be used exclusively by MySQL Servers
+{{range $idx, $nodeId := GetNodeIds NdbNodeTypeMySQLD -}}
+[mysqld]
+NodeId={{$nodeId}}
+Hostname={{$.Name}}-{{NdbNodeTypeMySQLD}}-{{$idx}}.{{$.GetServiceName NdbNodeTypeMySQLD}}.{{$hostnameSuffix}}
+
+{{end -}}
+# API sections to be used by generic NDBAPI applications
+{{range $nodeId := GetNodeIds NdbNodeTypeAPI -}}
 [api]
 NodeId={{$nodeId}}
 
@@ -87,11 +95,12 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 			case constants.NdbNodeTypeNdbmtd:
 				startNodeId = &ndbdMgmdStartNodeId
 				numberOfNodes = ndb.Spec.NodeCount
-			case "api":
+			case constants.NdbNodeTypeMySQLD:
 				startNodeId = &apiStartNodeId
-				// Calculate the total number of API slots to be set in the config.
-				// slots required for mysql servers + free NDBAPI slots.
-				numberOfNodes = getNumOfRequiredAPISections(ndb, oldConfigSummary) + ndb.Spec.FreeAPISlots
+				numberOfNodes = getNumOfSectionsRequiredForMySQLServers(ndb)
+			case constants.NdbNodeTypeAPI:
+				startNodeId = &apiStartNodeId
+				numberOfNodes = getNumOfFreeAPISections(ndb)
 			default:
 				panic("Unrecognised node type")
 			}
@@ -129,6 +138,8 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 		},
 		"NdbNodeTypeMgmd":   func() string { return constants.NdbNodeTypeMgmd },
 		"NdbNodeTypeNdbmtd": func() string { return constants.NdbNodeTypeNdbmtd },
+		"NdbNodeTypeMySQLD": func() string { return constants.NdbNodeTypeMySQLD },
+		"NdbNodeTypeAPI":    func() string { return constants.NdbNodeTypeAPI },
 	})
 
 	if _, err := tmpl.Parse(mgmtConfigTmpl); err != nil {

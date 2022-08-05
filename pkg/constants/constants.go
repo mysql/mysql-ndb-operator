@@ -13,6 +13,7 @@ const (
 	NdbNodeTypeMgmd   NdbNodeType = "mgmd"
 	NdbNodeTypeNdbmtd NdbNodeType = "ndbmtd"
 	NdbNodeTypeMySQLD NdbNodeType = "mysqld"
+	NdbNodeTypeAPI    NdbNodeType = "api"
 )
 
 // ClusterLabel is applied to all components of a Ndb cluster
@@ -40,8 +41,6 @@ const (
 	ConfigIniKey = "config.ini"
 	// NumOfMySQLServers has the number of MySQL Servers declared in the NdbCluster spec.
 	NumOfMySQLServers = "numOfMySQLServers"
-	// FreeApiSlots stores the number of freeApiSlots declared in the NdbCluster spec.
-	FreeApiSlots = "freeApiSlots"
 	// NdbClusterGeneration stores the generation the config map is based on.
 	NdbClusterGeneration = "ndb.generation"
 	// ManagementLoadBalancer indicates if the load balancer service for management nodes needs to be enabled

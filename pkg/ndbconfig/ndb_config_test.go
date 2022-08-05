@@ -43,6 +43,9 @@ func Test_NewConfigSummary(t *testing.T) {
 	[ndbd]
 	[ndb_mgmd]
 	[ndb_mgmd]
+    [mysqld]
+    [mysqld]
+    [mysqld]
     [api]
     [api]
     [api]
@@ -55,7 +58,6 @@ func Test_NewConfigSummary(t *testing.T) {
 		constants.ConfigIniKey:           testini,
 		constants.NdbClusterGeneration:   "3",
 		constants.NumOfMySQLServers:      "3",
-		constants.FreeApiSlots:           "10",
 		constants.ManagementLoadBalancer: "false",
 		constants.MySQLLoadBalancer:      "true",
 	})
@@ -69,9 +71,9 @@ func Test_NewConfigSummary(t *testing.T) {
 	errorIfNotEqual(t, 2, cs.RedundancyLevel, " cs.RedundancyLevel")
 	errorIfNotEqual(t, 2, cs.NumOfManagementNodes, "cs.NumOfManagementNodes")
 	errorIfNotEqual(t, 2, cs.NumOfDataNodes, "cs.NumOfDataNodes")
-	errorIfNotEqual(t, 6, cs.TotalNumOfApiSlots, "cs.TotalNumOfApiSlots")
 	errorIfNotEqual(t, 3, cs.NumOfMySQLServers, "cs.NumOfMySQLServers")
-	errorIfNotEqual(t, 10, cs.NumOfFreeApiSlots, "cs.NumOfFreeApiSlots")
+	errorIfNotEqual(t, 3, cs.NumOfMySQLServerSlots, "cs.NumOfMySQLServers")
+	errorIfNotEqual(t, 6, cs.NumOfFreeApiSlots, "cs.NumOfFreeApiSlots")
 	dataMemory, _ := cs.defaultNdbdSection.GetValue("DataMemory")
 	errorIfNotEqual(t, 42, parseInt32(dataMemory), "DataMemory")
 	errorIfNotEqualBool(t, false, cs.ManagementLoadBalancer, "cs.ManagementLoadBalancer")
@@ -140,12 +142,16 @@ NodeId=4
 Hostname=example-ndb-ndbmtd-1.example-ndb-ndbmtd.default
 DataDir=/var/lib/ndb/data
 
-[api]
+# MySQLD sections to be used exclusively by MySQL Servers
+[mysqld]
 NodeId=145
+Hostname=example-ndb-mysqld-0.example-ndb-mysqld.default
 
-[api]
+[mysqld]
 NodeId=146
+Hostname=example-ndb-mysqld-1.example-ndb-mysqld.default
 
+# API sections to be used by generic NDBAPI applications
 [api]
 NodeId=147
 

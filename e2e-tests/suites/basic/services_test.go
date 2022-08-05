@@ -112,6 +112,7 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster Services", func(tc *ndbtest.TestC
 				// to verify that the service is not affected during patch.
 				connectString := connectStrings[i]
 				go func() {
+					defer ginkgo.GinkgoRecover()
 					for {
 						select {
 						default:
