@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	// common data directory path for both mgmd and ndbmtd
+	// common data directory path for mgmd, ndbmtd and mysqld nodes
 	dataDirectoryMountPath = constants.DataDir + "/data"
 	// dataNodeIdFilePath is the location of the file that has the data node's nodeId
 	dataNodeIdFilePath = dataDirectoryMountPath + "/nodeId.val"

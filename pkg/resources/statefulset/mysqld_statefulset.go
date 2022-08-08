@@ -22,10 +22,10 @@ import (
 const (
 	mysqldClientName = constants.NdbNodeTypeMySQLD
 	// MySQL Server runtime directory
-	mysqldDir = constants.DataDir + "/mysqld"
+	mysqldDir = constants.DataDir
 	// Data directory volume and mount path
 	mysqldDataDirVolName = mysqldClientName + "-vol"
-	mysqldDataDir        = mysqldDir + "/datadir"
+	mysqldDataDir        = dataDirectoryMountPath
 
 	// MySQL root password secret volume and mount path
 	mysqldRootPasswordFileName  = ".root-password"
