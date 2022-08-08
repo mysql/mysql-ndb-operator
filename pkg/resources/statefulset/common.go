@@ -12,8 +12,13 @@ import (
 const (
 	// common data directory path for mgmd, ndbmtd and mysqld nodes
 	dataDirectoryMountPath = constants.DataDir + "/data"
-	// dataNodeIdFilePath is the location of the file that has the data node's nodeId
-	dataNodeIdFilePath = dataDirectoryMountPath + "/nodeId.val"
+
+	// Volume name and mount path for common work directory volume
+	workDirVolName  = "ndb-work-dir-vol"
+	workDirVolMount = constants.DataDir + "/run"
+
+	// NodeIdFilePath is the location of the file that has the node's nodeId
+	NodeIdFilePath = workDirVolMount + "/nodeId.val"
 
 	// Common volume name and mount path for data node and mgmd node helper scripts
 	helperScriptsVolName   = "helper-scripts-vol"

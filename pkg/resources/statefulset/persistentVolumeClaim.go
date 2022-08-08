@@ -16,7 +16,7 @@ import (
 func newPVC(ndb *v1alpha1.NdbCluster, pvcName string, pvcSpec *v1.PersistentVolumeClaimSpec) *v1.PersistentVolumeClaim {
 	// Labels for the resource
 	pvcLabels := ndb.GetCompleteLabels(map[string]string{
-		constants.ClusterResourceTypeLabel: "ndb-pvc",
+		constants.ClusterResourceTypeLabel: pvcName + "-pvc",
 	})
 
 	pvc := &v1.PersistentVolumeClaim{

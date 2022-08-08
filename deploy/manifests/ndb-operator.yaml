@@ -2767,6 +2767,9 @@ spec:
         - -cluster-scoped=true
         command:
         - ndb-operator
+        env:
+        - name: NDB_OPERATOR_IMAGE
+          value: mysql/ndb-operator:8.0.31-0.4.0
         image: mysql/ndb-operator:8.0.31-0.4.0
         imagePullPolicy: IfNotPresent
         name: ndb-operator-controller

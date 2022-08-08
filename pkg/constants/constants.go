@@ -30,8 +30,9 @@ const MaxNumberOfNodes = 256
 // MaxNumberOfDataNodes is the maximum number of nodes in Ndb Cluster
 const MaxNumberOfDataNodes = 144
 
-// MaxNumberOfReplicas is the maximum number of replicas of Ndb (not K8)
-const MaxNumberOfReplicas = 4
+// NdbNodeTypeAPIStartNodeId is the nodeId of the
+// first API section in MySQL Cluster config
+const NdbNodeTypeAPIStartNodeId = MaxNumberOfDataNodes + 1
 
 // List of ConfigMap keys
 const (
@@ -55,8 +56,6 @@ const (
 
 // List of scripts loaded into the configmap
 const (
-	// WaitForDNSUpdateScript waits for the current pod's DNS entry to get updated
-	WaitForDNSUpdateScript = "wait-for-dns-update.sh"
 
 	// MgmdStartupProbeScript is the Management Nodes' Startup Probe
 	MgmdStartupProbeScript = "mgmd-startup-probe.sh"

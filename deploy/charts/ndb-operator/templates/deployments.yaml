@@ -79,6 +79,10 @@ spec:
             - -cluster-scoped={{.Values.clusterScoped}}
           ports:
             - containerPort: 1186
+          env:
+            # Expose the image name via env to the operator app
+            - name: NDB_OPERATOR_IMAGE
+              value: {{.Values.image}}
   # set maxUnavailable to 0 so that helm will wait for the pod to become ready
   strategy:
     rollingUpdate:

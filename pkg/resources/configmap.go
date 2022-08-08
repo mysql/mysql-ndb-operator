@@ -88,7 +88,6 @@ func updateHelperScripts(data map[string]string) error {
 		constants.MysqldHealthCheckScript:    "MySQL Server Healthcheck",
 		constants.DataNodeInitScript:         "Data Node init",
 		constants.DataNodeStartupProbeScript: "Data Node Startup Probe",
-		constants.WaitForDNSUpdateScript:     "DNS Update Waiter",
 		constants.MgmdStartupProbeScript:     "Mgmd Startup Probe",
 	} {
 		fileBytes, err := scriptsFS.ReadFile("statefulset/scripts/" + fileName)
