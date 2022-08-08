@@ -105,7 +105,6 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Custom cnf", func(tc *ndbtest.TestCont
 
 			// verify that the other config values are preserved
 			expectGlobalVariableValue(c, testNdb, "max_user_connections", 42)
-			expectGlobalVariableValue(c, testNdb, "log_bin", "OFF")
 		})
 
 		ginkgo.It("should not update the MySQL Cluster config version", func() {
