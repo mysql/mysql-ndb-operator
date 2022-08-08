@@ -19,11 +19,6 @@ import (
 	"k8s.io/klog/v2"
 )
 
-const (
-	// statefulset generated PVC name prefix
-	volumeClaimTemplateName = "ndb-pvc"
-)
-
 var (
 	// Ports to be exposed by the container and service
 	ndbmtdPorts = []int32{1186}
@@ -62,12 +57,6 @@ func (nss *ndbmtdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []corev1.Vo
 							Key:  constants.DataNodeInitScript,
 							Path: constants.DataNodeInitScript,
 						},
-						{
-							// Load the wait-for-dns-update script.
-							// It will be used by the init container.
-							Key:  constants.WaitForDNSUpdateScript,
-							Path: constants.WaitForDNSUpdateScript,
-						},
 					},
 				},
 			},
@@ -79,34 +68,25 @@ func (nss *ndbmtdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []corev1.Vo
 	// doesn't have any PVCs defined to be used with
 	// the data nodes.
 	if nc.Spec.DataNodePVCSpec == nil {
-		podVolumes = append(podVolumes, *nss.getEmptyDirPodVolume())
+		podVolumes = append(podVolumes, *nss.getEmptyDirPodVolume(nss.getDataDirVolumeName()))
 	}
 
 	return podVolumes
 }
 
 // getVolumeMounts returns the volumes to be mounted to the ndbmtd containers
-func (nss *ndbmtdStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []corev1.VolumeMount {
-
-	var dataDirVolumeName string
-	if nc.Spec.DataNodePVCSpec == nil {
-		// NdbCluster doesn't have a PVC spec defined for the data nodes.
-		// Use the empty dir volume mount as the data directory
-		dataDirVolumeName = nss.getEmptyDirVolumeName()
-	} else {
-		// Use the volumeClaimTemplate name for the data node
-		dataDirVolumeName = volumeClaimTemplateName
-	}
-
+func (nss *ndbmtdStatefulSet) getVolumeMounts() []corev1.VolumeMount {
 	// return volume mounts
 	return []corev1.VolumeMount{
 		{
 			// Volume mount for data directory
-			Name:      dataDirVolumeName,
+			Name:      nss.getDataDirVolumeName(),
 			MountPath: dataDirectoryMountPath,
 		},
 		// Volume mount for helper scripts
 		nss.getHelperScriptVolumeMount(),
+		// Mount the work dir volume
+		nss.getWorkDirVolumeMount(),
 	}
 }
 
@@ -234,19 +214,17 @@ func (nss *ndbmtdStatefulSet) getResourceRequestRequirements(nc *v1alpha1.NdbClu
 	}, nil
 }
 
-// getInitContainers returns the init containers to be used by the data Node
-func (nss *ndbmtdStatefulSet) getInitContainers(nc *v1alpha1.NdbCluster) []corev1.Container {
+// getInitContainer returns the init container to be used by the data Node
+func (nss *ndbmtdStatefulSet) getInitContainer(nc *v1alpha1.NdbCluster) corev1.Container {
 	// Command and args to run the Data node init script
 	cmdAndArgs := []string{
 		helperScriptsMountPath + "/" + constants.DataNodeInitScript,
 		nc.GetConnectstring(),
 	}
 
-	return []corev1.Container{
-		nss.createContainer(nc,
-			nss.getContainerName(true),
-			cmdAndArgs, nss.getVolumeMounts(nc), nil),
-	}
+	return nss.createContainer(nc,
+		nss.getContainerName(true),
+		cmdAndArgs, nss.getVolumeMounts(), nil)
 }
 
 // getContainers returns the containers to run a data Node
@@ -259,7 +237,7 @@ func (nss *ndbmtdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Co
 		"--foreground",
 		// Pass the nodeId to be used to prevent invalid
 		// nodeId allocation during statefulset patching.
-		"--ndb-nodeid=$(cat " + dataNodeIdFilePath + ")",
+		"--ndb-nodeid=$(cat " + NodeIdFilePath + ")",
 	}
 
 	if debug.Enabled {
@@ -269,7 +247,7 @@ func (nss *ndbmtdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Co
 
 	ndbmtdContainer := nss.createContainer(
 		nc, nss.getContainerName(false), cmdAndArgs,
-		nss.getVolumeMounts(nc), ndbmtdPorts)
+		nss.getVolumeMounts(), ndbmtdPorts)
 
 	// Setup startup probe for data nodes.
 	// The probe uses a script that checks if a data node has started, by
@@ -337,16 +315,16 @@ func (nss *ndbmtdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 	if nc.Spec.DataNodePVCSpec != nil {
 		statefulSetSpec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{
 			// This PVC will be used as a template and an actual PVC will be created by the
-			// statefulset controller with name "<volumeClaimTemplateName>-<ndb-name>-<pod-name>"
-			*newPVC(nc, volumeClaimTemplateName, nc.Spec.DataNodePVCSpec),
+			// statefulset controller with name "<data-dir-vol-name(i.e ndbmtd-data-vol)>-<pod-name>"
+			*newPVC(nc, nss.getDataDirVolumeName(), nc.Spec.DataNodePVCSpec),
 		}
 	}
 
 	// Update template pod spec
 	podSpec := &statefulSetSpec.Template.Spec
-	podSpec.InitContainers = nss.getInitContainers(nc)
+	podSpec.InitContainers = append(podSpec.InitContainers, nss.getInitContainer(nc))
 	podSpec.Containers = nss.getContainers(nc)
-	podSpec.Volumes = nss.getPodVolumes(nc)
+	podSpec.Volumes = append(podSpec.Volumes, nss.getPodVolumes(nc)...)
 	// Set default AntiAffinity rules
 	podSpec.Affinity = &corev1.Affinity{
 		PodAntiAffinity: nss.getPodAntiAffinity(),

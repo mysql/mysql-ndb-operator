@@ -13,8 +13,8 @@
 #        will falsely report the data node as dead if the Management nodes are
 #        not available.
 
-# Extract the nodeId written by the init script
-nodeId=$(cat /var/lib/ndb/data/nodeId.val)
+# Extract the nodeId written by the init container
+nodeId=$(cat /var/lib/ndb/run/nodeId.val)
 
 # Get node status using `ndb_mgm -e "<nodeId> status"` command
 nodeStatus=$(ndb_mgm -c "${NDB_CONNECTSTRING}" -e "${nodeId} status" --connect-retries=1)

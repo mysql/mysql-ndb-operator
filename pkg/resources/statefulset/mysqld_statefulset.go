@@ -23,9 +23,6 @@ const (
 	mysqldClientName = constants.NdbNodeTypeMySQLD
 	// MySQL Server runtime directory
 	mysqldDir = constants.DataDir
-	// Data directory volume and mount path
-	mysqldDataDirVolName = mysqldClientName + "-vol"
-	mysqldDataDir        = dataDirectoryMountPath
 
 	// MySQL root password secret volume and mount path
 	mysqldRootPasswordFileName  = ".root-password"
@@ -67,12 +64,7 @@ func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) []corev1.V
 	rootPasswordSecretName, _ := resources.GetMySQLRootPasswordSecretName(ndb)
 	podVolumes := []corev1.Volume{
 		// Use a temporary empty directory volume for the pod
-		{
-			Name: mysqldDataDirVolName,
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
-		},
+		*mss.getEmptyDirPodVolume(mss.getDataDirVolumeName()),
 		// Use the root password secret as a volume
 		{
 			Name: mysqldRootPasswordVolName,
@@ -155,8 +147,8 @@ func (mss *mysqldStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []corev1.
 	volumeMounts := []corev1.VolumeMount{
 		// Mount the empty dir volume as data directory
 		{
-			Name:      mysqldDataDirVolName,
-			MountPath: mysqldDataDir,
+			Name:      mss.getDataDirVolumeName(),
+			MountPath: dataDirectoryMountPath,
 		},
 		// Mount the secret volume
 		{
@@ -168,11 +160,10 @@ func (mss *mysqldStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []corev1.
 			Name:      mysqldInitScriptsVolName,
 			MountPath: mysqldInitScriptsMountPath,
 		},
-		// Mount the MySQL Server health script volume
-		{
-			Name:      helperScriptsVolName,
-			MountPath: helperScriptsMountPath,
-		},
+		// Volume mount for helper scripts
+		mss.getHelperScriptVolumeMount(),
+		// Mount the work dir volume
+		mss.getWorkDirVolumeMount(),
 	}
 
 	if len(nc.GetMySQLCnf()) > 0 {
@@ -207,7 +198,7 @@ func (mss *mysqldStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Co
 		"--ndbcluster",
 		"--ndb-connectstring="+nc.GetConnectstring(),
 		"--user=mysql",
-		"--datadir="+mysqldDataDir,
+		"--datadir="+dataDirectoryMountPath,
 	)
 
 	if debug.Enabled {
@@ -288,7 +279,7 @@ func (mss *mysqldStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 	// Update template pod spec
 	podSpec := &statefulSetSpec.Template.Spec
 	podSpec.Containers = mss.getContainers(nc)
-	podSpec.Volumes = mss.getPodVolumes(nc)
+	podSpec.Volumes = append(podSpec.Volumes, mss.getPodVolumes(nc)...)
 	// Set default AntiAffinity rules
 	podSpec.Affinity = &corev1.Affinity{
 		PodAntiAffinity: mss.getPodAntiAffinity(),

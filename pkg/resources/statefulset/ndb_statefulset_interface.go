@@ -5,6 +5,7 @@
 package statefulset
 
 import (
+	"os"
 	"strconv"
 	"strings"
 
@@ -53,15 +54,15 @@ func (bss *baseStatefulSet) getPodLabels(nc *v1alpha1.NdbCluster) map[string]str
 	})
 }
 
-// getEmptyDirVolumeName returns the name of the empty directory volume
-func (bss *baseStatefulSet) getEmptyDirVolumeName() string {
-	return bss.nodeType + "-empty-dir-volume"
+// getDataDirVolumeName returns the data dir volume name
+func (bss *baseStatefulSet) getDataDirVolumeName() string {
+	return bss.nodeType + "-data-vol"
 }
 
 // getEmptyDirPodVolumes returns an empty directory pod volume
-func (bss *baseStatefulSet) getEmptyDirPodVolume() *corev1.Volume {
+func (bss *baseStatefulSet) getEmptyDirPodVolume(name string) *corev1.Volume {
 	return &corev1.Volume{
-		Name: bss.getEmptyDirVolumeName(),
+		Name: name,
 		VolumeSource: corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
@@ -125,6 +126,37 @@ func (bss *baseStatefulSet) createContainer(
 	}
 }
 
+// getWorkDirVolumeMount returns the VolumeMount for the work directory
+func (bss *baseStatefulSet) getWorkDirVolumeMount() corev1.VolumeMount {
+	return corev1.VolumeMount{
+		Name:      workDirVolName,
+		MountPath: workDirVolMount,
+	}
+}
+
+// getDefaultInitContainers returns the default init containers to be run
+func (bss *baseStatefulSet) getDefaultInitContainers(nc *v1alpha1.NdbCluster) []corev1.Container {
+
+	// The ndb-pod-initializer is tool is the only default container to be run
+	cmdAndArgs := []string{
+		"ndb-pod-initializer",
+	}
+
+	// Load just the work dir volume mount
+	volumeMounts := []corev1.VolumeMount{
+		bss.getWorkDirVolumeMount(),
+	}
+
+	container := bss.createContainer(nc, "ndb-pod-init-container", cmdAndArgs, volumeMounts, nil)
+
+	// Use the current ndb operator image name in the container
+	ndbOperatorImageName := os.Getenv("NDB_OPERATOR_IMAGE")
+	container.Image = ndbOperatorImageName
+	container.ImagePullPolicy = corev1.PullIfNotPresent
+
+	return []corev1.Container{container}
+}
+
 // newStatefulSet defines a new StatefulSet that will be
 // used by the mgmd and ndbmtd StatefulSets
 func (bss *baseStatefulSet) newStatefulSet(
@@ -140,6 +172,10 @@ func (bss *baseStatefulSet) newStatefulSet(
 			},
 		}
 	}
+
+	// add the default init container and the empty dir volume
+	podSpec.InitContainers = bss.getDefaultInitContainers(nc)
+	podSpec.Volumes = []corev1.Volume{*bss.getEmptyDirPodVolume(workDirVolName)}
 
 	// Labels to be used for the statefulset pods
 	podLabels := bss.getPodLabels(nc)

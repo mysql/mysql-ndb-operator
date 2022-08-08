@@ -71,10 +71,7 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 	var (
 		// Variable that keeps track of the first free data node, mgmd node ids
 		ndbdMgmdStartNodeId = 1
-		// Right now maximum of 144 data nodes are allowed in a cluster
-		// So to accommodate scaling up of those nodes, start the api node id from 145
-		// TODO: Validate the maximum number of API ids
-		apiStartNodeId = 145
+		apiStartNodeId      = constants.NdbNodeTypeAPIStartNodeId
 	)
 
 	tmpl := template.New("config.ini")

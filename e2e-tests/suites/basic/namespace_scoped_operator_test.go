@@ -62,7 +62,7 @@ var _ = ginkgo.Describe("Multiple NDB Clusters released in different Namespaces"
 				contextArray[i].ndbOperatorInstalled = true
 				ndbtest.WaitForNdbOperatorReady(tc.Ctx(), tc.NdbClientset(), namespace)
 
-				testNdbCluster := testutils.NewTestNdb(namespace, fmt.Sprintf("test-ndb-%d", i), 2)
+				testNdbCluster := testutils.NewTestNdb(namespace, fmt.Sprintf("namespace-scope-test-%d", i), 2)
 				contextArray[i].ndbCluster = testNdbCluster
 				testNdbCluster.Spec.RedundancyLevel = 1
 

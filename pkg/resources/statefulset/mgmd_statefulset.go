@@ -41,7 +41,7 @@ func (mss *mgmdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []corev1.Volu
 
 	return []corev1.Volume{
 		// Empty Dir volume for the mgmd data dir
-		*mss.getEmptyDirPodVolume(),
+		*mss.getEmptyDirPodVolume(mss.getDataDirVolumeName()),
 
 		// Load the config.ini script via a volume
 		{
@@ -74,12 +74,6 @@ func (mss *mgmdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []corev1.Volu
 					DefaultMode: &ownerCanExecMode,
 					Items: []corev1.KeyToPath{
 						{
-							// Load the wait-for-dns-update script.
-							// It will be used by the init container.
-							Key:  constants.WaitForDNSUpdateScript,
-							Path: constants.WaitForDNSUpdateScript,
-						},
-						{
 							// Load the startup probe
 							Key:  constants.MgmdStartupProbeScript,
 							Path: constants.MgmdStartupProbeScript,
@@ -96,7 +90,7 @@ func (mss *mgmdStatefulSet) getVolumeMounts() []corev1.VolumeMount {
 	return []corev1.VolumeMount{
 		// Append the empty dir volume mount to be used as a data dir
 		{
-			Name:      mss.getEmptyDirVolumeName(),
+			Name:      mss.getDataDirVolumeName(),
 			MountPath: dataDirectoryMountPath,
 		},
 		// Mount the config map volume holding the MySQL Cluster configuration
@@ -106,20 +100,8 @@ func (mss *mgmdStatefulSet) getVolumeMounts() []corev1.VolumeMount {
 		},
 		// Mount the helper scripts
 		mss.getHelperScriptVolumeMount(),
-	}
-}
-
-// getInitContainers returns the init containers to be used by the management Node
-func (mss *mgmdStatefulSet) getInitContainers(nc *v1alpha1.NdbCluster) []corev1.Container {
-	// Command and args to run the mgmd init script
-	cmdAndArgs := []string{
-		helperScriptsMountPath + "/" + constants.WaitForDNSUpdateScript,
-	}
-
-	return []corev1.Container{
-		mss.createContainer(nc,
-			mss.getContainerName(true),
-			cmdAndArgs, mss.getVolumeMounts(), nil),
+		// Mount the work dir volume
+		mss.getWorkDirVolumeMount(),
 	}
 }
 
@@ -133,6 +115,7 @@ func (mss *mgmdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Cont
 		"--initial",
 		"--nodaemon",
 		"--config-cache=0",
+		"--ndb-nodeid=$(cat " + NodeIdFilePath + ")",
 	}
 
 	if debug.Enabled {
@@ -192,9 +175,8 @@ func (mss *mgmdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1al
 
 	// Update template pod spec
 	podSpec := &statefulSetSpec.Template.Spec
-	podSpec.InitContainers = mss.getInitContainers(nc)
 	podSpec.Containers = mss.getContainers(nc)
-	podSpec.Volumes = mss.getPodVolumes(nc)
+	podSpec.Volumes = append(podSpec.Volumes, mss.getPodVolumes(nc)...)
 	// Set default AntiAffinity rules
 	podSpec.Affinity = &corev1.Affinity{
 		PodAntiAffinity: mss.getPodAntiAffinity(),

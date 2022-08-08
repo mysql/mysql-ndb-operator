@@ -8,9 +8,8 @@
 
 set -e
 
-# Extract nodeId from pod ordinal
-sfsetPodOrdinalIdx=${HOSTNAME##*-}
-nodeId=$((sfsetPodOrdinalIdx + 1))
+# Extract the nodeId written by the init container
+nodeId=$(cat /var/lib/ndb/run/nodeId.val)
 
 # Get local mgmd status using `ndb_mgm -e "<nodeId> status"` command
 nodeStatus=$(ndb_mgm -c "localhost" -e "${nodeId} status" --connect-retries=1)
