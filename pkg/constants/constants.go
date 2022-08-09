@@ -16,24 +16,37 @@ const (
 	NdbNodeTypeAPI    NdbNodeType = "api"
 )
 
-// ClusterLabel is applied to all components of a Ndb cluster
-const ClusterLabel = ndbcontroller.GroupName + "/v1alpha1"
-const ClusterNodeTypeLabel = ndbcontroller.GroupName + "/node-type"
-
-// ClusterResourceTypeLabel is applied to all k8s resources managed by Ndb
-const ClusterResourceTypeLabel = ndbcontroller.GroupName + "/resource-type"
+const (
+	// ClusterLabel is applied to all the resources owned by an
+	// NdbCluster resource
+	ClusterLabel = ndbcontroller.GroupName + "/v1alpha1"
+	// ClusterNodeTypeLabel is applied to all the pods owned by an
+	// NdbCluster resource
+	ClusterNodeTypeLabel = ndbcontroller.GroupName + "/node-type"
+	// ClusterResourceTypeLabel is applied to all K8s resources except
+	// pods owned by an NdbCluster resource
+	ClusterResourceTypeLabel = ndbcontroller.GroupName + "/resource-type"
+)
 
 const DataDir = "/var/lib/ndb"
 
-// MaxNumberOfNodes is the maximum number of nodes in Ndb Cluster
-const MaxNumberOfNodes = 256
+const (
+	// MaxNumberOfNodes is the maximum number of nodes in Ndb Cluster
+	MaxNumberOfNodes = 256
 
-// MaxNumberOfDataNodes is the maximum number of nodes in Ndb Cluster
-const MaxNumberOfDataNodes = 144
+	// MaxNumberOfDataNodes is the maximum number of nodes in Ndb Cluster
+	MaxNumberOfDataNodes = 144
 
-// NdbNodeTypeAPIStartNodeId is the nodeId of the
-// first API section in MySQL Cluster config
-const NdbNodeTypeAPIStartNodeId = MaxNumberOfDataNodes + 1
+	// NdbOperatorDedicatedAPINodeId is the dedicated nodeId used by the
+	// Ndb Operator to connect to a Management Server of a MySQL Cluster.
+	// NodeIds 1-146 are reserved for 2 management nodes and
+	// MaxNumberOfDataNodes count of data nodes.
+	NdbOperatorDedicatedAPINodeId = 147
+
+	// NdbNodeTypeAPIStartNodeId is the nodeId of the
+	// first non-dedicated API/MySQLD section in MySQL Cluster config
+	NdbNodeTypeAPIStartNodeId = NdbOperatorDedicatedAPINodeId + 1
+)
 
 // List of ConfigMap keys
 const (

@@ -54,6 +54,11 @@ Hostname={{$.Name}}-{{NdbNodeTypeNdbmtd}}-{{$idx}}.{{$.GetServiceName NdbNodeTyp
 DataDir={{GetDataDir}}
 
 {{end -}}
+# Dedicated API section to be used by NDB Operator
+[api]
+NodeId={{NdbOperatorDedicatedAPINodeId}}
+Dedicated=1
+
 # MySQLD sections to be used exclusively by MySQL Servers
 {{range $idx, $nodeId := GetNodeIds NdbNodeTypeMySQLD -}}
 [mysqld]
@@ -100,7 +105,7 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 				numberOfNodes = getNumOfSectionsRequiredForMySQLServers(ndb)
 			case constants.NdbNodeTypeAPI:
 				startNodeId = &apiStartNodeId
-				numberOfNodes = getNumOfFreeAPISections(ndb)
+				numberOfNodes = ndb.Spec.FreeAPISlots
 			default:
 				panic("Unrecognised node type")
 			}
@@ -136,10 +141,11 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 				return ndb.Namespace + k8sCname[len("kubernetes.default"):len(k8sCname)-1]
 			}
 		},
-		"NdbNodeTypeMgmd":   func() string { return constants.NdbNodeTypeMgmd },
-		"NdbNodeTypeNdbmtd": func() string { return constants.NdbNodeTypeNdbmtd },
-		"NdbNodeTypeMySQLD": func() string { return constants.NdbNodeTypeMySQLD },
-		"NdbNodeTypeAPI":    func() string { return constants.NdbNodeTypeAPI },
+		"NdbNodeTypeMgmd":               func() string { return constants.NdbNodeTypeMgmd },
+		"NdbNodeTypeNdbmtd":             func() string { return constants.NdbNodeTypeNdbmtd },
+		"NdbNodeTypeMySQLD":             func() string { return constants.NdbNodeTypeMySQLD },
+		"NdbNodeTypeAPI":                func() string { return constants.NdbNodeTypeAPI },
+		"NdbOperatorDedicatedAPINodeId": func() int { return constants.NdbOperatorDedicatedAPINodeId },
 	})
 
 	if _, err := tmpl.Parse(mgmtConfigTmpl); err != nil {

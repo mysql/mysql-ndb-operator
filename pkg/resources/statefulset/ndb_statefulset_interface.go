@@ -5,6 +5,7 @@
 package statefulset
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -117,8 +118,9 @@ func (bss *baseStatefulSet) createContainer(
 				},
 			},
 			{
-				Name:  "NDB_CONNECTSTRING",
-				Value: nc.GetConnectstring(),
+				Name: "NDB_CONNECTSTRING",
+				Value: fmt.Sprintf("nodeid=%d,%s",
+					constants.NdbOperatorDedicatedAPINodeId, nc.GetConnectstring()),
 			},
 		},
 		Command:      []string{"/bin/bash", "-ecx", strings.Join(commandAndArgs, " ")},
