@@ -25,7 +25,8 @@ fi
 # If this node is being restarted as a part of a the mgmd StatefulSet
 # update, it should be considered fully "ready" only when all the other
 # existing mgmd and data nodes have connected to it.
-connectstrings=(${NDB_CONNECTSTRING//,/ })
+connectstringExcludingNodeId=${NDB_CONNECTSTRING#*,}
+connectstrings=(${connectstringExcludingNodeId//,/ })
 if ((${#connectstrings[@]} == 1)); then
   # No need to handle update case as there is only one mgmd
   # (i.e replica=1) and update is denied for such cases.

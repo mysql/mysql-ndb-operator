@@ -126,7 +126,7 @@ func writeNodeIDToFile(hostname string) (nodeId int, nodeType mgmapi.NodeTypeEnu
 	case constants.NdbNodeTypeNdbmtd:
 		// Data nodes' nodeId continue sequentially
 		// after the Management nodes' nodeIds.
-		numOfManagementNode := len(strings.Split(os.Getenv("NDB_CONNECTSTRING"), ","))
+		numOfManagementNode := len(strings.Split(os.Getenv("NDB_CONNECTSTRING"), ",")) - 1
 		startNodeIdOfSameNodeType = numOfManagementNode + 1
 		nodeType = mgmapi.NodeTypeNDB
 	case constants.NdbNodeTypeMySQLD:

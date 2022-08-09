@@ -81,6 +81,7 @@ func Test_NewConfigSummary(t *testing.T) {
 }
 
 func Test_GetConfigString(t *testing.T) {
+
 	ndb := testutils.NewTestNdb("default", "example-ndb", 2)
 	ndb.Spec.FreeAPISlots = 3
 	getIntStrPtr := func(obj intstr.IntOrString) *intstr.IntOrString {
@@ -142,27 +143,29 @@ NodeId=4
 Hostname=example-ndb-ndbmtd-1.example-ndb-ndbmtd.default
 DataDir=/var/lib/ndb/data
 
+# Dedicated API section to be used by NDB Operator
+[api]
+NodeId=147
+Dedicated=1
+
 # MySQLD sections to be used exclusively by MySQL Servers
 [mysqld]
-NodeId=145
+NodeId=148
 Hostname=example-ndb-mysqld-0.example-ndb-mysqld.default
 
 [mysqld]
-NodeId=146
+NodeId=149
 Hostname=example-ndb-mysqld-1.example-ndb-mysqld.default
 
 # API sections to be used by generic NDBAPI applications
 [api]
-NodeId=147
-
-[api]
-NodeId=148
-
-[api]
-NodeId=149
-
-[api]
 NodeId=150
+
+[api]
+NodeId=151
+
+[api]
+NodeId=152
 
 `
 	if configString != expectedConfigString {

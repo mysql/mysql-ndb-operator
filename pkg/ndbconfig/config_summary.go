@@ -138,7 +138,8 @@ func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1alpha1.NdbCluster) 
 	}
 
 	// Check if more freeAPISlots slots are being declared by the new spec.
-	if cs.NumOfFreeApiSlots != getNumOfFreeAPISections(nc) {
+	// Note that the config will have an extra API slot dedicated for use by the NDB Operator
+	if cs.NumOfFreeApiSlots != nc.Spec.FreeAPISlots+1 {
 		// Number of free slots have been changed. Regenerate config and apply it.
 		return true
 	}
