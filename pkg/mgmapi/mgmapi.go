@@ -23,8 +23,10 @@ import (
 type MgmClient interface {
 	Disconnect()
 	GetStatus() (ClusterStatus, error)
-	GetConfigVersion(nodeID ...int) (uint32, error)
 	StopNodes(nodeIds []int) error
+	TryReserveNodeId(nodeId int, nodeType NodeTypeEnum) (int, error)
+
+	GetConfigVersion(nodeID ...int) (uint32, error)
 	GetDataMemory(dataNodeId int) (uint64, error)
 	GetMgmdArbitrationRank() (uint32, error)
 	GetMaxNoOfTables(dataNodeId int) (uint32, error)
@@ -525,6 +527,56 @@ func (mci *mgmClientImpl) StopNodes(nodeIds []int) error {
 	return nil
 }
 
+// TryReserveNodeId attempts to temporarily reserve the given nodeId of nodeType
+// for a second. It returns reserved nodeId on success and an error on failure.
+// This is used by the various MySQL Cluster node pods' init containers to check
+// if the existing nodes are ready to accept a connection from the node.
+func (mci *mgmClientImpl) TryReserveNodeId(nodeId int, nodeType NodeTypeEnum) (int, error) {
+
+	// command : (note : version, user, password and public key are mandatory but ignored by the Management Server)
+	// get nodeid
+	// version: <composite ndb version of the client>
+	// nodeid: <nodeId>
+	// nodetype: <nodeType>
+	// timeout: <seconds after which the nodeId reservation expires>  nbb
+	// user: dummy
+	// password: dummy
+	// public key: dummy
+
+	// get nodeid reply
+	// nodeid: <Assigned nodeId>
+	// result: Ok
+
+	// build args
+	args := map[string]interface{}{
+		// version is read by the server but ultimately not used
+		"version":  0,
+		"nodeid":   nodeId,
+		"nodetype": nodeType,
+		// reserve nodeId only for a second
+		"timeout": 1,
+		// user, password and public key are ignored by the server
+		"user":       "",
+		"password":   "",
+		"public key": "",
+	}
+
+	// send the command and return the assigned nodeId
+	reply, err := mci.executeCommand(
+		"get nodeid", args, false,
+		[]string{"get nodeid reply", "nodeid"})
+	if err != nil {
+		return 0, err
+	}
+
+	reservedNodeId, err := strconv.Atoi(reply["nodeid"])
+	if err != nil {
+		return 0, debug.InternalError("nodeid in get nodeid reply has unexpected format : " + err.Error())
+	}
+
+	return reservedNodeId, nil
+}
+
 // getConfig extracts the value of the config variable 'configKey'
 // from the MySQL Cluster node with node id 'nodeId'. The config
 // is either retrieved from the config stored in connected
@@ -532,7 +584,7 @@ func (mci *mgmClientImpl) StopNodes(nodeIds []int) error {
 func (mci *mgmClientImpl) getConfig(
 	nodeId int, sectionFilter cfgSectionType, configKey uint32, getConfigFromConnectedMgmd bool) (configValue, error) {
 
-	// command :
+	// command : (note : version is mandatory but ignored by the Management Server)
 	// get config_v2
 	// version: <Configuration version number>
 	// node: <communication sections of the node to send back in reply>

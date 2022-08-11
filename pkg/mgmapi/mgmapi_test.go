@@ -5,6 +5,7 @@
 package mgmapi
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -564,5 +565,45 @@ AJkAAAAFAAAAAQAAAAIQAAADAAAAmhVv0RY=
 	// Check if the right config version is returned
 	if value.(uint32) != 1 {
 		t.Errorf("getConfig returned a wrong config version. Expected : 1. Recieved : %d", value.(uint32))
+	}
+}
+
+// getFreeAPINodeId returns a free API NodeId
+func getFreeAPINodeId(t *testing.T, mci *mgmClientImpl) int {
+	status, err := mci.GetStatus()
+	if err != nil {
+		t.Errorf("GetStatus failed : %s", err)
+	}
+
+	for nodeId, nodeStatus := range status {
+		if nodeStatus.IsAPINode() && !nodeStatus.IsConnected {
+			return nodeId
+		}
+	}
+
+	// No API node is free
+	return 0
+}
+
+func TestMgmClientImpl_TryReserveNodeId(t *testing.T) {
+	mci := getConnectionToMgmd(t)
+	defer mci.Disconnect()
+
+	freeAPINodeId := getFreeAPINodeId(t, mci)
+	if freeAPINodeId == 0 {
+		t.Skipf("No free API node")
+	}
+
+	// Try reserving the freeAPINode
+	if _, err := mci.TryReserveNodeId(freeAPINodeId, NodeTypeAPI); err != nil {
+		t.Errorf("Failed to reserve nodeId : %s", err)
+	}
+
+	// try again and expect an "already allocated" error
+	expectedError := fmt.Sprintf("Id %d already allocated by another node.", freeAPINodeId)
+	if _, err := mci.TryReserveNodeId(freeAPINodeId, NodeTypeAPI); err == nil {
+		t.Errorf("Expected the second TryReserveNodeId to fail")
+	} else if err.Error() != expectedError {
+		t.Errorf("TryReserveNodeId returned an unexpected error : %s", err.Error())
 	}
 }
