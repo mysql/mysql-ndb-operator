@@ -5,6 +5,9 @@
 package webhook
 
 import (
+	"encoding/json"
+	"k8s.io/klog/v2"
+
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -71,7 +74,46 @@ func (nv *ndbAdmissionController) validateUpdate(
 	return requestAllowed(reqUID)
 }
 
+// JSONPath operation types
+const (
+	ADD     = "add"
+	REPLACE = "replace"
+)
+
+func newJsonPatchOperation(operation, path string, value interface{}) interface{} {
+	return map[string]interface{}{
+		"op":    operation,
+		"path":  path,
+		"value": value,
+	}
+}
+
 func (nv *ndbAdmissionController) mutate(obj runtime.Object) ([]byte, error) {
-	//TODO implement me
-	return []byte(`[]`), nil
+	nc := obj.(*v1alpha1.NdbCluster)
+
+	var patchOperations []interface{}
+
+	// Always attach atleast one MySQL Server to the MySQL Cluster setup
+	if nc.Spec.Mysqld == nil {
+		patchOperations = append(patchOperations,
+			newJsonPatchOperation(ADD, "/spec/mysqld", map[string]interface{}{"nodeCount": 1}))
+	} else if nc.Spec.Mysqld.NodeCount == 0 {
+		patchOperations = append(patchOperations,
+			newJsonPatchOperation(REPLACE, "/spec/mysqld/nodeCount", 1))
+	}
+
+	// No mutation required
+	if patchOperations == nil {
+		return nil, nil
+	}
+
+	// Return the operations as a json patch
+	patch, err := json.Marshal(patchOperations)
+	if err != nil {
+		return nil, err
+	}
+
+	klog.Infof("JSONPatch `%s` will be applied to resource '%s/%s'", string(patch), nc.Namespace, nc.Name)
+
+	return patch, nil
 }
