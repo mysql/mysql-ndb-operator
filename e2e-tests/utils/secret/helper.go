@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	testRootPassword = "ndbpass"
+	TestRootPassword = "ndbpass"
 )
 
 func CreateSecretForMySQLRootAccount(ctx context.Context, clientset kubernetes.Interface, secretName, namespace string) {
@@ -30,7 +30,7 @@ func CreateSecretForMySQLRootAccount(ctx context.Context, clientset kubernetes.I
 			Name:      secretName,
 			Namespace: namespace,
 		},
-		Data: map[string][]byte{v1.BasicAuthPasswordKey: []byte(testRootPassword)},
+		Data: map[string][]byte{v1.BasicAuthPasswordKey: []byte(TestRootPassword)},
 		Type: v1.SecretTypeBasicAuth,
 	}
 
