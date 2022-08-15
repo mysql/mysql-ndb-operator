@@ -128,6 +128,7 @@ func initWebhookServer(ws *http.Server) {
 	// allowed admissionController requestTypes
 	validRequestTypes := map[string]requestExecutor{
 		"validate": validate,
+		"mutate":   mutate,
 	}
 
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
@@ -171,6 +172,13 @@ func setWebhookServerTLSCerts(ctx context.Context, ws *http.Server) {
 	if !vwcInterface.UpdateWebhookConfigCertificate(
 		ctx, "webhook-server="+namespace+"-"+config.serviceName, td.certificate) {
 		klog.Fatal("Failed to update validating webhook configs with the new certificate")
+	}
+
+	// update the mutating webhook config with the certificate
+	mwcInterface := controllers.NewMutatingWebhookConfigController(clientset)
+	if !mwcInterface.UpdateWebhookConfigCertificate(
+		ctx, "webhook-server="+namespace+"-"+config.serviceName, td.certificate) {
+		klog.Fatal("Failed to update mutating webhook configs with the new certificate")
 	}
 
 	// Add certificate to server config

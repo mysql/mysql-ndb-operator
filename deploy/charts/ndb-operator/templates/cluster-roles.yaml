@@ -19,12 +19,13 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{.Release.Namespace}}-{{.Release.Name}}-webhook-vwc-cr
+  name: {{.Release.Namespace}}-{{.Release.Name}}-webhook-cr
 rules:
   - apiGroups:
       - admissionregistration.k8s.io
     resources:
       - validatingwebhookconfigurations
+      - mutatingwebhookconfigurations
     verbs:
       - list
       - patch

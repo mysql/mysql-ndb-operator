@@ -70,3 +70,8 @@ func (nv *ndbAdmissionController) validateUpdate(
 
 	return requestAllowed(reqUID)
 }
+
+func (nv *ndbAdmissionController) mutate(obj runtime.Object) ([]byte, error) {
+	//TODO implement me
+	return []byte(`[]`), nil
+}

@@ -2565,12 +2565,13 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: ndb-operator-ndb-operator-webhook-vwc-cr
+  name: ndb-operator-ndb-operator-webhook-cr
 rules:
 - apiGroups:
   - admissionregistration.k8s.io
   resources:
   - validatingwebhookconfigurations
+  - mutatingwebhookconfigurations
   verbs:
   - list
   - patch
@@ -2656,12 +2657,12 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: ndb-operator-ndb-operator-webhook-vwc-crb
+  name: ndb-operator-ndb-operator-webhook-crb
   namespace: ndb-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: ndb-operator-ndb-operator-webhook-vwc-cr
+  name: ndb-operator-ndb-operator-webhook-cr
 subjects:
 - kind: ServiceAccount
   name: ndb-operator-webhook-sa
@@ -2792,11 +2793,40 @@ spec:
       subdomain: ndb-operator-svc
 ---
 apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  labels:
+    webhook-server: ndb-operator-ndb-operator-webhook-service
+  name: ndb-operator-ndb-operator-mwc
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: ndb-operator-webhook-service
+      namespace: ndb-operator
+      path: /ndb/mutate
+      port: 9443
+  failurePolicy: Fail
+  name: mutating-webhook.ndbcluster.mysql.oracle.com
+  rules:
+  - apiGroups:
+    - mysql.oracle.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - ndbclusters
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   labels:
     webhook-server: ndb-operator-ndb-operator-webhook-service
-  name: ndb-operator-ndb-operator-webhook-config
+  name: ndb-operator-ndb-operator-vwc
 webhooks:
 - admissionReviewVersions:
   - v1

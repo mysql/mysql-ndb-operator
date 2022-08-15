@@ -1,11 +1,11 @@
-# Register the webhook service as a validating webhook
-# since validating webhook(vwh) is a cluster scoped resource, append release
+# Register the webhook service as a mutating webhook
+# since mutating webhook(mwh) is a cluster scoped resource, append release
 # namespace along with release name to the vwh name to allow installing multiple
 # namespace scoped operators
 apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingWebhookConfiguration
+kind: MutatingWebhookConfiguration
 metadata:
-  name: {{.Release.Namespace}}-{{.Release.Name}}-vwc
+  name: {{.Release.Namespace}}-{{.Release.Name}}-mwc
   labels:
     # This label will be used by the webhook server to
     # list WebhookConfigurations to inject caBundle into
@@ -16,10 +16,10 @@ webhooks:
       service:
         name: {{template "webhook-service.name" .}}
         namespace: {{.Release.Namespace}}
-        path: /ndb/validate
+        path: /ndb/mutate
         port: {{ template "webhook-service.port" }}
     failurePolicy: Fail
-    name: validating-webhook.ndbcluster.mysql.oracle.com
+    name: mutating-webhook.ndbcluster.mysql.oracle.com
     {{- if not .Values.clusterScoped }}
     namespaceSelector:
       matchLabels:
