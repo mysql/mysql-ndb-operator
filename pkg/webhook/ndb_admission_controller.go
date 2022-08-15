@@ -6,7 +6,7 @@ package webhook
 
 import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	v1 "k8s.io/api/admission/v1"
+	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -14,14 +14,14 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// ndbValidator implements validators for Ndb resource
-type ndbValidator struct{}
+// ndbAdmissionController implements admissionController for Ndb resource
+type ndbAdmissionController struct{}
 
-func newNdbValidator() validator {
-	return &ndbValidator{}
+func newNdbAdmissionController() admissionController {
+	return &ndbAdmissionController{}
 }
 
-func (nv *ndbValidator) getGVR() *metav1.GroupVersionResource {
+func (nv *ndbAdmissionController) getGVR() *metav1.GroupVersionResource {
 	return &metav1.GroupVersionResource{
 		Group:    "mysql.oracle.com",
 		Version:  "v1alpha1",
@@ -29,7 +29,7 @@ func (nv *ndbValidator) getGVR() *metav1.GroupVersionResource {
 	}
 }
 
-func (nv *ndbValidator) getGVK() *schema.GroupVersionKind {
+func (nv *ndbAdmissionController) getGVK() *schema.GroupVersionKind {
 	return &schema.GroupVersionKind{
 		Group:   "mysql.oracle.com",
 		Version: "v1alpha1",
@@ -37,11 +37,11 @@ func (nv *ndbValidator) getGVK() *schema.GroupVersionKind {
 	}
 }
 
-func (nv *ndbValidator) newObject() runtime.Object {
+func (nv *ndbAdmissionController) newObject() runtime.Object {
 	return &v1alpha1.NdbCluster{}
 }
 
-func (nv *ndbValidator) validateCreate(reqUID types.UID, obj runtime.Object) *v1.AdmissionResponse {
+func (nv *ndbAdmissionController) validateCreate(reqUID types.UID, obj runtime.Object) *admissionv1.AdmissionResponse {
 	nc := obj.(*v1alpha1.NdbCluster)
 	if isValid, errList := nc.HasValidSpec(); !isValid {
 		// ndb does not define a valid configuration
@@ -51,8 +51,8 @@ func (nv *ndbValidator) validateCreate(reqUID types.UID, obj runtime.Object) *v1
 	return requestAllowed(reqUID)
 }
 
-func (nv *ndbValidator) validateUpdate(
-	reqUID types.UID, newObj runtime.Object, oldObj runtime.Object) *v1.AdmissionResponse {
+func (nv *ndbAdmissionController) validateUpdate(
+	reqUID types.UID, newObj runtime.Object, oldObj runtime.Object) *admissionv1.AdmissionResponse {
 
 	oldNC := oldObj.(*v1alpha1.NdbCluster)
 	if oldNC.Status.ProcessedGeneration != oldNC.Generation {

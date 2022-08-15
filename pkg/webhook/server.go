@@ -12,11 +12,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/mysql/ndb-operator/pkg/controllers"
 	"github.com/mysql/ndb-operator/pkg/helpers"
 
-	v1 "k8s.io/api/admission/v1"
+	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog/v2"
@@ -32,12 +33,12 @@ type tlsData struct {
 }
 
 // sendAdmissionResponse sends an AdmissionResponse wrapped in a AdmissionReview back to the caller
-func sendAdmissionResponse(w http.ResponseWriter, response *v1.AdmissionResponse) {
+func sendAdmissionResponse(w http.ResponseWriter, response *admissionv1.AdmissionResponse) {
 
 	klog.V(2).Infof("Sending response: %s", response.String())
 
 	// wrap it in a AdmissionReview and send it back
-	responseAdmissionReview := v1.AdmissionReview{
+	responseAdmissionReview := admissionv1.AdmissionReview{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "AdmissionReview",
 			APIVersion: "admission.k8s.io/v1",
@@ -53,8 +54,12 @@ func sendAdmissionResponse(w http.ResponseWriter, response *v1.AdmissionResponse
 	}
 }
 
+func sendAdmissionResponsePathNotFound(w http.ResponseWriter) {
+	sendAdmissionResponse(w, requestDeniedBad("", "requested URL path not found"))
+}
+
 // serve handles the http portion of a request and then validates the review request
-func serve(w http.ResponseWriter, r *http.Request, vtor validator) {
+func serve(w http.ResponseWriter, r *http.Request, ac admissionController, executorFunc requestExecutor) {
 
 	// verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
@@ -73,7 +78,7 @@ func serve(w http.ResponseWriter, r *http.Request, vtor validator) {
 	klog.V(5).Infof("Received body : %s", string(bodyBytes))
 
 	// Decode the request body content into the AdmissionReview struct
-	requestedAdmissionReview := v1.AdmissionReview{}
+	requestedAdmissionReview := admissionv1.AdmissionReview{}
 	_, _, err = scheme.Codecs.UniversalDeserializer().Decode(bodyBytes, nil, &requestedAdmissionReview)
 	if err != nil {
 		sendAdmissionResponse(w, requestDeniedBad("", err.Error()))
@@ -99,7 +104,7 @@ func serve(w http.ResponseWriter, r *http.Request, vtor validator) {
 	klog.Infof("Serving request with UID '%s'", request.UID)
 
 	// Review the request and reply
-	response := validate(request, vtor)
+	response := executorFunc(request, ac)
 	sendAdmissionResponse(w, response)
 }
 
@@ -108,34 +113,45 @@ func initWebhookServer(ws *http.Server) {
 	// set server address
 	ws.Addr = webHookServerAddr
 
-	// pattern to validator mapping
-	validators := map[string]validator{
-		"/validate-ndb": newNdbValidator(),
+	// setup the handlers
+	http.HandleFunc("/health", func(writer http.ResponseWriter, request *http.Request) {
+		// Handle readiness probe
+		klog.V(2).Infof("Replying OK to health probe")
+		writer.WriteHeader(http.StatusOK)
+	})
+
+	// pattern to admissionController mapping
+	admissionControllers := map[string]admissionController{
+		"ndb": newNdbAdmissionController(),
 	}
 
-	// setup the handler
+	// allowed admissionController requestTypes
+	validRequestTypes := map[string]requestExecutor{
+		"validate": validate,
+	}
+
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		// Handle readiness probe
-		if request.URL.Path == "/health" {
-			klog.V(2).Infof("Replying OK to health probe")
-			writer.WriteHeader(http.StatusOK)
-			return
+		urlTokens := strings.Split(request.URL.Path[1:], "/")
+
+		if len(urlTokens) == 2 {
+			ac := admissionControllers[urlTokens[0]]
+			executeFunc, isValidRequestType := validRequestTypes[urlTokens[1]]
+			if ac != nil && isValidRequestType {
+				// Found an admissionController for the pattern
+				serve(writer, request, ac, executeFunc)
+				return
+			}
 		}
 
-		// retrieve the validator for the pattern and send it to serve
-		if vtor := validators[request.URL.Path]; vtor == nil {
-			// No validator found. Handle error
-			klog.V(2).Infof("No validator mapped for pattern '%s'", request.URL.Path)
-			sendAdmissionResponse(writer, requestDeniedBad("", "requested URL path not found"))
-		} else {
-			// Found a validator for the pattern
-			serve(writer, request, vtor)
-		}
+		// No admissionController found or invalid requestType
+		// Handle error
+		klog.V(2).Infof("URL path not found '%s'", request.URL.Path)
+		sendAdmissionResponsePathNotFound(writer)
 	})
 }
 
 // setWebhookServerTLSCerts configures the server to use the TLS certificates
-func setWebhookServerTLSCerts(ws *http.Server) {
+func setWebhookServerTLSCerts(ctx context.Context, ws *http.Server) {
 	namespace, err := helpers.GetCurrentNamespace()
 	if err != nil {
 		klog.Fatalf("Could not get current namespace : %s", err)
@@ -150,10 +166,10 @@ func setWebhookServerTLSCerts(ws *http.Server) {
 		klog.Fatal("Failed to create k8s clientset")
 	}
 
-	// update the webhook with the certificate
+	// update the validating webhook config with the certificate
 	vwcInterface := controllers.NewValidatingWebhookConfigController(clientset)
 	if !vwcInterface.UpdateWebhookConfigCertificate(
-		context.Background(), "webhook-server="+namespace+"-"+config.serviceName, td.certificate) {
+		ctx, "webhook-server="+namespace+"-"+config.serviceName, td.certificate) {
 		klog.Fatal("Failed to update validating webhook configs with the new certificate")
 	}
 
@@ -179,7 +195,7 @@ func Run() {
 	initWebhookServer(ws)
 
 	// Setup TLS certificates
-	setWebhookServerTLSCerts(ws)
+	setWebhookServerTLSCerts(context.Background(), ws)
 
 	klog.Info("Webhook server : setup successful")
 

@@ -16,7 +16,7 @@ webhooks:
       service:
         name: {{template "webhook-service.name" .}}
         namespace: {{.Release.Namespace}}
-        path: /validate-ndb
+        path: /ndb/validate
         port: {{ template "webhook-service.port" }}
     failurePolicy: Fail
     name: validating-webhook.ndbcluster.mysql.oracle.com

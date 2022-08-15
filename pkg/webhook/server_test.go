@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -81,7 +81,8 @@ func (tc *testCase) doPost(t *testing.T) *v1.AdmissionResponse {
 	url := serverAddr + tc.action
 	response, err := http.Post(url, tc.contentType, tc.getBodyReader())
 	if err != nil {
-		t.Fatalf("action %s failed : %v", tc.action, err)
+		t.Errorf("action %s failed : %v", tc.action, err)
+		return nil
 	}
 
 	if response.StatusCode != 200 {
@@ -92,13 +93,15 @@ func (tc *testCase) doPost(t *testing.T) *v1.AdmissionResponse {
 	// Decode the response body into the AdmissionReview struct
 	bodyBytes, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		t.Fatalf("Failed to read http response : %v", err)
+		t.Errorf("Failed to read http response : %v", err)
+		return nil
 	}
 	responseAdmissionReview := v1.AdmissionReview{}
 	_, _, err = scheme.Codecs.UniversalDeserializer().Decode(bodyBytes, nil, &responseAdmissionReview)
 	if err != nil {
 		t.Logf("Response : %v", response.Body)
-		t.Fatalf("Failed to decode response as AdmissionReview : %v", err)
+		t.Errorf("Failed to decode response as AdmissionReview : %v", err)
+		return nil
 	}
 
 	return responseAdmissionReview.Response
@@ -116,6 +119,10 @@ func (tc *testCase) expectRequestAllowed(t *testing.T) {
 func (tc *testCase) expectRequestNotAllowed(t *testing.T) {
 	t.Helper()
 	response := tc.doPost(t)
+	if response == nil {
+		return
+	}
+
 	if response.Allowed {
 		t.Errorf("Request was expected not to be allowed but was allowed : %v", response)
 		return
@@ -145,7 +152,7 @@ func Test_serve(t *testing.T) {
 		{
 			// Test invalid content type
 			desc:            "invalid content type",
-			action:          "validate-ndb",
+			action:          "ndb/validate",
 			contentType:     "application/example",
 			allowed:         false,
 			statusReason:    metav1.StatusReasonBadRequest,
@@ -154,7 +161,7 @@ func Test_serve(t *testing.T) {
 		{
 			// Test a non JSON content
 			desc:   "invalid JSON content",
-			action: "validate-ndb",
+			action: "ndb/validate",
 			body: &content{
 				text: "not a json content",
 			},
@@ -165,7 +172,7 @@ func Test_serve(t *testing.T) {
 		{
 			// Test bad JSON
 			desc:   "unsupported JSON array",
-			action: "validate-ndb",
+			action: "ndb/validate",
 			body: &content{
 				text: "[]",
 			},
@@ -176,7 +183,7 @@ func Test_serve(t *testing.T) {
 		{
 			// Test bad AdmissionReview version
 			desc:   "bad AdmissionReview version",
-			action: "validate-ndb",
+			action: "ndb/validate",
 			body: &content{
 				text: func() string {
 					review := &v1beta1.AdmissionReview{
@@ -196,7 +203,7 @@ func Test_serve(t *testing.T) {
 		{
 			// Test empty admission request
 			desc:   "empty admission request",
-			action: "validate-ndb",
+			action: "ndb/validate",
 			body: &content{
 				text: func() string {
 					review := &v1.AdmissionReview{

@@ -2804,7 +2804,7 @@ webhooks:
     service:
       name: ndb-operator-webhook-service
       namespace: ndb-operator
-      path: /validate-ndb
+      path: /ndb/validate
       port: 9443
   failurePolicy: Fail
   name: validating-webhook.ndbcluster.mysql.oracle.com
