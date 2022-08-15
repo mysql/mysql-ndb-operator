@@ -24,6 +24,8 @@ type admissionController interface {
 	// validate functions should validate the request and return a AdmissionResponse
 	validateCreate(reqUID types.UID, obj runtime.Object) *admissionv1.AdmissionResponse
 	validateUpdate(reqUID types.UID, obj runtime.Object, oldObj runtime.Object) *admissionv1.AdmissionResponse
+	// mutate function should return the JSONPatch that needs to be applied to the resource
+	mutate(obj runtime.Object) ([]byte, error)
 }
 
 func unsupportedValidatorOperation(reqUID types.UID, operation admissionv1.Operation) *admissionv1.AdmissionResponse {
@@ -82,4 +84,43 @@ func validate(req *admissionv1.AdmissionRequest, ac admissionController) *admiss
 	default:
 		return unsupportedValidatorOperation(req.UID, req.Operation)
 	}
+}
+
+func mutate(req *admissionv1.AdmissionRequest, ac admissionController) *admissionv1.AdmissionResponse {
+	// Verify right resource is passed
+	resource := ac.getGVR()
+	if req.Resource != *resource {
+		errMsg := fmt.Sprintf("expected resource %v but got %v", *resource, req.Resource)
+		return requestDeniedBad(req.UID, errMsg)
+	}
+
+	// Decode the object and mutate
+	defaultGVK := ac.getGVK()
+	decoder := scheme.Codecs.UniversalDeserializer()
+
+	// retrieve new object and mutate it
+	obj, _, err := decoder.Decode(req.Object.Raw, defaultGVK, ac.newObject())
+	if err != nil {
+		return requestDeniedBad(req.UID, err.Error())
+	}
+
+	patch, err := ac.mutate(obj)
+	if err != nil {
+		return requestDeniedBad(req.UID, err.Error())
+	}
+
+	// Request allowed
+	admissionResponse := &admissionv1.AdmissionResponse{
+		UID:     req.UID,
+		Allowed: true,
+	}
+
+	// Update the response with the patch if required
+	if len(patch) > 0 {
+		admissionResponse.Patch = patch
+		patchType := admissionv1.PatchTypeJSONPatch
+		admissionResponse.PatchType = &patchType
+	}
+
+	return admissionResponse
 }
