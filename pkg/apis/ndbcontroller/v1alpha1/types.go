@@ -359,12 +359,13 @@ func (nc *NdbCluster) GetConnectstring() string {
 	connectstring := ""
 	mgmdPodNamePrefix := nc.Name + "-mgmd"
 	mgmdServiceName := nc.GetServiceName("mgmd")
+	ndbNameSpace := nc.Namespace
 	for i := int32(0); i < nc.GetManagementNodeCount(); i++ {
 		if i > 0 {
 			connectstring += ","
 		}
 		connectstring += fmt.Sprintf(
-			"%s-%d.%s:%s", mgmdPodNamePrefix, i, mgmdServiceName, port)
+			"%s-%d.%s.%s.svc:%s", mgmdPodNamePrefix, i, mgmdServiceName, ndbNameSpace, port)
 	}
 
 	return connectstring
