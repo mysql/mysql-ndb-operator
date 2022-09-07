@@ -21,7 +21,7 @@ import (
 )
 
 // List of all config parameters that are not allowed in
-// .Spec.DataNodeConfig. and any additional details to be appended to the error.
+// .Spec.DataNode.Config. and any additional details to be appended to the error.
 var disallowedConfigParams = map[string]string{
 	// NoOfReplicas is already set via .spec.redundancyLevel
 	"noofreplicas": "Specify it via .spec.redundancyLevel.", // NoOfReplicas
@@ -59,8 +59,9 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 	var errList field.ErrorList
 	specPath := field.NewPath("spec")
 	mysqldPath := specPath.Child("mysqld")
+	dataNodePath := specPath.Child("dataNode")
 
-	dataNodeCount := spec.NodeCount
+	dataNodeCount := spec.DataNode.NodeCount
 	mysqlServerCount := nc.GetMySQLServerNodeCount()
 	managementNodeCount := nc.GetManagementNodeCount()
 	numOfFreeApiSlots := spec.FreeAPISlots
@@ -68,8 +69,8 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 	// check if number of data nodes is a multiple of redundancy
 	if math.Mod(float64(dataNodeCount), float64(spec.RedundancyLevel)) != 0 {
 		msg := fmt.Sprintf(
-			"spec.nodeCount should be a multiple of the spec.redundancyLevel(=%d)", spec.RedundancyLevel)
-		errList = append(errList, field.Invalid(specPath.Child("nodeCount"), dataNodeCount, msg))
+			"spec.dataNode.nodeCount should be a multiple of the spec.redundancyLevel(=%d)", spec.RedundancyLevel)
+		errList = append(errList, field.Invalid(dataNodePath.Child("nodeCount"), dataNodeCount, msg))
 	}
 
 	// check if total number of nodes are not more than the allowed maximum
@@ -83,8 +84,8 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 		errList = append(errList, field.Invalid(field.NewPath("Total Nodes"), invalidValue, msg))
 	}
 
-	// check if there are any disallowed config params in dataNodeConfig.
-	if err := validateConfigParams(nc.Spec.DataNodeConfig, specPath.Child("dataNodeConfig")); err != nil {
+	// check if there are any disallowed config params in dataNode's Configuration.
+	if err := validateConfigParams(nc.Spec.DataNode.Config, dataNodePath.Child("config")); err != nil {
 		errList = append(errList, err...)
 	}
 
@@ -157,6 +158,7 @@ func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorLis
 
 	var errList field.ErrorList
 	specPath := field.NewPath("spec")
+	dataNodePath := specPath.Child("dataNode")
 	mysqldPath := specPath.Child("mysqld")
 
 	if nc.Spec.RedundancyLevel == 1 {
@@ -168,16 +170,16 @@ func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorLis
 		return false, errList
 	}
 
-	// Do not allow updating Spec.NodeCount and Spec.RedundancyLevel
-	if nc.Spec.NodeCount != newNc.Spec.NodeCount {
+	// Do not allow updating Spec.DataNode.NodeCount and Spec.RedundancyLevel
+	if nc.Spec.DataNode.NodeCount != newNc.Spec.DataNode.NodeCount {
 		var msg string
-		if nc.Spec.NodeCount < newNc.Spec.NodeCount {
+		if nc.Spec.DataNode.NodeCount < newNc.Spec.DataNode.NodeCount {
 			msg = "Online add node is not supported by the operator yet"
 		} else {
-			msg = "spec.NodeCount cannot be reduced once MySQL Cluster has been started"
+			msg = "spec.dataNode.nodeCount cannot be reduced once MySQL Cluster has been started"
 		}
 		errList = append(errList,
-			field.Invalid(specPath.Child("nodeCount"), newNc.Spec.NodeCount, msg))
+			field.Invalid(dataNodePath.Child("nodeCount"), newNc.Spec.DataNode.NodeCount, msg))
 	}
 
 	if nc.Spec.RedundancyLevel != newNc.Spec.RedundancyLevel {
@@ -192,7 +194,7 @@ func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorLis
 		errList = append(errList, err)
 	}
 	if err := validateNdbPodSpecResources(
-		specPath.Child("dataNodePodSpec"), nc.Spec.DataNodePodSpec, newNc.Spec.DataNodePodSpec); err != nil {
+		dataNodePath.Child("ndbPodSpec"), nc.Spec.DataNode.NdbPodSpec, newNc.Spec.DataNode.NdbPodSpec); err != nil {
 		errList = append(errList, err)
 	}
 	if nc.GetMySQLServerNodeCount() != 0 &&

@@ -49,7 +49,7 @@ func (sc *SyncContext) calculateNdbClusterStatus() *v1alpha1.NdbClusterStatus {
 		numOfReadyDataNodes = sc.dataNodeSfSet.Status.ReadyReplicas
 	}
 	status.ReadyDataNodes = fmt.Sprintf(
-		"Ready:%d/%d", numOfReadyDataNodes, nc.Spec.NodeCount)
+		"Ready:%d/%d", numOfReadyDataNodes, nc.Spec.DataNode.NodeCount)
 
 	// Node ready status and generatedRootPasswordSecretName for MySQL Servers
 	numOfReadyMySQLNodes := int32(0)

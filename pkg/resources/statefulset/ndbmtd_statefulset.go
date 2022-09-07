@@ -63,7 +63,7 @@ func (nss *ndbmtdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []corev1.Vo
 	// to the data node pods if the NdbCluster resource
 	// doesn't have any PVCs defined to be used with
 	// the data nodes.
-	if nc.Spec.DataNodePVCSpec == nil {
+	if nc.Spec.DataNode.PVCSpec == nil {
 		podVolumes = append(podVolumes, *nss.getEmptyDirPodVolume(nss.getDataDirVolumeName()))
 	}
 
@@ -295,11 +295,11 @@ func (nss *ndbmtdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 	}
 
 	// Add VolumeClaimTemplate if data node PVC Spec exists
-	if nc.Spec.DataNodePVCSpec != nil {
+	if nc.Spec.DataNode.PVCSpec != nil {
 		statefulSetSpec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{
 			// This PVC will be used as a template and an actual PVC will be created by the
 			// statefulset controller with name "<data-dir-vol-name(i.e ndbmtd-data-vol)>-<pod-name>"
-			*newPVC(nc, nss.getDataDirVolumeName(), nc.Spec.DataNodePVCSpec),
+			*newPVC(nc, nss.getDataDirVolumeName(), nc.Spec.DataNode.PVCSpec),
 		}
 	}
 
@@ -312,7 +312,7 @@ func (nss *ndbmtdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 		PodAntiAffinity: nss.getPodAntiAffinity(),
 	}
 	// Copy down any podSpec specified via CRD
-	CopyPodSpecFromNdbPodSpec(podSpec, nc.Spec.DataNodePodSpec)
+	CopyPodSpecFromNdbPodSpec(podSpec, nc.Spec.DataNode.NdbPodSpec)
 
 	return statefulSet, nil
 }

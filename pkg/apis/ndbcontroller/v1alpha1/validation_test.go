@@ -24,7 +24,9 @@ func nodeNumberTests(redundancy, dnc, mysqldc int32, fail bool, short string) *v
 	return &validationCase{
 		spec: &NdbClusterSpec{
 			RedundancyLevel: redundancy,
-			NodeCount:       dnc,
+			DataNode: &NdbDataNodeSpec{
+				NodeCount: dnc,
+			},
 			Mysqld: &NdbMysqldSpec{
 				NodeCount: mysqldc,
 			},
@@ -39,7 +41,9 @@ func mysqldRootPasswordSecretNameTests(secretName string, fail bool, short strin
 	return &validationCase{
 		spec: &NdbClusterSpec{
 			RedundancyLevel: 1,
-			NodeCount:       1,
+			DataNode: &NdbDataNodeSpec{
+				NodeCount: 1,
+			},
 			Mysqld: &NdbMysqldSpec{
 				NodeCount:              1,
 				RootPasswordSecretName: secretName,
@@ -56,14 +60,18 @@ func ndbUpdateTests(redundancy, dnc, mysqldCount,
 	return &validationCase{
 		spec: &NdbClusterSpec{
 			RedundancyLevel: redundancy,
-			NodeCount:       dnc,
+			DataNode: &NdbDataNodeSpec{
+				NodeCount: dnc,
+			},
 			Mysqld: &NdbMysqldSpec{
 				NodeCount: mysqldCount,
 			},
 		},
 		oldSpec: &NdbClusterSpec{
 			RedundancyLevel: oldRedundancy,
-			NodeCount:       oldDnc,
+			DataNode: &NdbDataNodeSpec{
+				NodeCount: oldDnc,
+			},
 			Mysqld: &NdbMysqldSpec{
 				NodeCount: oldMysqldCount,
 			},
@@ -80,11 +88,15 @@ func ndbUpdateNdbPodSpecTests(
 	vc := &validationCase{
 		spec: &NdbClusterSpec{
 			RedundancyLevel: 2,
-			NodeCount:       2,
+			DataNode: &NdbDataNodeSpec{
+				NodeCount: 2,
+			},
 		},
 		oldSpec: &NdbClusterSpec{
 			RedundancyLevel: 2,
-			NodeCount:       2,
+			DataNode: &NdbDataNodeSpec{
+				NodeCount: 2,
+			},
 		},
 		shouldFail: fail,
 		explain:    short,
@@ -121,27 +133,27 @@ func Test_Validation(t *testing.T) {
 		ndbUpdateTests(1, 2, 5, 1, 2, 2, shouldFail, "update spec with replica = 1"),
 
 		ndbUpdateNdbPodSpecTests(func(defaultSpec *NdbClusterSpec) {
-			defaultSpec.DataNodePodSpec = nil
+			defaultSpec.DataNode.NdbPodSpec = nil
 		}, func(defaultSpec *NdbClusterSpec) {
-			defaultSpec.DataNodePodSpec = &NdbPodSpec{
+			defaultSpec.DataNode.NdbPodSpec = &NdbPodSpec{
 				SchedulerName: "custom-scheduler",
 			}
 		}, !shouldFail, "allow update to non-resource fields"),
 
 		ndbUpdateNdbPodSpecTests(func(defaultSpec *NdbClusterSpec) {
-			defaultSpec.DataNodePodSpec = &NdbPodSpec{
+			defaultSpec.DataNode.NdbPodSpec = &NdbPodSpec{
 				NodeSelector: map[string]string{
 					"key1": "value2",
 				},
 			}
 		}, func(defaultSpec *NdbClusterSpec) {
-			defaultSpec.DataNodePodSpec = nil
+			defaultSpec.DataNode.NdbPodSpec = nil
 		}, !shouldFail, "allow update to non-resource fields(2)"),
 
 		ndbUpdateNdbPodSpecTests(func(defaultSpec *NdbClusterSpec) {
-			defaultSpec.DataNodePodSpec = nil
+			defaultSpec.DataNode.NdbPodSpec = nil
 		}, func(defaultSpec *NdbClusterSpec) {
-			defaultSpec.DataNodePodSpec = &NdbPodSpec{
+			defaultSpec.DataNode.NdbPodSpec = &NdbPodSpec{
 				Resources: &corev1.ResourceRequirements{
 					Limits: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceStorage: resource.MustParse("100"),
@@ -151,7 +163,7 @@ func Test_Validation(t *testing.T) {
 		}, shouldFail, "should not update data node resource requirements"),
 
 		ndbUpdateNdbPodSpecTests(func(defaultSpec *NdbClusterSpec) {
-			defaultSpec.DataNodePodSpec = &NdbPodSpec{
+			defaultSpec.DataNode.NdbPodSpec = &NdbPodSpec{
 				Resources: &corev1.ResourceRequirements{
 					Limits: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceStorage: resource.MustParse("100"),
@@ -159,11 +171,11 @@ func Test_Validation(t *testing.T) {
 				},
 			}
 		}, func(defaultSpec *NdbClusterSpec) {
-			defaultSpec.DataNodePodSpec = nil
+			defaultSpec.DataNode.NdbPodSpec = nil
 		}, shouldFail, "should not update data node resource requirements to nil"),
 
 		ndbUpdateNdbPodSpecTests(func(defaultSpec *NdbClusterSpec) {
-			defaultSpec.DataNodePodSpec = &NdbPodSpec{
+			defaultSpec.DataNode.NdbPodSpec = &NdbPodSpec{
 				Resources: &corev1.ResourceRequirements{
 					Limits: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceStorage: resource.MustParse("100"),
@@ -171,7 +183,7 @@ func Test_Validation(t *testing.T) {
 				},
 			}
 		}, func(defaultSpec *NdbClusterSpec) {
-			defaultSpec.DataNodePodSpec = &NdbPodSpec{
+			defaultSpec.DataNode.NdbPodSpec = &NdbPodSpec{
 				Resources: &corev1.ResourceRequirements{
 					Limits: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceMemory: resource.MustParse("100"),

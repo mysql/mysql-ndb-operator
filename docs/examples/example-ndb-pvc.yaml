@@ -34,14 +34,15 @@ kind: NdbCluster
 metadata:
   name: example-ndb
 spec:
-  nodeCount: 2
   redundancyLevel: 2
-  dataNodePVCSpec:
-    storageClassName: manual
-    accessModes:
-      - ReadWriteOnce
-    resources:
-      requests:
-        storage: 1Gi
+  dataNode:
+    nodeCount: 2
+    pvcSpec:
+      storageClassName: manual
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+         storage: 1Gi
   mysqld:
     nodeCount: 2

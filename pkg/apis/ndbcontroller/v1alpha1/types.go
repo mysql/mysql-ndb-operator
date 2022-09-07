@@ -75,6 +75,34 @@ type NdbPodSpec struct {
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
+// NdbDataNodeSpec is the specification of data node in MySQL Cluster
+type NdbDataNodeSpec struct {
+	// Config is a map of default MySQL Cluster Data node configurations.
+	//
+	// More info :
+	// https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-ndbd.html
+	// +optional
+	Config map[string]*intstr.IntOrString `json:"config,omitempty"`
+	// NdbPodSpec contains a subset of PodSpec fields which when
+	// set will be copied into to the podSpec of Data node's statefulset
+	// definition.
+	// +optional
+	NdbPodSpec *NdbPodSpec `json:"ndbPodSpec,omitempty"`
+	// The total number of data nodes in MySQL Cluster.
+	// The node count needs to be a multiple of the
+	// redundancyLevel. A maximum of 144 data nodes are
+	// allowed to run in a single MySQL Cluster.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=144
+	NodeCount int32 `json:"nodeCount"`
+	// PVCSpec is the PersistentVolumeClaimSpec to be used as the
+	// VolumeClaimTemplate of the data node statefulset. A PVC will be created
+	// for each data node by the statefulset controller and will be loaded into
+	// the data node pod and the container.
+	// +optional
+	PVCSpec *corev1.PersistentVolumeClaimSpec `json:"pvcSpec,omitempty"`
+}
+
 // NdbMysqldSpec is the specification of MySQL Servers to be run as an SQL Frontend
 type NdbMysqldSpec struct {
 	// NodeCount is the number of MySQL Servers running in MySQL Cluster
@@ -145,13 +173,8 @@ type NdbClusterSpec struct {
 	// +kubebuilder:validation:Maximum=4
 	// +optional
 	RedundancyLevel int32 `json:"redundancyLevel,omitempty"`
-	// The total number of data nodes in MySQL Cluster.
-	// The node count needs to be a multiple of the
-	// redundancyLevel. A maximum of 144 data nodes are
-	// allowed to run in a single MySQL Cluster.
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=144
-	NodeCount int32 `json:"nodeCount"`
+	// Mysqld specifies the configuration of the data node running in MySQL Cluster.
+	DataNode *NdbDataNodeSpec `json:"dataNode,omitempty"`
 	// The number of extra API sections declared in the MySQL Cluster
 	// config, in addition to the API sections declared implicitly
 	// by the NDB Operator for the MySQL Servers.
@@ -160,12 +183,7 @@ type NdbClusterSpec struct {
 	// +kubebuilder:default=5
 	// +optional
 	FreeAPISlots int32 `json:"freeAPISlots,omitempty"`
-	// A map of default MySQL Cluster Data node configurations.
-	//
-	// More info :
-	// https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-ndbd.html
-	// +optional
-	DataNodeConfig map[string]*intstr.IntOrString `json:"dataNodeConfig,omitempty"`
+
 	// A map of default MySQL Cluster Management node configurations.
 	//
 	// More info :
@@ -173,11 +191,6 @@ type NdbClusterSpec struct {
 	// +optional
 	ManagementNodeConfig map[string]*intstr.IntOrString `json:"managementNodeConfig,omitempty"`
 
-	// DataNodePodSpec contains a subset of PodSpec fields which when
-	// set will be copied into to the podSpec of Data node's statefulset
-	// definition.
-	// +optional
-	DataNodePodSpec *NdbPodSpec `json:"dataNodePodSpec,omitempty"`
 	// ManagementNodePodSpec contains a subset of PodSpec fields which when
 	// set will be copied into to the podSpec of Management node's
 	// statefulset definition.
@@ -200,14 +213,6 @@ type NdbClusterSpec struct {
 	// holds the credentials required for pulling the MySQL Cluster image.
 	// +optional
 	ImagePullSecretName string `json:"imagePullSecretName,omitempty"`
-
-	// DataNodePVCSpec is the PersistentVolumeClaimSpec to be used as the
-	// VolumeClaimTemplate of the data node statefulset. A PVC will be created
-	// for each data node by the statefulset controller and will be loaded into
-	// the data node pod and the container.
-	// +optional
-	DataNodePVCSpec *corev1.PersistentVolumeClaimSpec `json:"dataNodePVCSpec,omitempty"`
-
 	// EnableManagementNodeLoadBalancer exposes the management servers externally using the
 	// kubernetes cloud provider's load balancer. By default, the operator creates a ClusterIP
 	// type service to expose the management server pods internally within the kubernetes cluster.

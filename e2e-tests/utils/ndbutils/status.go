@@ -40,7 +40,7 @@ func expectValidInfoInStatus(nc *v1alpha1.NdbCluster, initialSystemRestart bool)
 		{
 			field:      "status.readyDataNodes",
 			value:      status.ReadyDataNodes,
-			totalNodes: nc.Spec.NodeCount,
+			totalNodes: nc.Spec.DataNode.NodeCount,
 		},
 		{
 			field:      "status.readyMySQLServers",

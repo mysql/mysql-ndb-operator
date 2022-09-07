@@ -87,7 +87,7 @@ func Test_GetConfigString(t *testing.T) {
 	getIntStrPtr := func(obj intstr.IntOrString) *intstr.IntOrString {
 		return &obj
 	}
-	ndb.Spec.DataNodeConfig = map[string]*intstr.IntOrString{
+	ndb.Spec.DataNode.Config = map[string]*intstr.IntOrString{
 		"DataMemory":        getIntStrPtr(intstr.FromString("80M")),
 		"MaxNoOfAttributes": getIntStrPtr(intstr.FromInt(2048)),
 		"MaxNoOfTriggers":   getIntStrPtr(intstr.FromInt(10000)),

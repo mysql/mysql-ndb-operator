@@ -113,7 +113,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 	ginkgo.When("a non MySQL Server spec is updated", func() {
 		ginkgo.BeforeAll(func() {
 			dataMemory := intstr.FromString("150M")
-			testNdb.Spec.DataNodeConfig = map[string]*intstr.IntOrString{
+			testNdb.Spec.DataNode.Config = map[string]*intstr.IntOrString{
 				"DataMemory": &dataMemory,
 			}
 		})

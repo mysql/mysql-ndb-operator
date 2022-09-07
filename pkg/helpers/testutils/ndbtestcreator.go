@@ -22,8 +22,10 @@ func NewTestNdb(namespace string, name string, noOfNodes int32) *ndbcontroller.N
 			Generation: 1,
 		},
 		Spec: ndbcontroller.NdbClusterSpec{
-			NodeCount:       noOfNodes,
 			RedundancyLevel: 2,
+			DataNode: &ndbcontroller.NdbDataNodeSpec{
+				NodeCount: noOfNodes,
+			},
 			Mysqld: &ndbcontroller.NdbMysqldSpec{
 				NodeCount: noOfNodes,
 			},
