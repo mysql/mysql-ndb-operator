@@ -5,7 +5,8 @@ kind: NdbCluster
 metadata:
   name: example-ndb
 spec:
-  nodeCount: 2         # Number of Data Nodes
   redundancyLevel: 2   # MySQL Cluster Replica
+  dataNode:
+    nodeCount: 2       # Number of Data Nodes
   mysqld:
     nodeCount: 2       # Number of MySQL Servers

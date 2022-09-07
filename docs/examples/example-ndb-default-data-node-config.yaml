@@ -4,14 +4,15 @@ kind: NdbCluster
 metadata:
   name: example-ndb
 spec:
-  nodeCount: 2
   redundancyLevel: 2
-  dataNodeConfig:
-    # The data node config has to be specified as a map.
-    # Both integer and string config values are accepted.
-    DataMemory: 100M
-    MaxNoOfTables: 1024
-    MaxNoOfConcurrentOperations: 409600
-    Arbitration: WaitExternal
+  dataNode:
+    nodeCount: 2
+    config:
+      # The data node config has to be specified as a map.
+      # Both integer and string config values are accepted.
+      DataMemory: 100M
+      MaxNoOfTables: 1024
+      MaxNoOfConcurrentOperations: 409600
+      Arbitration: WaitExternal
   mysqld:
     nodeCount: 2

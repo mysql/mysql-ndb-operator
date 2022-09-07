@@ -32,7 +32,7 @@ Name={{.Name}}
 NoOfReplicas={{.Spec.RedundancyLevel}}
 # Use a fixed ServerPort for all data nodes
 ServerPort=1186
-{{- range $configKey, $configValue := .Spec.DataNodeConfig }}
+{{- range $configKey, $configValue := .Spec.DataNode.Config }}
 {{$configKey}}={{$configValue}}
 {{- end}}
 
@@ -99,7 +99,7 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 				numberOfNodes = ndb.GetManagementNodeCount()
 			case constants.NdbNodeTypeNdbmtd:
 				startNodeId = &ndbdMgmdStartNodeId
-				numberOfNodes = ndb.Spec.NodeCount
+				numberOfNodes = ndb.Spec.DataNode.NodeCount
 			case constants.NdbNodeTypeMySQLD:
 				startNodeId = &apiStartNodeId
 				numberOfNodes = getNumOfSectionsRequiredForMySQLServers(ndb)

@@ -39,25 +39,25 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster validation", func(tc *ndbtest.Tes
 	ginkgo.Context("creating a NdbCluster with an invalid number of data nodes should fail", func() {
 
 		ginkgo.Specify("a data node count that is not a multiple of redundancyLevel", func() {
-			testNdb.Spec.NodeCount = 1
+			testNdb.Spec.DataNode.NodeCount = 1
 			_, err := ndbclient.MysqlV1alpha1().NdbClusters(ns).Create(ctx, testNdb, metav1.CreateOptions{})
 			ndbtest.ExpectError(err)
 			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
-				"spec.nodeCount: Invalid value: 1: spec.nodeCount should be a multiple of the spec.redundancyLevel(=2)"))
+				"spec.dataNode.nodeCount: Invalid value: 1: spec.dataNode.nodeCount should be a multiple of the spec.redundancyLevel(=2)"))
 		})
 
 		ginkgo.Specify("a data node count that exceeds the maximum", func() {
-			testNdb.Spec.NodeCount = 145
+			testNdb.Spec.DataNode.NodeCount = 145
 			_, err := ndbclient.MysqlV1alpha1().NdbClusters(ns).Create(ctx, testNdb, metav1.CreateOptions{})
 			ndbtest.ExpectError(err)
 			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
-				"spec.nodeCount: Invalid value: 145: spec.nodeCount in body should be less than or equal to 144"))
+				"spec.dataNode.nodeCount: Invalid value: 145: spec.dataNode.nodeCount in body should be less than or equal to 144"))
 		})
 	})
 
 	ginkgo.When("a disallowed data node config param is specified in NdbCluster spec", func() {
 		ginkgo.It("should throw appropriate errors", func() {
-			testNdb.Spec.DataNodeConfig = map[string]*intstr.IntOrString{
+			testNdb.Spec.DataNode.Config = map[string]*intstr.IntOrString{
 				"NoOfReplicas": getIntStrPtrFromString("3"),
 				"HostName":     getIntStrPtrFromString("localhost"),
 				"dataDir":      getIntStrPtrFromString("/tmp"),
@@ -65,11 +65,11 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster validation", func(tc *ndbtest.Tes
 			_, err := ndbclient.MysqlV1alpha1().NdbClusters(ns).Create(ctx, testNdb, metav1.CreateOptions{})
 			ndbtest.ExpectError(err)
 			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
-				"spec.dataNodeConfig.NoOfReplicas: Forbidden: config param \"NoOfReplicas\" is not allowed in spec.dataNodeConfig"))
+				"spec.dataNode.config.NoOfReplicas: Forbidden: config param \"NoOfReplicas\" is not allowed in spec.dataNode.config"))
 			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
-				"spec.dataNodeConfig.dataDir: Forbidden: config param \"dataDir\" is not allowed in spec.dataNodeConfig"))
+				"spec.dataNode.config.dataDir: Forbidden: config param \"dataDir\" is not allowed in spec.dataNode.config"))
 			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
-				"spec.dataNodeConfig.HostName: Forbidden: config param \"HostName\" is not allowed in spec.dataNodeConfig"))
+				"spec.dataNode.config.HostName: Forbidden: config param \"HostName\" is not allowed in spec.dataNode.config"))
 		})
 	})
 

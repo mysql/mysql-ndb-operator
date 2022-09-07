@@ -20,7 +20,8 @@ metadata:
   name: example-ndb-mysqld-pvc
 spec:
   redundancyLevel: 2
-  nodeCount: 2
+  dataNode:
+    nodeCount: 2
   mysqld:
     nodeCount: 1
     pvcSpec:

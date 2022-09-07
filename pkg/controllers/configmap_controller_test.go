@@ -101,7 +101,7 @@ func validateMgmtConfig(t *testing.T, cm *corev1.ConfigMap, ndb *v1alpha1.NdbClu
 
 	// Validate the number of sections
 	validateConfigIniSectionCount(t, cfg, "ndb_mgmd", int(ndb.GetManagementNodeCount()))
-	validateConfigIniSectionCount(t, cfg, "ndbd", int(ndb.Spec.NodeCount))
+	validateConfigIniSectionCount(t, cfg, "ndbd", int(ndb.Spec.DataNode.NodeCount))
 	validateConfigIniSectionCount(t, cfg, "api", int(1+ndb.Spec.FreeAPISlots))
 	validateConfigIniSectionCount(t, cfg, "mysqld", int(ndb.GetMySQLServerNodeCount()))
 }

@@ -114,7 +114,7 @@ func NewConfigSummary(configMapData map[string]string) (*ConfigSummary, error) {
 // MySQLClusterConfigNeedsUpdate checks if the config of the MySQL Cluster needs to be updated.
 func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1alpha1.NdbCluster) (needsUpdate bool) {
 	// Check if the default ndbd section has been updated
-	newNdbdConfig := nc.Spec.DataNodeConfig
+	newNdbdConfig := nc.Spec.DataNode.Config
 	// Operator sets NoOfReplicas and ServerPort in the default
 	// ndbd section, so take them into account when comparing configs.
 	numOfOperatorSetConfigs := 2
