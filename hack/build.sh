@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+# Copyright (c) 2020, 2022, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -34,7 +34,7 @@ export GOARCH="${ARCH}"
 export GOOS="${OS}"
 
 LDFLAGS="-X '${PKG}/config.version=${VERSION}'"
-LDFLAGS="${LDFLAGS} -X '${PKG}/config.gitCommit=$(git rev-parse --short HEAD)'"
+LDFLAGS="${LDFLAGS} -X '${PKG}/config.gitCommit=${GIT_COMMIT_ID}'"
 
 BINARIES="./bin/${OS}_${ARCH}"
 mkdir -p "${BINARIES}"

@@ -13,6 +13,9 @@ OS   ?= linux
 # Set this to 1 or ON to build operator in debug mode
 WITH_DEBUG ?= OFF
 
+# Git commit to be set in operator version
+GIT_COMMIT_ID ?= $(shell git rev-parse --short HEAD)
+
 # End of configurable variables
 
 .PHONY: all
@@ -35,10 +38,10 @@ manifests: $(INSTALL_ARTIFACT)
 
 .PHONY: build
 build: manifests
-	ARCH=$(ARCH) OS=$(OS) WITH_DEBUG=$(WITH_DEBUG) ./hack/build.sh
+	ARCH=$(ARCH) OS=$(OS) WITH_DEBUG=$(WITH_DEBUG) GIT_COMMIT_ID=$(GIT_COMMIT_ID) ./hack/build.sh
 
 .PHONY: run
-run:
+run: build
 	bin/$(OS)_$(ARCH)/ndb-operator --kubeconfig=$(HOME)/.kube/config
 
 .PHONY: clean
@@ -52,6 +55,11 @@ DOCKER_CMD := DOCKER_BUILDKIT=1 docker
 .PHONY: operator-image
 operator-image: build
 	$(DOCKER_CMD) build -t mysql/ndb-operator:$(shell cat VERSION) -f docker/ndb-operator/Dockerfile .
+
+.PHONY: operator-image-release
+operator-image-release:
+	$(DOCKER_CMD) build -t mysql/ndb-operator:$(shell cat VERSION) -f docker/ndb-operator-release/Dockerfile --build-arg gitCommit=$(GIT_COMMIT_ID) .
+
 
 # Build e2e-tests-tests image in docker
 .PHONY: e2e-tests-image
