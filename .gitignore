@@ -2,7 +2,6 @@
 dist/
 bin/
 lib/
-vendor/
 .push-wcr*
 .container-wcr*
 .push-iad*
