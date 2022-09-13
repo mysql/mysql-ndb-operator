@@ -22,6 +22,7 @@ func NewTestNdbCrd(namespace string, name string, datanodes, replicas, mysqlnode
 		Spec: ndbv1alpha1.NdbClusterSpec{
 
 			RedundancyLevel: replicas,
+			ManagementNode:  &ndbv1alpha1.NdbManagementNodeSpec{},
 			DataNode: &ndbv1alpha1.NdbDataNodeSpec{
 				NodeCount: datanodes,
 			},

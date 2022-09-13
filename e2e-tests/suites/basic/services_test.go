@@ -129,7 +129,7 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster Services", func(tc *ndbtest.TestC
 			}
 
 			// Enable Management Load Balancer
-			testNdb.Spec.EnableManagementNodeLoadBalancer = true
+			testNdb.Spec.ManagementNode.EnableLoadBalancer = true
 			ndbtest.KubectlApplyNdbObj(c, testNdb)
 
 			// Get the IPs of the service after updating NdbCluster

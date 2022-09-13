@@ -75,16 +75,16 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster validation", func(tc *ndbtest.Tes
 
 	ginkgo.When("a disallowed management node config param is specified in NdbCluster spec", func() {
 		ginkgo.It("should throw appropriate errors", func() {
-			testNdb.Spec.ManagementNodeConfig = map[string]*intstr.IntOrString{
+			testNdb.Spec.ManagementNode.Config = map[string]*intstr.IntOrString{
 				"PortNumber": getIntStrPtrFromString("33333"),
 				"HostName":   getIntStrPtrFromString("localhost"),
 			}
 			_, err := ndbclient.MysqlV1alpha1().NdbClusters(ns).Create(ctx, testNdb, metav1.CreateOptions{})
 			ndbtest.ExpectError(err)
 			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
-				"spec.managementNodeConfig.PortNumber: Forbidden: config param \"PortNumber\" is not allowed in spec.managementNodeConfig"))
+				"spec.managementNode.config.PortNumber: Forbidden: config param \"PortNumber\" is not allowed in spec.managementNode.config"))
 			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
-				"spec.managementNodeConfig.HostName: Forbidden: config param \"HostName\" is not allowed in spec.managementNodeConfig"))
+				"spec.managementNode.config.HostName: Forbidden: config param \"HostName\" is not allowed in spec.managementNode.config"))
 		})
 	})
 })

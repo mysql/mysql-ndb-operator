@@ -47,7 +47,8 @@ func updateManagementConfig(
 	data[constants.NumOfMySQLServers] = fmt.Sprintf("%d", ndb.GetMySQLServerNodeCount())
 
 	// add/update service type info for management nodes
-	data[constants.ManagementLoadBalancer] = fmt.Sprintf("%v", ndb.Spec.EnableManagementNodeLoadBalancer)
+	data[constants.ManagementLoadBalancer] = fmt.Sprintf("%v",
+		ndb.Spec.ManagementNode != nil && ndb.Spec.ManagementNode.EnableLoadBalancer)
 
 	return nil
 }

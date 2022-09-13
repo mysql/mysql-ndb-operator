@@ -88,12 +88,14 @@ func ndbUpdateNdbPodSpecTests(
 	vc := &validationCase{
 		spec: &NdbClusterSpec{
 			RedundancyLevel: 2,
+			ManagementNode:  &NdbManagementNodeSpec{},
 			DataNode: &NdbDataNodeSpec{
 				NodeCount: 2,
 			},
 		},
 		oldSpec: &NdbClusterSpec{
 			RedundancyLevel: 2,
+			ManagementNode:  &NdbManagementNodeSpec{},
 			DataNode: &NdbDataNodeSpec{
 				NodeCount: 2,
 			},
@@ -193,7 +195,7 @@ func Test_Validation(t *testing.T) {
 		}, shouldFail, "should not update data node resource requirements definition"),
 
 		ndbUpdateNdbPodSpecTests(func(defaultSpec *NdbClusterSpec) {
-			defaultSpec.ManagementNodePodSpec = &NdbPodSpec{
+			defaultSpec.ManagementNode.NdbPodSpec = &NdbPodSpec{
 				Resources: &corev1.ResourceRequirements{
 					Limits: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceStorage: resource.MustParse("100"),
@@ -201,7 +203,7 @@ func Test_Validation(t *testing.T) {
 				},
 			}
 		}, func(defaultSpec *NdbClusterSpec) {
-			defaultSpec.ManagementNodePodSpec = &NdbPodSpec{
+			defaultSpec.ManagementNode.NdbPodSpec = &NdbPodSpec{
 				Resources: &corev1.ResourceRequirements{
 					Limits: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourceStorage: resource.MustParse("100"),

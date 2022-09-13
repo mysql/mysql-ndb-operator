@@ -60,6 +60,7 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 	specPath := field.NewPath("spec")
 	mysqldPath := specPath.Child("mysqld")
 	dataNodePath := specPath.Child("dataNode")
+	managementNodePath := specPath.Child("managementNode")
 
 	dataNodeCount := spec.DataNode.NodeCount
 	mysqlServerCount := nc.GetMySQLServerNodeCount()
@@ -89,9 +90,11 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 		errList = append(errList, err...)
 	}
 
-	// check if there are any disallowed config params in managementNodeConfig.
-	if err := validateConfigParams(nc.Spec.ManagementNodeConfig, specPath.Child("managementNodeConfig")); err != nil {
-		errList = append(errList, err...)
+	// check if there are any disallowed config params in managementNode Config.
+	if nc.Spec.ManagementNode != nil {
+		if err := validateConfigParams(nc.Spec.ManagementNode.Config, managementNodePath.Child("config")); err != nil {
+			errList = append(errList, err...)
+		}
 	}
 
 	// check if the MySQL root password secret name has the expected format
@@ -158,6 +161,7 @@ func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorLis
 
 	var errList field.ErrorList
 	specPath := field.NewPath("spec")
+	managementNodePath := specPath.Child("managementNode")
 	dataNodePath := specPath.Child("dataNode")
 	mysqldPath := specPath.Child("mysqld")
 
@@ -188,10 +192,12 @@ func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorLis
 	}
 
 	// Do not allow updating Resource field of various ndbPodSpecs
-	if err := validateNdbPodSpecResources(
-		specPath.Child("managementNodePodSpec"),
-		nc.Spec.ManagementNodePodSpec, newNc.Spec.ManagementNodePodSpec); err != nil {
-		errList = append(errList, err)
+	if nc.Spec.ManagementNode != nil {
+		if err := validateNdbPodSpecResources(
+			managementNodePath.Child("ndbPodSpec"),
+			nc.Spec.ManagementNode.NdbPodSpec, newNc.Spec.ManagementNode.NdbPodSpec); err != nil {
+			errList = append(errList, err)
+		}
 	}
 	if err := validateNdbPodSpecResources(
 		dataNodePath.Child("ndbPodSpec"), nc.Spec.DataNode.NdbPodSpec, newNc.Spec.DataNode.NdbPodSpec); err != nil {

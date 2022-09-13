@@ -145,16 +145,18 @@ func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1alpha1.NdbCluster) 
 	}
 
 	// Check if the default mgmd section has been updated
-	newMgmdConfig := nc.Spec.ManagementNodeConfig
-	if len(newMgmdConfig) != len(cs.defaultMgmdSection) {
-		// A config has been added (or) removed from default mgmd section
-		return true
-	}
-	// Check if all configs exist and their value has not changed
-	for configKey, configValue := range newMgmdConfig {
-		if value, exists := cs.defaultMgmdSection.GetValue(configKey); !exists || value != configValue.String() {
-			// Either the config doesn't exist or the value has been changed
+	if nc.Spec.ManagementNode != nil {
+		newMgmdConfig := nc.Spec.ManagementNode.Config
+		if len(newMgmdConfig) != len(cs.defaultMgmdSection) {
+			// A config has been added (or) removed from default mgmd section
 			return true
+		}
+		// Check if all configs exist and their value has not changed
+		for configKey, configValue := range newMgmdConfig {
+			if value, exists := cs.defaultMgmdSection.GetValue(configKey); !exists || value != configValue.String() {
+				// Either the config doesn't exist or the value has been changed
+				return true
+			}
 		}
 	}
 

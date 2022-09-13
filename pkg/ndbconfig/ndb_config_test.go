@@ -94,7 +94,7 @@ func Test_GetConfigString(t *testing.T) {
 		"ThreadConfig": getIntStrPtr(
 			intstr.FromString("ldm={count=2,cpubind=1,2},main={cpubind=12},rep={cpubind=11}")),
 	}
-	ndb.Spec.ManagementNodeConfig = map[string]*intstr.IntOrString{
+	ndb.Spec.ManagementNode.Config = map[string]*intstr.IntOrString{
 		"ExtraSendBufferMemory": getIntStrPtr(intstr.FromString("30M")),
 	}
 	configString, err := GetConfigString(ndb, nil)
