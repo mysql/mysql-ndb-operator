@@ -32,7 +32,8 @@ type mgmdStatefulSet struct {
 }
 
 func (mss *mgmdStatefulSet) NewGoverningService(nc *v1alpha1.NdbCluster) *corev1.Service {
-	return newService(nc, mgmdPorts, mss.nodeType, false, nc.Spec.EnableManagementNodeLoadBalancer)
+	return newService(nc, mgmdPorts, mss.nodeType, false,
+		nc.Spec.ManagementNode != nil && nc.Spec.ManagementNode.EnableLoadBalancer)
 }
 
 // getPodVolumes returns a slice of volumes to be
@@ -182,7 +183,9 @@ func (mss *mgmdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1al
 		PodAntiAffinity: mss.getPodAntiAffinity(),
 	}
 	// Copy down any podSpec specified via CRD
-	CopyPodSpecFromNdbPodSpec(podSpec, nc.Spec.ManagementNodePodSpec)
+	if nc.Spec.ManagementNode != nil {
+		CopyPodSpecFromNdbPodSpec(podSpec, nc.Spec.ManagementNode.NdbPodSpec)
+	}
 
 	return statefulSet, nil
 }

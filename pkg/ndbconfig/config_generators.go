@@ -23,10 +23,10 @@ var mgmtConfigTmpl = `{{- /* Template to generate management config ini */ -}}
 ConfigGenerationNumber={{GetConfigVersion}}
 Name={{.Name}}
 
-{{if .Spec.ManagementNodeConfig}}[ndb_mgmd default]{{end}}
-{{- range $configKey, $configValue := .Spec.ManagementNodeConfig }}
+{{if .Spec.ManagementNode}}{{if .Spec.ManagementNode.Config}}[ndb_mgmd default]{{end}}
+{{- range $configKey, $configValue := .Spec.ManagementNode.Config }}
 {{$configKey}}={{$configValue}}
-{{- end}}
+{{- end}}{{end}}
 
 [ndbd default]
 NoOfReplicas={{.Spec.RedundancyLevel}}

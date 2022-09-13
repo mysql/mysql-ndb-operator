@@ -23,6 +23,7 @@ func NewTestNdb(namespace string, name string, noOfNodes int32) *ndbcontroller.N
 		},
 		Spec: ndbcontroller.NdbClusterSpec{
 			RedundancyLevel: 2,
+			ManagementNode:  &ndbcontroller.NdbManagementNodeSpec{},
 			DataNode: &ndbcontroller.NdbDataNodeSpec{
 				NodeCount: noOfNodes,
 			},

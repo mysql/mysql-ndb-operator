@@ -75,6 +75,29 @@ type NdbPodSpec struct {
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
+// NdbManagementNodeSpec is the specification of management node in MySQL Cluster
+type NdbManagementNodeSpec struct {
+	// Config is a map of default MySQL Cluster Management node configurations.
+	//
+	// More info :
+	// https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-mgmd.html
+	// +optional
+	Config map[string]*intstr.IntOrString `json:"config,omitempty"`
+	// NdbPodSpec contains a subset of PodSpec fields which when
+	// set will be copied into to the podSpec of Management node's
+	// statefulset definition.
+	// +optional
+	NdbPodSpec *NdbPodSpec `json:"ndbPodSpec,omitempty"`
+	// EnableLoadBalancer exposes the management servers externally using the
+	// kubernetes cloud provider's load balancer. By default, the operator creates a ClusterIP
+	// type service to expose the management server pods internally within the kubernetes cluster.
+	// If EnableLoadBalancer is set to true, a LoadBalancer type service will be created instead,
+	// exposing the management Servers outside the kubernetes cluster.
+	// +kubebuilder:default=false
+	// +optional
+	EnableLoadBalancer bool `json:"enableLoadBalancer,omitempty"`
+}
+
 // NdbDataNodeSpec is the specification of data node in MySQL Cluster
 type NdbDataNodeSpec struct {
 	// Config is a map of default MySQL Cluster Data node configurations.
@@ -173,6 +196,9 @@ type NdbClusterSpec struct {
 	// +kubebuilder:validation:Maximum=4
 	// +optional
 	RedundancyLevel int32 `json:"redundancyLevel,omitempty"`
+	// Mysqld specifies the configuration of the management node running in MySQL Cluster.
+	// +optional
+	ManagementNode *NdbManagementNodeSpec `json:"managementNode,omitempty"`
 	// Mysqld specifies the configuration of the data node running in MySQL Cluster.
 	DataNode *NdbDataNodeSpec `json:"dataNode,omitempty"`
 	// The number of extra API sections declared in the MySQL Cluster
@@ -183,20 +209,6 @@ type NdbClusterSpec struct {
 	// +kubebuilder:default=5
 	// +optional
 	FreeAPISlots int32 `json:"freeAPISlots,omitempty"`
-
-	// A map of default MySQL Cluster Management node configurations.
-	//
-	// More info :
-	// https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-mgmd.html
-	// +optional
-	ManagementNodeConfig map[string]*intstr.IntOrString `json:"managementNodeConfig,omitempty"`
-
-	// ManagementNodePodSpec contains a subset of PodSpec fields which when
-	// set will be copied into to the podSpec of Management node's
-	// statefulset definition.
-	// +optional
-	ManagementNodePodSpec *NdbPodSpec `json:"managementNodePodSpec,omitempty"`
-
 	// The name of the MySQL Ndb Cluster image to be used.
 	// If not specified, "mysql/mysql-cluster:8.0.30" will be used.
 	// Lowest supported version is 8.0.26.
@@ -213,14 +225,6 @@ type NdbClusterSpec struct {
 	// holds the credentials required for pulling the MySQL Cluster image.
 	// +optional
 	ImagePullSecretName string `json:"imagePullSecretName,omitempty"`
-	// EnableManagementNodeLoadBalancer exposes the management servers externally using the
-	// kubernetes cloud provider's load balancer. By default, the operator creates a ClusterIP
-	// type service to expose the management server pods internally within the kubernetes cluster.
-	// If EnableLoadBalancer is set to true, a LoadBalancer type service will be created instead,
-	// exposing the management Servers outside the kubernetes cluster.
-	// +kubebuilder:default=false
-	// +optional
-	EnableManagementNodeLoadBalancer bool `json:"enableManagementNodeLoadBalancer,omitempty"`
 	// Mysqld specifies the configuration of the MySQL Servers running in the cluster.
 	// +optional
 	Mysqld *NdbMysqldSpec `json:"mysqld,omitempty"`

@@ -69,7 +69,7 @@ var _ = ndbtest.NewOrderedTestCase("Node Selectors and Pod affinity", func(tc *n
 			Operator: corev1.TolerationOpEqual,
 			Effect:   corev1.TaintEffectNoSchedule,
 		}
-		testNdb.Spec.ManagementNodePodSpec = &v1alpha1.NdbPodSpec{
+		testNdb.Spec.ManagementNode.NdbPodSpec = &v1alpha1.NdbPodSpec{
 			Tolerations: []corev1.Toleration{
 				tolerateTaintOnKinDMaster,
 			},
@@ -104,7 +104,7 @@ var _ = ndbtest.NewOrderedTestCase("Node Selectors and Pod affinity", func(tc *n
 
 	ginkgo.When("NodeSelector is used for MySQL Cluster nodes", func() {
 		ginkgo.BeforeAll(func() {
-			testNdb.Spec.ManagementNodePodSpec.NodeSelector = map[string]string{
+			testNdb.Spec.ManagementNode.NdbPodSpec.NodeSelector = map[string]string{
 				testLabelKey: getNodeLabel(0),
 			}
 			testNdb.Spec.DataNode.NdbPodSpec.NodeSelector = map[string]string{
@@ -138,7 +138,7 @@ var _ = ndbtest.NewOrderedTestCase("Node Selectors and Pod affinity", func(tc *n
 
 	ginkgo.When("NodeSelector is removed", func() {
 		ginkgo.BeforeAll(func() {
-			testNdb.Spec.ManagementNodePodSpec.NodeSelector = nil
+			testNdb.Spec.ManagementNode.NdbPodSpec.NodeSelector = nil
 			testNdb.Spec.DataNode.NdbPodSpec.NodeSelector = nil
 			testNdb.Spec.Mysqld.PodSpec.NodeSelector = nil
 			ndbtest.KubectlApplyNdbObj(clientset, testNdb)

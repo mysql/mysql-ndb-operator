@@ -42,7 +42,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Cluster config update", func(tc *ndbte
 		testNdb = testutils.NewTestNdb(ns, "ndb-config-test", 2)
 		testNdb.Spec.Mysqld.NodeCount = 1
 		testNdb.Spec.DataNode.Config = make(map[string]*intstr.IntOrString)
-		testNdb.Spec.ManagementNodeConfig = make(map[string]*intstr.IntOrString)
+		testNdb.Spec.ManagementNode.Config = make(map[string]*intstr.IntOrString)
 		ginkgo.DeferCleanup(func() {
 			ginkgo.By("Delete the NdbCluster resource")
 			ndbtest.KubectlDeleteNdbObj(c, testNdb)
@@ -79,7 +79,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Cluster config update", func(tc *ndbte
 			// Update the DataMemory to 300M
 			testNdb.Spec.DataNode.Config["DataMemory"] = getIntStrPtrFromString("300M")
 			// Update ArbitrationRank
-			testNdb.Spec.ManagementNodeConfig["ArbitrationRank"] = getIntStrPtrFromInt(2)
+			testNdb.Spec.ManagementNode.Config["ArbitrationRank"] = getIntStrPtrFromInt(2)
 			ndbtest.KubectlApplyNdbObj(c, testNdb)
 		})
 
