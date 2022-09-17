@@ -13,10 +13,6 @@ import (
 	"k8s.io/klog/v2"
 )
 
-const (
-	mysqlDb = "mysql"
-)
-
 // rootUserExists returns true if the root user with given rootHost exists
 func rootUserExists(db *sql.DB, rootHost string) (bool, error) {
 	var count int
@@ -33,7 +29,7 @@ func rootUserExists(db *sql.DB, rootHost string) (bool, error) {
 // CreateRootUserIfNotExist creates root user if it does not exist already
 func CreateRootUserIfNotExist(mysqldSfset *appsv1.StatefulSet, rootHost, rootPassword string) error {
 
-	db, err := Connect(mysqldSfset, mysqlDb)
+	db, err := connectToStatefulSet(mysqldSfset, DbMySQL)
 	if err != nil {
 		return err
 	}
@@ -73,7 +69,7 @@ func CreateRootUserIfNotExist(mysqldSfset *appsv1.StatefulSet, rootHost, rootPas
 // DeleteRootUserIfExists deletes the root user from the database.
 func DeleteRootUserIfExists(mysqldSfset *appsv1.StatefulSet, rootHost string) error {
 
-	db, err := Connect(mysqldSfset, mysqlDb)
+	db, err := connectToStatefulSet(mysqldSfset, DbMySQL)
 	if err != nil {
 		return err
 	}
@@ -98,7 +94,7 @@ func DeleteRootUserIfExists(mysqldSfset *appsv1.StatefulSet, rootHost string) er
 
 // UpdateRootUser updates the host name of an existing root user in the database.
 func UpdateRootUser(mysqldSfset *appsv1.StatefulSet, oldRootHost, newRootHost string) error {
-	db, err := Connect(mysqldSfset, mysqlDb)
+	db, err := connectToStatefulSet(mysqldSfset, DbMySQL)
 	if err != nil {
 		return err
 	}

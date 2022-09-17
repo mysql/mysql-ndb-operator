@@ -53,10 +53,6 @@ func (nss *ndbmtdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []corev1.Vo
 							Key:  constants.DataNodeStartupProbeScript,
 							Path: constants.DataNodeStartupProbeScript,
 						},
-						{
-							Key:  constants.DataNodeInitScript,
-							Path: constants.DataNodeInitScript,
-						},
 					},
 				},
 			},
@@ -214,19 +210,6 @@ func (nss *ndbmtdStatefulSet) getResourceRequestRequirements(nc *v1alpha1.NdbClu
 	}, nil
 }
 
-// getInitContainer returns the init container to be used by the data Node
-func (nss *ndbmtdStatefulSet) getInitContainer(nc *v1alpha1.NdbCluster) corev1.Container {
-	// Command and args to run the Data node init script
-	cmdAndArgs := []string{
-		helperScriptsMountPath + "/" + constants.DataNodeInitScript,
-		nc.GetConnectstring(),
-	}
-
-	return nss.createContainer(nc,
-		nss.getContainerName(true),
-		cmdAndArgs, nss.getVolumeMounts(), nil)
-}
-
 // getContainers returns the containers to run a data Node
 func (nss *ndbmtdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Container {
 
@@ -322,7 +305,6 @@ func (nss *ndbmtdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 
 	// Update template pod spec
 	podSpec := &statefulSetSpec.Template.Spec
-	podSpec.InitContainers = append(podSpec.InitContainers, nss.getInitContainer(nc))
 	podSpec.Containers = nss.getContainers(nc)
 	podSpec.Volumes = append(podSpec.Volumes, nss.getPodVolumes(nc)...)
 	// Set default AntiAffinity rules

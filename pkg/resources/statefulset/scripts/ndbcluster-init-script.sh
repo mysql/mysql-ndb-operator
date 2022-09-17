@@ -54,6 +54,7 @@ function info() {
       SELECT mysql.IsNdbclusterSetupComplete() INTO isReady;
     END WHILE;
   END%%
+
   # Procedure to create a new root user at given host
   DROP PROCEDURE IF EXISTS mysql.CreateUserForOperator %%
   CREATE PROCEDURE mysql.CreateUserForOperator (operator_host CHAR(255))
@@ -95,10 +96,16 @@ NDB_WAIT_SETUP="$(_get_config 'ndb-wait-setup' "$@")"
 
 INIT_SQL="CALL mysql.CreateUserForOperator ('${NDB_OPERATOR_ROOT_HOST}');"
 
+NDBCLUSTER_NAME=${HOSTNAME%-mysqld-*}
+ALLOWED_DATANODE_HOSTS=${NDBCLUSTER_NAME}-ndbmtd-%.${NDBCLUSTER_NAME}-ndbmtd.${NDB_POD_NAMESPACE}.svc.%
+
 "${mysql[@]}" <<-EOSQL
   ${INIT_SQL}
   # Grant privileges for the healthchecker user on mysql.IsNdbclusterSetupComplete function
   GRANT EXECUTE ON FUNCTION mysql.IsNdbclusterSetupComplete TO 'healthchecker'@'localhost';
+  # Create another user to be used by the data node pods for ndbinfo lookups
+  CREATE USER IF NOT EXISTS 'ndb-operator-user'@'${ALLOWED_DATANODE_HOSTS}' IDENTIFIED BY 'Operator@123';
+  GRANT SELECT ON ndbinfo.* TO 'ndb-operator-user'@'${ALLOWED_DATANODE_HOSTS}';
   FLUSH PRIVILEGES;
 EOSQL
 
