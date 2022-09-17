@@ -18,6 +18,7 @@ import (
 )
 
 // Embed the helper scripts in the ndb operator binary
+//
 //go:embed statefulset/scripts
 var scriptsFS embed.FS
 
@@ -85,7 +86,6 @@ func updateHelperScripts(data map[string]string) error {
 	for fileName, desc := range map[string]string{
 		constants.MysqldInitScript:           "MySQL Server init",
 		constants.MysqldHealthCheckScript:    "MySQL Server Healthcheck",
-		constants.DataNodeInitScript:         "Data Node init",
 		constants.DataNodeStartupProbeScript: "Data Node Startup Probe",
 		constants.MgmdStartupProbeScript:     "Mgmd Startup Probe",
 	} {

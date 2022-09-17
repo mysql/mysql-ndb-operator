@@ -18,8 +18,16 @@ import (
 	"github.com/mysql/ndb-operator/config/debug"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/mgmapi"
+	"github.com/mysql/ndb-operator/pkg/mysqlclient"
 	"github.com/mysql/ndb-operator/pkg/resources/statefulset"
 )
+
+// helper function to handle fatal errors
+func failOnError(err error, errMsgFmt string, errMsgArgs ...interface{}) {
+	if err != nil {
+		log.Fatalf(errMsgFmt, errMsgArgs...)
+	}
+}
 
 // isDnsUpdated checks if the DNS can resolve the
 // current pod hostname to the right IP address.
@@ -33,7 +41,7 @@ func isDnsUpdated(ctx context.Context, hostname, expectedIP string) bool {
 			return false
 		} else {
 			// Unrecognised error
-			log.Fatalf("Failed to resolve hostname %q : %s", hostname, err)
+			failOnError(err, "Failed to resolve hostname %q : %s", hostname, err)
 		}
 	}
 
@@ -111,7 +119,7 @@ func getPodMySQLClusterNodeType(podHostname string) constants.NdbNodeType {
 
 // writeNodeIDToFile deduces the nodeId of the current MySQL Cluster
 // node, writes it to a file and then returns the nodeId.
-func writeNodeIDToFile(hostname string) (nodeId int, nodeType mgmapi.NodeTypeEnum) {
+func writeNodeIDToFile(hostname, ndbConnectString string) (nodeId int, nodeType mgmapi.NodeTypeEnum) {
 	// All nodeIds are sequentially assigned based on the ordinal indices
 	// of the StatefulSet pods. So deduce the nodeId of the first MySQL
 	// Cluster node of same nodeType (i.e) the node with StatefulSet ordinal
@@ -126,7 +134,7 @@ func writeNodeIDToFile(hostname string) (nodeId int, nodeType mgmapi.NodeTypeEnu
 	case constants.NdbNodeTypeNdbmtd:
 		// Data nodes' nodeId continue sequentially
 		// after the Management nodes' nodeIds.
-		numOfManagementNode := len(strings.Split(os.Getenv("NDB_CONNECTSTRING"), ",")) - 1
+		numOfManagementNode := len(strings.Split(ndbConnectString, ",")) - 1
 		startNodeIdOfSameNodeType = numOfManagementNode + 1
 		nodeType = mgmapi.NodeTypeNDB
 	case constants.NdbNodeTypeMySQLD:
@@ -145,26 +153,19 @@ func writeNodeIDToFile(hostname string) (nodeId int, nodeType mgmapi.NodeTypeEnu
 	// Persist the nodeId into a file to be used by other scripts/commands
 	f, err := os.OpenFile(statefulset.NodeIdFilePath,
 		os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		log.Fatalf("Failed to create file %q : %s", statefulset.NodeIdFilePath, err)
-	}
+	failOnError(err, "Failed to create file %q : %s", statefulset.NodeIdFilePath, err)
 
-	if _, err = f.WriteString(fmt.Sprintf("%d", nodeId)); err != nil {
-		log.Fatalf("Failed to write nodeId to file : %s", err)
-	}
+	_, err = f.WriteString(fmt.Sprintf("%d", nodeId))
+	failOnError(err, "Failed to write nodeId to file : %s", err)
 
 	return nodeId, nodeType
 }
 
 // waitForNodeIdAvailability waits until the given nodeId can be
 // successfully allocated to the MySQL Cluster node that will be run in this pod.
-func waitForNodeIdAvailability(nodeId int, nodeType mgmapi.NodeTypeEnum) {
-	connectstring := os.Getenv("NDB_CONNECTSTRING")
-	mgmClient, err := mgmapi.NewMgmClient(connectstring)
-	if err != nil {
-		log.Fatalf("Failed to connect to management server : %s", err.Error())
-	}
+func waitForNodeIdAvailability(nodeId int, nodeType mgmapi.NodeTypeEnum, mgmClient mgmapi.MgmClient) {
 
+	var err error
 	for {
 		if _, err = mgmClient.TryReserveNodeId(nodeId, nodeType); err == nil {
 			// alloc nodeId succeeded => MySQL Cluster is ready to accept this connection
@@ -181,6 +182,63 @@ func waitForNodeIdAvailability(nodeId int, nodeType mgmapi.NodeTypeEnum) {
 
 }
 
+func isSystemRestart(mgmClient mgmapi.MgmClient) bool {
+	clusterStatus, err := mgmClient.GetStatus()
+	failOnError(err, "Failed to get status from management server : %s", err)
+
+	for _, nodeStatus := range clusterStatus {
+		if nodeStatus.IsDataNode() && nodeStatus.IsConnected {
+			// Another datanode is already connected to the system => Not a System Restart
+			return false
+		}
+	}
+
+	// No datanodes connected yet
+	return true
+}
+
+func waitForDataNodeFailureHandlingToComplete(nodeId int, podHostname string) (success bool) {
+
+	// Connect to the MySQL Server - use the StatefulSet's 0th pod
+	hostnameTokens := strings.Split(podHostname, "-")
+	hostnameTokens[len(hostnameTokens)-1] = "0"
+	hostnameTokens[len(hostnameTokens)-2] = constants.NdbNodeTypeMySQLD
+	mysqldHost := fmt.Sprintf("%s.%s",
+		strings.Join(hostnameTokens, "-"),
+		strings.Join(hostnameTokens[:len(hostnameTokens)-1], "-"))
+
+	db, err := mysqlclient.Connect(mysqldHost, mysqlclient.DbNdbInfo)
+	if err != nil {
+		// MySQL Server unavailable
+		return false
+	}
+
+	// Check if the existing data nodes have completed handling
+	// the previous failure of this data node by querying the
+	// ndbinfo.restart_info table. When all the STARTED data nodes
+	// have completed handling the node failure, the
+	// node_restart_status of the current node will be set to
+	// "Node failure handling completed".
+	var nodeRestartStatus string
+	for {
+		query := fmt.Sprintf("select node_restart_status from restart_info where node_id='%d'", nodeId)
+		err = db.QueryRow(query).Scan(&nodeRestartStatus)
+		if err != nil {
+			// NdbInfo database unavailable
+			log.Printf("Query on ndbinfo.restart_info table failed : %s", err)
+			return false
+		}
+
+		if nodeRestartStatus == "Node failure handling complete" {
+			// Failure handling completed
+			return true
+		}
+
+		// Sleep and retry
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
 func main() {
 
 	ctx := context.Background()
@@ -190,10 +248,39 @@ func main() {
 	waitForPodDNSUpdate(ctx, podHostname)
 
 	// Persist the nodeId into a file for the other scripts/commands to use
-	nodeId, nodeType := writeNodeIDToFile(podHostname)
+	connectstring := os.Getenv("NDB_CONNECTSTRING")
+	nodeId, nodeType := writeNodeIDToFile(podHostname, connectstring)
 
-	if nodeType != mgmapi.NodeTypeMGM {
-		// Wait for the nodeId to become available for NDB and API nodes
-		waitForNodeIdAvailability(nodeId, nodeType)
+	if nodeType == mgmapi.NodeTypeMGM {
+		log.Println("Pod initializer succeeded.")
+		return
+	}
+
+	// Connect to the Management Server
+	var err error
+	var mgmClient mgmapi.MgmClient
+	mgmClient, err = mgmapi.NewMgmClient(connectstring)
+	failOnError(err, "Failed to connect to management server : %s", err)
+	defer mgmClient.Disconnect()
+
+	if nodeType == mgmapi.NodeTypeNDB && !isSystemRestart(mgmClient) {
+		// Wait for the existing data nodes to finish
+		// handling previous data node failure
+		log.Println("Waiting for other data nodes to complete Node failure handling...")
+		if !waitForDataNodeFailureHandlingToComplete(nodeId, podHostname) {
+			// The method failed as either server or the ndbinfo database is not available.
+			// Fallback to waitForNodeIdAvailability logic. This is used only as a fallback
+			// as the nodeId is freed early in the node failure handling process and due
+			// to that waitForNodeIdAvailability is less reliable than checking ndbinfo
+			// database.
+			log.Println("Falling back to checking if nodeId is available..")
+			waitForNodeIdAvailability(nodeId, nodeType, mgmClient)
+		}
+		log.Println("Done")
+	}
+
+	if nodeType == mgmapi.NodeTypeAPI {
+		// Wait for the nodeId to become available for API nodes
+		waitForNodeIdAvailability(nodeId, nodeType, mgmClient)
 	}
 }

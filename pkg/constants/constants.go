@@ -72,9 +72,6 @@ const (
 	// MgmdStartupProbeScript is the Management Nodes' Startup Probe
 	MgmdStartupProbeScript = "mgmd-startup-probe.sh"
 
-	// DataNodeInitScript is used by the init containers of the data nodes
-	DataNodeInitScript = "datanode-init-script.sh"
-
 	// DataNodeStartupProbeScript is the Data Nodes' Startup Probe
 	DataNodeStartupProbeScript = "datanode-startup-probe.sh"
 

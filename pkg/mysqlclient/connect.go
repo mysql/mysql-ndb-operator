@@ -21,12 +21,14 @@ const (
 	sqlDriverName       = "mysql"
 )
 
-// Connect opens a connection to the first MySQL Server pod managed by the given MySQL Server StatefulSet
-func Connect(mysqldSfset *appsv1.StatefulSet, dbName string) (*sql.DB, error) {
+// System Database names
+const (
+	DbNdbInfo = "ndbinfo"
+	DbMySQL   = "mysql"
+)
 
-	// Generate the MySQL Server host using the hostname of StatefulSet's pod-0
-	mysqldHost := fmt.Sprintf("%s-0.%s.%s", mysqldSfset.Name, mysqldSfset.Spec.ServiceName, mysqldSfset.Namespace)
-
+// Connect to the MySQL Server at given mysqldHost
+func Connect(mysqldHost string, dbName string) (*sql.DB, error) {
 	// Generate the complete address to connect to
 	dataSource := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?timeout=10s",
 		ndbOperatorUser, ndbOperatorPassword, mysqldHost, mysqldPort, dbName)
@@ -52,4 +54,15 @@ func Connect(mysqldSfset *appsv1.StatefulSet, dbName string) (*sql.DB, error) {
 	db.SetMaxIdleConns(10)
 
 	return db, nil
+}
+
+// connectToStatefulSet opens a connection to the first MySQL Server pod managed by the given MySQL Server StatefulSet
+func connectToStatefulSet(mysqldSfset *appsv1.StatefulSet, dbName string) (*sql.DB, error) {
+
+	// Generate the MySQL Server host using the hostname of StatefulSet's pod-0
+	mysqldHost := fmt.Sprintf("%s-0.%s.%s",
+		mysqldSfset.Name, mysqldSfset.Spec.ServiceName, mysqldSfset.Namespace)
+
+	return Connect(mysqldHost, dbName)
+
 }
