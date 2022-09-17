@@ -62,7 +62,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Cluster minor upgrade", func(tc *ndbte
 
 	ginkgo.When("NdbCluster is updated with a newer MySQL Cluster image", func() {
 		ginkgo.BeforeAll(func() {
-			testNdb.Spec.Image = "mysql/mysql-cluster:8.0.29"
+			testNdb.Spec.Image = "mysql/mysql-cluster:8.0.30"
 			ndbtest.KubectlApplyNdbObj(c, testNdb)
 		})
 
