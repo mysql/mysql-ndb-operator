@@ -48,7 +48,7 @@ var _ = ndbtest.NewTestCase("Multiple NDB Clusters maintained by a single NDB Op
 		ginkgo.BeforeEach(func() {
 			// Create the NdbCluster objects
 			for i := 1; i <= numOfNdbClusters; i++ {
-				testNdbCluster := testutils.NewTestNdb(ns, fmt.Sprintf("test-ndb-%d", i), 1)
+				testNdbCluster := testutils.NewTestNdb(ns, fmt.Sprintf("multiple-ndb-test-%d", i), 1)
 				testNdbCluster.Spec.RedundancyLevel = 1
 				testNdbClusters = append(testNdbClusters, testNdbCluster)
 

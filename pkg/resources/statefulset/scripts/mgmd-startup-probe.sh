@@ -44,7 +44,7 @@ else
 fi
 
 # Check if the other mgmd is already running.
-if [[ $(getent hosts "${otherMgmdConnectstring%:*}.${NDB_POD_NAMESPACE}" | awk '{print $1}') == "" ]]; then
+if [[ $(getent hosts "${otherMgmdConnectstring%:*}" | awk '{print $1}') == "" ]]; then
   # DNS lookup returned empty string => the other mgmd pod doesn't exist yet
   # This is an ISR and this local mgmd is ready
   exit 0
