@@ -13,7 +13,7 @@ metadata:
 spec:
   nodeCount: 2
   redundancyLevel: 2
-  mysqld:
+  mysqlNode:
     nodeCount: 2
     rootPasswordSecretName: wordpress-mysql-secret
     myCnf: |

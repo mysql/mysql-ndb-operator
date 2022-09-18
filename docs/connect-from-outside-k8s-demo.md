@@ -20,11 +20,11 @@ example-ndb-mysqld   ClusterIP   10.103.117.50   <none>        3306/TCP   4m29s
 example-ndb-ndbmtd   ClusterIP   None            <none>        1186/TCP   4m29s
 ```
 
-The `example-ndb-mgmd` and `example-ndb-mysqld` services are the Management and MySQL Services respectively. Note that they both are of type ClusterIP Service. They have to be upgraded to LoadBalancer service type to make them accessible from outside the K8s Cluster. This can be done by setting the `spec.enableManagementNodeLoadBalancer` and `spec.mysqld.enableLoadBalancer` fields of the NdbCluster resource to true. These options can be enabled when the NdbCluster resource object is created or via an update to the object when the MySQL Cluster is already running. 
+The `example-ndb-mgmd` and `example-ndb-mysqld` services are the Management and MySQL Services respectively. Note that they both are of type ClusterIP Service. They have to be upgraded to LoadBalancer service type to make them accessible from outside the K8s Cluster. This can be done by setting the `spec.managementNode.enableLoadBalancer` and `spec.mysqlNode.enableLoadBalancer` fields of the NdbCluster resource to true. These options can be enabled when the NdbCluster resource object is created or via an update to the object when the MySQL Cluster is already running. 
 
 To enable both the LoadBalancers, patch the NdbCluster object by running :
 ```sh
-kubectl patch ndb example-ndb --type='merge' -p '{"spec":{"enableManagementNodeLoadBalancer":true,"mysqld":{"enableLoadBalancer":true}}}'
+kubectl patch ndb example-ndb --type='merge' -p '{"spec":{"managementNode":{"enableLoadBalancer":true},"mysqlNode":{"enableLoadBalancer":true}}}'
 ```
 
 Verify that the services have been upgraded :

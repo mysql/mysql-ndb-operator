@@ -45,13 +45,13 @@ func errorIfNotEqual(t *testing.T, actual interface{}, expectedJsonStr, desc str
 
 func Test_setPodSpecFromNdbPodSpec_Resources(t *testing.T) {
 	for _, tc := range []struct {
-		ndbPodSpec                *v1alpha1.NdbPodSpec
+		ndbPodSpec                *v1alpha1.NdbClusterPodSpec
 		defaultResources          *corev1.ResourceRequirements
 		desc                      string
 		expectedResourceInPodSpec string
 	}{
 		{
-			ndbPodSpec: &v1alpha1.NdbPodSpec{
+			ndbPodSpec: &v1alpha1.NdbClusterPodSpec{
 				Resources: &corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
 						corev1.ResourceMemory: resource.MustParse("500Gi"),
@@ -62,7 +62,7 @@ func Test_setPodSpecFromNdbPodSpec_Resources(t *testing.T) {
 			expectedResourceInPodSpec: `{"limits": {"memory": "500Gi"}}`,
 		},
 		{
-			ndbPodSpec: &v1alpha1.NdbPodSpec{
+			ndbPodSpec: &v1alpha1.NdbClusterPodSpec{
 				Resources: &corev1.ResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceMemory: resource.MustParse("500Gi"),
@@ -85,7 +85,7 @@ func Test_setPodSpecFromNdbPodSpec_Resources(t *testing.T) {
 			expectedResourceInPodSpec: `{"limits": {"memory": "200Gi"}, "requests": {"memory": "100Gi"}}`,
 		},
 		{
-			ndbPodSpec: &v1alpha1.NdbPodSpec{
+			ndbPodSpec: &v1alpha1.NdbClusterPodSpec{
 				Resources: &corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
 						corev1.ResourceMemory: resource.MustParse("500Gi"),
@@ -101,7 +101,7 @@ func Test_setPodSpecFromNdbPodSpec_Resources(t *testing.T) {
 			expectedResourceInPodSpec: `{"limits": {"memory": "500Gi"}}`,
 		},
 		{
-			ndbPodSpec: &v1alpha1.NdbPodSpec{
+			ndbPodSpec: &v1alpha1.NdbClusterPodSpec{
 				Resources: &corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
 						corev1.ResourceMemory: resource.MustParse("500Gi"),
@@ -120,7 +120,7 @@ func Test_setPodSpecFromNdbPodSpec_Resources(t *testing.T) {
 			expectedResourceInPodSpec: `{"limits": {"memory": "500Gi"}, "requests": {"memory": "100Gi"}}`,
 		},
 		{
-			ndbPodSpec: &v1alpha1.NdbPodSpec{
+			ndbPodSpec: &v1alpha1.NdbClusterPodSpec{
 				Resources: &corev1.ResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceMemory: resource.MustParse("500Gi"),
@@ -139,7 +139,7 @@ func Test_setPodSpecFromNdbPodSpec_Resources(t *testing.T) {
 			expectedResourceInPodSpec: `{"limits": {"memory": "200Gi"}, "requests": {"memory": "500Gi"}}`,
 		},
 		{
-			ndbPodSpec: &v1alpha1.NdbPodSpec{
+			ndbPodSpec: &v1alpha1.NdbClusterPodSpec{
 				Resources: &corev1.ResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("10Gi"),
@@ -180,13 +180,13 @@ func Test_setPodSpecFromNdbPodSpec_Resources(t *testing.T) {
 
 func Test_setPodSpecFromNdbPodSpec_Affinity(t *testing.T) {
 	for _, tc := range []struct {
-		ndbPodSpec                *v1alpha1.NdbPodSpec
+		ndbPodSpec                *v1alpha1.NdbClusterPodSpec
 		defaultAffinity           *corev1.Affinity
 		desc                      string
 		expectedAffinityInPodSpec string
 	}{
 		{
-			ndbPodSpec: &v1alpha1.NdbPodSpec{
+			ndbPodSpec: &v1alpha1.NdbClusterPodSpec{
 				Affinity: &corev1.Affinity{
 					PodAntiAffinity: &corev1.PodAntiAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
@@ -208,7 +208,7 @@ func Test_setPodSpecFromNdbPodSpec_Affinity(t *testing.T) {
 												[{"labelSelector":{"matchLabels":{"key1":"value1"}},"topologyKey":"hostname"}]}}`,
 		},
 		{
-			ndbPodSpec: &v1alpha1.NdbPodSpec{
+			ndbPodSpec: &v1alpha1.NdbClusterPodSpec{
 				Affinity: &corev1.Affinity{
 					PodAntiAffinity: &corev1.PodAntiAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
@@ -248,7 +248,7 @@ func Test_setPodSpecFromNdbPodSpec_Affinity(t *testing.T) {
 												[{"labelSelector":{"matchLabels":{"key1":"value1"}},"topologyKey":"hostname"}]}}`,
 		},
 		{
-			ndbPodSpec: &v1alpha1.NdbPodSpec{
+			ndbPodSpec: &v1alpha1.NdbClusterPodSpec{
 				Affinity: &corev1.Affinity{
 					PodAffinity: &corev1.PodAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
@@ -300,7 +300,7 @@ func Test_setPodSpecFromNdbPodSpec_Affinity(t *testing.T) {
 												[{"labelSelector":{"matchLabels":{"key2":"value2"}},"topologyKey":"hostname"}]}}`,
 		},
 		{
-			ndbPodSpec: &v1alpha1.NdbPodSpec{
+			ndbPodSpec: &v1alpha1.NdbClusterPodSpec{
 				Affinity: &corev1.Affinity{
 					NodeAffinity: &corev1.NodeAffinity{
 						PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{
@@ -372,7 +372,7 @@ func Test_setPodSpecFromNdbPodSpec_Affinity(t *testing.T) {
 
 func Test_setPodSpecFromNdbPodSpec_Misc(t *testing.T) {
 	tolerationSeconds := int64(42)
-	ndbPodSpec := &v1alpha1.NdbPodSpec{
+	ndbPodSpec := &v1alpha1.NdbClusterPodSpec{
 		NodeSelector: map[string]string{
 			"node-reserved-for":     "ndbd",
 			"node-not-reserved-for": "mysqld",

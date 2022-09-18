@@ -110,7 +110,7 @@ func TestCreateConfigMap(t *testing.T) {
 
 	ns := metav1.NamespaceDefault
 	ndb := testutils.NewTestNdb(ns, "test", 2)
-	ndb.Spec.Mysqld.NodeCount = 7
+	ndb.Spec.MysqlNode.NodeCount = 7
 	ndb.Spec.FreeAPISlots = 5
 
 	f := newFixture(t, ndb)
@@ -150,7 +150,7 @@ func TestCreateConfigMap(t *testing.T) {
 	}
 
 	// Patch cmget and verify
-	ndb.Spec.Mysqld.NodeCount = 12
+	ndb.Spec.MysqlNode.NodeCount = 12
 	patchedCm, err := cmc.PatchConfigMap(context.TODO(), sc)
 	if err != nil {
 		t.Fatal("Unexpected error patching config map :", err)

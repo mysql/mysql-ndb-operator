@@ -5,9 +5,10 @@
 package webhook
 
 import (
+	"testing"
+
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
-	"testing"
 )
 
 func Test_ndbAdmissionController_mutate(t *testing.T) {
@@ -21,23 +22,23 @@ func Test_ndbAdmissionController_mutate(t *testing.T) {
 		{
 			desc: "mysqldSpec is nil",
 			ncSpec: &v1alpha1.NdbClusterSpec{
-				Mysqld: nil,
+				MysqlNode: nil,
 			},
-			expectedPatch: `[{"op":"add","path":"/spec/mysqld","value":{"nodeCount":1}}]`,
+			expectedPatch: `[{"op":"add","path":"/spec/mysqlNode","value":{"nodeCount":1}}]`,
 		},
 		{
 			desc: "mysqldSpec nodeCount is 0",
 			ncSpec: &v1alpha1.NdbClusterSpec{
-				Mysqld: &v1alpha1.NdbMysqldSpec{
+				MysqlNode: &v1alpha1.NdbMysqldSpec{
 					NodeCount: 0,
 				},
 			},
-			expectedPatch: `[{"op":"replace","path":"/spec/mysqld/nodeCount","value":1}]`,
+			expectedPatch: `[{"op":"replace","path":"/spec/mysqlNode/nodeCount","value":1}]`,
 		},
 		{
 			desc: "mysqldSpec nodeCount is 1",
 			ncSpec: &v1alpha1.NdbClusterSpec{
-				Mysqld: &v1alpha1.NdbMysqldSpec{
+				MysqlNode: &v1alpha1.NdbMysqldSpec{
 					NodeCount: 1,
 				},
 			},

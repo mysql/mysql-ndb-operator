@@ -22,7 +22,7 @@ spec:
   redundancyLevel: 2
   dataNode:
     nodeCount: 2
-  mysqld:
+  mysqlNode:
     nodeCount: 1
     pvcSpec:
       storageClassName: manual

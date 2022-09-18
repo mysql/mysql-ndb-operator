@@ -77,10 +77,10 @@ func (nv *ndbAdmissionController) mutate(obj runtime.Object) *jsonPatchOperation
 	var patchOps jsonPatchOperations
 
 	// Always attach atleast one MySQL Server to the MySQL Cluster setup
-	if nc.Spec.Mysqld == nil {
-		patchOps.add("/spec/mysqld", map[string]interface{}{"nodeCount": 1})
-	} else if nc.Spec.Mysqld.NodeCount == 0 {
-		patchOps.replace("/spec/mysqld/nodeCount", 1)
+	if nc.Spec.MysqlNode == nil {
+		patchOps.add("/spec/mysqlNode", map[string]interface{}{"nodeCount": 1})
+	} else if nc.Spec.MysqlNode.NodeCount == 0 {
+		patchOps.replace("/spec/mysqlNode/nodeCount", 1)
 	}
 
 	return &patchOps

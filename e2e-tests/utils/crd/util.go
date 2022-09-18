@@ -26,7 +26,7 @@ func NewTestNdbCrd(namespace string, name string, datanodes, replicas, mysqlnode
 			DataNode: &ndbv1alpha1.NdbDataNodeSpec{
 				NodeCount: datanodes,
 			},
-			Mysqld: &ndbv1alpha1.NdbMysqldSpec{
+			MysqlNode: &ndbv1alpha1.NdbMysqldSpec{
 				NodeCount: mysqlnodes,
 			},
 		},

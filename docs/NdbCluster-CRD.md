@@ -161,6 +161,91 @@ is up-to-date with the NdbCluster resource spec</p>
 </td>
 </tr></tbody>
 </table>
+<h3 id="mysql.oracle.com/v1alpha1.NdbClusterPodSpec">NdbClusterPodSpec
+</h3>
+<p>
+(<em>Appears on:</em><a href="#mysql.oracle.com/v1alpha1.NdbDataNodeSpec">NdbDataNodeSpec</a>, <a href="#mysql.oracle.com/v1alpha1.NdbManagementNodeSpec">NdbManagementNodeSpec</a>, <a href="#mysql.oracle.com/v1alpha1.NdbMysqldSpec">NdbMysqldSpec</a>)
+</p>
+<div>
+<p>NdbClusterPodSpec contains a subset of PodSpec fields which when set
+will be copied into to the podSpec of respective MySQL Cluster
+node workload definitions.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>resources</code><br/>
+<em>
+<a href="https://pkg.go.dev/k8s.io/api@v0.20.2/core/v1#ResourceRequirements">Kubernetes core/v1.ResourceRequirements</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Total compute Resources required by this pod.
+Cannot be updated.</p>
+<p>More info: <a href="https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/">https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/</a></p>
+</td>
+</tr>
+<tr>
+<td>
+<code>nodeSelector</code><br/>
+<em>
+map[string]string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>NodeSelector is a selector which must be true for the pod to fit on a node.
+Selector which must match a node&rsquo;s labels for the pod to be scheduled on that node.</p>
+<p>More info: <a href="https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector">https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector</a></p>
+</td>
+</tr>
+<tr>
+<td>
+<code>affinity</code><br/>
+<em>
+<a href="https://pkg.go.dev/k8s.io/api@v0.20.2/core/v1#Affinity">Kubernetes core/v1.Affinity</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>If specified, the pod&rsquo;s scheduling constraints</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>schedulerName</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>If specified, the pod will be dispatched by specified scheduler.
+If not specified, the pod will be dispatched by default scheduler.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>tolerations</code><br/>
+<em>
+<a href="https://pkg.go.dev/k8s.io/api@v0.20.2/core/v1#Toleration">[]Kubernetes core/v1.Toleration</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>If specified, the pod&rsquo;s tolerations.</p>
+</td>
+</tr>
+</tbody>
+</table>
 <h3 id="mysql.oracle.com/v1alpha1.NdbClusterSpec">NdbClusterSpec
 </h3>
 <p>
@@ -204,16 +289,37 @@ This value is immutable.</p>
 </tr>
 <tr>
 <td>
-<code>nodeCount</code><br/>
+<code>managementNode</code><br/>
 <em>
-int32
+<a href="#mysql.oracle.com/v1alpha1.NdbManagementNodeSpec">NdbManagementNodeSpec</a>
 </em>
 </td>
 <td>
-<p>The total number of data nodes in MySQL Cluster.
-The node count needs to be a multiple of the
-redundancyLevel. A maximum of 144 data nodes are
-allowed to run in a single MySQL Cluster.</p>
+<em>(Optional)</em>
+<p>ManagementNode specifies the configuration of the management node running in MySQL Cluster.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>dataNode</code><br/>
+<em>
+<a href="#mysql.oracle.com/v1alpha1.NdbDataNodeSpec">NdbDataNodeSpec</a>
+</em>
+</td>
+<td>
+<p>DataNode specifies the configuration of the data node running in MySQL Cluster.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>mysqlNode</code><br/>
+<em>
+<a href="#mysql.oracle.com/v1alpha1.NdbMysqldSpec">NdbMysqldSpec</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>MysqlNode specifies the configuration of the MySQL Servers running in the cluster.</p>
 </td>
 </tr>
 <tr>
@@ -229,64 +335,7 @@ int32
 config, in addition to the API sections declared implicitly
 by the NDB Operator for the MySQL Servers.
 Any NDBAPI application can connect to the MySQL Cluster via
-these free slots. These slots will also enable the NDB
-Operator to scale up the MySQL Servers, when requested,
-without having to perform a rolling restart of all nodes
-to add more API sections in the MySQL Cluster config.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>dataNodeConfig</code><br/>
-<em>
-map[string]*<a href="https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntOrString">Kubernetes util/intstr.IntOrString</a>
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>A map of default MySQL Cluster Data node configurations.</p>
-<p>More info :
-<a href="https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-ndbd.html">https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-ndbd.html</a></p>
-</td>
-</tr>
-<tr>
-<td>
-<code>managementNodeConfig</code><br/>
-<em>
-map[string]*<a href="https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntOrString">Kubernetes util/intstr.IntOrString</a>
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>A map of default MySQL Cluster Management node configurations.</p>
-<p>More info :
-<a href="https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-mgmd.html">https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-mgmd.html</a></p>
-</td>
-</tr>
-<tr>
-<td>
-<code>dataNodePodSpec</code><br/>
-<em>
-<a href="#mysql.oracle.com/v1alpha1.NdbPodSpec">NdbPodSpec</a>
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>DataNodePodSpec contains a subset of PodSpec fields which when
-set will be copied into to the podSpec of Data node's statefulset definition.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>managementNodePodSpec</code><br/>
-<em>
-<a href="#mysql.oracle.com/v1alpha1.NdbPodSpec">NdbPodSpec</a>
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>ManagementNodePodSpec contains a subset of PodSpec fields which when
-set will be copied into to the podSpec of Management node's statefulset definition.</p>
+these free slots.</p>
 </td>
 </tr>
 <tr>
@@ -299,7 +348,7 @@ string
 <td>
 <em>(Optional)</em>
 <p>The name of the MySQL Ndb Cluster image to be used.
-If not specified, &ldquo;mysql/mysql-cluster:8.0.29&rdquo; will be used.
+If not specified, &ldquo;mysql/mysql-cluster:8.0.30&rdquo; will be used.
 Lowest supported version is 8.0.26.</p>
 </td>
 </tr>
@@ -327,49 +376,6 @@ string
 <em>(Optional)</em>
 <p>ImagePullSecretName optionally specifies the name of the secret that
 holds the credentials required for pulling the MySQL Cluster image.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>dataNodePVCSpec</code><br/>
-<em>
-<a href="https://pkg.go.dev/k8s.io/api@v0.20.2/core/v1#PersistentVolumeClaimSpec">Kubernetes core/v1.PersistentVolumeClaimSpec</a>
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>DataNodePVCSpec is the PersistentVolumeClaimSpec to be used as the
-VolumeClaimTemplate of the data node statefulset. A PVC will be created
-for each data node by the statefulset controller and will be loaded into
-the data node pod and the container.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>enableManagementNodeLoadBalancer</code><br/>
-<em>
-bool
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>EnableManagementNodeLoadBalancer exposes the management servers externally using the
-kubernetes cloud provider&rsquo;s load balancer. By default, the operator creates a ClusterIP
-type service to expose the management server pods internally within the kubernetes cluster.
-If EnableLoadBalancer is set to true, a LoadBalancer type service will be created instead,
-exposing the management Servers outside the kubernetes cluster.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>mysqld</code><br/>
-<em>
-<a href="#mysql.oracle.com/v1alpha1.NdbMysqldSpec">NdbMysqldSpec</a>
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>Mysqld specifies the configuration of the MySQL Servers running in the cluster.</p>
 </td>
 </tr>
 </tbody>
@@ -459,7 +465,144 @@ string
 <p>GeneratedRootPasswordSecretName is the name of the secret generated by the
 operator to be used as the MySQL Server root account password. This will
 be set to nil if a secret has been already provided to the operator via
-spec.mysqld.rootPasswordSecretName.</p>
+spec.mysqlNode.rootPasswordSecretName.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mysql.oracle.com/v1alpha1.NdbDataNodeSpec">NdbDataNodeSpec
+</h3>
+<p>
+(<em>Appears on:</em><a href="#mysql.oracle.com/v1alpha1.NdbClusterSpec">NdbClusterSpec</a>)
+</p>
+<div>
+<p>NdbDataNodeSpec is the specification of data node in MySQL Cluster</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>config</code><br/>
+<em>
+map[string]*<a href="https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntOrString">Kubernetes util/intstr.IntOrString</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Config is a map of default MySQL Cluster Data node configurations.</p>
+<p>More info :
+<a href="https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-ndbd.html">https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-ndbd.html</a></p>
+</td>
+</tr>
+<tr>
+<td>
+<code>ndbPodSpec</code><br/>
+<em>
+<a href="#mysql.oracle.com/v1alpha1.NdbClusterPodSpec">NdbClusterPodSpec</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>NdbPodSpec contains a subset of PodSpec fields which when
+set will be copied into to the podSpec of Data node&rsquo;s statefulset
+definition.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>nodeCount</code><br/>
+<em>
+int32
+</em>
+</td>
+<td>
+<p>The total number of data nodes in MySQL Cluster.
+The node count needs to be a multiple of the
+redundancyLevel. A maximum of 144 data nodes are
+allowed to run in a single MySQL Cluster.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>pvcSpec</code><br/>
+<em>
+<a href="https://pkg.go.dev/k8s.io/api@v0.20.2/core/v1#PersistentVolumeClaimSpec">Kubernetes core/v1.PersistentVolumeClaimSpec</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>PVCSpec is the PersistentVolumeClaimSpec to be used as the
+VolumeClaimTemplate of the data node statefulset. A PVC will be created
+for each data node by the statefulset controller and will be loaded into
+the data node pod and the container.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mysql.oracle.com/v1alpha1.NdbManagementNodeSpec">NdbManagementNodeSpec
+</h3>
+<p>
+(<em>Appears on:</em><a href="#mysql.oracle.com/v1alpha1.NdbClusterSpec">NdbClusterSpec</a>)
+</p>
+<div>
+<p>NdbManagementNodeSpec is the specification of management node in MySQL Cluster</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>config</code><br/>
+<em>
+map[string]*<a href="https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntOrString">Kubernetes util/intstr.IntOrString</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Config is a map of default MySQL Cluster Management node configurations.</p>
+<p>More info :
+<a href="https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-mgmd.html">https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-params-mgmd.html</a></p>
+</td>
+</tr>
+<tr>
+<td>
+<code>ndbPodSpec</code><br/>
+<em>
+<a href="#mysql.oracle.com/v1alpha1.NdbClusterPodSpec">NdbClusterPodSpec</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>NdbPodSpec contains a subset of PodSpec fields which when
+set will be copied into to the podSpec of Management node&rsquo;s
+statefulset definition.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>enableLoadBalancer</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>EnableLoadBalancer exposes the management servers externally using the
+kubernetes cloud provider&rsquo;s load balancer. By default, the operator creates a ClusterIP
+type service to expose the management server pods internally within the kubernetes cluster.
+If EnableLoadBalancer is set to true, a LoadBalancer type service will be created instead,
+exposing the management Servers outside the kubernetes cluster.</p>
 </td>
 </tr>
 </tbody>
@@ -551,100 +694,47 @@ exposing the MySQL servers outside the kubernetes cluster.</p>
 </tr>
 <tr>
 <td>
-<code>podSpec</code><br/>
+<code>ndbPodSpec</code><br/>
 <em>
-<a href="#mysql.oracle.com/v1alpha1.NdbPodSpec">NdbPodSpec</a>
+<a href="#mysql.oracle.com/v1alpha1.NdbClusterPodSpec">NdbClusterPodSpec</a>
 </em>
 </td>
 <td>
 <em>(Optional)</em>
-<p>PodSpec contains a subset of K8s PodSpec fields which when
-set will be copied into to the podSpec of MySQL Server Deployment.</p>
+<p>NdbPodSpec contains a subset of K8s PodSpec fields which when set
+will be copied into to the podSpec of MySQL Server StatefulSet.</p>
 </td>
 </tr>
-</tbody>
-</table>
-<h3 id="mysql.oracle.com/v1alpha1.NdbPodSpec">NdbPodSpec
-</h3>
-<p>
-(<em>Appears on:</em><a href="#mysql.oracle.com/v1alpha1.NdbClusterSpec">NdbClusterSpec</a>, <a href="#mysql.oracle.com/v1alpha1.NdbMysqldSpec">NdbMysqldSpec</a>)
-</p>
-<div>
-<p>NdbPodSpec contains a subset of PodSpec fields which when set
-will be copied into to the podSpec of respective MySQL Cluster
-node workload definitions.</p>
-</div>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
 <tr>
 <td>
-<code>resources</code><br/>
+<code>initScripts</code><br/>
 <em>
-<a href="https://pkg.go.dev/k8s.io/api@v0.20.2/core/v1#ResourceRequirements">Kubernetes core/v1.ResourceRequirements</a>
+map[string][]string
 </em>
 </td>
 <td>
 <em>(Optional)</em>
-<p>Total compute Resources required by this pod.
-Cannot be updated.</p>
-<p>More info: <a href="https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/">https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/</a></p>
+<p>InitScripts is a map of configMap names from the same namespace and
+optionally an array of keys which store the SQL scripts to be executed
+during MySQL Server initialization. If key names are omitted, contents
+of all the keys will be treated as initialization SQL scripts. All
+scripts will be mounted into the MySQL pods and will be executed in the
+alphabetical order of configMap names and key names.</p>
 </td>
 </tr>
 <tr>
 <td>
-<code>nodeSelector</code><br/>
+<code>pvcSpec</code><br/>
 <em>
-map[string]string
+<a href="https://pkg.go.dev/k8s.io/api@v0.20.2/core/v1#PersistentVolumeClaimSpec">Kubernetes core/v1.PersistentVolumeClaimSpec</a>
 </em>
 </td>
 <td>
 <em>(Optional)</em>
-<p>NodeSelector is a selector which must be true for the pod to fit on a node.
-Selector which must match a node&rsquo;s labels for the pod to be scheduled on that node.</p>
-<p>More info: <a href="https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector">https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector</a></p>
-</td>
-</tr>
-<tr>
-<td>
-<code>affinity</code><br/>
-<em>
-<a href="https://pkg.go.dev/k8s.io/api@v0.20.2/core/v1#Affinity">Kubernetes core/v1.Affinity</a>
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>If specified, the pod&rsquo;s scheduling constraints</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>schedulerName</code><br/>
-<em>
-string
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>If specified, the pod will be dispatched by specified scheduler.
-If not specified, the pod will be dispatched by default scheduler.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>tolerations</code><br/>
-<em>
-<a href="https://pkg.go.dev/k8s.io/api@v0.20.2/core/v1#Toleration">[]Kubernetes core/v1.Toleration</a>
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>If specified, the pod&rsquo;s tolerations.</p>
+<p>PVCSpec is the PersistentVolumeClaimSpec to be used as the
+VolumeClaimTemplate of the mysql server statefulset. A PVC will be created
+for each mysql server by the statefulset controller and will be loaded into
+the mysql server pod and the container.</p>
 </td>
 </tr>
 </tbody>

@@ -205,7 +205,7 @@ func (mssc *MySQLDStatefulSetController) reconcileRootUser(ctx context.Context, 
 
 	// The root user needs be created or updated
 	nc := sc.ndb
-	newRootHost := nc.Spec.Mysqld.RootHost
+	newRootHost := nc.Spec.MysqlNode.RootHost
 	if existingRootHost, exists := annotations[rootHost]; !exists {
 		// Root user doesn't exist yet - create it.
 		// Extract password.

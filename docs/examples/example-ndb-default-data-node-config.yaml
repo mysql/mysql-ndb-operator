@@ -14,5 +14,5 @@ spec:
       MaxNoOfTables: 1024
       MaxNoOfConcurrentOperations: 409600
       Arbitration: WaitExternal
-  mysqld:
+  mysqlNode:
     nodeCount: 2

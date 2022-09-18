@@ -87,7 +87,7 @@ A demonstration is available at [connect-from-inside-k8s-demo.md](connect-from-i
 
 ### Access MySQL Cluster from outside K8s
 
-By default, the Management and MySQL services created by the NDB Operator are of type [ClusterIP](https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types) and are accessible only from within the K8s Cluster. To expose them outside the K8s Cluster, the services have to be upgraded into a `LoadBalancer` type. This can be done by setting the `spec.enableManagementNodeLoadBalancer` and `spec.mysqld.enableLoadBalancer` fields of the NdbCluster resource to true. These options can be enabled when the NdbCluster resource object is created or via an update to the object when the MySQL Cluster is already running.
+By default, the Management and MySQL services created by the NDB Operator are of type [ClusterIP](https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types) and are accessible only from within the K8s Cluster. To expose them outside the K8s Cluster, the services have to be upgraded into a `LoadBalancer` type. This can be done by setting the `spec.managementNode.enableLoadBalancer` and `spec.mysqlNode.enableLoadBalancer` fields of the NdbCluster resource to true. These options can be enabled when the NdbCluster resource object is created or via an update to the object when the MySQL Cluster is already running.
 
 Once enabled, the previously ClusterIP type `example-ndb-mgmd` and `example-ndb-mysqld` services will be upgraded to LoadBalancer type, and they will be available at the external IP assigned to them by the cloud provider.
 

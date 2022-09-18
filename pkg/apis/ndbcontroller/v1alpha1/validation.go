@@ -58,7 +58,7 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 
 	var errList field.ErrorList
 	specPath := field.NewPath("spec")
-	mysqldPath := specPath.Child("mysqld")
+	mysqldPath := specPath.Child("mysqlNode")
 	dataNodePath := specPath.Child("dataNode")
 	managementNodePath := specPath.Child("managementNode")
 
@@ -99,8 +99,8 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 
 	// check if the MySQL root password secret name has the expected format
 	var rootPasswordSecret string
-	if nc.Spec.Mysqld != nil {
-		rootPasswordSecret = nc.Spec.Mysqld.RootPasswordSecretName
+	if nc.Spec.MysqlNode != nil {
+		rootPasswordSecret = nc.Spec.MysqlNode.RootPasswordSecretName
 	}
 	if rootPasswordSecret != "" {
 		errs := validation.IsDNS1123Subdomain(rootPasswordSecret)
@@ -125,7 +125,7 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 				myCnf.GetNumberOfSections("mysqld") != 1 {
 				errList = append(errList,
 					field.Invalid(mysqldPath.Child("myCnf"),
-						myCnfString, "spec.mysqld.myCnf can have only one mysqld section"))
+						myCnfString, "spec.mysqlNode.myCnf can have only one mysqld section"))
 			}
 		}
 	}
@@ -139,7 +139,7 @@ func cannotUpdateFieldError(specPath *field.Path, newValue interface{}) *field.E
 }
 
 // validateNdbPodSpecResources verifies that the Resources field of the NdbPodSpec has not changes
-func validateNdbPodSpecResources(specPath *field.Path, oldNdbPodSpec, newNdbPodSpec *NdbPodSpec) *field.Error {
+func validateNdbPodSpecResources(specPath *field.Path, oldNdbPodSpec, newNdbPodSpec *NdbClusterPodSpec) *field.Error {
 	var oldResources, newResources *corev1.ResourceRequirements
 	if oldNdbPodSpec != nil {
 		oldResources = oldNdbPodSpec.Resources
@@ -163,7 +163,7 @@ func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorLis
 	specPath := field.NewPath("spec")
 	managementNodePath := specPath.Child("managementNode")
 	dataNodePath := specPath.Child("dataNode")
-	mysqldPath := specPath.Child("mysqld")
+	mysqldPath := specPath.Child("mysqlNode")
 
 	if nc.Spec.RedundancyLevel == 1 {
 		// MySQL Cluster replica = 1 => updating MySQL config via
@@ -206,7 +206,7 @@ func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorLis
 	if nc.GetMySQLServerNodeCount() != 0 &&
 		newNc.GetMySQLServerNodeCount() != 0 {
 		if err := validateNdbPodSpecResources(
-			mysqldPath.Child("podSpec"), nc.Spec.Mysqld.PodSpec, newNc.Spec.Mysqld.PodSpec); err != nil {
+			mysqldPath.Child("ndbPodSpec"), nc.Spec.MysqlNode.NdbPodSpec, newNc.Spec.MysqlNode.NdbPodSpec); err != nil {
 			errList = append(errList, err)
 		}
 	}

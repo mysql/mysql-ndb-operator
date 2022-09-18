@@ -96,7 +96,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 	// TestCase-1
 	ginkgo.When("NdbCluster is created with nil MySQL Spec", func() {
 		ginkgo.BeforeAll(func() {
-			testNdb.Spec.Mysqld = nil
+			testNdb.Spec.MysqlNode = nil
 			testNdb.Spec.FreeAPISlots = 3
 		})
 
@@ -130,7 +130,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 	// TestCase-3
 	ginkgo.When("MySQL Server are scaled up to a count less than the FreeApiSlots", func() {
 		ginkgo.BeforeAll(func() {
-			testNdb.Spec.Mysqld = &v1alpha1.NdbMysqldSpec{
+			testNdb.Spec.MysqlNode = &v1alpha1.NdbMysqldSpec{
 				RootPasswordSecretName: mysqlRootSecretName,
 				NodeCount:              2,
 			}
@@ -156,7 +156,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 	// TestCase-4
 	ginkgo.When("MySQL Servers are scaled down to 0", func() {
 		ginkgo.BeforeAll(func() {
-			testNdb.Spec.Mysqld = nil
+			testNdb.Spec.MysqlNode = nil
 		})
 
 		ginkgo.It("should delete the statefulset of MySQL Servers", func() {
@@ -171,7 +171,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 	// TestCase-5
 	ginkgo.When("MySQL Servers are scaled up from 0", func() {
 		ginkgo.BeforeAll(func() {
-			testNdb.Spec.Mysqld = &v1alpha1.NdbMysqldSpec{
+			testNdb.Spec.MysqlNode = &v1alpha1.NdbMysqldSpec{
 				NodeCount:              3,
 				RootPasswordSecretName: mysqlRootSecretName,
 			}
@@ -196,7 +196,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 	// TestCase-6
 	ginkgo.When("MySQL Servers are scaled down to a non zero count", func() {
 		ginkgo.BeforeAll(func() {
-			testNdb.Spec.Mysqld.NodeCount = 1
+			testNdb.Spec.MysqlNode.NodeCount = 1
 		})
 
 		ginkgo.It("should scale down the statefulset of MySQL Servers", func() {
@@ -220,7 +220,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 	// TestCase-7
 	ginkgo.When("MySQL Servers are scaled up beyond the number of available FreeApiSlots", func() {
 		ginkgo.BeforeAll(func() {
-			testNdb.Spec.Mysqld.NodeCount = 5
+			testNdb.Spec.MysqlNode.NodeCount = 5
 		})
 
 		ginkgo.It("should scale-up the statefulset of MySQL Servers", func() {

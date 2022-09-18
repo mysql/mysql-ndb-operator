@@ -8,5 +8,5 @@ spec:
   redundancyLevel: 2   # MySQL Cluster Replica
   dataNode:
     nodeCount: 2       # Number of Data Nodes
-  mysqld:
+  mysqlNode:
     nodeCount: 2       # Number of MySQL Servers

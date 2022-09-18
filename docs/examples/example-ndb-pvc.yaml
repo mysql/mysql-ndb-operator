@@ -44,5 +44,5 @@ spec:
       resources:
         requests:
          storage: 1Gi
-  mysqld:
+  mysqlNode:
     nodeCount: 2

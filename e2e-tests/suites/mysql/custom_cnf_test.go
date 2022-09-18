@@ -52,7 +52,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Custom cnf", func(tc *ndbtest.TestCont
 		// create the secret in K8s
 		mysqlRootSecretName := ndbName + "-root-secret"
 		secretutils.CreateSecretForMySQLRootAccount(ctx, c, mysqlRootSecretName, ns)
-		testNdb.Spec.Mysqld.RootPasswordSecretName = mysqlRootSecretName
+		testNdb.Spec.MysqlNode.RootPasswordSecretName = mysqlRootSecretName
 
 		// Setup cleanup methods
 		ginkgo.DeferCleanup(func() {
@@ -72,7 +72,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Custom cnf", func(tc *ndbtest.TestCont
 			myCnfStr += key + "=" + value + "\n"
 		}
 		// Set the my.cnf value and create/update the NdbCluster
-		testNdb.Spec.Mysqld.MyCnf = myCnfStr
+		testNdb.Spec.MysqlNode.MyCnf = myCnfStr
 		ndbtest.KubectlApplyNdbObj(c, testNdb)
 	})
 
