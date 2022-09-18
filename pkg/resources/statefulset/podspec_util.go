@@ -10,7 +10,7 @@ import (
 )
 
 // Copy values from ndbPodSpec into podSpec
-func CopyPodSpecFromNdbPodSpec(podSpec *corev1.PodSpec, ndbPodSpec *v1alpha1.NdbPodSpec) {
+func CopyPodSpecFromNdbPodSpec(podSpec *corev1.PodSpec, ndbPodSpec *v1alpha1.NdbClusterPodSpec) {
 	if ndbPodSpec == nil {
 		// Nothing to do
 		return

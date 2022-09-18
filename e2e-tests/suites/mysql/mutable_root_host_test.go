@@ -43,7 +43,7 @@ var _ = ndbtest.NewOrderedTestCase("Mutable root host", func(tc *ndbtest.TestCon
 		// create the secret in K8s
 		mysqlRootSecretName := ndbName + "-root-secret"
 		secretutils.CreateSecretForMySQLRootAccount(ctx, c, mysqlRootSecretName, ns)
-		testNdb.Spec.Mysqld.RootPasswordSecretName = mysqlRootSecretName
+		testNdb.Spec.MysqlNode.RootPasswordSecretName = mysqlRootSecretName
 
 		mysqlPod0Name = testNdb.GetWorkloadName(constants.NdbNodeTypeMySQLD) + "-0"
 		mysqlPod1Name = testNdb.GetWorkloadName(constants.NdbNodeTypeMySQLD) + "-1"
@@ -81,7 +81,7 @@ var _ = ndbtest.NewOrderedTestCase("Mutable root host", func(tc *ndbtest.TestCon
 	ginkgo.When("Root host in MySQL Server is assigned to ip outside cluster", func() {
 
 		ginkgo.BeforeAll(func() {
-			testNdb.Spec.Mysqld.RootHost = "1.1.0.1"
+			testNdb.Spec.MysqlNode.RootHost = "1.1.0.1"
 		})
 
 		ginkgo.It("ensure that root user is not accessible from any of the mysql pod in cluster", func() {
@@ -97,7 +97,7 @@ var _ = ndbtest.NewOrderedTestCase("Mutable root host", func(tc *ndbtest.TestCon
 	ginkgo.When("Root host in MySQL Server is assigned to ip of one of the mysql pod in cluster", func() {
 
 		ginkgo.BeforeAll(func() {
-			testNdb.Spec.Mysqld.RootHost = mysqlPod0HostName + ".%"
+			testNdb.Spec.MysqlNode.RootHost = mysqlPod0HostName + ".%"
 		})
 
 		ginkgo.It("ensure that root user is accessible from only one pod", func() {
@@ -113,7 +113,7 @@ var _ = ndbtest.NewOrderedTestCase("Mutable root host", func(tc *ndbtest.TestCon
 	ginkgo.When("Root host in MySQL Server is set to %", func() {
 
 		ginkgo.BeforeAll(func() {
-			testNdb.Spec.Mysqld.RootHost = "%"
+			testNdb.Spec.MysqlNode.RootHost = "%"
 		})
 
 		ginkgo.It("ensure that root user is accessible from all pod", func() {

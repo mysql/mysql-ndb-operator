@@ -177,7 +177,7 @@ NodeId=152
 
 func Test_GetMySQLConfigString(t *testing.T) {
 	nc := testutils.NewTestNdb("default", "example-ndb", 2)
-	nc.Spec.Mysqld.MyCnf = "config1=value1\nconfig2=value2\n"
+	nc.Spec.MysqlNode.MyCnf = "config1=value1\nconfig2=value2\n"
 	configString, err := GetMySQLConfigString(nc, nil)
 	if err != nil {
 		t.Errorf("Failed to generate MySQL config string from Ndb : %s", err)

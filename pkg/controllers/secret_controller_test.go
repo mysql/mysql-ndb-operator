@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -41,7 +41,7 @@ func TestMysqlRootPasswordSecrets(t *testing.T) {
 
 	// Test custom secret ensuring when the secret doesn't exist
 	customSecretName := "custom-mysqld-root-password"
-	ndb.Spec.Mysqld.RootPasswordSecretName = customSecretName
+	ndb.Spec.MysqlNode.RootPasswordSecretName = customSecretName
 	// Ensuring should fail
 	_, err = sci.Ensure(context.TODO(), ndb)
 	if err == nil {

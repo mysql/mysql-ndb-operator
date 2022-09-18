@@ -157,7 +157,7 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster Services", func(tc *ndbtest.TestC
 	ginkgo.When("the MySQL Server LoadBalancer is enabled", func() {
 		ginkgo.BeforeAll(func() {
 			// Enable MySQL Load Balancer
-			testNdb.Spec.Mysqld.EnableLoadBalancer = true
+			testNdb.Spec.MysqlNode.EnableLoadBalancer = true
 			ndbtest.KubectlApplyNdbObj(c, testNdb)
 		})
 

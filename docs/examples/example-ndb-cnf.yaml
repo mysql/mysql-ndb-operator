@@ -15,7 +15,7 @@ spec:
   redundancyLevel: 2
   dataNode:
     nodeCount: 2
-  mysqld:
+  mysqlNode:
     nodeCount: 2
     rootPasswordSecretName: ndbop-mysql-secret
     # Pass the configuration as a multiline string

@@ -58,7 +58,7 @@ type mysqldStatefulSet struct {
 }
 
 func (mss *mysqldStatefulSet) NewGoverningService(nc *v1alpha1.NdbCluster) *corev1.Service {
-	return newService(nc, mysqldPorts, mss.nodeType, false, nc.Spec.Mysqld.EnableLoadBalancer)
+	return newService(nc, mysqldPorts, mss.nodeType, false, nc.Spec.MysqlNode.EnableLoadBalancer)
 }
 
 // getPodVolumes returns the volumes to be used by the pod
@@ -126,7 +126,7 @@ func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) ([]corev1.
 	}
 
 	// Create projections for all the scripts and append it to the initScriptPvs
-	for configMapName, configMapKeys := range ndb.Spec.Mysqld.InitScripts {
+	for configMapName, configMapKeys := range ndb.Spec.MysqlNode.InitScripts {
 		cm, err := mss.configMapLister.ConfigMaps(ndb.Namespace).Get(configMapName)
 		if err != nil {
 			klog.Errorf("Failed to get configMap '%s/%s' : %s", ndb.Namespace, configMapName, err)
@@ -196,7 +196,7 @@ func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) ([]corev1.
 	// An empty directory volume needs to be provided to the mysql server
 	// pods if the NdbCluster resource doesn't have any PVCs defined to
 	// be used with the mysql servers.
-	if ndb.Spec.Mysqld.PVCSpec == nil {
+	if ndb.Spec.MysqlNode.PVCSpec == nil {
 		podVolumes = append(podVolumes, *mss.getEmptyDirPodVolume(mss.getDataDirVolumeName()))
 	}
 
@@ -339,11 +339,11 @@ func (mss *mysqldStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 	statefulSetAnnotations[RootPasswordSecret], _ = resources.GetMySQLRootPasswordSecretName(nc)
 
 	// Add VolumeClaimTemplate if data node PVC Spec exists
-	if nc.Spec.Mysqld.PVCSpec != nil {
+	if nc.Spec.MysqlNode.PVCSpec != nil {
 		statefulSetSpec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{
 			// This PVC will be used as a template and an actual PVC will be created by the
 			// statefulset controller with name "<data-dir-vol-name(i.e mysqld-data-vol)>-<pod-name>"
-			*newPVC(nc, mss.getDataDirVolumeName(), nc.Spec.Mysqld.PVCSpec),
+			*newPVC(nc, mss.getDataDirVolumeName(), nc.Spec.MysqlNode.PVCSpec),
 		}
 	}
 
@@ -363,7 +363,7 @@ func (mss *mysqldStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 		PodAntiAffinity: mss.getPodAntiAffinity(),
 	}
 	// Copy down any podSpec specified via CRD
-	CopyPodSpecFromNdbPodSpec(podSpec, nc.Spec.Mysqld.PodSpec)
+	CopyPodSpecFromNdbPodSpec(podSpec, nc.Spec.MysqlNode.NdbPodSpec)
 
 	// Annotate the spec template with my.cnf version to trigger
 	// an update of MySQL Servers when my.cnf changes.

@@ -85,7 +85,7 @@ func expectValidInfoInStatus(nc *v1alpha1.NdbCluster, initialSystemRestart bool)
 
 	// Verify generatedRootPasswordSecretName value if the sync is complete
 	if allNodesReady {
-		if nc.GetMySQLServerNodeCount() != 0 && nc.Spec.Mysqld.RootPasswordSecretName == "" {
+		if nc.GetMySQLServerNodeCount() != 0 && nc.Spec.MysqlNode.RootPasswordSecretName == "" {
 			// Expect generated secret name if MySQL Server exist in spec
 			// and the spec doesn't have any rootPasswordSecretName.
 			gomega.Expect(status.GeneratedRootPasswordSecretName).To(

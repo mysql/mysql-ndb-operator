@@ -69,9 +69,9 @@ func updateMySQLConfig(
 	}
 
 	// Add/update service type info and root host for MySQL servers
-	if nc.Spec.Mysqld != nil {
-		data[constants.MySQLRootHost] = nc.Spec.Mysqld.RootHost
-		data[constants.MySQLLoadBalancer] = fmt.Sprintf("%v", nc.Spec.Mysqld.EnableLoadBalancer)
+	if nc.Spec.MysqlNode != nil {
+		data[constants.MySQLRootHost] = nc.Spec.MysqlNode.RootHost
+		data[constants.MySQLLoadBalancer] = fmt.Sprintf("%v", nc.Spec.MysqlNode.EnableLoadBalancer)
 	} else {
 		data[constants.MySQLRootHost] = ""
 		data[constants.MySQLLoadBalancer] = "false"

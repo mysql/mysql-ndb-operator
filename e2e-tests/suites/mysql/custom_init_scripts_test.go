@@ -84,7 +84,7 @@ var _ = ndbtest.NewOrderedTestCase("Custom init scripts", func(tc *ndbtest.TestC
 		// Create the NdbCluster object to be used by the testcases
 		ndbName := "custom-init-script-test"
 		testNdb = testutils.NewTestNdb(ns, ndbName, 2)
-		testNdb.Spec.Mysqld.InitScripts = map[string][]string{
+		testNdb.Spec.MysqlNode.InitScripts = map[string][]string{
 			"cm-with-key": {
 				"create", "insert", "update",
 			},

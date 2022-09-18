@@ -1,6 +1,6 @@
 # Define pod specifications using NdbPodSpec
 
-The NdbCluster CRD provides the [NdbPodSpec](NdbCluster-CRD.md#ndbpodspec) structure to mention pod specifications. Pod specifications for Management, Data and MySQL node pods can be individually defined via their respective NdbPodSpec fields - `.spec.managementNodePodSpec`, `.spec.dataNodePodSpec` and `.spec.mysqld.ndbPodSpec`. The values filled into these NdbPodSpec fields will be copied into the respective StatefulSet definitions. This document explains how these NdbPodSpec fields can be used to assign pods to particular worker nodes, define affinity rules and to specify pod resource requirements.
+The NdbCluster CRD provides the [NdbPodSpec](NdbCluster-CRD.md#ndbpodspec) structure to mention pod specifications. Pod specifications for Management, Data and MySQL node pods can be individually defined via their respective NdbPodSpec fields - `.spec.managementNode.ndbPodSpec`, `.spec.dataNode.ndbPodSpec` and `.spec.mysqlNode.ndbPodSpec`. The values filled into these NdbPodSpec fields will be copied into the respective StatefulSet definitions. This document explains how these NdbPodSpec fields can be used to assign pods to particular worker nodes, define affinity rules and to specify pod resource requirements.
 
 ## Assigning MySQL Cluster node pods to desired worker pods
 

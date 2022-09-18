@@ -40,7 +40,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Cluster config update", func(tc *ndbte
 		c = tc.K8sClientset()
 		// Create a new NdbCluster resource to be used by the test
 		testNdb = testutils.NewTestNdb(ns, "ndb-config-test", 2)
-		testNdb.Spec.Mysqld.NodeCount = 1
+		testNdb.Spec.MysqlNode.NodeCount = 1
 		testNdb.Spec.DataNode.Config = make(map[string]*intstr.IntOrString)
 		testNdb.Spec.ManagementNode.Config = make(map[string]*intstr.IntOrString)
 		ginkgo.DeferCleanup(func() {
