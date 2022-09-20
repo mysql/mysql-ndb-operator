@@ -57,25 +57,6 @@ func getConfigMaps() []corev1.ConfigMap {
 	}
 }
 
-// expectTablesInDatabase ensures that all the table names in tableNameList is present in the
-// database.
-func expectTablesInDatabase(
-	ctx context.Context, c clientset.Interface, testNdb *v1alpha1.NdbCluster, expectedTables []string) {
-	// Connect to the MySQL Server and retrieve all tables
-	db := mysqlutils.Connect(c, testNdb, dbName)
-	res, err := db.QueryContext(ctx, "SHOW TABLES")
-	ndbtest.ExpectNoError(err, "SHOW TABLES query failed")
-
-	var table string
-	var actualTables []string
-	for res.Next() {
-		ndbtest.ExpectNoError(res.Scan(&table))
-		actualTables = append(actualTables, table)
-	}
-
-	gomega.Expect(actualTables).To(gomega.ContainElements(expectedTables))
-}
-
 // expectQueryIntValue will execute a given query in the database and check if the query output is same
 // as the expected value
 func expectQueryIntValue(
@@ -132,7 +113,7 @@ var _ = ndbtest.NewOrderedTestCase("Custom init scripts", func(tc *ndbtest.TestC
 			tableNameList := []string{"car", "carage", "purchase"}
 			// check if all tables in tableNameList is present in database to see if all the scripts
 			// in cm-without-key configmap is executed successfully.
-			expectTablesInDatabase(ctx, c, testNdb, tableNameList)
+			mysqlutils.ExpectTablesInDatabase(ctx, c, testNdb, tableNameList, dbName)
 			// check the value of PersonID to see if all the scripts in cm-with-key configmap is
 			// executed successfully.
 			expectQueryIntValue(ctx, c, testNdb, "SELECT personID FROM person WHERE city = 'dindigul';", 2)

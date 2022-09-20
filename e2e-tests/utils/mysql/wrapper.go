@@ -10,7 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mysql/ndb-operator/e2e-tests/utils/secret"
+	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
+	secretutils "github.com/mysql/ndb-operator/e2e-tests/utils/secret"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/service"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/constants"
@@ -23,7 +24,6 @@ import (
 
 // Connect extracts the ip address of the MySQL Load balancer service and creates a connection to it
 func Connect(clientset kubernetes.Interface, nc *v1alpha1.NdbCluster, dbname string) *sql.DB {
-
 	gomega.Expect(nc.GetMySQLServerNodeCount()).NotTo(
 		gomega.BeZero(), fmt.Sprintf("No MySQL Servers configured for NdbCluster %q", nc.Name))
 
@@ -52,4 +52,25 @@ func Connect(clientset kubernetes.Interface, nc *v1alpha1.NdbCluster, dbname str
 	db.SetMaxIdleConns(10)
 
 	return db
+}
+
+// ExpectTablesInDatabase ensures that all the table names in tableNameList is present in the
+// database.
+func ExpectTablesInDatabase(
+	ctx context.Context, c kubernetes.Interface, testNdb *v1alpha1.NdbCluster,
+	expectedTables []string, dbName string) {
+	// Connect to the MySQL Server and retrieve all tables
+	db := Connect(c, testNdb, dbName)
+
+	res, err := db.QueryContext(ctx, "SHOW TABLES")
+	ndbtest.ExpectNoError(err, "SHOW TABLES query failed")
+
+	var table string
+	var actualTables []string
+	for res.Next() {
+		ndbtest.ExpectNoError(res.Scan(&table))
+		actualTables = append(actualTables, table)
+	}
+
+	gomega.Expect(actualTables).To(gomega.ContainElements(expectedTables))
 }

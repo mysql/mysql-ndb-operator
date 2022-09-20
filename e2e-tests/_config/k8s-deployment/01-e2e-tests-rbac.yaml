@@ -25,6 +25,7 @@ rules:
   - ""
   resources:
   - serviceaccounts
+  - persistentvolumes
   verbs:
   - create
   - delete
