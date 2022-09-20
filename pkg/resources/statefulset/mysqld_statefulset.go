@@ -66,8 +66,6 @@ func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) ([]corev1.
 	allowOnlyOwnerToReadMode := int32(0400)
 	rootPasswordSecretName, _ := resources.GetMySQLRootPasswordSecretName(ndb)
 	podVolumes := []corev1.Volume{
-		// Use a temporary empty directory volume for the pod
-		*mss.getEmptyDirPodVolume(mss.getDataDirVolumeName()),
 		// Use the root password secret as a volume
 		{
 			Name: mysqldRootPasswordVolName,
@@ -195,13 +193,20 @@ func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) ([]corev1.
 		})
 	}
 
+	// An empty directory volume needs to be provided to the mysql server
+	// pods if the NdbCluster resource doesn't have any PVCs defined to
+	// be used with the mysql servers.
+	if ndb.Spec.Mysqld.PVCSpec == nil {
+		podVolumes = append(podVolumes, *mss.getEmptyDirPodVolume(mss.getDataDirVolumeName()))
+	}
+
 	return podVolumes, nil
 }
 
 // getVolumeMounts returns pod volumes to be mounted into the container
 func (mss *mysqldStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []corev1.VolumeMount {
 	volumeMounts := []corev1.VolumeMount{
-		// Mount the empty dir volume as data directory
+		// Mount the data directory volume
 		{
 			Name:      mss.getDataDirVolumeName(),
 			MountPath: dataDirectoryMountPath,
@@ -332,6 +337,15 @@ func (mss *mysqldStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 	// Update statefulset annotation
 	statefulSetAnnotations := statefulSet.GetAnnotations()
 	statefulSetAnnotations[RootPasswordSecret], _ = resources.GetMySQLRootPasswordSecretName(nc)
+
+	// Add VolumeClaimTemplate if data node PVC Spec exists
+	if nc.Spec.Mysqld.PVCSpec != nil {
+		statefulSetSpec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{
+			// This PVC will be used as a template and an actual PVC will be created by the
+			// statefulset controller with name "<data-dir-vol-name(i.e mysqld-data-vol)>-<pod-name>"
+			*newPVC(nc, mss.getDataDirVolumeName(), nc.Spec.Mysqld.PVCSpec),
+		}
+	}
 
 	// Update template pod spec
 	podSpec := &statefulSetSpec.Template.Spec

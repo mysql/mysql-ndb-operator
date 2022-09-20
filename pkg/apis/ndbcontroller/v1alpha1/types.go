@@ -115,6 +115,12 @@ type NdbMysqldSpec struct {
 	// alphabetical order of configMap names and key names.
 	// +optional
 	InitScripts map[string][]string `json:"initScripts,omitempty"`
+	// PVCSpec is the PersistentVolumeClaimSpec to be used as the
+	// VolumeClaimTemplate of the mysql server statefulset. A PVC will be created
+	// for each mysql server by the statefulset controller and will be loaded into
+	// the mysql server pod and the container.
+	// +optional
+	PVCSpec *corev1.PersistentVolumeClaimSpec `json:"pvcSpec,omitempty"`
 }
 
 // NdbClusterSpec defines the desired state of a MySQL NDB Cluster
