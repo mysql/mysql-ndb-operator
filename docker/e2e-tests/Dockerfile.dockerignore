@@ -11,3 +11,4 @@
 !e2e-tests/
 !pkg/
 !docker/e2e-tests/entrypoint.sh
+!vendor/
