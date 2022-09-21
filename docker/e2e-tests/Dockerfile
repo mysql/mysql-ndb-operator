@@ -18,12 +18,7 @@ RUN curl -LO https://get.helm.sh/helm-$HELM_VERSION-linux-amd64.tar.gz && \
 # Create and move into the target repo directory
 WORKDIR /ndb-operator-e2e-testing/
 
-# Copy the required go.* files and download the dependencies
-COPY go.mod go.sum ./
-RUN go mod download -x
-
-# Copy all remaining files/directories in project directory to workdir
-# excludes files from Dockerfile.dockerignore
+# Copy the required files/directories in project directory to workdir.
 COPY . .
 
 ENTRYPOINT ["docker/e2e-tests/entrypoint.sh"]
