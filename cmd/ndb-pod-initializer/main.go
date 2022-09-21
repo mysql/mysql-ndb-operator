@@ -29,6 +29,25 @@ func failOnError(err error, errMsgFmt string, errMsgArgs ...interface{}) {
 	}
 }
 
+func isAllowedDNSError(dnsError *net.DNSError) bool {
+
+	if dnsError.IsNotFound || dnsError.IsTemporary {
+		return true
+	}
+
+	allowedDNSErrors := []string{
+		"server misbehaving",
+	}
+
+	for _, allowedErr := range allowedDNSErrors {
+		if strings.Contains(dnsError.Error(), allowedErr) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // isDnsUpdated checks if the DNS can resolve the
 // current pod hostname to the right IP address.
 func isDnsUpdated(ctx context.Context, hostname, expectedIP string) bool {
@@ -36,7 +55,7 @@ func isDnsUpdated(ctx context.Context, hostname, expectedIP string) bool {
 
 	if err != nil {
 		var dnsError *net.DNSError
-		if errors.As(err, &dnsError) && (dnsError.IsNotFound || dnsError.IsTemporary) {
+		if errors.As(err, &dnsError) && isAllowedDNSError(dnsError) {
 			// DNS doesn't have the entry yet
 			return false
 		} else {
