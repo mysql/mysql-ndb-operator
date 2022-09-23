@@ -32,7 +32,7 @@ func runHelmCommand(namespace string, helmArgs []string) (result string) {
 }
 
 // HelmInstall installs the helm chart at chartPath into the given namespace.
-func HelmInstall(namespace, releaseName, chartPath string, namespace_scoped bool) {
+func HelmInstall(namespace, releaseName, chartPath string, namespaceScoped bool) {
 	// Build the helm args for helm create command
 	helmArgs := []string{
 		"install",
@@ -46,7 +46,11 @@ func HelmInstall(namespace, releaseName, chartPath string, namespace_scoped bool
 		"--wait",
 	}
 
-	if namespace_scoped {
+	if ndbTestSuite.ndbOperatorImage != "" {
+		helmArgs = append(helmArgs, "--set", "image="+ndbTestSuite.ndbOperatorImage)
+	}
+
+	if namespaceScoped {
 		// add scope flag
 		helmArgs = append(helmArgs, "--set", "clusterScoped=false")
 	}

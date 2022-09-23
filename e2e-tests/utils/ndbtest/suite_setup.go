@@ -34,7 +34,12 @@ func init() {
 		"kubeconfig", "", "Kubeconfig of the existing K8s cluster to run tests on.\n"+
 			"Only required if running from outside the K8s Cluster.")
 	flag.StringVar(&ndbTestSuite.kubectlPath,
-		"kubectl-path", "kubectl", "The kubectl binary to use. For development, you might use 'cluster/kubectl.sh' here.")
+		"kubectl-path", "kubectl",
+		"The kubectl binary to use. For development, you might use 'cluster/kubectl.sh' here.")
+	flag.StringVar(&ndbTestSuite.ndbOperatorImage,
+		"ndb-operator-image", "",
+		"The NDB Operator image to be used by the e2e tests.\n"+
+			"By default, the image specified in the helm chart will be used.")
 }
 
 // ndbTestSuite has all the information to run a single ginkgo test suite
@@ -49,6 +54,8 @@ var ndbTestSuite struct {
 	// Command line arguments
 	kubeConfig  string
 	kubectlPath string
+	// NDB operator image to be tested
+	ndbOperatorImage string
 	// channel through which the generated
 	// unique Ids for a namespace name are sent
 	uniqueId chan int
@@ -97,9 +104,10 @@ func newClientsets(t *testing.T) (kubernetes.Interface, ndbclient.Interface) {
 // The CRD path needs to be relative to the project root
 // directory.
 // example :
-//  func Test_NdbBasic(t *testing.T) {
-//	  framework.RunGinkgoSuite(t, "ndb-basic", "Ndb operator basic", true, true)
-//  }
+//
+//	 func Test_NdbBasic(t *testing.T) {
+//		  framework.RunGinkgoSuite(t, "ndb-basic", "Ndb operator basic", true, true)
+//	 }
 func RunGinkgoSuite(
 	t *testing.T, suiteName, description string,
 	createClientsets, createNamespace bool,
