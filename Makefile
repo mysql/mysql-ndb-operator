@@ -56,9 +56,21 @@ DOCKER_CMD := DOCKER_BUILDKIT=1 docker
 operator-image: build
 	$(DOCKER_CMD) build -t mysql/ndb-operator:$(shell cat VERSION) -f docker/ndb-operator/Dockerfile .
 
+# Build args to be passed to release docker build
+BUILD_ARGS := --build-arg gitCommit=$(GIT_COMMIT_ID)
+ifdef no_proxy
+	BUILD_ARGS := $(BUILD_ARGS) --build-arg no_proxy=$(no_proxy)
+endif
+ifdef http_proxy
+	BUILD_ARGS := $(BUILD_ARGS) --build-arg http_proxy=$(http_proxy)
+endif
+ifdef https_proxy
+	BUILD_ARGS := $(BUILD_ARGS) --build-arg https_proxy=$(https_proxy)
+endif
+
 .PHONY: operator-image-release
 operator-image-release:
-	$(DOCKER_CMD) build -t mysql/ndb-operator:$(shell cat VERSION) -f docker/ndb-operator-release/Dockerfile --build-arg gitCommit=$(GIT_COMMIT_ID) .
+	$(DOCKER_CMD) build -t mysql/ndb-operator:$(shell cat VERSION) -f docker/ndb-operator-release/Dockerfile $(BUILD_ARGS) .
 
 
 # Build e2e-tests-tests image in docker
