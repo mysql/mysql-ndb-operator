@@ -50,6 +50,8 @@ var options struct {
 	suites          string
 	ginkgoFocusFile string
 	verbose         bool
+	// NDB Operator image to be used by the tests
+	ndbOperatorImage string
 }
 
 // K8s image used by KinD to bring up cluster
@@ -459,7 +461,7 @@ func (t *testRunner) execCommand(
 
 // getGinkgoTestCommand builds and returns the ginkgo test command
 // that will be executed by the testRunner.
-func (t *testRunner) getGinkgoTestCommand(suiteDir string) []string {
+func (t *testRunner) getGinkgoTestCommand(suiteDir string, testcaseOptions ...string) []string {
 	// The ginkgo test command
 	ginkgoTestCmd := []string{
 		"go", "run", "github.com/onsi/ginkgo/v2/ginkgo",
@@ -488,6 +490,19 @@ func (t *testRunner) getGinkgoTestCommand(suiteDir string) []string {
 		}
 	}
 
+	// End of options to be passed to Ginkgo
+	// Handle options to be passed directly to testcase
+	if options.ndbOperatorImage != "" {
+		testcaseOptions = append(testcaseOptions,
+			"--ndb-operator-image="+options.ndbOperatorImage)
+	}
+
+	// Append any testcase options to ginkgoTestCmd
+	if testcaseOptions != nil {
+		ginkgoTestCmd = append(ginkgoTestCmd, "--")
+		ginkgoTestCmd = append(ginkgoTestCmd, testcaseOptions...)
+	}
+
 	return ginkgoTestCmd
 }
 
@@ -497,10 +512,7 @@ func (t *testRunner) runGinkgoTests() bool {
 	log.Println("🔨 Running tests from outside the K8s cluster")
 	suiteDir := filepath.Join(t.testDir, "suites")
 	// get ginkgo command to run specific test suites
-	ginkgoTestCmd := t.getGinkgoTestCommand(suiteDir)
-
-	// Append arguments to pass to the testcases
-	ginkgoTestCmd = append(ginkgoTestCmd, "--", "--kubeconfig="+t.p.getKubeConfig())
+	ginkgoTestCmd := t.getGinkgoTestCommand(suiteDir, "--kubeconfig="+t.p.getKubeConfig())
 
 	// Execute it
 	log.Println("🔨 Running tests using ginkgo : " + strings.Join(ginkgoTestCmd, " "))
@@ -787,16 +799,19 @@ func (t *testRunner) run() bool {
 
 	// Some providers require manual loading of images into their nodes.
 	// Load the operator docker image in the K8s Cluster nodes
-	operatorVersionFile := filepath.Join(t.testDir, "..", "VERSION")
-	versionBytes, err := os.ReadFile(operatorVersionFile)
-	if err != nil {
-		log.Printf("❌ Failed to read NDB Operator version : %s", err)
-		return false
+	if options.ndbOperatorImage == "" {
+		operatorVersionFile := filepath.Join(t.testDir, "..", "VERSION")
+		versionBytes, err := os.ReadFile(operatorVersionFile)
+		if err != nil {
+			log.Printf("❌ Failed to read NDB Operator version : %s", err)
+			return false
+		}
+		versionNumber := string(versionBytes)
+		// trim the newline from version
+		versionNumber = versionNumber[:len(versionNumber)-1]
+		options.ndbOperatorImage = "mysql/ndb-operator:" + versionNumber
 	}
-	version := string(versionBytes)
-	// trim the newline from version
-	version = version[:len(version)-1]
-	if !p.loadImageIntoK8sCluster(t, "mysql/ndb-operator:"+version) {
+	if !p.loadImageIntoK8sCluster(t, options.ndbOperatorImage) {
 		return false
 	}
 
@@ -851,6 +866,11 @@ func init() {
 	// Add verbose for extra logs.
 	flag.BoolVar(&options.verbose, "v", false,
 		"Enable verbose mode in ginkgo. By default this is disabled.")
+
+	flag.StringVar(&options.ndbOperatorImage,
+		"ndb-operator-image", "",
+		"The NDB Operator image to be used by the e2e tests.\n"+
+			"By default, the image specified in the helm chart will be used.")
 }
 
 // validatesCommandlineArgs validates if command line arguments,
