@@ -100,7 +100,7 @@ func expectValidInfoInStatus(nc *v1alpha1.NdbCluster, initialSystemRestart bool)
 }
 
 const (
-	watchTimeout = 10 * time.Minute
+	watchTimeout = 15 * time.Minute
 )
 
 // ValidateNdbClusterStatusUpdatesDuringSync validates all updates done

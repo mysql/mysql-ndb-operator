@@ -751,6 +751,59 @@ func (t *testRunner) runGinkgoTestsInsideK8sCluster() (success bool) {
 	return true
 }
 
+func (t *testRunner) loadImagesIntoK8sCluster() bool {
+	// Some providers require manual loading of images into their nodes.
+	// Load the operator docker image in the K8s Cluster nodes
+	if options.ndbOperatorImage == "" {
+		operatorVersionFile := filepath.Join(t.testDir, "..", "VERSION")
+		versionBytes, err := os.ReadFile(operatorVersionFile)
+		if err != nil {
+			log.Printf("❌ Failed to read NDB Operator version : %s", err)
+			return false
+		}
+		versionNumber := string(versionBytes)
+		// trim the newline from version
+		versionNumber = versionNumber[:len(versionNumber)-1]
+		options.ndbOperatorImage = "mysql/ndb-operator:" + versionNumber
+	}
+	if !t.p.loadImageIntoK8sCluster(t, options.ndbOperatorImage) {
+		return false
+	}
+
+	if !options.runOutOfCluster {
+		// Load e2e-tests docker image into cluster nodes for in-cluster runs
+		if !t.p.loadImageIntoK8sCluster(t, t.e2eTestImageName) {
+			return false
+		}
+	}
+
+	// Load required MySQL Cluster images
+	// This is done here to avoid delays inside the actual testcases.
+	for _, image := range []string{
+		// default image used by the tests
+		"mysql/mysql-cluster:latest",
+		// images used by the upgrade_test.go testcase
+		"mysql/mysql-cluster:8.0.28",
+		"mysql/mysql-cluster:8.0.30",
+	} {
+		// Pull the image into local docker
+		dockerPullCmd := []string{
+			"docker", "pull", image,
+		}
+		if !t.execCommand(dockerPullCmd, "docker pull "+image, true, true) {
+			log.Printf("❌ Failed to pull docker image %q", image)
+			return false
+		}
+
+		// Load the image into K8s worker nodes
+		if !t.p.loadImageIntoK8sCluster(t, image) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // run executes the complete e2e test
 // It returns true if all tests run successfully
 func (t *testRunner) run() bool {
@@ -797,29 +850,10 @@ func (t *testRunner) run() bool {
 		return false
 	}
 
-	// Some providers require manual loading of images into their nodes.
-	// Load the operator docker image in the K8s Cluster nodes
-	if options.ndbOperatorImage == "" {
-		operatorVersionFile := filepath.Join(t.testDir, "..", "VERSION")
-		versionBytes, err := os.ReadFile(operatorVersionFile)
-		if err != nil {
-			log.Printf("❌ Failed to read NDB Operator version : %s", err)
-			return false
-		}
-		versionNumber := string(versionBytes)
-		// trim the newline from version
-		versionNumber = versionNumber[:len(versionNumber)-1]
-		options.ndbOperatorImage = "mysql/ndb-operator:" + versionNumber
-	}
-	if !p.loadImageIntoK8sCluster(t, options.ndbOperatorImage) {
+	// Load required images into K8s Cluster
+	if !t.loadImagesIntoK8sCluster() {
+		// Failed to load required images in K8s Cluster
 		return false
-	}
-
-	if !options.runOutOfCluster {
-		// Load e2e-tests docker image into cluster nodes for in-cluster runs
-		if !p.loadImageIntoK8sCluster(t, t.e2eTestImageName) {
-			return false
-		}
 	}
 
 	// Run the tests
