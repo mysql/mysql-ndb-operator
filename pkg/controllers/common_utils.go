@@ -51,8 +51,10 @@ func statefulsetUpdateComplete(statefulset *appsv1.StatefulSet) bool {
 			statefulset.Status.CurrentReplicas == *(statefulset.Spec.Replicas))
 }
 
-// statefulsetReady considers a StatefulSet to be ready
-// if all the pods created by the statefulSet are ready.
+// statefulsetReady considers a StatefulSet to be ready if all the pods
+// created by the statefulSet are ready. Note that this doesn't check if
+// the pods created by the StatefulSet are running the latest revision of
+// pod spec.
 func statefulsetReady(statefulset *appsv1.StatefulSet) bool {
 	return statefulset.Status.ReadyReplicas == *(statefulset.Spec.Replicas) &&
 		statefulset.Status.ObservedGeneration == statefulset.Generation

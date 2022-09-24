@@ -352,9 +352,9 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 // ensureWorkloadsReadiness checks if all the workloads created for the
 // NdbCluster resource are ready. The sync is stopped if they are not ready.
 func (sc *SyncContext) ensureWorkloadsReadiness() syncResult {
-	// Both mgmd and data node StatefulSets should be ready and
-	// the MySQL StatefulSet should be complete if it exists.
-	if statefulsetReady(sc.mgmdNodeSfset) &&
+	// The data node StatefulSet should be ready and both the
+	// mgmd and MySQL StatefulSets should be complete.
+	if statefulsetUpdateComplete(sc.mgmdNodeSfset) &&
 		statefulsetReady(sc.dataNodeSfSet) &&
 		(sc.mysqldSfset == nil ||
 			statefulsetUpdateComplete(sc.mysqldSfset)) {
