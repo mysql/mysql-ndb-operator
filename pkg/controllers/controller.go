@@ -243,13 +243,6 @@ func NewController(
 							// UpdateStrategy is OnDelete.
 							return
 						}
-					} else if oldStatefulSet.Spec.UpdateStrategy.Type == appsv1.RollingUpdateStatefulSetStrategyType {
-						// Default statefulset update strategy.
-						// No need to trigger reconciliation if the StatefulSet
-						// controller is yet to complete roll out of an update.
-						if !statefulsetUpdateComplete(newStatefulSet) {
-							return
-						}
 					}
 
 					controller.extractAndEnqueueNdbCluster(newStatefulSet)
