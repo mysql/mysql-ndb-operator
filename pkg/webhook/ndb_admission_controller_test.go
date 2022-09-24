@@ -49,7 +49,7 @@ func Test_ndbAdmissionController_mutate(t *testing.T) {
 	nc := testutils.NewTestNdb("default", "test", 1)
 	for _, tc := range testcases {
 		nc.Spec = *tc.ncSpec
-		originalPatch, err := ndbAc.mutate(nc)
+		originalPatch, err := ndbAc.mutate(nc).getPatch()
 		if err != nil {
 			t.Errorf("Testcase %q failed with error %q", tc.desc, err)
 			continue

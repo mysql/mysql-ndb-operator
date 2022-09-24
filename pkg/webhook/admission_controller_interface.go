@@ -25,7 +25,7 @@ type admissionController interface {
 	validateCreate(reqUID types.UID, obj runtime.Object) *admissionv1.AdmissionResponse
 	validateUpdate(reqUID types.UID, obj runtime.Object, oldObj runtime.Object) *admissionv1.AdmissionResponse
 	// mutate function should return the JSONPatch that needs to be applied to the resource
-	mutate(obj runtime.Object) ([]byte, error)
+	mutate(obj runtime.Object) *jsonPatchOperations
 }
 
 func unsupportedValidatorOperation(reqUID types.UID, operation admissionv1.Operation) *admissionv1.AdmissionResponse {
@@ -104,23 +104,20 @@ func mutate(req *admissionv1.AdmissionRequest, ac admissionController) *admissio
 		return requestDeniedBad(req.UID, err.Error())
 	}
 
-	patch, err := ac.mutate(obj)
+	// Call the admissions controller's mutate method
+	patchOps := ac.mutate(obj)
+
+	if patchOps.empty() {
+		// Nothing to do
+		return requestAllowed(req.UID)
+	}
+
+	// A patch is available for mutation
+	patch, err := patchOps.getPatch()
 	if err != nil {
+		klog.Error("Failed to encode json patch :", err.Error())
 		return requestDeniedBad(req.UID, err.Error())
 	}
-
-	// Request allowed
-	admissionResponse := &admissionv1.AdmissionResponse{
-		UID:     req.UID,
-		Allowed: true,
-	}
-
-	// Update the response with the patch if required
-	if len(patch) > 0 {
-		admissionResponse.Patch = patch
-		patchType := admissionv1.PatchTypeJSONPatch
-		admissionResponse.PatchType = &patchType
-	}
-
-	return admissionResponse
+	klog.Infof("JSONPatch `%s` will be applied to resource '%s/%s'", string(patch), req.Namespace, req.Name)
+	return requestAllowedWithPatch(req.UID, patch)
 }
