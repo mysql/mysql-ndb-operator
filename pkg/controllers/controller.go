@@ -8,14 +8,12 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
@@ -318,12 +316,12 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	klog.Info("Starting workers")
 	// Launch worker go routines to process Ndb resources
 	for i := 0; i < threadiness; i++ {
-		go wait.Until(func() {
+		go func() {
 			// The workers continue processing work items
 			// available in the work queue until they are shutdown
 			for c.processNextWorkItem() {
 			}
-		}, time.Second, stopCh)
+		}()
 	}
 
 	klog.Info("Started workers")
