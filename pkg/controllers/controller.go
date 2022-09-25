@@ -297,10 +297,10 @@ func (c *Controller) extractAndEnqueueNdbCluster(obj metav1.Object) {
 }
 
 // Run will set up the event handlers for types we are interested in, as well
-// as syncing informer caches and starting workers. It will block until stopCh
-// is closed, at which point it will shutdown the workqueue and wait for
+// as syncing informer caches and starting workers. It will block until ctx is
+// cancelled, at which point it will shutdown the workqueue and wait for
 // workers to finish processing their current work items.
-func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
+func (c *Controller) Run(ctx context.Context, threadiness int) error {
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
@@ -309,7 +309,7 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 
 	// Wait for the caches to be synced before starting workers
 	if ok := cache.WaitForNamedCacheSync(
-		controllerName, stopCh, c.informerSyncedMethods...); !ok {
+		controllerName, ctx.Done(), c.informerSyncedMethods...); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 
@@ -319,13 +319,13 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 		go func() {
 			// The workers continue processing work items
 			// available in the work queue until they are shutdown
-			for c.processNextWorkItem() {
+			for c.processNextWorkItem(ctx) {
 			}
 		}()
 	}
 
 	klog.Info("Started workers")
-	<-stopCh
+	<-ctx.Done()
 	klog.Info("Shutting down workers")
 
 	return nil
@@ -333,7 +333,7 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 
 // processNextWorkItem reads a single work item off the
 // workqueue and processes it, by calling the syncHandler.
-func (c *Controller) processNextWorkItem() (continueProcessing bool) {
+func (c *Controller) processNextWorkItem(ctx context.Context) (continueProcessing bool) {
 	// Wait until there is a new item in the queue.
 	// Get() also blocks other worker threads from
 	// processing the 'item' until Done() is called on it.
@@ -358,7 +358,7 @@ func (c *Controller) processNextWorkItem() (continueProcessing bool) {
 
 	// Run the syncHandler for the extracted key.
 	klog.Infof("Starting a reconciliation cycle for NdbCluster resource %q", key)
-	sr := c.syncHandler(context.TODO(), key)
+	sr := c.syncHandler(ctx, key)
 	klog.Infof("Completed a reconciliation cycle for NdbCluster resource %q", key)
 
 	if err := sr.getError(); err != nil {

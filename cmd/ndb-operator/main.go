@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"time"
 
@@ -27,7 +28,7 @@ func main() {
 	config.ValidateFlags()
 
 	// set up signal handlers
-	stopCh := signals.SetupSignalHandler()
+	ctx := signals.SetupSignalHandler(context.Background())
 
 	klog.Infof("Starting ndb-operator with build version %s", config.GetBuildVersion())
 
@@ -87,10 +88,10 @@ func main() {
 
 	// notice that there is no need to run Start methods in a separate goroutine. (i.e. go kubeInformerFactory.Start(stopCh)
 	// Start method is non-blocking and runs all registered informers in a dedicated goroutine.
-	k8If.Start(stopCh)
-	ndbIf.Start(stopCh)
+	k8If.Start(ctx.Done())
+	ndbIf.Start(ctx.Done())
 
-	if err = controller.Run(2, stopCh); err != nil {
+	if err = controller.Run(ctx, 2); err != nil {
 		klog.Fatalf("Error running controller: %s", err.Error())
 	}
 }
