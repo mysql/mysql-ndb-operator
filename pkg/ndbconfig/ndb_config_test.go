@@ -157,15 +157,23 @@ Hostname=example-ndb-mysqld-0.example-ndb-mysqld.default
 NodeId=149
 Hostname=example-ndb-mysqld-1.example-ndb-mysqld.default
 
+[mysqld]
+NodeId=150
+Hostname=example-ndb-mysqld-2.example-ndb-mysqld.default
+
+[mysqld]
+NodeId=151
+Hostname=example-ndb-mysqld-3.example-ndb-mysqld.default
+
 # API sections to be used by generic NDBAPI applications
 [api]
-NodeId=150
-
-[api]
-NodeId=151
-
-[api]
 NodeId=152
+
+[api]
+NodeId=153
+
+[api]
+NodeId=154
 
 `
 	if configString != expectedConfigString {

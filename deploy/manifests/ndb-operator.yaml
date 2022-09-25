@@ -947,7 +947,7 @@ spec:
                 - nodeCount
                 type: object
               freeAPISlots:
-                default: 5
+                default: 2
                 description: The number of extra API sections declared in the MySQL
                   Cluster config, in addition to the API sections declared implicitly
                   by the NDB Operator for the MySQL Servers. Any NDBAPI application
@@ -1755,6 +1755,13 @@ spec:
                       the MySQL pods and will be executed in the alphabetical order
                       of configMap names and key names.
                     type: object
+                  maxNodeCount:
+                    description: MaxNodeCount is the count up to which the MySQL Servers
+                      would be allowed to scale up without forcing a MySQL Cluster
+                      config update. If unspecified, operator will define the MySQL
+                      Cluster config with API sections for two additional MySQL Servers.
+                    format: int32
+                    type: integer
                   myCnf:
                     description: Configuration options to pass to the MySQL Server
                       when it is started.
@@ -2490,8 +2497,8 @@ spec:
                         type: array
                     type: object
                   nodeCount:
-                    description: NodeCount is the number of MySQL Servers running
-                      in MySQL Cluster
+                    description: NodeCount is the number of MySQL Servers to be started
+                      by the Operator
                     format: int32
                     type: integer
                   pvcSpec:

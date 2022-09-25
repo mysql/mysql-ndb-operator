@@ -8,8 +8,8 @@ import (
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 )
 
-// getNumOfSectionsRequiredForMySQLServers returns the
+// GetNumOfSectionsRequiredForMySQLServers returns the
 // number of sections required by the MySQL Servers.
-func getNumOfSectionsRequiredForMySQLServers(nc *v1alpha1.NdbCluster) int32 {
-	return nc.GetMySQLServerNodeCount()
+func GetNumOfSectionsRequiredForMySQLServers(nc *v1alpha1.NdbCluster) int32 {
+	return nc.GetMySQLServerMaxNodeCount()
 }

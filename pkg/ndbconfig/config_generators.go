@@ -102,7 +102,7 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 				numberOfNodes = ndb.Spec.DataNode.NodeCount
 			case constants.NdbNodeTypeMySQLD:
 				startNodeId = &apiStartNodeId
-				numberOfNodes = getNumOfSectionsRequiredForMySQLServers(ndb)
+				numberOfNodes = GetNumOfSectionsRequiredForMySQLServers(ndb)
 			case constants.NdbNodeTypeAPI:
 				startNodeId = &apiStartNodeId
 				numberOfNodes = ndb.Spec.FreeAPISlots

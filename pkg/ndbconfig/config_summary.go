@@ -133,7 +133,7 @@ func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1alpha1.NdbCluster) 
 
 	// Check if there is a change in the number of MySQL server
 	// slots or number of free api slots.
-	if cs.NumOfMySQLServerSlots != getNumOfSectionsRequiredForMySQLServers(nc) {
+	if cs.NumOfMySQLServerSlots != GetNumOfSectionsRequiredForMySQLServers(nc) {
 		return true
 	}
 

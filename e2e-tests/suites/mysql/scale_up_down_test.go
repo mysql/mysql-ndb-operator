@@ -8,26 +8,26 @@ import (
 	"context"
 
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 
 	mgmapiutils "github.com/mysql/ndb-operator/e2e-tests/utils/mgmapi"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/mysql"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbutils"
-	"github.com/mysql/ndb-operator/e2e-tests/utils/secret"
 	statefulsetutils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	clientset "k8s.io/client-go/kubernetes"
 )
 
 var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc *ndbtest.TestContext) {
 	var ctx context.Context
-	var ns, ndbName, mysqlRootSecretName string
+	var ns, ndbName string
 	var c clientset.Interface
 	var testNdb *v1alpha1.NdbCluster
+	var mysqlSfsetName string
 
 	ginkgo.BeforeAll(func() {
 		ginkgo.By("extracting values from TestContext")
@@ -35,22 +35,16 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 		ns = tc.Namespace()
 		c = tc.K8sClientset()
 
-		ginkgo.Skip("Temporarily disable the testcase")
-
 		// Create the NdbCluster object to be used by the testcases
 		ndbName = "mysqld-scaling-test"
 		testNdb = testutils.NewTestNdb(ns, ndbName, 2)
 
-		// create the secret in K8s
-		mysqlRootSecretName = ndbName + "-root-secret"
-		secretutils.CreateSecretForMySQLRootAccount(ctx, c, mysqlRootSecretName, ns)
+		mysqlSfsetName = testNdb.GetWorkloadName(constants.NdbNodeTypeMySQLD)
 
 		// Setup cleanup methods
 		ginkgo.DeferCleanup(func() {
 			// common cleanup for all specs cleanup
 			ndbtest.KubectlDeleteNdbObj(c, testNdb)
-			// delete the secret
-			secretutils.DeleteSecret(ctx, c, mysqlRootSecretName, ns)
 		})
 	})
 
@@ -58,27 +52,16 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 		TestSpecs:
 
 		1. Start MySQL Cluster with 0 MySQL Servers - to verify that this
-		   doesn't affect the 'ensure phase' of the sync loop.
-		2. Update a non-mysql spec - to confirm that the statefulset is not
-		   affected by this; It should not be created yet.
-		3. Scale up MySQL Servers to count that is less than the number of
-		   FreeApiSlots - to verify that a new statefulset with required
-		   replica is created and the MySQL Cluster config version has not
+		   brings up 1 MySQL Server by default
+		2. Scale up MySQL Servers and increment MaxNodeCount - to verify
+		   there is a MySQL Cluster config update.
+		3. Scale up MySQL Servers to count that is less than MaxNodeCount
+		   - to verify that the MySQL Cluster config version has not
 		   been updated.
-		4. Scale down to 0 MySQL Servers - to verify that the statefulset
-		   is deleted.
-		5. Scale up the MySQL Servers again - to verify that the new
-		   statefulset is not affected by the previous statefulset that
-		   existed between step 3-4.
-		6. Scale down the MySQL Servers to a non-zero replica - to verify
-		   that the scale down is done right without reducing API slots.
-		7. Scale up beyond the number of available free slots to verify
-		   that more sections are added to the MySQL Cluster config via
-		   a config update.
+		4. Scale down to 2 MySQL Servers - to verify that the MySQL Cluster
+		   config is not updated.
 		#. Verify that MySQL queries run successfully whenever there is a
 		   MySQL Server running.
-		#. Verify that the data nodes and management nodes are not restarted
-		   for scale up and scale down requests if free slots are available.
 	*/
 
 	// Use a OncePerOrdered JustBeforeEach to create/modify the
@@ -97,54 +80,22 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 	ginkgo.When("NdbCluster is created with nil MySQL Spec", func() {
 		ginkgo.BeforeAll(func() {
 			testNdb.Spec.MysqlNode = nil
-			testNdb.Spec.FreeAPISlots = 3
 		})
 
-		ginkgo.It("should not create a statefulset of MySQL Servers", func() {
-			statefulsetutils.ExpectToBeNil(c, testNdb.Namespace, ndbName+"-mysqld")
+		ginkgo.It("should create a statefulset of MySQL Servers", func() {
+			statefulsetutils.ExpectHasReplicas(c, ns, mysqlSfsetName, 1)
 		})
 
 		ginkgo.It("should initialise the MySQL Cluster config version", func() {
 			mgmapiutils.ExpectConfigVersionInMySQLClusterNodes(c, testNdb, 1)
 		})
-	})
-
-	// TestCase-2
-	ginkgo.When("a non MySQL Server spec is updated", func() {
-		ginkgo.BeforeAll(func() {
-			dataMemory := intstr.FromString("150M")
-			testNdb.Spec.DataNode.Config = map[string]*intstr.IntOrString{
-				"DataMemory": &dataMemory,
-			}
-		})
-
-		ginkgo.It("should still not create a statefulset of MySQL Servers", func() {
-			statefulsetutils.ExpectToBeNil(c, testNdb.Namespace, ndbName+"-mysqld")
-		})
-
-		ginkgo.It("should increment the MySQL Cluster config version", func() {
-			mgmapiutils.ExpectConfigVersionInMySQLClusterNodes(c, testNdb, 2)
-		})
-	})
-
-	// TestCase-3
-	ginkgo.When("MySQL Server are scaled up to a count less than the FreeApiSlots", func() {
-		ginkgo.BeforeAll(func() {
-			testNdb.Spec.MysqlNode = &v1alpha1.NdbMysqldSpec{
-				RootPasswordSecretName: mysqlRootSecretName,
-				NodeCount:              2,
-			}
-		})
-
-		ginkgo.It("should create a statefulset of MySQL Servers with given replica", func() {
-			statefulsetutils.ExpectHasReplicas(c, testNdb.Namespace, ndbName+"-mysqld", 2)
-		})
-
-		ginkgo.It("should not update the MySQL Cluster config version", func() {
-			mgmapiutils.ExpectConfigVersionInMySQLClusterNodes(c, testNdb, 2)
-		})
 
 		ginkgo.It("should be able to connect to and run queries to create a database and table", func() {
+			// Update testNdb to reflect the changes made by the mutator
+			testNdb.Spec.MysqlNode = &v1alpha1.NdbMysqldSpec{
+				NodeCount:    1,
+				MaxNodeCount: 1,
+			}
 			db := mysqlutils.Connect(c, testNdb, "")
 			_, err := db.Exec("create database test")
 			ndbtest.ExpectNoError(err, "create database test failed")
@@ -153,35 +104,20 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 		})
 	})
 
-	// TestCase-4
-	ginkgo.When("MySQL Servers are scaled down to 0", func() {
-		ginkgo.BeforeAll(func() {
-			testNdb.Spec.MysqlNode = nil
-		})
-
-		ginkgo.It("should delete the statefulset of MySQL Servers", func() {
-			statefulsetutils.ExpectToBeNil(c, testNdb.Namespace, ndbName+"-mysqld")
-		})
-
-		ginkgo.It("should not update the MySQL Cluster config version", func() {
-			mgmapiutils.ExpectConfigVersionInMySQLClusterNodes(c, testNdb, 2)
-		})
-	})
-
-	// TestCase-5
-	ginkgo.When("MySQL Servers are scaled up from 0", func() {
+	// TestCase-2
+	ginkgo.When("NodeCount and MaxNodeCount are increased", func() {
 		ginkgo.BeforeAll(func() {
 			testNdb.Spec.MysqlNode = &v1alpha1.NdbMysqldSpec{
-				NodeCount:              3,
-				RootPasswordSecretName: mysqlRootSecretName,
+				NodeCount:    3,
+				MaxNodeCount: 5,
 			}
 		})
 
-		ginkgo.It("should create a statefulset of MySQL Servers with given replica", func() {
-			statefulsetutils.ExpectHasReplicas(c, testNdb.Namespace, ndbName+"-mysqld", 3)
+		ginkgo.It("should scale up the MySQL Servers count", func() {
+			statefulsetutils.ExpectHasReplicas(c, ns, mysqlSfsetName, 3)
 		})
 
-		ginkgo.It("should not update the MySQL Cluster config version", func() {
+		ginkgo.It("should increment the MySQL Cluster config version", func() {
 			mgmapiutils.ExpectConfigVersionInMySQLClusterNodes(c, testNdb, 2)
 		})
 
@@ -193,14 +129,14 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 		})
 	})
 
-	// TestCase-6
-	ginkgo.When("MySQL Servers are scaled down to a non zero count", func() {
+	// TestCase-3
+	ginkgo.When("NodeCount is increased to a value less than MaxNodeCount", func() {
 		ginkgo.BeforeAll(func() {
-			testNdb.Spec.MysqlNode.NodeCount = 1
+			testNdb.Spec.MysqlNode.NodeCount = 4
 		})
 
-		ginkgo.It("should scale down the statefulset of MySQL Servers", func() {
-			statefulsetutils.ExpectHasReplicas(c, testNdb.Namespace, ndbName+"-mysqld", 1)
+		ginkgo.It("should scale up the MySQL Servers", func() {
+			statefulsetutils.ExpectHasReplicas(c, ns, mysqlSfsetName, 4)
 		})
 
 		ginkgo.It("should not update the MySQL Cluster config version", func() {
@@ -217,18 +153,18 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 		})
 	})
 
-	// TestCase-7
-	ginkgo.When("MySQL Servers are scaled up beyond the number of available FreeApiSlots", func() {
+	// TestCase-4
+	ginkgo.When("NodeCount is decreased to 2", func() {
 		ginkgo.BeforeAll(func() {
-			testNdb.Spec.MysqlNode.NodeCount = 5
+			testNdb.Spec.MysqlNode.NodeCount = 2
 		})
 
-		ginkgo.It("should scale-up the statefulset of MySQL Servers", func() {
-			statefulsetutils.ExpectHasReplicas(c, testNdb.Namespace, ndbName+"-mysqld", 5)
+		ginkgo.It("should scale down the MySQL Servers", func() {
+			statefulsetutils.ExpectHasReplicas(c, ns, mysqlSfsetName, 2)
 		})
 
-		ginkgo.It("should increment the MySQL Cluster config version", func() {
-			mgmapiutils.ExpectConfigVersionInMySQLClusterNodes(c, testNdb, 3)
+		ginkgo.It("should not update the MySQL Cluster config version", func() {
+			mgmapiutils.ExpectConfigVersionInMySQLClusterNodes(c, testNdb, 2)
 		})
 
 		ginkgo.It("should be able to run queries to read from table", func() {

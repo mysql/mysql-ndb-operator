@@ -63,9 +63,9 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 	managementNodePath := specPath.Child("managementNode")
 
 	dataNodeCount := spec.DataNode.NodeCount
-	mysqlServerCount := nc.GetMySQLServerNodeCount()
+	mysqlServerCount := nc.GetMySQLServerMaxNodeCount()
 	managementNodeCount := nc.GetManagementNodeCount()
-	numOfFreeApiSlots := spec.FreeAPISlots
+	numOfFreeApiSlots := spec.FreeAPISlots + 1
 
 	// check if number of data nodes is a multiple of redundancy
 	if math.Mod(float64(dataNodeCount), float64(spec.RedundancyLevel)) != 0 {
@@ -99,15 +99,27 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 
 	// check if the MySQL root password secret name has the expected format
 	var rootPasswordSecret string
-	if nc.Spec.MysqlNode != nil {
-		rootPasswordSecret = nc.Spec.MysqlNode.RootPasswordSecretName
-	}
-	if rootPasswordSecret != "" {
-		errs := validation.IsDNS1123Subdomain(rootPasswordSecret)
-		// append errors, if any, to errList
-		for _, err := range errs {
+	if spec.MysqlNode != nil {
+		mysqldSpec := spec.MysqlNode
+
+		// check if the MySQL root password secret name has the expected format
+		rootPasswordSecret = mysqldSpec.RootPasswordSecretName
+		if rootPasswordSecret != "" {
+			errs := validation.IsDNS1123Subdomain(rootPasswordSecret)
+			// append errors, if any, to errList
+			for _, err := range errs {
+				errList = append(errList,
+					field.Invalid(mysqldPath.Child("rootPasswordSecretName"), rootPasswordSecret, err))
+			}
+		}
+
+		// check if maxNodeCount is less than nodeCount
+		if mysqldSpec.MaxNodeCount != 0 &&
+			mysqldSpec.MaxNodeCount < mysqldSpec.NodeCount {
+			msg := fmt.Sprintf(
+				"spec.mysqlNode.maxNodeCount cannot be less than spec.mysqlNode.nodeCount(=%d)", mysqldSpec.NodeCount)
 			errList = append(errList,
-				field.Invalid(mysqldPath.Child("rootPasswordSecretName"), rootPasswordSecret, err))
+				field.Invalid(mysqldPath.Child("maxNodeCount"), mysqldSpec.MaxNodeCount, msg))
 		}
 	}
 
