@@ -24,7 +24,7 @@ func Test_ndbAdmissionController_mutate(t *testing.T) {
 			ncSpec: &v1alpha1.NdbClusterSpec{
 				MysqlNode: nil,
 			},
-			expectedPatch: `[{"op":"add","path":"/spec/mysqlNode","value":{"nodeCount":1}}]`,
+			expectedPatch: `[{"op":"add","path":"/spec/mysqlNode","value":{"maxNodeCount":1,"nodeCount":1}}]`,
 		},
 		{
 			desc: "mysqldSpec nodeCount is 0",
@@ -33,13 +33,23 @@ func Test_ndbAdmissionController_mutate(t *testing.T) {
 					NodeCount: 0,
 				},
 			},
-			expectedPatch: `[{"op":"replace","path":"/spec/mysqlNode/nodeCount","value":1}]`,
+			expectedPatch: `[{"op":"replace","path":"/spec/mysqlNode/nodeCount","value":1},{"op":"replace","path":"/spec/mysqlNode/maxNodeCount","value":1}]`,
 		},
 		{
 			desc: "mysqldSpec nodeCount is 1",
 			ncSpec: &v1alpha1.NdbClusterSpec{
 				MysqlNode: &v1alpha1.NdbMysqldSpec{
 					NodeCount: 1,
+				},
+			},
+			expectedPatch: `[{"op":"replace","path":"/spec/mysqlNode/maxNodeCount","value":3}]`,
+		},
+		{
+			desc: "mysqldSpec nodeCount and maxNodeCount specified",
+			ncSpec: &v1alpha1.NdbClusterSpec{
+				MysqlNode: &v1alpha1.NdbMysqldSpec{
+					NodeCount:    1,
+					MaxNodeCount: 4,
 				},
 			},
 			// No patch expected

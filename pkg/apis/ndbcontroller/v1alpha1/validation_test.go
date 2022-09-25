@@ -28,7 +28,8 @@ func nodeNumberTests(redundancy, dnc, mysqldc int32, fail bool, short string) *v
 				NodeCount: dnc,
 			},
 			MysqlNode: &NdbMysqldSpec{
-				NodeCount: mysqldc,
+				NodeCount:    mysqldc,
+				MaxNodeCount: mysqldc + 2,
 			},
 		},
 		shouldFail: fail,
@@ -117,7 +118,7 @@ func Test_Validation(t *testing.T) {
 		nodeNumberTests(3, 2, 2, shouldFail, "redundancy not matching data node count"),
 		nodeNumberTests(2, 145, 2, shouldFail, "too many data nodes"),
 		nodeNumberTests(2, 144, 111, shouldFail, "too many nodes (including 2 mgmd nodes)"),
-		nodeNumberTests(1, 144, 111, !shouldFail, "okay no of nodes (including 1 mgmd nodes)"),
+		nodeNumberTests(1, 144, 108, !shouldFail, "okay no of nodes (including 1 mgmd nodes)"),
 		nodeNumberTests(2, 144, 2, !shouldFail, "okay"),
 		nodeNumberTests(3, 9, 2, !shouldFail, "okay"),
 		nodeNumberTests(2, 2, 2, !shouldFail, "all okay"),

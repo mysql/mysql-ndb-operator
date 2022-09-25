@@ -128,8 +128,14 @@ type NdbDataNodeSpec struct {
 
 // NdbMysqldSpec is the specification of MySQL Servers to be run as an SQL Frontend
 type NdbMysqldSpec struct {
-	// NodeCount is the number of MySQL Servers running in MySQL Cluster
+	// NodeCount is the number of MySQL Servers to be started by the Operator
 	NodeCount int32 `json:"nodeCount"`
+	// MaxNodeCount is the count up to which the MySQL Servers would be
+	// allowed to scale up without forcing a MySQL Cluster config update.
+	// If unspecified, operator will define the MySQL Cluster config with
+	// API sections for two additional MySQL Servers.
+	// +optional
+	MaxNodeCount int32 `json:"maxNodeCount,omitempty"`
 	// The name of the Secret that holds the password to be set for the MySQL
 	// root accounts. The Secret should have a 'password' key that holds the
 	// password.
@@ -209,7 +215,7 @@ type NdbClusterSpec struct {
 	// by the NDB Operator for the MySQL Servers.
 	// Any NDBAPI application can connect to the MySQL Cluster via
 	// these free slots.
-	// +kubebuilder:default=5
+	// +kubebuilder:default=2
 	// +optional
 	FreeAPISlots int32 `json:"freeAPISlots,omitempty"`
 	// The name of the MySQL Ndb Cluster image to be used.
@@ -365,6 +371,15 @@ func (nc *NdbCluster) GetMySQLServerNodeCount() int32 {
 	}
 
 	return nc.Spec.MysqlNode.NodeCount
+}
+
+// GetMySQLServerMaxNodeCount returns the MaxNodeCount value
+func (nc *NdbCluster) GetMySQLServerMaxNodeCount() int32 {
+	if nc.Spec.MysqlNode == nil {
+		return 0
+	}
+
+	return nc.Spec.MysqlNode.MaxNodeCount
 }
 
 // GetConnectstring returns the connect string of cluster represented by Ndb resource
