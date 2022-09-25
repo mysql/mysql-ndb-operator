@@ -44,10 +44,11 @@ type SyncContext struct {
 	serviceController   ServiceControlInterface
 	pdbController       PodDisruptionBudgetControlInterface
 
-	controllerContext *ControllerContext
-	ndbsLister        ndblisters.NdbClusterLister
-	podLister         listerscorev1.PodLister
-	serviceLister     listerscorev1.ServiceLister
+	kubernetesClient kubernetes.Interface
+	ndbClient        ndbclientset.Interface
+	ndbsLister       ndblisters.NdbClusterLister
+	podLister        listerscorev1.PodLister
+	serviceLister    listerscorev1.ServiceLister
 
 	// bool flag to control the NdbCluster status processedGeneration value
 	syncSuccess bool
@@ -57,11 +58,11 @@ type SyncContext struct {
 }
 
 func (sc *SyncContext) kubeClientset() kubernetes.Interface {
-	return sc.controllerContext.kubeClientset
+	return sc.kubernetesClient
 }
 
 func (sc *SyncContext) ndbClientset() ndbclientset.Interface {
-	return sc.controllerContext.ndbClientset
+	return sc.ndbClient
 }
 
 // isOwnedByNdbCluster returns an error if the given

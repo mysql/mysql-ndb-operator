@@ -31,34 +31,10 @@ import (
 	"github.com/mysql/ndb-operator/pkg/resources/statefulset"
 )
 
-// ControllerContext summarizes the context in which it is running
-type ControllerContext struct {
-	// kubeClientset is the standard kubernetes clientset
-	kubeClientset kubernetes.Interface
-	ndbClientset  ndbclientset.Interface
-
-	// runningInsideK8s is set to true if the operator is running inside a K8s cluster.
-	runningInsideK8s bool
-}
-
-// NewControllerContext returns a new controller context object
-func NewControllerContext(
-	kubeclient kubernetes.Interface,
-	ndbclient ndbclientset.Interface,
-	runningInsideK8s bool,
-) *ControllerContext {
-	ctx := &ControllerContext{
-		kubeClientset:    kubeclient,
-		ndbClientset:     ndbclient,
-		runningInsideK8s: runningInsideK8s,
-	}
-
-	return ctx
-}
-
 // Controller is the main controller implementation for Ndb resources
 type Controller struct {
-	controllerContext *ControllerContext
+	kubernetesClient kubernetes.Interface
+	ndbClient        ndbclientset.Interface
 
 	// NdbCluster Lister
 	ndbsLister ndblisters.NdbClusterLister
@@ -88,7 +64,8 @@ type Controller struct {
 
 // NewController returns a new Ndb controller
 func NewController(
-	controllerContext *ControllerContext,
+	kubernetesClient kubernetes.Interface,
+	ndbClient ndbclientset.Interface,
 	k8sSharedIndexInformer kubeinformers.SharedInformerFactory,
 	ndbSharedIndexInformer ndbinformers.SharedInformerFactory) *Controller {
 
@@ -115,24 +92,25 @@ func NewController(
 	configmapLister := configmapInformer.Lister()
 
 	controller := &Controller{
-		controllerContext:     controllerContext,
+		kubernetesClient:      kubernetesClient,
+		ndbClient:             ndbClient,
 		informerSyncedMethods: informerSyncedMethods,
 		ndbsLister:            ndbClusterInformer.Lister(),
 		podLister:             podInformer.Lister(),
-		configMapController:   NewConfigMapControl(controllerContext.kubeClientset),
-		serviceController:     NewServiceControl(controllerContext.kubeClientset, serviceLister),
+		configMapController:   NewConfigMapControl(kubernetesClient),
+		serviceController:     NewServiceControl(kubernetesClient, serviceLister),
 		workqueue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Ndbs"),
-		recorder:              newEventRecorder(controllerContext.kubeClientset),
+		recorder:              newEventRecorder(kubernetesClient),
 
 		mgmdController: NewNdbNodesStatefulSetControlInterface(
-			controllerContext.kubeClientset, statefulSetLister, statefulset.NewMgmdStatefulSet()),
+			kubernetesClient, statefulSetLister, statefulset.NewMgmdStatefulSet()),
 		ndbmtdController: NewNdbNodesStatefulSetControlInterface(
-			controllerContext.kubeClientset, statefulSetLister, statefulset.NewNdbmtdStatefulSet()),
+			kubernetesClient, statefulSetLister, statefulset.NewNdbmtdStatefulSet()),
 		mysqldController: NewMySQLDStatefulSetController(
-			controllerContext.kubeClientset, statefulSetLister, statefulset.NewMySQLdStatefulSet(configmapLister)),
+			kubernetesClient, statefulSetLister, statefulset.NewMySQLdStatefulSet(configmapLister)),
 
 		pdbController: NewPodDisruptionBudgetControl(
-			controllerContext.kubeClientset, pdbInformer.Lister()),
+			kubernetesClient, pdbInformer.Lister()),
 	}
 
 	klog.Info("Setting up event handlers")
@@ -390,7 +368,8 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
 		serviceController:   c.serviceController,
 		pdbController:       c.pdbController,
 		ndb:                 ndb,
-		controllerContext:   c.controllerContext,
+		kubernetesClient:    c.kubernetesClient,
+		ndbClient:           c.ndbClient,
 		ndbsLister:          c.ndbsLister,
 		podLister:           c.podLister,
 		serviceLister:       c.serviceLister,
@@ -399,7 +378,7 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
 }
 
 // syncHandler is the main reconciliation function
-//   driving cluster towards desired configuration
+// driving cluster towards desired configuration
 //
 // - synchronization happens in multiple steps
 // - not all actions are taking in one call of syncHandler
@@ -411,14 +390,14 @@ func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
 //
 // Sync steps
 //
-// 1. ensure all resources are correctly created
-// 2. ensure cluster is fully up and running and not in a degraded state
-//    before rolling out any changes
-// 3. drive cluster components towards the configuration previously
-//    written to the configuration file
-// 4. only after complete cluster is aligned with configuration file
-//    new changes from Ndb CRD are written to a new version of the config file
-// 5. update status of the CRD
+//  1. ensure all resources are correctly created
+//  2. ensure cluster is fully up and running and not in a degraded state
+//     before rolling out any changes
+//  3. drive cluster components towards the configuration previously
+//     written to the configuration file
+//  4. only after complete cluster is aligned with configuration file
+//     new changes from Ndb CRD are written to a new version of the config file
+//  5. update status of the CRD
 func (c *Controller) syncHandler(ctx context.Context, key string) (result syncResult) {
 
 	klog.Infof("Sync handler: %s", key)

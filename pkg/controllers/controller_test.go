@@ -85,8 +85,7 @@ func (f *fixture) startInformers() {
 
 func (f *fixture) newController() {
 
-	cc := NewControllerContext(f.k8sclient, f.ndbclient, false)
-	f.c = NewController(cc, f.k8sIf, f.ndbIf)
+	f.c = NewController(f.k8sclient, f.ndbclient, f.k8sIf, f.ndbIf)
 
 	for _, n := range f.ndbObjects {
 		if err := f.ndbIf.Mysql().V1alpha1().NdbClusters().Informer().GetIndexer().Add(n); err != nil {
