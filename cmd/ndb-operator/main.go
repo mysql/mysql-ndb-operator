@@ -82,9 +82,7 @@ func main() {
 	ndbIf := ndbinformers.NewSharedInformerFactoryWithOptions(
 		ndbClient, time.Second*30, ndbinformers.WithNamespace(config.WatchNamespace))
 
-	ctx := controllers.NewControllerContext(kubeClient, ndbClient, runningInsideK8s)
-
-	controller := controllers.NewController(ctx, k8If, ndbIf)
+	controller := controllers.NewController(kubeClient, ndbClient, k8If, ndbIf)
 
 	// notice that there is no need to run Start methods in a separate goroutine. (i.e. go kubeInformerFactory.Start(stopCh)
 	// Start method is non-blocking and runs all registered informers in a dedicated goroutine.
