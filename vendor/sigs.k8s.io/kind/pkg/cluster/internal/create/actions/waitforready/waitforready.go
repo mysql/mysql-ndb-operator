@@ -80,7 +80,7 @@ func (a *Action) Execute(ctx *actions.ActionContext) error {
 		return errors.Wrap(err, "could not parse Kubernetes version")
 	}
 	selectorLabel := "node-role.kubernetes.io/control-plane"
-	if kubeVersion.LessThan(version.MustParseSemantic("v1.24.0")) {
+	if kubeVersion.LessThan(version.MustParseSemantic("v1.24.0-alpha.1.591+a3d5e5598290df")) {
 		selectorLabel = "node-role.kubernetes.io/master"
 	}
 
@@ -131,7 +131,7 @@ func waitForReady(node nodes.Node, until time.Time, selectorLabel string) bool {
 	})
 }
 
-// helper that calls `try()`` in a loop until the deadline `until`
+// helper that calls `try()“ in a loop until the deadline `until`
 // has passed or `try()`returns true, returns whether try ever returned true
 func tryUntil(until time.Time, try func() bool) bool {
 	for until.After(time.Now()) {
