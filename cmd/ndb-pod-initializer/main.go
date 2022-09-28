@@ -226,7 +226,8 @@ func waitForDataNodeFailureHandlingToComplete(nodeId int, podHostname string) (s
 		strings.Join(hostnameTokens, "-"),
 		strings.Join(hostnameTokens[:len(hostnameTokens)-1], "-"))
 
-	db, err := mysqlclient.Connect(mysqldHost, mysqlclient.DbNdbInfo)
+	operatorPassword := os.Getenv("NDB_OPERATOR_PASSWORD")
+	db, err := mysqlclient.Connect(mysqldHost, mysqlclient.DbNdbInfo, operatorPassword)
 	if err != nil {
 		// MySQL Server unavailable
 		return false

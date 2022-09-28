@@ -287,6 +287,13 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 		return errorWhileProcessing(err)
 	}
 
+	// First ensure that a operator password secret exists before creating statefulSet
+	secretClient := NewMySQLUserPasswordSecretInterface(sc.kubernetesClient)
+	if _, err := secretClient.EnsureNDBOperatorPassword(ctx, sc.ndb); err != nil {
+		klog.Errorf("Failed to ensure ndb-operator password secret : %s", err)
+		return errorWhileProcessing(err)
+	}
+
 	// create the management stateful set if it doesn't exist
 	if sc.mgmdNodeSfset, resourceExists, err = sc.ensureManagementServerStatefulSet(ctx); err != nil {
 		return errorWhileProcessing(err)

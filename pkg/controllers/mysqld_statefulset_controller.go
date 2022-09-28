@@ -84,7 +84,17 @@ func (mssc *MySQLDStatefulSetController) HandleScaleDown(ctx context.Context, sc
 		// The StatefulSet has to be deleted
 		// Delete the root user first.
 		rootHost := mysqldSfset.GetAnnotations()[rootHost]
-		if err := mysqlclient.DeleteRootUserIfExists(mysqldSfset, rootHost); err != nil {
+		secretClient := NewMySQLUserPasswordSecretInterface(mssc.client)
+
+		// Extract ndb operator mysql user password.
+		operatorSecretName := resources.GetMySQLNDBOperatorPasswordSecretName(nc)
+		operatorPassword, err := secretClient.ExtractPassword(ctx, mysqldSfset.Namespace, operatorSecretName)
+		if err != nil {
+			klog.Errorf("Failed to extract ndb operator password form the secret")
+			return errorWhileProcessing(err)
+		}
+
+		if err := mysqlclient.DeleteRootUserIfExists(mysqldSfset, rootHost, operatorPassword); err != nil {
 			klog.Errorf("Failed to delete root user")
 			return errorWhileProcessing(err)
 		}
@@ -92,7 +102,7 @@ func (mssc *MySQLDStatefulSetController) HandleScaleDown(ctx context.Context, sc
 		// Delete the secret.
 		annotations := mysqldSfset.GetAnnotations()
 		secretName := annotations[statefulset.RootPasswordSecret]
-		secretClient := NewMySQLRootPasswordSecretInterface(mssc.client)
+
 		if secretClient.IsControlledBy(ctx, secretName, nc) {
 			// The given NdbCluster is set as the Owner of the secret,
 			// which implies that this was created by the operator.
@@ -140,8 +150,8 @@ func (mssc *MySQLDStatefulSetController) ReconcileStatefulSet(ctx context.Contex
 
 		// StatefulSet has to be created
 		// First ensure that a root password secret exists
-		secretClient := NewMySQLRootPasswordSecretInterface(mssc.client)
-		if _, err := secretClient.Ensure(ctx, nc); err != nil {
+		secretClient := NewMySQLUserPasswordSecretInterface(mssc.client)
+		if _, err := secretClient.EnsureMySQLRootPassword(ctx, nc); err != nil {
 			klog.Errorf("Failed to ensure root password secret for StatefulSet %q : %s",
 				mssc.ndbNodeStatefulset.GetName(nc), err)
 			return errorWhileProcessing(err)
@@ -206,23 +216,32 @@ func (mssc *MySQLDStatefulSetController) reconcileRootUser(ctx context.Context, 
 	// The root user needs be created or updated
 	nc := sc.ndb
 	newRootHost := nc.Spec.MysqlNode.RootHost
+
+	// Extract ndb operator mysql user password.
+	secretClient := NewMySQLUserPasswordSecretInterface(sc.kubeClientset())
+	operatorSecretName := resources.GetMySQLNDBOperatorPasswordSecretName(nc)
+	operatorPassword, err := secretClient.ExtractPassword(ctx, mysqldSfset.Namespace, operatorSecretName)
+	if err != nil {
+		return errorWhileProcessing(err)
+	}
+
 	if existingRootHost, exists := annotations[rootHost]; !exists {
 		// Root user doesn't exist yet - create it.
-		// Extract password.
+		// Extract root user password.
 		secretName, _ := resources.GetMySQLRootPasswordSecretName(nc)
-		secretClient := NewMySQLRootPasswordSecretInterface(sc.kubeClientset())
-		password, err := secretClient.ExtractPassword(ctx, mysqldSfset.Namespace, secretName)
+		rootPassword, err := secretClient.ExtractPassword(ctx, mysqldSfset.Namespace, secretName)
 		if err != nil {
 			return errorWhileProcessing(err)
 		}
+
 		// Create Root user
-		if err = mysqlclient.CreateRootUserIfNotExist(mysqldSfset, newRootHost, password); err != nil {
+		if err = mysqlclient.CreateRootUserIfNotExist(mysqldSfset, newRootHost, rootPassword, operatorPassword); err != nil {
 			klog.Errorf("Failed to create root user")
 			return errorWhileProcessing(err)
 		}
 	} else if newRootHost != existingRootHost {
 		// Root Host needs to be updated
-		if err := mysqlclient.UpdateRootUser(mysqldSfset, existingRootHost, newRootHost); err != nil {
+		if err := mysqlclient.UpdateRootUser(mysqldSfset, existingRootHost, newRootHost, operatorPassword); err != nil {
 			klog.Errorf("Failed to update root user")
 			return errorWhileProcessing(err)
 		}

@@ -450,6 +450,10 @@ func TestCreatesCluster(t *testing.T) {
 	omd.Name = "test-config"
 	f.expectCreateAction(ns, "", "v1", "configmaps", &corev1.ConfigMap{ObjectMeta: *omd})
 
+	// Secret for the NDB operator user password
+	omd.Name = "test-ndb-operator-password"
+	f.expectCreateAction(ns, "", "v1", "secrets", &corev1.Secret{ObjectMeta: *omd})
+
 	// one service for mgmd
 	omd.Name = "test-mgmd"
 	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})

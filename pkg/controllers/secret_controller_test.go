@@ -25,10 +25,10 @@ func TestMysqlRootPasswordSecrets(t *testing.T) {
 	defer f.close()
 	f.startInformers()
 
-	sci := NewMySQLRootPasswordSecretInterface(f.k8sclient)
+	sci := NewMySQLUserPasswordSecretInterface(f.k8sclient)
 
 	// Test the secret control interface for default random password
-	secret, err := sci.Ensure(context.TODO(), ndb)
+	secret, err := sci.EnsureMySQLRootPassword(context.TODO(), ndb)
 	if err != nil {
 		t.Errorf("Error ensuring secret : %v", err)
 	}
@@ -43,7 +43,7 @@ func TestMysqlRootPasswordSecrets(t *testing.T) {
 	customSecretName := "custom-mysqld-root-password"
 	ndb.Spec.MysqlNode.RootPasswordSecretName = customSecretName
 	// Ensuring should fail
-	_, err = sci.Ensure(context.TODO(), ndb)
+	_, err = sci.EnsureMySQLRootPassword(context.TODO(), ndb)
 	if err == nil {
 		t.Errorf("Expected '%s' secret not found error but got no error", customSecretName)
 	} else if !errors.IsNotFound(err) {
@@ -62,7 +62,7 @@ func TestMysqlRootPasswordSecrets(t *testing.T) {
 	f.expectCreateAction(ns, "core", "v1", "secrets", secret)
 
 	// Now ensuring should pass
-	secret, err = sci.Ensure(context.TODO(), ndb)
+	secret, err = sci.EnsureMySQLRootPassword(context.TODO(), ndb)
 	if err != nil {
 		t.Errorf("Error ensuring custom secret '%s' : %v", customSecretName, err)
 	}
@@ -74,6 +74,26 @@ func TestMysqlRootPasswordSecrets(t *testing.T) {
 	// No action is expected
 
 	// Delete it and expect a delete action
+	err = sci.Delete(context.Background(), ns, secret.Name)
+	if err != nil {
+		t.Errorf("Error deleting secret %q : %s", secret.Name, err)
+	}
+	f.expectDeleteAction(ns, "core", "v1", "secrets", secret.Name)
+
+	// Test the secret control interface for default random password for NDB operator
+	secret, err = sci.EnsureNDBOperatorPassword(context.TODO(), ndb)
+	if err != nil {
+		t.Errorf("Error ensuring secret : %v", err)
+	}
+	if secret == nil {
+		t.Fatal("Error ensuring secret : secret is nil")
+		// return to suppress incorrect static check warnings for SA5011
+		return
+	}
+	// expect one create action
+	f.expectCreateAction(ns, "", "v1", "secrets", secret)
+
+	// Delete operator secret and expect a delete action
 	err = sci.Delete(context.Background(), ns, secret.Name)
 	if err != nil {
 		t.Errorf("Error deleting secret %q : %s", secret.Name, err)

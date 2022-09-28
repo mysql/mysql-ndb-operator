@@ -228,7 +228,7 @@ func (mss *mysqldStatefulSet) getMySQLServerCmd(nc *v1alpha1.NdbCluster) []strin
 	return cmdAndArgs
 }
 
-// getInitDBContainer returns a new init container to initialise the data directory
+// getInitDBContainer returns a new init container to initialize the data directory
 func (mss *mysqldStatefulSet) getInitDBContainer(nc *v1alpha1.NdbCluster) corev1.Container {
 	// Generate the command and arguments to be used
 	cmdAndArgs := append([]string{
@@ -258,6 +258,17 @@ func (mss *mysqldStatefulSet) getInitDBContainer(nc *v1alpha1.NdbCluster) corev1
 		// Use the hostname defined by the Ndb Operator deployment's template spec.
 		Name:  "NDB_OPERATOR_HOST",
 		Value: "ndb-operator-pod.ndb-operator-svc." + ndbOperatorPodNamespace + ".svc.%",
+	}, corev1.EnvVar{
+		// Password of the NDB operator user
+		Name: "NDB_OPERATOR_PASSWORD",
+		ValueFrom: &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: resources.GetMySQLNDBOperatorPasswordSecretName(nc),
+				},
+				Key: corev1.BasicAuthPasswordKey,
+			},
+		},
 	})
 
 	return mysqlInitContainer

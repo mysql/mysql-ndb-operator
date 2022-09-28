@@ -15,10 +15,9 @@ import (
 )
 
 const (
-	mysqldPort          = 3306
-	ndbOperatorUser     = "ndb-operator-user"
-	ndbOperatorPassword = "Operator@123"
-	sqlDriverName       = "mysql"
+	mysqldPort      = 3306
+	ndbOperatorUser = "ndb-operator-user"
+	sqlDriverName   = "mysql"
 )
 
 // System Database names
@@ -28,7 +27,7 @@ const (
 )
 
 // Connect to the MySQL Server at given mysqldHost
-func Connect(mysqldHost string, dbName string) (*sql.DB, error) {
+func Connect(mysqldHost string, dbName string, ndbOperatorPassword string) (*sql.DB, error) {
 	// Generate the complete address to connect to
 	dataSource := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?timeout=10s",
 		ndbOperatorUser, ndbOperatorPassword, mysqldHost, mysqldPort, dbName)
@@ -57,12 +56,12 @@ func Connect(mysqldHost string, dbName string) (*sql.DB, error) {
 }
 
 // connectToStatefulSet opens a connection to the first MySQL Server pod managed by the given MySQL Server StatefulSet
-func connectToStatefulSet(mysqldSfset *appsv1.StatefulSet, dbName string) (*sql.DB, error) {
+func connectToStatefulSet(mysqldSfset *appsv1.StatefulSet, dbName string, ndbOperatorPassword string) (*sql.DB, error) {
 
 	// Generate the MySQL Server host using the hostname of StatefulSet's pod-0
 	mysqldHost := fmt.Sprintf("%s-0.%s.%s",
 		mysqldSfset.Name, mysqldSfset.Spec.ServiceName, mysqldSfset.Namespace)
 
-	return Connect(mysqldHost, dbName)
+	return Connect(mysqldHost, dbName, ndbOperatorPassword)
 
 }
