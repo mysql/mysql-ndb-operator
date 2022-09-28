@@ -6,6 +6,7 @@ package controllers
 
 import (
 	"context"
+
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
 	"github.com/mysql/ndb-operator/pkg/resources"
 
@@ -19,7 +20,8 @@ import (
 
 type SecretControlInterface interface {
 	IsControlledBy(ctx context.Context, secretName string, ndb *v1alpha1.NdbCluster) bool
-	Ensure(ctx context.Context, ndb *v1alpha1.NdbCluster) (*corev1.Secret, error)
+	EnsureMySQLRootPassword(ctx context.Context, ndb *v1alpha1.NdbCluster) (*corev1.Secret, error)
+	EnsureNDBOperatorPassword(ctx context.Context, nc *v1alpha1.NdbCluster) (*corev1.Secret, error)
 	Delete(ctx context.Context, namespace, secretName string) error
 	ExtractPassword(ctx context.Context, namespace, name string) (string, error)
 }
@@ -63,28 +65,28 @@ func (sd *secretDefaults) ExtractPassword(ctx context.Context, namespace, name s
 	return string(secret.Data[corev1.BasicAuthPasswordKey]), nil
 }
 
-// mysqlRootPasswordSecrets implements SecretControlInterface and
-// can handle a password required for the MySQL root account.
-type mysqlRootPasswordSecrets struct {
+// mysqlUserPasswordSecrets implements SecretControlInterface and
+// can handle a password required for the MySQL user accounts.
+type mysqlUserPasswordSecrets struct {
 	secretDefaults
 }
 
-// NewMySQLRootPasswordSecretInterface creates and returns a new SecretControlInterface
-func NewMySQLRootPasswordSecretInterface(client kubernetes.Interface) SecretControlInterface {
-	return &mysqlRootPasswordSecrets{
+// NewMySQLUserPasswordSecretInterface creates and returns a new SecretControlInterface
+func NewMySQLUserPasswordSecretInterface(client kubernetes.Interface) SecretControlInterface {
+	return &mysqlUserPasswordSecrets{
 		secretDefaults{
 			client: client,
 		},
 	}
 }
 
-// Ensure checks if a secret with the given name exists
+// EnsureMySQLRootPassword checks if the MySQL root user secret exists
 // and creates a new one if it doesn't exist already
-func (mrps *mysqlRootPasswordSecrets) Ensure(ctx context.Context, ndb *v1alpha1.NdbCluster) (*corev1.Secret, error) {
+func (mups *mysqlUserPasswordSecrets) EnsureMySQLRootPassword(ctx context.Context, ndb *v1alpha1.NdbCluster) (*corev1.Secret, error) {
+	// Check if the root secret exists
 	secretName, customSecret := resources.GetMySQLRootPasswordSecretName(ndb)
 
-	// Check if the secret exists
-	secret, err := mrps.secretInterface(ndb.Namespace).Get(ctx, secretName, metav1.GetOptions{})
+	secret, err := mups.secretInterface(ndb.Namespace).Get(ctx, secretName, metav1.GetOptions{})
 	if err == nil {
 		// Secret exists
 		return secret, nil
@@ -105,10 +107,40 @@ func (mrps *mysqlRootPasswordSecrets) Ensure(ctx context.Context, ndb *v1alpha1.
 
 	// Secret not found and not a custom secret - create a new one
 	secret = resources.NewMySQLRootPasswordSecret(ndb)
-	secret, err = mrps.secretInterface(ndb.Namespace).Create(ctx, secret, metav1.CreateOptions{})
+	secret, err = mups.secretInterface(ndb.Namespace).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil {
 		klog.Errorf("Failed to create secret %s : %v", secretName, err)
 	}
 
+	return secret, err
+}
+
+// EnsureNDBOperatorPassword checks if the MySQL ndb-operator user secret exists
+// and creates a new one if it doesn't exist already
+func (mups *mysqlUserPasswordSecrets) EnsureNDBOperatorPassword(
+	ctx context.Context, nc *v1alpha1.NdbCluster) (*corev1.Secret, error) {
+	// Check if the ndb-operator secret exists
+	secretName := resources.GetMySQLNDBOperatorPasswordSecretName(nc)
+
+	secret, err := mups.secretInterface(nc.Namespace).Get(ctx, secretName, metav1.GetOptions{})
+	if err == nil {
+		// Secret exists
+		return secret, nil
+	}
+
+	if !errors.IsNotFound(err) {
+		// Error retrieving the secret
+		klog.Errorf("Failed to retrieve secret %s : %v", secretName, err)
+		return nil, err
+	}
+
+	// Secret not found create a new one
+	secret = resources.NewMySQLNDBOperatorPasswordSecret(nc)
+	secret, err = mups.secretInterface(nc.Namespace).Create(ctx, secret, metav1.CreateOptions{})
+	if err != nil {
+		klog.Errorf("Failed to create secret %s : %v", secretName, err)
+	}
+
+	klog.Errorf("successfully created secret %s", secretName)
 	return secret, err
 }

@@ -17,8 +17,9 @@ import (
 var random = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 const (
-	validPasswordChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	mysqldRootPassword = "mysqld-root-password"
+	validPasswordChars  = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	mysqldRootPassword  = "mysqld-root-password"
+	ndbOperatorPassword = "ndb-operator-password"
 )
 
 // generateRandomPassword generates a random alpha numeric password of length n
@@ -66,4 +67,15 @@ func GetMySQLRootPasswordSecretName(ndb *v1alpha1.NdbCluster) (secretName string
 func NewMySQLRootPasswordSecret(ndb *v1alpha1.NdbCluster) *v1.Secret {
 	secretName, _ := GetMySQLRootPasswordSecretName(ndb)
 	return newBasicAuthSecretWithRandomPassword(ndb, secretName, mysqldRootPassword)
+}
+
+// GetMySQLNDBOperatorPasswordSecretName returns the name of the ndb operator password secret
+func GetMySQLNDBOperatorPasswordSecretName(nc *v1alpha1.NdbCluster) (secretName string) {
+	return nc.Name + "-" + ndbOperatorPassword
+}
+
+// NewMySQLNDBOperatorPasswordSecret creates and returns a new root password secret
+func NewMySQLNDBOperatorPasswordSecret(nc *v1alpha1.NdbCluster) *v1.Secret {
+	secretName := GetMySQLNDBOperatorPasswordSecretName(nc)
+	return newBasicAuthSecretWithRandomPassword(nc, secretName, ndbOperatorPassword)
 }

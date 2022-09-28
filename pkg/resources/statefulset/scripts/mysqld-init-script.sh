@@ -129,7 +129,6 @@ NDB_WAIT_SETUP="$(_get_config 'ndb-wait-setup' "$@")"
 
 # The NDB Operator user needs to be created only once from the 0th MySQL pod if it doesn't exist already
 NDB_OPERATOR_USER="ndb-operator-user"
-NDB_OPERATOR_PASSWORD="Operator@123"
 OPERATOR_USER_CREATE=""
 if [[ "$HOSTNAME" == *-mysqld-0 && \
       $("${mysql[@]}" -LNB -e "SELECT COUNT(*) FROM mysql.user WHERE user='${NDB_OPERATOR_USER}' and host='${NDB_OPERATOR_HOST}';") == "0" ]]; then
