@@ -126,6 +126,24 @@ func runSerial(suite TestSuite, ginkgoConfig types.SuiteConfig, reporterConfig t
 		suite.State = TestSuiteStateFailed
 	}
 
+	if suite.HasProgrammaticFocus {
+		if goFlagsConfig.Cover {
+			fmt.Fprintln(os.Stdout, "coverage: no coverfile was generated because specs are programmatically focused")
+		}
+		if goFlagsConfig.BlockProfile != "" {
+			fmt.Fprintln(os.Stdout, "no block profile was generated because specs are programmatically focused")
+		}
+		if goFlagsConfig.CPUProfile != "" {
+			fmt.Fprintln(os.Stdout, "no cpu profile was generated because specs are programmatically focused")
+		}
+		if goFlagsConfig.MemProfile != "" {
+			fmt.Fprintln(os.Stdout, "no mem profile was generated because specs are programmatically focused")
+		}
+		if goFlagsConfig.MutexProfile != "" {
+			fmt.Fprintln(os.Stdout, "no mutex profile was generated because specs are programmatically focused")
+		}
+	}
+
 	return suite
 }
 
@@ -188,7 +206,7 @@ func runParallel(suite TestSuite, ginkgoConfig types.SuiteConfig, reporterConfig
 		}
 
 		args, err := types.GenerateGinkgoTestRunArgs(procGinkgoConfig, reporterConfig, procGoFlagsConfig)
-		command.AbortIfError("Failed to generate test run argumnets", err)
+		command.AbortIfError("Failed to generate test run arguments", err)
 		args = append([]string{"--test.timeout=0"}, args...)
 		args = append(args, additionalArgs...)
 
@@ -222,11 +240,13 @@ func runParallel(suite TestSuite, ginkgoConfig types.SuiteConfig, reporterConfig
 	case <-server.GetSuiteDone():
 		fmt.Println("")
 	case <-time.After(time.Second):
-		//the serve never got back to us.  Something must have gone wrong.
-		fmt.Fprintln(os.Stderr, "** Ginkgo timed out waiting for all parallel procs to report back. **")
-		fmt.Fprintf(os.Stderr, "%s (%s)\n", suite.PackageName, suite.Path)
+		//one of the nodes never finished reporting to the server.  Something must have gone wrong.
+		fmt.Fprint(formatter.ColorableStdErr, formatter.F("\n{{bold}}{{red}}Ginkgo timed out waiting for all parallel procs to report back{{/}}\n"))
+		fmt.Fprint(formatter.ColorableStdErr, formatter.F("{{gray}}Test suite:{{/}} %s (%s)\n\n", suite.PackageName, suite.Path))
+		fmt.Fprint(formatter.ColorableStdErr, formatter.Fiw(0, formatter.COLS, "This occurs if a parallel process exits before it reports its results to the Ginkgo CLI.  The CLI will now print out all the stdout/stderr output it's collected from the running processes.  However you may not see anything useful in these logs because the individual test processes usually intercept output to stdout/stderr in order to capture it in the spec reports.\n\nYou may want to try rerunning your test suite with {{light-gray}}--output-interceptor-mode=none{{/}} to see additional output here and debug your suite.\n"))
+		fmt.Fprintln(formatter.ColorableStdErr, "  ")
 		for proc := 1; proc <= cliConfig.ComputedProcs(); proc++ {
-			fmt.Fprintf(os.Stderr, "Output from proc %d:\n", proc)
+			fmt.Fprintf(formatter.ColorableStdErr, formatter.F("{{bold}}Output from proc %d:{{/}}\n", proc))
 			fmt.Fprintln(os.Stderr, formatter.Fi(1, "%s", procOutput[proc-1].String()))
 		}
 		fmt.Fprintf(os.Stderr, "** End **")
@@ -243,37 +263,57 @@ func runParallel(suite TestSuite, ginkgoConfig types.SuiteConfig, reporterConfig
 	}
 
 	if len(coverProfiles) > 0 {
-		coverProfile := AbsPathForGeneratedAsset(goFlagsConfig.CoverProfile, suite, cliConfig, 0)
-		err := MergeAndCleanupCoverProfiles(coverProfiles, coverProfile)
-		command.AbortIfError("Failed to combine cover profiles", err)
-
-		coverage, err := GetCoverageFromCoverProfile(coverProfile)
-		command.AbortIfError("Failed to compute coverage", err)
-		if coverage == 0 {
-			fmt.Fprintln(os.Stdout, "coverage: [no statements]")
+		if suite.HasProgrammaticFocus {
+			fmt.Fprintln(os.Stdout, "coverage: no coverfile was generated because specs are programmatically focused")
 		} else {
-			fmt.Fprintf(os.Stdout, "coverage: %.1f%% of statements\n", coverage)
+			coverProfile := AbsPathForGeneratedAsset(goFlagsConfig.CoverProfile, suite, cliConfig, 0)
+			err := MergeAndCleanupCoverProfiles(coverProfiles, coverProfile)
+			command.AbortIfError("Failed to combine cover profiles", err)
+
+			coverage, err := GetCoverageFromCoverProfile(coverProfile)
+			command.AbortIfError("Failed to compute coverage", err)
+			if coverage == 0 {
+				fmt.Fprintln(os.Stdout, "coverage: [no statements]")
+			} else {
+				fmt.Fprintf(os.Stdout, "coverage: %.1f%% of statements\n", coverage)
+			}
 		}
 	}
 	if len(blockProfiles) > 0 {
-		blockProfile := AbsPathForGeneratedAsset(goFlagsConfig.BlockProfile, suite, cliConfig, 0)
-		err := MergeProfiles(blockProfiles, blockProfile)
-		command.AbortIfError("Failed to combine blockprofiles", err)
+		if suite.HasProgrammaticFocus {
+			fmt.Fprintln(os.Stdout, "no block profile was generated because specs are programmatically focused")
+		} else {
+			blockProfile := AbsPathForGeneratedAsset(goFlagsConfig.BlockProfile, suite, cliConfig, 0)
+			err := MergeProfiles(blockProfiles, blockProfile)
+			command.AbortIfError("Failed to combine blockprofiles", err)
+		}
 	}
 	if len(cpuProfiles) > 0 {
-		cpuProfile := AbsPathForGeneratedAsset(goFlagsConfig.CPUProfile, suite, cliConfig, 0)
-		err := MergeProfiles(cpuProfiles, cpuProfile)
-		command.AbortIfError("Failed to combine cpuprofiles", err)
+		if suite.HasProgrammaticFocus {
+			fmt.Fprintln(os.Stdout, "no cpu profile was generated because specs are programmatically focused")
+		} else {
+			cpuProfile := AbsPathForGeneratedAsset(goFlagsConfig.CPUProfile, suite, cliConfig, 0)
+			err := MergeProfiles(cpuProfiles, cpuProfile)
+			command.AbortIfError("Failed to combine cpuprofiles", err)
+		}
 	}
 	if len(memProfiles) > 0 {
-		memProfile := AbsPathForGeneratedAsset(goFlagsConfig.MemProfile, suite, cliConfig, 0)
-		err := MergeProfiles(memProfiles, memProfile)
-		command.AbortIfError("Failed to combine memprofiles", err)
+		if suite.HasProgrammaticFocus {
+			fmt.Fprintln(os.Stdout, "no mem profile was generated because specs are programmatically focused")
+		} else {
+			memProfile := AbsPathForGeneratedAsset(goFlagsConfig.MemProfile, suite, cliConfig, 0)
+			err := MergeProfiles(memProfiles, memProfile)
+			command.AbortIfError("Failed to combine memprofiles", err)
+		}
 	}
 	if len(mutexProfiles) > 0 {
-		mutexProfile := AbsPathForGeneratedAsset(goFlagsConfig.MutexProfile, suite, cliConfig, 0)
-		err := MergeProfiles(mutexProfiles, mutexProfile)
-		command.AbortIfError("Failed to combine mutexprofiles", err)
+		if suite.HasProgrammaticFocus {
+			fmt.Fprintln(os.Stdout, "no mutex profile was generated because specs are programmatically focused")
+		} else {
+			mutexProfile := AbsPathForGeneratedAsset(goFlagsConfig.MutexProfile, suite, cliConfig, 0)
+			err := MergeProfiles(mutexProfiles, mutexProfile)
+			command.AbortIfError("Failed to combine mutexprofiles", err)
+		}
 	}
 
 	return suite
@@ -290,8 +330,8 @@ func runAfterRunHook(command string, noColor bool, suite TestSuite) {
 	if suite.State.Is(TestSuiteStatePassed) {
 		passed = "[PASS]"
 	}
-	command = strings.Replace(command, "(ginkgo-suite-passed)", passed, -1)
-	command = strings.Replace(command, "(ginkgo-suite-name)", suite.PackageName, -1)
+	command = strings.ReplaceAll(command, "(ginkgo-suite-passed)", passed)
+	command = strings.ReplaceAll(command, "(ginkgo-suite-name)", suite.PackageName)
 
 	// Must break command into parts
 	splitArgs := regexp.MustCompile(`'.+'|".+"|\S+`)
