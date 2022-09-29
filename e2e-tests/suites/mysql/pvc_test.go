@@ -71,12 +71,12 @@ var _ = ndbtest.NewOrderedTestCase("MySQL PVC", func(tc *ndbtest.TestContext) {
 
 			ginkgo.By("Deleting the MySQL server pod in which tables are created", func() {
 				podRestarted := make(chan bool)
+				ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+				defer cancel()
 
 				// Start a go routine to watch for events in mysql pod
 				go func() {
 					defer ginkgo.GinkgoRecover()
-					ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
-					defer cancel()
 
 					watcher, err := c.AppsV1().StatefulSets(ns).Watch(ctxWithTimeout, metav1.ListOptions{
 						FieldSelector: fields.Set{
@@ -98,6 +98,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL PVC", func(tc *ndbtest.TestContext) {
 								sfset.Status.UpdatedReplicas == *(sfset.Spec.Replicas) {
 								// All pods are ready
 								podRestarted <- true
+								return
 							}
 						case <-ctxWithTimeout.Done():
 							// wait timeout
