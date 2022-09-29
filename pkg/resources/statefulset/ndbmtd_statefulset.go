@@ -244,7 +244,7 @@ func (nss *ndbmtdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Co
 	ndbmtdContainer.StartupProbe = &corev1.Probe{
 		Handler: corev1.Handler{
 			Exec: &corev1.ExecAction{
-				// datanode-startup-probe.sh
+				// ndbmtd-startup-probe.sh
 				Command: []string{
 					"/bin/bash",
 					helperScriptsMountPath + "/" + constants.DataNodeStartupProbeScript,
