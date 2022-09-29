@@ -2,8 +2,6 @@
 
 The MySQL NDB Operator is a Kubernetes operator for managing a MySQL NDB Cluster setup inside a Kubernetes Cluster.
 
-This is in preview state - DO NOT USE FOR PRODUCTION.
-
 ## License
 
 Copyright (c) 2021, 2022, Oracle and/or its affiliates.
