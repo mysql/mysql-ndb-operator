@@ -116,14 +116,6 @@ if [ -n "${BASEDIR}" ]; then
   check_version "${mysql_cluster_version[@]}"
 fi
 
-# Determine docker-entrypoint version to use
-declare entrypoint_ver
-if [ "${version[2]}" -le "23" ]; then
-  entrypoint_ver="1.1.18"
-else
-  entrypoint_ver="1.2.3"
-fi
-
 # Executable files to be copied inside the Docker image
 exes_to_sbin=("ndbmtd" "ndb_mgmd" "mysqld" "mysqladmin")
 exes_to_bin=("ndb_mgm" "mysql" "mysql_tzinfo_to_sql" "ndb_config" "ndbinfo_select_all")
@@ -149,12 +141,6 @@ for exe in "${exes_to_bin[@]}"; do
   chmod 755 "${DOCKER_CTX_BIN}/${exe}"
 done
 
-# Copy the docker entrypoint
-mysql_cluster_version_str=$(get_version_str "${mysql_cluster_version[@]}")
-sed "s/#VERSION#/${mysql_cluster_version_str}-${entrypoint_ver}/" \
-  "entrypoints/docker-entrypoint-v${entrypoint_ver}.sh" > ${DOCKER_CTX_FILES}/docker-entrypoint.sh
-chmod +x ${DOCKER_CTX_FILES}/docker-entrypoint.sh
-
 # Copy prepare-image.sh script
 cp ./prepare-image.sh "${DOCKER_CTX_FILES}"
 chmod +x ${DOCKER_CTX_FILES}/prepare-image.sh
@@ -165,6 +151,7 @@ if [ -z "${IMAGE_TAG}" ]; then
 fi
 
 # Build container image
+mysql_cluster_version_str=$(get_version_str "${mysql_cluster_version[@]}")
 image_name=mysql/mysql-cluster:"${mysql_cluster_version_str}-${IMAGE_TAG}"
 if ! DOCKER_BUILDKIT=1 docker build -t "${image_name}" -f Dockerfile ${DOCKER_CTX_FILES} ; then
   fatal "Failed to build mysql-cluster-builder docker image"
