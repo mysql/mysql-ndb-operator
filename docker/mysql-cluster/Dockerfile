@@ -1,4 +1,4 @@
-# Copyright (c) 2021, Oracle and/or its affiliates.
+# Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -19,7 +19,6 @@ RUN /prepare-image.sh && rm -f /prepare-image.sh
 
 COPY sbin/* /usr/sbin/
 COPY bin/* /usr/bin/
-COPY docker-entrypoint.sh /entrypoint.sh
 
 EXPOSE 3306 1186 8080
 
@@ -27,6 +26,5 @@ EXPOSE 3306 1186 8080
 RUN /usr/sbin/groupadd -g 27 -o -r mysql \
     && /usr/sbin/useradd -M -N -g mysql -o -r -s /bin/false -c "MySQL Server" -u 27 mysql
 
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["ndb_mgmd"]
+CMD ["ndb_mgmd", "--foreground"]
 
