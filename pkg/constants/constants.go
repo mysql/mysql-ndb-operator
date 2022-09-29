@@ -73,11 +73,11 @@ const (
 	MgmdStartupProbeScript = "mgmd-startup-probe.sh"
 
 	// DataNodeStartupProbeScript is the Data Nodes' Startup Probe
-	DataNodeStartupProbeScript = "datanode-startup-probe.sh"
+	DataNodeStartupProbeScript = "ndbmtd-startup-probe.sh"
 
 	// MysqldInitScript is used to initialize the data directory of the MySQL Servers
-	MysqldInitScript = "ndbcluster-init-script.sh"
+	MysqldInitScript = "mysqld-init-script.sh"
 
 	// MysqldHealthCheckScript is the script that checks MySQL Server's health
-	MysqldHealthCheckScript = "ndbcluster-healthcheck.sh"
+	MysqldHealthCheckScript = "mysqld-healthcheck.sh"
 )

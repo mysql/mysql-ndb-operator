@@ -26,11 +26,6 @@ const (
 	// MySQL Server runtime directory
 	mysqldDir = constants.DataDir
 
-	// MySQL root password secret volume and mount path
-	mysqldRootPasswordFileName  = ".root-password"
-	mysqldRootPasswordVolName   = mysqldClientName + "-root-password-vol"
-	mysqldRootPasswordMountPath = mysqldDir + "/auth"
-
 	// MySQL Cluster init script volume and mount path
 	mysqldInitScriptsVolName   = mysqldClientName + "-init-scripts-vol"
 	mysqldInitScriptsMountPath = "/docker-entrypoint-initdb.d/"
@@ -63,26 +58,7 @@ func (mss *mysqldStatefulSet) NewGoverningService(nc *v1alpha1.NdbCluster) *core
 
 // getPodVolumes returns the volumes to be used by the pod
 func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) ([]corev1.Volume, error) {
-	allowOnlyOwnerToReadMode := int32(0400)
-	rootPasswordSecretName, _ := resources.GetMySQLRootPasswordSecretName(ndb)
 	podVolumes := []corev1.Volume{
-		// Use the root password secret as a volume
-		{
-			Name: mysqldRootPasswordVolName,
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: rootPasswordSecretName,
-					// Project the password to a file name "root-password"
-					Items: []corev1.KeyToPath{
-						{
-							Key:  corev1.BasicAuthPasswordKey,
-							Path: mysqldRootPasswordFileName,
-						},
-					},
-					DefaultMode: &allowOnlyOwnerToReadMode,
-				},
-			},
-		},
 		// Load the healthcheck script via a volume
 		{
 			Name: helperScriptsVolName,
@@ -92,6 +68,11 @@ func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) ([]corev1.
 						Name: ndb.GetConfigMapName(),
 					},
 					Items: []corev1.KeyToPath{
+						{
+							Key:  constants.MysqldInitScript,
+							Path: constants.MysqldInitScript,
+							Mode: &ownerCanExecMode,
+						},
 						{
 							Key:  constants.MysqldHealthCheckScript,
 							Path: constants.MysqldHealthCheckScript,
@@ -103,27 +84,7 @@ func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) ([]corev1.
 	}
 
 	// Create a projected volume source to load all custom init scripts
-	initScriptPvs := &corev1.ProjectedVolumeSource{
-		Sources: []corev1.VolumeProjection{
-			// Load the ndbcluster-init-script first
-			{
-				ConfigMap: &corev1.ConfigMapProjection{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: ndb.GetConfigMapName(),
-					},
-					Items: []corev1.KeyToPath{
-						{
-							Key: constants.MysqldInitScript,
-							// The docker entrypoint runs the init scripts in alphabetical order.
-							// So, prefix the ndbcluster-init-script with 00 to ensure that it
-							// gets run first before all the other custom SQL init scripts.
-							Path: "00_" + constants.MysqldInitScript,
-						},
-					},
-				},
-			},
-		},
-	}
+	var initScriptPvs corev1.ProjectedVolumeSource
 
 	// Create projections for all the scripts and append it to the initScriptPvs
 	for configMapName, configMapKeys := range ndb.Spec.MysqlNode.InitScripts {
@@ -145,9 +106,9 @@ func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) ([]corev1.
 		appendKeyToPathFromConfigMapKey := func(configMapName, key string, projection *corev1.ConfigMapProjection) {
 			projection.Items = append(projection.Items, corev1.KeyToPath{
 				Key: key,
-				// Prefix the custom SQL scripts with 10 to ensure
-				// that they get run after the ndbcluster-init-script.
-				Path: "10_" + configMapName + "_" + key + ".sql",
+				// The configmap name is prefixed to the key name to ensure
+				// that all scripts run in alphabetical order across config maps.
+				Path: configMapName + "_" + key + ".sql",
 			})
 		}
 
@@ -169,7 +130,7 @@ func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) ([]corev1.
 	podVolumes = append(podVolumes, corev1.Volume{
 		Name: mysqldInitScriptsVolName,
 		VolumeSource: corev1.VolumeSource{
-			Projected: initScriptPvs,
+			Projected: &initScriptPvs,
 		},
 	})
 
@@ -211,11 +172,6 @@ func (mss *mysqldStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []corev1.
 			Name:      mss.getDataDirVolumeName(),
 			MountPath: dataDirectoryMountPath,
 		},
-		// Mount the secret volume
-		{
-			Name:      mysqldRootPasswordVolName,
-			MountPath: mysqldRootPasswordMountPath,
-		},
 		// Mount the init script volume
 		{
 			Name:      mysqldInitScriptsVolName,
@@ -238,12 +194,10 @@ func (mss *mysqldStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []corev1.
 	return volumeMounts
 }
 
-// getContainers returns the containers to run a MySQL Server
-func (mss *mysqldStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Container {
-
-	// Use the entrypoint included in the script to run MySQL Servers
+// getMySQLServerCmd returns the command and arguments to start the MySQL Server
+func (mss *mysqldStatefulSet) getMySQLServerCmd(nc *v1alpha1.NdbCluster) []string {
 	cmdAndArgs := []string{
-		"/entrypoint.sh",
+		"mysqld",
 	}
 
 	// Add the arguments to the command
@@ -271,9 +225,49 @@ func (mss *mysqldStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Co
 		)
 	}
 
+	return cmdAndArgs
+}
+
+// getInitDBContainer returns a new init container to initialise the data directory
+func (mss *mysqldStatefulSet) getInitDBContainer(nc *v1alpha1.NdbCluster) corev1.Container {
+	// Generate the command and arguments to be used
+	cmdAndArgs := append([]string{
+		helperScriptsMountPath + "/" + constants.MysqldInitScript,
+	}, mss.getMySQLServerCmd(nc)...)
+
+	mysqlInitContainer := mss.createContainer(nc,
+		mss.getContainerName(true),
+		cmdAndArgs, mss.getVolumeMounts(nc), mysqldPorts)
+
+	// Add Env variables required by init script
+	ndbOperatorPodNamespace, _ := helpers.GetCurrentNamespace()
+	rootPasswordSecretName, _ := resources.GetMySQLRootPasswordSecretName(nc)
+	mysqlInitContainer.Env = append(mysqlInitContainer.Env, corev1.EnvVar{
+		// Password of the root user
+		Name: "MYSQL_ROOT_PASSWORD",
+		ValueFrom: &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: rootPasswordSecretName,
+				},
+				Key: corev1.BasicAuthPasswordKey,
+			},
+		},
+	}, corev1.EnvVar{
+		// Host from which the ndb operator user account can be accessed.
+		// Use the hostname defined by the Ndb Operator deployment's template spec.
+		Name:  "NDB_OPERATOR_HOST",
+		Value: "ndb-operator-pod.ndb-operator-svc." + ndbOperatorPodNamespace + ".svc.%",
+	})
+
+	return mysqlInitContainer
+}
+
+// getContainers returns the containers to run a MySQL Server
+func (mss *mysqldStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Container {
 	mysqldContainer := mss.createContainer(nc,
 		mss.getContainerName(false),
-		cmdAndArgs, mss.getVolumeMounts(nc), mysqldPorts)
+		mss.getMySQLServerCmd(nc), mss.getVolumeMounts(nc), mysqldPorts)
 
 	// Create an exec handler that runs the MysqldHealthCheckScript to be used in health probes
 	healthProbeHandler := corev1.Handler{
@@ -281,6 +275,7 @@ func (mss *mysqldStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Co
 			Command: []string{
 				"/bin/bash",
 				helperScriptsMountPath + "/" + constants.MysqldHealthCheckScript,
+				dataDirectoryMountPath,
 			},
 		},
 	}
@@ -297,20 +292,6 @@ func (mss *mysqldStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Co
 	mysqldContainer.ReadinessProbe = &corev1.Probe{
 		Handler: healthProbeHandler,
 	}
-
-	// Add Env variables required by MySQL Server
-	ndbOperatorPodNamespace, _ := helpers.GetCurrentNamespace()
-	mysqldContainer.Env = append(mysqldContainer.Env, corev1.EnvVar{
-		// Path to the file that has the password of the root user
-		// This will be consumed by the image entrypoint script
-		Name:  "MYSQL_ROOT_PASSWORD",
-		Value: mysqldRootPasswordMountPath + "/" + mysqldRootPasswordFileName,
-	}, corev1.EnvVar{
-		// Host from which the ndb operator user account can be accessed.
-		// Use the hostname defined by the Ndb Operator deployment's template spec.
-		Name:  "NDB_OPERATOR_ROOT_HOST",
-		Value: "ndb-operator-pod.ndb-operator-svc." + ndbOperatorPodNamespace + ".svc.%",
-	})
 
 	return []corev1.Container{mysqldContainer}
 }
@@ -349,6 +330,7 @@ func (mss *mysqldStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 
 	// Update template pod spec
 	podSpec := &statefulSetSpec.Template.Spec
+	podSpec.InitContainers = append(podSpec.InitContainers, mss.getInitDBContainer(nc))
 	podSpec.Containers = mss.getContainers(nc)
 
 	podVolumes, err := mss.getPodVolumes(nc)

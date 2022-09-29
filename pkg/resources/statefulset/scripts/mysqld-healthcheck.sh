@@ -8,14 +8,9 @@
 
 set -o errexit
 
-# Location of the required script and cnf in newer docker image versions
-healthCheckCnf="/var/lib/mysql-files/healthcheck.cnf"
-mysqlInitComplete="/var/lib/mysql-files/mysql-init-complete"
-if [ -f /healthcheck.cnf ]; then
-  # docker image has older version of the entry point script
-  healthCheckCnf="/healthcheck.cnf"
-  mysqlInitComplete="/mysql-init-complete"
-fi
+# Location of the required script and cnf is passed as the first arg to the script
+healthCheckCnf="${1}/healthcheck.cnf"
+mysqlInitComplete="${1}/mysql-init-complete"
 
 # Entrypoint script in docker image touches the mysql-init-complete file after
 # the initialisation is complete and before the main server process is started.
