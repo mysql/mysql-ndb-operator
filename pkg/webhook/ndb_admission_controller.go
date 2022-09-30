@@ -5,7 +5,7 @@
 package webhook
 
 import (
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,7 +24,7 @@ func newNdbAdmissionController() admissionController {
 func (nv *ndbAdmissionController) getGVR() *metav1.GroupVersionResource {
 	return &metav1.GroupVersionResource{
 		Group:    "mysql.oracle.com",
-		Version:  "v1alpha1",
+		Version:  "v1",
 		Resource: "ndbclusters",
 	}
 }
@@ -32,17 +32,17 @@ func (nv *ndbAdmissionController) getGVR() *metav1.GroupVersionResource {
 func (nv *ndbAdmissionController) getGVK() *schema.GroupVersionKind {
 	return &schema.GroupVersionKind{
 		Group:   "mysql.oracle.com",
-		Version: "v1alpha1",
+		Version: "v1",
 		Kind:    "ndbcluster",
 	}
 }
 
 func (nv *ndbAdmissionController) newObject() runtime.Object {
-	return &v1alpha1.NdbCluster{}
+	return &v1.NdbCluster{}
 }
 
 func (nv *ndbAdmissionController) validateCreate(reqUID types.UID, obj runtime.Object) *admissionv1.AdmissionResponse {
-	nc := obj.(*v1alpha1.NdbCluster)
+	nc := obj.(*v1.NdbCluster)
 	if isValid, errList := nc.HasValidSpec(); !isValid {
 		// ndb does not define a valid configuration
 		return requestDeniedNdbInvalid(reqUID, nc, errList)
@@ -54,7 +54,7 @@ func (nv *ndbAdmissionController) validateCreate(reqUID types.UID, obj runtime.O
 func (nv *ndbAdmissionController) validateUpdate(
 	reqUID types.UID, newObj runtime.Object, oldObj runtime.Object) *admissionv1.AdmissionResponse {
 
-	oldNC := oldObj.(*v1alpha1.NdbCluster)
+	oldNC := oldObj.(*v1.NdbCluster)
 	if oldNC.Status.ProcessedGeneration != oldNC.Generation {
 		// The previous update is still being applied, and
 		// the operator can handle only one update at a moment.
@@ -62,7 +62,7 @@ func (nv *ndbAdmissionController) validateUpdate(
 			errors.NewTooManyRequestsError("previous update to the Ndb resource is still being applied"))
 	}
 
-	newNC := newObj.(*v1alpha1.NdbCluster)
+	newNC := newObj.(*v1.NdbCluster)
 	if isValid, errList := oldNC.IsValidSpecUpdate(newNC); !isValid {
 		// new ndb does not define a valid configuration
 		return requestDeniedNdbInvalid(reqUID, newNC, errList)
@@ -72,7 +72,7 @@ func (nv *ndbAdmissionController) validateUpdate(
 }
 
 func (nv *ndbAdmissionController) mutate(obj runtime.Object) *jsonPatchOperations {
-	nc := obj.(*v1alpha1.NdbCluster)
+	nc := obj.(*v1.NdbCluster)
 
 	var patchOps jsonPatchOperations
 

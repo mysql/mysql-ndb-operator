@@ -7,7 +7,7 @@ package controllers
 import (
 	"context"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/resources"
 
 	corev1 "k8s.io/api/core/v1"
@@ -19,9 +19,9 @@ import (
 )
 
 type SecretControlInterface interface {
-	IsControlledBy(ctx context.Context, secretName string, ndb *v1alpha1.NdbCluster) bool
-	EnsureMySQLRootPassword(ctx context.Context, ndb *v1alpha1.NdbCluster) (*corev1.Secret, error)
-	EnsureNDBOperatorPassword(ctx context.Context, nc *v1alpha1.NdbCluster) (*corev1.Secret, error)
+	IsControlledBy(ctx context.Context, secretName string, ndb *v1.NdbCluster) bool
+	EnsureMySQLRootPassword(ctx context.Context, ndb *v1.NdbCluster) (*corev1.Secret, error)
+	EnsureNDBOperatorPassword(ctx context.Context, nc *v1.NdbCluster) (*corev1.Secret, error)
 	Delete(ctx context.Context, namespace, secretName string) error
 	ExtractPassword(ctx context.Context, namespace, name string) (string, error)
 }
@@ -37,7 +37,7 @@ func (sd *secretDefaults) secretInterface(namespace string) typedcorev1.SecretIn
 }
 
 // IsControlledBy returns if the given secret is owned by the NdbCluster object
-func (sd *secretDefaults) IsControlledBy(ctx context.Context, secretName string, nc *v1alpha1.NdbCluster) bool {
+func (sd *secretDefaults) IsControlledBy(ctx context.Context, secretName string, nc *v1.NdbCluster) bool {
 	secret, err := sd.secretInterface(nc.Namespace).Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
 		klog.Errorf("Failed to retrieve Secret %q : %s", secretName, err)
@@ -82,7 +82,7 @@ func NewMySQLUserPasswordSecretInterface(client kubernetes.Interface) SecretCont
 
 // EnsureMySQLRootPassword checks if the MySQL root user secret exists
 // and creates a new one if it doesn't exist already
-func (mups *mysqlUserPasswordSecrets) EnsureMySQLRootPassword(ctx context.Context, ndb *v1alpha1.NdbCluster) (*corev1.Secret, error) {
+func (mups *mysqlUserPasswordSecrets) EnsureMySQLRootPassword(ctx context.Context, ndb *v1.NdbCluster) (*corev1.Secret, error) {
 	// Check if the root secret exists
 	secretName, customSecret := resources.GetMySQLRootPasswordSecretName(ndb)
 
@@ -118,7 +118,7 @@ func (mups *mysqlUserPasswordSecrets) EnsureMySQLRootPassword(ctx context.Contex
 // EnsureNDBOperatorPassword checks if the MySQL ndb-operator user secret exists
 // and creates a new one if it doesn't exist already
 func (mups *mysqlUserPasswordSecrets) EnsureNDBOperatorPassword(
-	ctx context.Context, nc *v1alpha1.NdbCluster) (*corev1.Secret, error) {
+	ctx context.Context, nc *v1.NdbCluster) (*corev1.Secret, error) {
 	// Check if the ndb-operator secret exists
 	secretName := resources.GetMySQLNDBOperatorPasswordSecretName(nc)
 

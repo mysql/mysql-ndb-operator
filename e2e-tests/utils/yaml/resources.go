@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"strings"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 )
 
 // K8sObject identifies a K8s object in a yaml file
@@ -93,7 +93,7 @@ func ExtractObjectsFromYaml(path, filename string, k8sObjects []K8sObject, ns st
 }
 
 // MarshalNdb marshals the given Ndb object into yaml
-func MarshalNdb(ndb *v1alpha1.NdbCluster) []byte {
+func MarshalNdb(ndb *v1.NdbCluster) []byte {
 	// The yaml library will not respect the 'json' flags
 	// in the Ndb type. Convert Ndb object to json and
 	// back to a map to get the yaml in right format.

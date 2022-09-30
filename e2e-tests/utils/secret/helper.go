@@ -8,12 +8,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/resources"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -25,13 +25,13 @@ const (
 func CreateSecretForMySQLRootAccount(ctx context.Context, clientset kubernetes.Interface, secretName, namespace string) {
 	ginkgo.By("creating MySQL root account secret")
 	// build Secret, create it in K8s and return
-	rootPassSecret := &v1.Secret{
+	rootPassSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: namespace,
 		},
-		Data: map[string][]byte{v1.BasicAuthPasswordKey: []byte(TestRootPassword)},
-		Type: v1.SecretTypeBasicAuth,
+		Data: map[string][]byte{corev1.BasicAuthPasswordKey: []byte(TestRootPassword)},
+		Type: corev1.SecretTypeBasicAuth,
 	}
 
 	_, err := clientset.CoreV1().Secrets(namespace).Create(ctx, rootPassSecret, metav1.CreateOptions{})
@@ -45,7 +45,7 @@ func DeleteSecret(ctx context.Context, clientset kubernetes.Interface, secretNam
 }
 
 // GetMySQLRootPassword returns the root password for the MySQL Servers maintained by the given NdbCluster.
-func GetMySQLRootPassword(ctx context.Context, clientset kubernetes.Interface, nc *v1alpha1.NdbCluster) string {
+func GetMySQLRootPassword(ctx context.Context, clientset kubernetes.Interface, nc *v1.NdbCluster) string {
 	gomega.Expect(nc.GetMySQLServerNodeCount()).NotTo(
 		gomega.BeZero(), fmt.Sprintf("No MySQL Servers configured for NdbCluster %q", nc.Name))
 	// Retrieve the Secret
@@ -54,7 +54,7 @@ func GetMySQLRootPassword(ctx context.Context, clientset kubernetes.Interface, n
 	gomega.Expect(err).Should(gomega.Succeed(), "failed to retrieve the MySQL root password secret")
 
 	// Extract the password
-	password := secret.Data[v1.BasicAuthPasswordKey]
+	password := secret.Data[corev1.BasicAuthPasswordKey]
 	gomega.Expect(password).NotTo(
 		gomega.BeEmpty(), "MySQL root password was not found in secret")
 	return string(password)

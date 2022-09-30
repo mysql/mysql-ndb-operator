@@ -5,7 +5,7 @@
 package webhook
 
 import (
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -36,7 +36,7 @@ func requestDeniedBad(reqUID types.UID, errMsg string) *admissionv1.AdmissionRes
 
 // requestDeniedNdbInvalid returns a AdmissionResponse with the request denied and with reason StatusReasonInvalid
 func requestDeniedNdbInvalid(
-	reqUID types.UID, nc *v1alpha1.NdbCluster, errs field.ErrorList) *admissionv1.AdmissionResponse {
+	reqUID types.UID, nc *v1.NdbCluster, errs field.ErrorList) *admissionv1.AdmissionResponse {
 	return requestDenied(reqUID, errors.NewInvalid(nc.GroupVersionKind().GroupKind(), nc.Name, errs))
 }
 

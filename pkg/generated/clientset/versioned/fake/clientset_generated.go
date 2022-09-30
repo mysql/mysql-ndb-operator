@@ -8,8 +8,8 @@ package fake
 
 import (
 	clientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
-	mysqlv1alpha1 "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/typed/ndbcontroller/v1alpha1"
-	fakemysqlv1alpha1 "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/typed/ndbcontroller/v1alpha1/fake"
+	mysqlv1 "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/typed/ndbcontroller/v1"
+	fakemysqlv1 "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/typed/ndbcontroller/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -64,7 +64,7 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 
 var _ clientset.Interface = &Clientset{}
 
-// MysqlV1alpha1 retrieves the MysqlV1alpha1Client
-func (c *Clientset) MysqlV1alpha1() mysqlv1alpha1.MysqlV1alpha1Interface {
-	return &fakemysqlv1alpha1.FakeMysqlV1alpha1{Fake: &c.Fake}
+// MysqlV1 retrieves the MysqlV1Client
+func (c *Clientset) MysqlV1() mysqlv1.MysqlV1Interface {
+	return &fakemysqlv1.FakeMysqlV1{Fake: &c.Fake}
 }

@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/mysql/ndb-operator/config/debug"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/mgmapi"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
@@ -29,13 +29,13 @@ type ndbmtdStatefulSet struct {
 	baseStatefulSet
 }
 
-func (nss *ndbmtdStatefulSet) NewGoverningService(nc *v1alpha1.NdbCluster) *corev1.Service {
+func (nss *ndbmtdStatefulSet) NewGoverningService(nc *v1.NdbCluster) *corev1.Service {
 	return newService(nc, ndbmtdPorts, nss.nodeType, true, false)
 }
 
 // getPodVolumes returns a slice of volumes to be
 // made available to the data node pods.
-func (nss *ndbmtdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []corev1.Volume {
+func (nss *ndbmtdStatefulSet) getPodVolumes(nc *v1.NdbCluster) []corev1.Volume {
 
 	// Load the data node scripts from
 	// the configmap into the pod via a volume
@@ -88,7 +88,7 @@ func (nss *ndbmtdStatefulSet) getVolumeMounts() []corev1.VolumeMount {
 
 // getResourceRequestRequirements computes minimum memory required by the datanode
 // from the MySQL Cluster config and returns the ResourceList with the calculated memory
-func (nss *ndbmtdStatefulSet) getResourceRequestRequirements(nc *v1alpha1.NdbCluster) (corev1.ResourceList, error) {
+func (nss *ndbmtdStatefulSet) getResourceRequestRequirements(nc *v1.NdbCluster) (corev1.ResourceList, error) {
 
 	// Connect to the Management Server
 	mgmClient, err := mgmapi.NewMgmClient(nc.GetConnectstring())
@@ -211,7 +211,7 @@ func (nss *ndbmtdStatefulSet) getResourceRequestRequirements(nc *v1alpha1.NdbClu
 }
 
 // getContainers returns the containers to run a data Node
-func (nss *ndbmtdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Container {
+func (nss *ndbmtdStatefulSet) getContainers(nc *v1.NdbCluster) []corev1.Container {
 
 	// Command and args to run the Data node
 	cmdAndArgs := []string{
@@ -278,7 +278,7 @@ func (nss *ndbmtdStatefulSet) getPodAntiAffinity() *corev1.PodAntiAffinity {
 }
 
 // NewStatefulSet returns the StatefulSet specification to start and manage the Data nodes.
-func (nss *ndbmtdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) (*appsv1.StatefulSet, error) {
+func (nss *ndbmtdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1.NdbCluster) (*appsv1.StatefulSet, error) {
 	statefulSet := nss.newStatefulSet(nc, cs)
 	statefulSetSpec := &statefulSet.Spec
 

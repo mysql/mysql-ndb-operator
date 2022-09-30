@@ -1,6 +1,6 @@
 # MySQL Cluster with 2 data nodes, 2 MySQL Servers and Replica 2.
 # The NDB Operator will also start 2 Management Nodes as the Replica is 2.
-apiVersion: mysql.oracle.com/v1alpha1
+apiVersion: mysql.oracle.com/v1
 kind: NdbCluster
 metadata:
   name: example-ndb

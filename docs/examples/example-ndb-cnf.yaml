@@ -7,7 +7,7 @@ type: Opaque
 stringData:
   password: ndbpass
 ---
-apiVersion: mysql.oracle.com/v1alpha1
+apiVersion: mysql.oracle.com/v1
 kind: NdbCluster
 metadata:
   name: example-ndb

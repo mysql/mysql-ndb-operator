@@ -12,7 +12,7 @@ import (
 
 	"github.com/mysql/ndb-operator/e2e-tests/utils/mgmapi"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -32,7 +32,7 @@ func getIntStrPtrFromInt(value int) *intstr.IntOrString {
 var _ = ndbtest.NewOrderedTestCase("MySQL Cluster config update", func(tc *ndbtest.TestContext) {
 	var ns string
 	var c clientset.Interface
-	var testNdb *v1alpha1.NdbCluster
+	var testNdb *v1.NdbCluster
 
 	ginkgo.BeforeAll(func() {
 		ginkgo.By("extracting values from TestContext")

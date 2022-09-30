@@ -10,13 +10,13 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 	"github.com/mysql/ndb-operator/pkg/mgmapi"
@@ -25,13 +25,13 @@ import (
 const ServiceTypeHeadless = "Headless"
 
 func expectServiceType(ctx context.Context, svcInterface typedcorev1.ServiceInterface,
-	testNdb *v1alpha1.NdbCluster, resource string, serviceType v1.ServiceType) {
+	testNdb *v1.NdbCluster, resource string, serviceType corev1.ServiceType) {
 	serviceName := testNdb.GetServiceName(resource)
 	svc, err := svcInterface.Get(ctx, serviceName, metav1.GetOptions{})
 	ndbtest.ExpectNoError(err, "Get Service %q failed", serviceName)
 	if serviceType == ServiceTypeHeadless {
-		gomega.Expect(svc.Spec.Type).To(gomega.Equal(v1.ServiceTypeClusterIP))
-		gomega.Expect(svc.Spec.ClusterIP).To(gomega.Equal(v1.ClusterIPNone))
+		gomega.Expect(svc.Spec.Type).To(gomega.Equal(corev1.ServiceTypeClusterIP))
+		gomega.Expect(svc.Spec.ClusterIP).To(gomega.Equal(corev1.ClusterIPNone))
 	} else {
 		gomega.Expect(svc.Spec.Type).To(gomega.Equal(serviceType))
 	}
@@ -49,7 +49,7 @@ func testMgmdConnection(mgmdHost string) {
 var _ = ndbtest.NewOrderedTestCase("NdbCluster Services", func(tc *ndbtest.TestContext) {
 	var ns string
 	var c clientset.Interface
-	var testNdb *v1alpha1.NdbCluster
+	var testNdb *v1.NdbCluster
 	var ctx context.Context
 	var ndbName string
 	var svcInterface typedcorev1.ServiceInterface
@@ -77,8 +77,8 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster Services", func(tc *ndbtest.TestC
 
 	ginkgo.When("the NdbCluster is created with default field values", func() {
 		ginkgo.It("should create ClusterIP services for Management and MySQL Servers", func() {
-			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMgmd, v1.ServiceTypeClusterIP)
-			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMySQLD, v1.ServiceTypeClusterIP)
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMgmd, corev1.ServiceTypeClusterIP)
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMySQLD, corev1.ServiceTypeClusterIP)
 		})
 
 		ginkgo.It("should create headless service for Data Nodes", func() {
@@ -142,11 +142,11 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster Services", func(tc *ndbtest.TestC
 		})
 
 		ginkgo.It("should create LoadBalancer services for Management Server", func() {
-			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMgmd, v1.ServiceTypeLoadBalancer)
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMgmd, corev1.ServiceTypeLoadBalancer)
 		})
 
 		ginkgo.It("should create ClusterIP services for MySQL Servers", func() {
-			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMySQLD, v1.ServiceTypeClusterIP)
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMySQLD, corev1.ServiceTypeClusterIP)
 		})
 
 		ginkgo.It("should create headless service for Data Nodes", func() {
@@ -162,8 +162,8 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster Services", func(tc *ndbtest.TestC
 		})
 
 		ginkgo.It("should create LoadBalancer services for Management and MySQL Server", func() {
-			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMgmd, v1.ServiceTypeLoadBalancer)
-			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMySQLD, v1.ServiceTypeLoadBalancer)
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMgmd, corev1.ServiceTypeLoadBalancer)
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMySQLD, corev1.ServiceTypeLoadBalancer)
 		})
 
 		ginkgo.It("should create headless service for Data Nodes", func() {

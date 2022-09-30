@@ -7,29 +7,29 @@ package webhook
 import (
 	"testing"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 )
 
 func Test_ndbAdmissionController_mutate(t *testing.T) {
 	type mutatorTestCases struct {
 		desc          string
-		ncSpec        *v1alpha1.NdbClusterSpec
+		ncSpec        *v1.NdbClusterSpec
 		expectedPatch string
 	}
 
 	testcases := []mutatorTestCases{
 		{
 			desc: "mysqldSpec is nil",
-			ncSpec: &v1alpha1.NdbClusterSpec{
+			ncSpec: &v1.NdbClusterSpec{
 				MysqlNode: nil,
 			},
 			expectedPatch: `[{"op":"add","path":"/spec/mysqlNode","value":{"maxNodeCount":1,"nodeCount":1}}]`,
 		},
 		{
 			desc: "mysqldSpec nodeCount is 0",
-			ncSpec: &v1alpha1.NdbClusterSpec{
-				MysqlNode: &v1alpha1.NdbMysqldSpec{
+			ncSpec: &v1.NdbClusterSpec{
+				MysqlNode: &v1.NdbMysqldSpec{
 					NodeCount: 0,
 				},
 			},
@@ -37,8 +37,8 @@ func Test_ndbAdmissionController_mutate(t *testing.T) {
 		},
 		{
 			desc: "mysqldSpec nodeCount is 1",
-			ncSpec: &v1alpha1.NdbClusterSpec{
-				MysqlNode: &v1alpha1.NdbMysqldSpec{
+			ncSpec: &v1.NdbClusterSpec{
+				MysqlNode: &v1.NdbMysqldSpec{
 					NodeCount: 1,
 				},
 			},
@@ -46,8 +46,8 @@ func Test_ndbAdmissionController_mutate(t *testing.T) {
 		},
 		{
 			desc: "mysqldSpec nodeCount and maxNodeCount specified",
-			ncSpec: &v1alpha1.NdbClusterSpec{
-				MysqlNode: &v1alpha1.NdbMysqldSpec{
+			ncSpec: &v1.NdbClusterSpec{
+				MysqlNode: &v1.NdbMysqldSpec{
 					NodeCount:    1,
 					MaxNodeCount: 4,
 				},

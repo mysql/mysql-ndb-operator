@@ -5,11 +5,11 @@
 package ndbconfig
 
 import (
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 )
 
 // GetNumOfSectionsRequiredForMySQLServers returns the
 // number of sections required by the MySQL Servers.
-func GetNumOfSectionsRequiredForMySQLServers(nc *v1alpha1.NdbCluster) int32 {
+func GetNumOfSectionsRequiredForMySQLServers(nc *v1.NdbCluster) int32 {
 	return nc.GetMySQLServerMaxNodeCount() * nc.GetMySQLServerConnectionPoolSize()
 }

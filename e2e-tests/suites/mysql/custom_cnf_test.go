@@ -10,7 +10,7 @@ import (
 	"github.com/onsi/gomega"
 	clientset "k8s.io/client-go/kubernetes"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 
 	"github.com/mysql/ndb-operator/e2e-tests/utils/mgmapi"
@@ -20,7 +20,7 @@ import (
 )
 
 func expectGlobalVariableValue(
-	c clientset.Interface, testNdb *v1alpha1.NdbCluster,
+	c clientset.Interface, testNdb *v1.NdbCluster,
 	variableName string, expectedValue interface{}) {
 	ginkgo.By(fmt.Sprintf("verifying %q has the right value", variableName))
 	db := mysqlutils.Connect(c, testNdb, "performance_schema")
@@ -35,7 +35,7 @@ func expectGlobalVariableValue(
 
 var _ = ndbtest.NewOrderedTestCase("MySQL Custom cnf", func(tc *ndbtest.TestContext) {
 	var c clientset.Interface
-	var testNdb *v1alpha1.NdbCluster
+	var testNdb *v1.NdbCluster
 	var myCnf map[string]string
 
 	ginkgo.BeforeAll(func() {

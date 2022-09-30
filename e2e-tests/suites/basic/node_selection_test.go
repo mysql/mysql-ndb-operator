@@ -11,7 +11,7 @@ import (
 	"github.com/mysql/ndb-operator/e2e-tests/utils/k8sutils"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	podutils "github.com/mysql/ndb-operator/e2e-tests/utils/pods"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 
@@ -34,7 +34,7 @@ var _ = ndbtest.NewOrderedTestCase("Node Selectors and Pod affinity", func(tc *n
 	var ctx context.Context
 	var clientset kubernetes.Interface
 	var namespace string
-	var testNdb *v1alpha1.NdbCluster
+	var testNdb *v1.NdbCluster
 	var nodeLabels map[string]string
 
 	ginkgo.BeforeAll(func() {
@@ -69,17 +69,17 @@ var _ = ndbtest.NewOrderedTestCase("Node Selectors and Pod affinity", func(tc *n
 			Operator: corev1.TolerationOpEqual,
 			Effect:   corev1.TaintEffectNoSchedule,
 		}
-		testNdb.Spec.ManagementNode.NdbPodSpec = &v1alpha1.NdbClusterPodSpec{
+		testNdb.Spec.ManagementNode.NdbPodSpec = &v1.NdbClusterPodSpec{
 			Tolerations: []corev1.Toleration{
 				tolerateTaintOnKinDMaster,
 			},
 		}
-		testNdb.Spec.DataNode.NdbPodSpec = &v1alpha1.NdbClusterPodSpec{
+		testNdb.Spec.DataNode.NdbPodSpec = &v1.NdbClusterPodSpec{
 			Tolerations: []corev1.Toleration{
 				tolerateTaintOnKinDMaster,
 			},
 		}
-		testNdb.Spec.MysqlNode.NdbPodSpec = &v1alpha1.NdbClusterPodSpec{
+		testNdb.Spec.MysqlNode.NdbPodSpec = &v1.NdbClusterPodSpec{
 			Tolerations: []corev1.Toleration{
 				tolerateTaintOnKinDMaster,
 			},

@@ -8,14 +8,14 @@ import (
 	"fmt"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/mysql"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	clientset "k8s.io/client-go/kubernetes"
 )
 
-func verifyMySQLCluster(clientset clientset.Interface, testNdbCluster *v1alpha1.NdbCluster) {
+func verifyMySQLCluster(clientset clientset.Interface, testNdbCluster *v1.NdbCluster) {
 	// It should be enough to just check if the MySQL Server has
 	// NDBCLUSTER support as the operator will send an 'SyncSuccess'
 	// only after verifying the health of the MySQL Cluster nodes
@@ -34,7 +34,7 @@ var _ = ndbtest.NewTestCase("Multiple NDB Clusters maintained by a single NDB Op
 	var ns string
 	var c clientset.Interface
 	var numOfNdbClusters int
-	var testNdbClusters []*v1alpha1.NdbCluster
+	var testNdbClusters []*v1.NdbCluster
 
 	ginkgo.BeforeEach(func() {
 		ginkgo.By("extracting values from TestContext")

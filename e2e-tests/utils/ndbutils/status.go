@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 
 	"github.com/onsi/ginkgo/v2"
@@ -23,7 +23,7 @@ import (
 )
 
 // expectValidInfoInStatus verifies if all the status fields have valid values
-func expectValidInfoInStatus(nc *v1alpha1.NdbCluster, initialSystemRestart bool) {
+func expectValidInfoInStatus(nc *v1.NdbCluster, initialSystemRestart bool) {
 	status := &nc.Status
 	allNodesReady := nc.Generation == status.ProcessedGeneration
 
@@ -65,14 +65,14 @@ func expectValidInfoInStatus(nc *v1alpha1.NdbCluster, initialSystemRestart bool)
 	// Verify the values set to conditions
 	for _, condition := range status.Conditions {
 		switch condition.Type {
-		case v1alpha1.NdbClusterUpToDate:
+		case v1.NdbClusterUpToDate:
 			expectedStatus := corev1.ConditionFalse
-			expectedReason := v1alpha1.NdbClusterUptoDateReasonSpecUpdateInProgress
+			expectedReason := v1.NdbClusterUptoDateReasonSpecUpdateInProgress
 			if allNodesReady {
 				expectedStatus = corev1.ConditionTrue
-				expectedReason = v1alpha1.NdbClusterUptoDateReasonSyncSuccess
+				expectedReason = v1.NdbClusterUptoDateReasonSyncSuccess
 			} else if initialSystemRestart {
-				expectedReason = v1alpha1.NdbClusterUptoDateReasonISR
+				expectedReason = v1.NdbClusterUptoDateReasonISR
 			}
 			gomega.Expect(condition.Status).To(
 				gomega.Equal(expectedStatus), "NdbClusterUpToDate condition has an invalid status")
@@ -114,7 +114,7 @@ func ValidateNdbClusterStatusUpdatesDuringSync(
 	defer cancel()
 
 	// Start watching for changes to the NdbCluster resource
-	watcher, err := ndbClient.MysqlV1alpha1().NdbClusters(ns).Watch(
+	watcher, err := ndbClient.MysqlV1().NdbClusters(ns).Watch(
 		ctxWithTimeout, metav1.ListOptions{
 			FieldSelector: fields.OneTermEqualSelector("metadata.name", name).String(),
 		})
@@ -122,7 +122,7 @@ func ValidateNdbClusterStatusUpdatesDuringSync(
 
 	// Skip validating the first event as that just establishes the initial state
 	watchEvent := <-watcher.ResultChan()
-	nc := watchEvent.Object.(*v1alpha1.NdbCluster)
+	nc := watchEvent.Object.(*v1.NdbCluster)
 	// MySQL Cluster nodes are going through ISR if this is the first generation being processed
 	initialSystemRestart := nc.Status.ProcessedGeneration == 0
 
@@ -135,7 +135,7 @@ func ValidateNdbClusterStatusUpdatesDuringSync(
 		case watchEvent = <-watcher.ResultChan():
 			if watchEvent.Type == watch.Modified {
 				// Validate the Node ready status
-				nc = watchEvent.Object.(*v1alpha1.NdbCluster)
+				nc = watchEvent.Object.(*v1.NdbCluster)
 				expectValidInfoInStatus(nc, initialSystemRestart)
 			}
 		}
@@ -147,7 +147,7 @@ func ValidateNdbClusterStatus(
 	ctx context.Context, ndbClient ndbclientset.Interface, ns, name string) {
 
 	// Get the NdbCluster resource for K8s
-	nc, err := ndbClient.MysqlV1alpha1().NdbClusters(ns).Get(ctx, name, metav1.GetOptions{})
+	nc, err := ndbClient.MysqlV1().NdbClusters(ns).Get(ctx, name, metav1.GetOptions{})
 	gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 	// Fail if a sync is ongoing
 	gomega.Expect(nc.Status.ProcessedGeneration).To(gomega.Equal(nc.Generation),

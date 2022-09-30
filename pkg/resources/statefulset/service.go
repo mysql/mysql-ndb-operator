@@ -6,7 +6,7 @@ package statefulset
 
 import (
 	"fmt"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 
 	corev1 "k8s.io/api/core/v1"
@@ -14,7 +14,7 @@ import (
 )
 
 // newService builds and returns a new Service for the nodes with the given nodeTypeSelector
-func newService(ndb *v1alpha1.NdbCluster, ports []int32, nodeType string, headLess, loadBalancer bool) *corev1.Service {
+func newService(ndb *v1.NdbCluster, ports []int32, nodeType string, headLess, loadBalancer bool) *corev1.Service {
 
 	// Default Service Type is ClusterIP
 	var clusterIP string

@@ -9,7 +9,7 @@ import (
 
 	"github.com/mysql/ndb-operator/config/debug"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
@@ -52,12 +52,12 @@ type mysqldStatefulSet struct {
 	configMapLister listerscorev1.ConfigMapLister
 }
 
-func (mss *mysqldStatefulSet) NewGoverningService(nc *v1alpha1.NdbCluster) *corev1.Service {
+func (mss *mysqldStatefulSet) NewGoverningService(nc *v1.NdbCluster) *corev1.Service {
 	return newService(nc, mysqldPorts, mss.nodeType, false, nc.Spec.MysqlNode.EnableLoadBalancer)
 }
 
 // getPodVolumes returns the volumes to be used by the pod
-func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) ([]corev1.Volume, error) {
+func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1.NdbCluster) ([]corev1.Volume, error) {
 	podVolumes := []corev1.Volume{
 		// Load the healthcheck script via a volume
 		{
@@ -165,7 +165,7 @@ func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1alpha1.NdbCluster) ([]corev1.
 }
 
 // getVolumeMounts returns pod volumes to be mounted into the container
-func (mss *mysqldStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []corev1.VolumeMount {
+func (mss *mysqldStatefulSet) getVolumeMounts(nc *v1.NdbCluster) []corev1.VolumeMount {
 	volumeMounts := []corev1.VolumeMount{
 		// Mount the data directory volume
 		{
@@ -195,7 +195,7 @@ func (mss *mysqldStatefulSet) getVolumeMounts(nc *v1alpha1.NdbCluster) []corev1.
 }
 
 // getMySQLServerCmd returns the command and arguments to start the MySQL Server
-func (mss *mysqldStatefulSet) getMySQLServerCmd(nc *v1alpha1.NdbCluster) []string {
+func (mss *mysqldStatefulSet) getMySQLServerCmd(nc *v1.NdbCluster) []string {
 	cmdAndArgs := []string{
 		"mysqld",
 	}
@@ -230,7 +230,7 @@ func (mss *mysqldStatefulSet) getMySQLServerCmd(nc *v1alpha1.NdbCluster) []strin
 }
 
 // getInitDBContainer returns a new init container to initialize the data directory
-func (mss *mysqldStatefulSet) getInitDBContainer(nc *v1alpha1.NdbCluster) corev1.Container {
+func (mss *mysqldStatefulSet) getInitDBContainer(nc *v1.NdbCluster) corev1.Container {
 	// Generate the command and arguments to be used
 	cmdAndArgs := append([]string{
 		helperScriptsMountPath + "/" + constants.MysqldInitScript,
@@ -276,7 +276,7 @@ func (mss *mysqldStatefulSet) getInitDBContainer(nc *v1alpha1.NdbCluster) corev1
 }
 
 // getContainers returns the containers to run a MySQL Server
-func (mss *mysqldStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Container {
+func (mss *mysqldStatefulSet) getContainers(nc *v1.NdbCluster) []corev1.Container {
 	mysqldContainer := mss.createContainer(nc,
 		mss.getContainerName(false),
 		mss.getMySQLServerCmd(nc), mss.getVolumeMounts(nc), mysqldPorts)
@@ -316,7 +316,7 @@ func (mss *mysqldStatefulSet) getPodAntiAffinity() *corev1.PodAntiAffinity {
 }
 
 // NewStatefulSet creates a new MySQL Server StatefulSet for the given NdbCluster.
-func (mss *mysqldStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) (*appsv1.StatefulSet, error) {
+func (mss *mysqldStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1.NdbCluster) (*appsv1.StatefulSet, error) {
 
 	statefulSet := mss.newStatefulSet(nc, cs)
 	statefulSetSpec := &statefulSet.Spec

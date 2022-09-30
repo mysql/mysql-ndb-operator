@@ -9,7 +9,7 @@ import (
 	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
 	yaml_utils "github.com/mysql/ndb-operator/e2e-tests/utils/yaml"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/controllers"
 
@@ -56,7 +56,7 @@ func KubectlDeleteNdbYaml(clientset kubernetes.Interface, namespace, ndbName, pa
 
 // KubectlApplyNdbObjNoWait creates a Ndb K8s object from the given Ndb object
 // and returns without waiting for the MySQL Cluster to become ready
-func KubectlApplyNdbObjNoWait(ndb *v1alpha1.NdbCluster) {
+func KubectlApplyNdbObjNoWait(ndb *v1.NdbCluster) {
 	klog.V(2).Infof("creating/updating Ndb resource from %s", ndb.Namespace)
 	yamlContent := yaml_utils.MarshalNdb(ndb)
 	ginkgo.By("creating/updating the Ndb resource")
@@ -65,7 +65,7 @@ func KubectlApplyNdbObjNoWait(ndb *v1alpha1.NdbCluster) {
 
 // KubectlApplyNdbObj creates a Ndb K8s object from the given Ndb object
 // and waits for the ndb operator to setup the MySQL Cluster
-func KubectlApplyNdbObj(clientset kubernetes.Interface, ndb *v1alpha1.NdbCluster) {
+func KubectlApplyNdbObj(clientset kubernetes.Interface, ndb *v1.NdbCluster) {
 	lastKnownEventResourceVersion := event_utils.GetLastKnownEventResourceVersion(clientset, ndb.Namespace)
 	KubectlApplyNdbObjNoWait(ndb)
 	waitForNdbSync(clientset, ndb.Namespace, lastKnownEventResourceVersion)
@@ -73,7 +73,7 @@ func KubectlApplyNdbObj(clientset kubernetes.Interface, ndb *v1alpha1.NdbCluster
 
 // KubectlDeleteNdbObj deletes an Ndb K8s object from the given Ndb object
 // and waits for MySQL Cluster to shutdown
-func KubectlDeleteNdbObj(clientset kubernetes.Interface, ndb *v1alpha1.NdbCluster) {
+func KubectlDeleteNdbObj(clientset kubernetes.Interface, ndb *v1.NdbCluster) {
 	klog.V(2).Infof("Deleting Ndb resource from %s", ndb.Namespace)
 
 	yamlContent := yaml_utils.MarshalNdb(ndb)

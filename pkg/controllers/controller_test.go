@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 
-	ndbcontroller "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	ndbcontroller "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/fake"
 	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
@@ -88,7 +88,7 @@ func (f *fixture) newController() {
 	f.c = NewController(f.k8sclient, f.ndbclient, f.k8sIf, f.ndbIf)
 
 	for _, n := range f.ndbObjects {
-		if err := f.ndbIf.Mysql().V1alpha1().NdbClusters().Informer().GetIndexer().Add(n); err != nil {
+		if err := f.ndbIf.Mysql().V1().NdbClusters().Informer().GetIndexer().Add(n); err != nil {
 			f.t.Fatal("Unexpected error :", err)
 		}
 	}
@@ -463,7 +463,7 @@ func TestCreatesCluster(t *testing.T) {
 	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
 
 	// Expect an update on ndbcluster/status
-	f.expectNdbClusterStatusUpdateAction(ns, "mysql.oracle.com", "v1alpha1", "ndbclusters")
+	f.expectNdbClusterStatusUpdateAction(ns, "mysql.oracle.com", "v1", "ndbclusters")
 
 	// The reconciliation loop ends here. It continues only after the management nodes are ready.
 	f.runControllerAndValidateActions(ndb, false, nil)
@@ -481,7 +481,7 @@ func TestCreatesCluster(t *testing.T) {
 	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
 
 	// Expect an update on ndbcluster/status
-	f.expectNdbClusterStatusUpdateAction(ns, "mysql.oracle.com", "v1alpha1", "ndbclusters")
+	f.expectNdbClusterStatusUpdateAction(ns, "mysql.oracle.com", "v1", "ndbclusters")
 
 	// The reconciliation loop ends here. It continues only after the data nodes are ready.
 	f.runControllerAndValidateActions(ndb, false, nil)
@@ -503,7 +503,7 @@ func TestCreatesCluster(t *testing.T) {
 	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
 
 	// Expect an update on ndbcluster/status
-	f.expectNdbClusterStatusUpdateAction(ns, "mysql.oracle.com", "v1alpha1", "ndbclusters")
+	f.expectNdbClusterStatusUpdateAction(ns, "mysql.oracle.com", "v1", "ndbclusters")
 
 	// The reconciliation loop ends here.
 	f.runControllerAndValidateActions(ndb, false, nil)

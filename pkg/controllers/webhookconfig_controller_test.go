@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -8,8 +8,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
-	v1 "k8s.io/api/admissionregistration/v1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	corev1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"testing"
@@ -21,7 +21,7 @@ func createNewValidatingWebhookConfig(
 	t.Helper()
 
 	// create a new vwc with minimal params for testing
-	newVwc := &v1.ValidatingWebhookConfiguration{
+	newVwc := &corev1.ValidatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: validatingWebhookConfigName,
 			Labels: map[string]string{
@@ -31,10 +31,10 @@ func createNewValidatingWebhookConfig(
 	}
 
 	for i := uint(0); i < numberOfWebhooks; i++ {
-		newVwc.Webhooks = append(newVwc.Webhooks, v1.ValidatingWebhook{
+		newVwc.Webhooks = append(newVwc.Webhooks, corev1.ValidatingWebhook{
 			Name: fmt.Sprintf("webhook%d", i+1),
-			ClientConfig: v1.WebhookClientConfig{
-				Service: &v1.ServiceReference{
+			ClientConfig: corev1.WebhookClientConfig{
+				Service: &corev1.ServiceReference{
 					Namespace: "default",
 					Name:      serviceName,
 				},
@@ -58,13 +58,13 @@ func generateExpectedPatch(
 	t.Helper()
 
 	// Build the webhook config diff
-	var webhooks []v1.ValidatingWebhook
+	var webhooks []corev1.ValidatingWebhook
 	var webhookNames []map[string]string
 	for i := uint(0); i < numberOfWebhooks; i++ {
 		webHookName := fmt.Sprintf("webhook%d", i+1)
-		webhooks = append(webhooks, v1.ValidatingWebhook{
+		webhooks = append(webhooks, corev1.ValidatingWebhook{
 			Name: webHookName,
-			ClientConfig: v1.WebhookClientConfig{
+			ClientConfig: corev1.WebhookClientConfig{
 				CABundle: cert,
 			},
 			AdmissionReviewVersions: nil,
@@ -102,7 +102,7 @@ func generateExpectedPatch(
 
 func Test_ValidatingWebhook_UpdateWebhookConfigCertificate(t *testing.T) {
 	// Create fixture and start informers
-	f := newFixture(t, &v1alpha1.NdbCluster{})
+	f := newFixture(t, &v1.NdbCluster{})
 	defer f.close()
 	f.startInformers()
 

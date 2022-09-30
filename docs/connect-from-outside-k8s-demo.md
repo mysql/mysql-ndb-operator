@@ -9,7 +9,7 @@ By default, the Management and MySQL services created by the NDB Operator are of
 To list all the services created for the `example-ndb` NdbCluster, run :
 
 ```sh
-kubectl get services -l mysql.oracle.com/v1alpha1=example-ndb
+kubectl get services -l mysql.oracle.com/v1=example-ndb
 ```
 
 The output will be similar to :

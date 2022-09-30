@@ -11,7 +11,7 @@ import (
 	"github.com/mysql/ndb-operator/e2e-tests/utils/k8sutils"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 
@@ -27,11 +27,11 @@ const (
 
 type testContext struct {
 	ndbOperatorInstalled bool
-	ndbCluster           *v1alpha1.NdbCluster
+	ndbCluster           *v1.NdbCluster
 	namespace            string
 }
 
-func verifyNdbNodesInEachNs(clientset clientset.Interface, namespace string, testNdbCluster *v1alpha1.NdbCluster) {
+func verifyNdbNodesInEachNs(clientset clientset.Interface, namespace string, testNdbCluster *v1.NdbCluster) {
 	ginkgo.By("Verifying that all ndb nodes were deployed in each namespace")
 	sfset_utils.ExpectHasReplicas(clientset, namespace, testNdbCluster.GetWorkloadName(constants.NdbNodeTypeMgmd), 1)
 	sfset_utils.ExpectHasReplicas(clientset, namespace, testNdbCluster.GetWorkloadName(constants.NdbNodeTypeNdbmtd), 2)

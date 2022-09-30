@@ -5,12 +5,12 @@
 package statefulset
 
 import (
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
 // Copy values from ndbPodSpec into podSpec
-func CopyPodSpecFromNdbPodSpec(podSpec *corev1.PodSpec, ndbPodSpec *v1alpha1.NdbClusterPodSpec) {
+func CopyPodSpecFromNdbPodSpec(podSpec *corev1.PodSpec, ndbPodSpec *v1.NdbClusterPodSpec) {
 	if ndbPodSpec == nil {
 		// Nothing to do
 		return

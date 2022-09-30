@@ -6,13 +6,14 @@ type: Opaque
 stringData:
   password: wordpresspass
 ---
-apiVersion: mysql.oracle.com/v1alpha1
+apiVersion: mysql.oracle.com/v1
 kind: NdbCluster
 metadata:
   name: wordpress-ndb
 spec:
-  nodeCount: 2
   redundancyLevel: 2
+  dataNode:
+    nodeCount: 2
   mysqlNode:
     nodeCount: 2
     rootPasswordSecretName: wordpress-mysql-secret

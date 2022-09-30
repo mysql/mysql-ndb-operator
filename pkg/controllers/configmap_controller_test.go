@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig/configparser"
 
@@ -84,7 +84,7 @@ func validateConfigIniSectionCount(t *testing.T, config configparser.ConfigIni, 
 }
 
 // validateMgmtConfig validates the config.ini key of the config map
-func validateMgmtConfig(t *testing.T, cm *corev1.ConfigMap, ndb *v1alpha1.NdbCluster) {
+func validateMgmtConfig(t *testing.T, cm *corev1.ConfigMap, ndb *v1.NdbCluster) {
 	t.Helper()
 
 	if cm == nil {

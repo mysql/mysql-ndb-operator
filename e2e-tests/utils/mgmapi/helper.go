@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/mysql/ndb-operator/e2e-tests/utils/service"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/mgmapi"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -17,7 +17,7 @@ import (
 
 // ConnectToMgmd connects to a Management Server of the MySQL Cluster
 // represented by the ndb object and returns a mgmapi.MgmClient
-func ConnectToMgmd(clientset kubernetes.Interface, ndb *v1alpha1.NdbCluster) mgmapi.MgmClient {
+func ConnectToMgmd(clientset kubernetes.Interface, ndb *v1.NdbCluster) mgmapi.MgmClient {
 	ginkgo.By("connecting to the Management Node service")
 	serviceName := ndb.GetServiceName("mgmd")
 	host, port := service.GetServiceAddressAndPort(clientset, ndb.Namespace, serviceName)
@@ -29,7 +29,7 @@ func ConnectToMgmd(clientset kubernetes.Interface, ndb *v1alpha1.NdbCluster) mgm
 // ForEachConnectedNodes runs the given function for
 // every connected MySQL Cluster node of type nodeType
 func ForEachConnectedNodes(
-	clientset kubernetes.Interface, ndb *v1alpha1.NdbCluster, nodeType mgmapi.NodeTypeEnum,
+	clientset kubernetes.Interface, ndb *v1.NdbCluster, nodeType mgmapi.NodeTypeEnum,
 	testFunc func(mgmClient mgmapi.MgmClient, nodeId int)) {
 	// connect to MySQL Cluster
 	mgmClient := ConnectToMgmd(clientset, ndb)
@@ -49,7 +49,7 @@ func ForEachConnectedNodes(
 // ExpectConfigVersionInMySQLClusterNodes checks if the MySQL Cluster
 // nodes run with the expected config version.
 func ExpectConfigVersionInMySQLClusterNodes(
-	c kubernetes.Interface, testNdb *v1alpha1.NdbCluster, expectedConfigVersion uint32) {
+	c kubernetes.Interface, testNdb *v1.NdbCluster, expectedConfigVersion uint32) {
 	ginkgo.By(
 		fmt.Sprintf("expecting config version of MySQL Cluster nodes to be %d", expectedConfigVersion))
 
