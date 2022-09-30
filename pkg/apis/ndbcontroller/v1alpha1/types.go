@@ -136,6 +136,15 @@ type NdbMysqldSpec struct {
 	// API sections for two additional MySQL Servers.
 	// +optional
 	MaxNodeCount int32 `json:"maxNodeCount,omitempty"`
+	// ConnectionPoolSize is the number of connections a single
+	// MySQL Server should use to connect to the MySQL Cluster nodes.
+	// More info :
+	// https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-options-variables.html#option_mysqld_ndb-cluster-connection-pool
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=63
+	// +optional
+	ConnectionPoolSize int32 `json:"connectionPoolSize,omitempty"`
 	// The name of the Secret that holds the password to be set for the MySQL
 	// root accounts. The Secret should have a 'password' key that holds the
 	// password.
@@ -380,6 +389,15 @@ func (nc *NdbCluster) GetMySQLServerMaxNodeCount() int32 {
 	}
 
 	return nc.Spec.MysqlNode.MaxNodeCount
+}
+
+// GetMySQLServerConnectionPoolSize returns the connection pool size
+func (nc *NdbCluster) GetMySQLServerConnectionPoolSize() int32 {
+	if nc.Spec.MysqlNode == nil {
+		return 0
+	}
+
+	return nc.Spec.MysqlNode.ConnectionPoolSize
 }
 
 // GetConnectstring returns the connect string of cluster represented by Ndb resource

@@ -1733,6 +1733,15 @@ spec:
                 description: MysqlNode specifies the configuration of the MySQL Servers
                   running in the cluster.
                 properties:
+                  connectionPoolSize:
+                    default: 1
+                    description: 'ConnectionPoolSize is the number of connections
+                      a single MySQL Server should use to connect to the MySQL Cluster
+                      nodes. More info : https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-options-variables.html#option_mysqld_ndb-cluster-connection-pool'
+                    format: int32
+                    maximum: 63
+                    minimum: 1
+                    type: integer
                   enableLoadBalancer:
                     default: false
                     description: EnableLoadBalancer exposes the MySQL servers externally

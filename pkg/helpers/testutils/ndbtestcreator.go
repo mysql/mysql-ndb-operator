@@ -28,8 +28,9 @@ func NewTestNdb(namespace string, name string, noOfNodes int32) *ndbcontroller.N
 				NodeCount: noOfNodes,
 			},
 			MysqlNode: &ndbcontroller.NdbMysqldSpec{
-				NodeCount:    noOfNodes,
-				MaxNodeCount: noOfNodes + 2,
+				NodeCount:          noOfNodes,
+				MaxNodeCount:       noOfNodes + 2,
+				ConnectionPoolSize: 1,
 			},
 		},
 	}

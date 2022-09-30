@@ -631,7 +631,37 @@ int32
 </em>
 </td>
 <td>
-<p>NodeCount is the number of MySQL Servers running in MySQL Cluster</p>
+<p>NodeCount is the number of MySQL Servers to be started by the Operator</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>maxNodeCount</code><br/>
+<em>
+int32
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>MaxNodeCount is the count up to which the MySQL Servers would be
+allowed to scale up without forcing a MySQL Cluster config update.
+If unspecified, operator will define the MySQL Cluster config with
+API sections for two additional MySQL Servers.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>connectionPoolSize</code><br/>
+<em>
+int32
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>ConnectionPoolSize is the number of connections a single
+MySQL Server should use to connect to the MySQL Cluster nodes.
+More info :
+<a href="https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-options-variables.html#option_mysqld_ndb-cluster-connection-pool">https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-options-variables.html#option_mysqld_ndb-cluster-connection-pool</a></p>
 </td>
 </tr>
 <tr>

@@ -138,7 +138,7 @@ func getPodMySQLClusterNodeType(podHostname string) constants.NdbNodeType {
 
 // writeNodeIDToFile deduces the nodeId of the current MySQL Cluster
 // node, writes it to a file and then returns the nodeId.
-func writeNodeIDToFile(hostname, ndbConnectString string) (nodeId int, nodeType mgmapi.NodeTypeEnum) {
+func writeNodeIDToFile(hostname, ndbConnectString string) (nodeId int, nodeIdPool []int, nodeType mgmapi.NodeTypeEnum) {
 	// All nodeIds are sequentially assigned based on the ordinal indices
 	// of the StatefulSet pods. So deduce the nodeId of the first MySQL
 	// Cluster node of same nodeType (i.e) the node with StatefulSet ordinal
@@ -157,7 +157,6 @@ func writeNodeIDToFile(hostname, ndbConnectString string) (nodeId int, nodeType 
 		startNodeIdOfSameNodeType = numOfManagementNode + 1
 		nodeType = mgmapi.NodeTypeNDB
 	case constants.NdbNodeTypeMySQLD:
-		startNodeIdOfSameNodeType = constants.NdbNodeTypeAPIStartNodeId
 		nodeType = mgmapi.NodeTypeAPI
 	}
 
@@ -167,17 +166,32 @@ func writeNodeIDToFile(hostname, ndbConnectString string) (nodeId int, nodeType 
 	podOrdinalIndex, _ := strconv.ParseInt(tokens[len(tokens)-1], 10, 32)
 
 	// Calculate nodeId
-	nodeId = startNodeIdOfSameNodeType + int(podOrdinalIndex)
+	var nodeIdText string
+	if nodeType == mgmapi.NodeTypeAPI {
+		// For MySQL Servers, if connection pool is enabled, successive
+		// nodeIds are assigned to a single MySQL Server
+		ndbConnectionPoolSize, _ := strconv.ParseInt(os.Getenv("NDB_CONNECTION_POOL_SIZE"), 10, 32)
+		startNodeId := constants.NdbNodeTypeAPIStartNodeId + int(ndbConnectionPoolSize)*int(podOrdinalIndex)
+		endNodeId := startNodeId + int(ndbConnectionPoolSize)
+		for ; startNodeId < endNodeId; startNodeId++ {
+			nodeIdPool = append(nodeIdPool, startNodeId)
+			nodeIdText += fmt.Sprintf("%d,", startNodeId)
+		}
+		nodeIdText = nodeIdText[:len(nodeIdText)-1]
+	} else {
+		nodeId = startNodeIdOfSameNodeType + int(podOrdinalIndex)
+		nodeIdText = fmt.Sprintf("%d", nodeId)
+	}
 
 	// Persist the nodeId into a file to be used by other scripts/commands
 	f, err := os.OpenFile(statefulset.NodeIdFilePath,
 		os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	failOnError(err, "Failed to create file %q : %s", statefulset.NodeIdFilePath, err)
 
-	_, err = f.WriteString(fmt.Sprintf("%d", nodeId))
+	_, err = f.WriteString(nodeIdText)
 	failOnError(err, "Failed to write nodeId to file : %s", err)
 
-	return nodeId, nodeType
+	return nodeId, nodeIdPool, nodeType
 }
 
 // waitForNodeIdAvailability waits until the given nodeId can be
@@ -269,7 +283,7 @@ func main() {
 
 	// Persist the nodeId into a file for the other scripts/commands to use
 	connectstring := os.Getenv("NDB_CONNECTSTRING")
-	nodeId, nodeType := writeNodeIDToFile(podHostname, connectstring)
+	nodeId, nodeIdPool, nodeType := writeNodeIDToFile(podHostname, connectstring)
 
 	if nodeType == mgmapi.NodeTypeMGM {
 		log.Println("Pod initializer succeeded.")
@@ -300,7 +314,9 @@ func main() {
 	}
 
 	if nodeType == mgmapi.NodeTypeAPI {
-		// Wait for the nodeId to become available for API nodes
-		waitForNodeIdAvailability(nodeId, nodeType, mgmClient)
+		// Wait for all the nodeIds to become available for MySQL nodes
+		for _, id := range nodeIdPool {
+			waitForNodeIdAvailability(id, nodeType, mgmClient)
+		}
 	}
 }

@@ -152,6 +152,14 @@ func (bss *baseStatefulSet) getDefaultInitContainers(nc *v1alpha1.NdbCluster) []
 
 	container := bss.createContainer(nc, "ndb-pod-init-container", cmdAndArgs, volumeMounts, nil)
 
+	// Export connection pool size to env for MySQL type pods
+	if bss.GetTypeName() == constants.NdbNodeTypeMySQLD {
+		container.Env = append(container.Env, corev1.EnvVar{
+			Name:  "NDB_CONNECTION_POOL_SIZE",
+			Value: strconv.Itoa(int(nc.GetMySQLServerConnectionPoolSize())),
+		})
+	}
+
 	// Append the NDB operator password to the env variable of the ndb-pod-init-container
 	container.Env = append(container.Env, corev1.EnvVar{
 		Name: "NDB_OPERATOR_PASSWORD",
