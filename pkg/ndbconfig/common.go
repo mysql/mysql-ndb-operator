@@ -11,5 +11,5 @@ import (
 // GetNumOfSectionsRequiredForMySQLServers returns the
 // number of sections required by the MySQL Servers.
 func GetNumOfSectionsRequiredForMySQLServers(nc *v1alpha1.NdbCluster) int32 {
-	return nc.GetMySQLServerMaxNodeCount()
+	return nc.GetMySQLServerMaxNodeCount() * nc.GetMySQLServerConnectionPoolSize()
 }

@@ -214,7 +214,8 @@ func (mss *mysqldStatefulSet) getMySQLServerCmd(nc *v1alpha1.NdbCluster) []strin
 		"--ndb-connectstring="+nc.GetConnectstring(),
 		"--user=mysql",
 		"--datadir="+dataDirectoryMountPath,
-		"--ndb-nodeid=$(cat "+NodeIdFilePath+")",
+		"--ndb-cluster-connection-pool="+strconv.Itoa(int(nc.GetMySQLServerConnectionPoolSize())),
+		"--ndb-cluster-connection-pool-nodeids=$(cat "+NodeIdFilePath+")",
 	)
 
 	if debug.Enabled {

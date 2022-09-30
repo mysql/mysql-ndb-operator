@@ -223,6 +223,14 @@ func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorLis
 		}
 	}
 
+	if nc.GetMySQLServerConnectionPoolSize() > newNc.GetMySQLServerConnectionPoolSize() {
+		// Do not allow reducing connection pool size as that leads to chaos when reserving nodeIds
+		errList = append(errList,
+			field.Invalid(mysqldPath.Child("connectionPoolSize"),
+				newNc.GetMySQLServerConnectionPoolSize(),
+				"connectionPoolSize cannot be reduced once MySQL Cluster has been started"))
+	}
+
 	// Check if the new NdbCluster valid is spec
 	if isValid, specErrList := newNc.HasValidSpec(); !isValid {
 		errList = append(errList, specErrList...)

@@ -60,10 +60,10 @@ NodeId={{NdbOperatorDedicatedAPINodeId}}
 Dedicated=1
 
 # MySQLD sections to be used exclusively by MySQL Servers
-{{range $idx, $nodeId := GetNodeIds NdbNodeTypeMySQLD -}}
+{{range $nodeId, $podIdx := GetMySQLServerNodeIds -}}
 [mysqld]
 NodeId={{$nodeId}}
-Hostname={{$.Name}}-{{NdbNodeTypeMySQLD}}-{{$idx}}.{{$.GetServiceName NdbNodeTypeMySQLD}}.{{$hostnameSuffix}}
+Hostname={{$.Name}}-{{NdbNodeTypeMySQLD}}-{{$podIdx}}.{{$.GetServiceName NdbNodeTypeMySQLD}}.{{$hostnameSuffix}}
 
 {{end -}}
 # API sections to be used by generic NDBAPI applications
@@ -116,6 +116,22 @@ func GetConfigString(ndb *v1alpha1.NdbCluster, oldConfigSummary *ConfigSummary) 
 				*startNodeId++
 			}
 			return nodeIds
+		},
+		"GetMySQLServerNodeIds": func() map[int]int {
+			startNodeId := &apiStartNodeId
+			numberOfNodeIds := GetNumOfSectionsRequiredForMySQLServers(ndb)
+			nodeIdToPodIdx := make(map[int]int)
+			ndbConnectionPoolSize := ndb.GetMySQLServerConnectionPoolSize()
+			podIdx := 0
+			for i := 0; int32(i) < numberOfNodeIds; i = i + int(ndbConnectionPoolSize) {
+				for j := 0; j < int(ndbConnectionPoolSize); j++ {
+					nodeIdToPodIdx[*startNodeId] = podIdx
+					*startNodeId++
+				}
+				podIdx++
+			}
+
+			return nodeIdToPodIdx
 		},
 		"GetDataDir": func() string { return constants.DataDir + "/data" },
 		"GetConfigVersion": func() int32 {

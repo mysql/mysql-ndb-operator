@@ -84,6 +84,8 @@ func Test_GetConfigString(t *testing.T) {
 
 	ndb := testutils.NewTestNdb("default", "example-ndb", 2)
 	ndb.Spec.FreeAPISlots = 3
+	ndb.Spec.MysqlNode.MaxNodeCount = 5
+	ndb.Spec.MysqlNode.ConnectionPoolSize = 2
 	getIntStrPtr := func(obj intstr.IntOrString) *intstr.IntOrString {
 		return &obj
 	}
@@ -155,25 +157,49 @@ Hostname=example-ndb-mysqld-0.example-ndb-mysqld.default
 
 [mysqld]
 NodeId=149
-Hostname=example-ndb-mysqld-1.example-ndb-mysqld.default
+Hostname=example-ndb-mysqld-0.example-ndb-mysqld.default
 
 [mysqld]
 NodeId=150
-Hostname=example-ndb-mysqld-2.example-ndb-mysqld.default
+Hostname=example-ndb-mysqld-1.example-ndb-mysqld.default
 
 [mysqld]
 NodeId=151
+Hostname=example-ndb-mysqld-1.example-ndb-mysqld.default
+
+[mysqld]
+NodeId=152
+Hostname=example-ndb-mysqld-2.example-ndb-mysqld.default
+
+[mysqld]
+NodeId=153
+Hostname=example-ndb-mysqld-2.example-ndb-mysqld.default
+
+[mysqld]
+NodeId=154
 Hostname=example-ndb-mysqld-3.example-ndb-mysqld.default
+
+[mysqld]
+NodeId=155
+Hostname=example-ndb-mysqld-3.example-ndb-mysqld.default
+
+[mysqld]
+NodeId=156
+Hostname=example-ndb-mysqld-4.example-ndb-mysqld.default
+
+[mysqld]
+NodeId=157
+Hostname=example-ndb-mysqld-4.example-ndb-mysqld.default
 
 # API sections to be used by generic NDBAPI applications
 [api]
-NodeId=152
+NodeId=158
 
 [api]
-NodeId=153
+NodeId=159
 
 [api]
-NodeId=154
+NodeId=160
 
 `
 	if configString != expectedConfigString {

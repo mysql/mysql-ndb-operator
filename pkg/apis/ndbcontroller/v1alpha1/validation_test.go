@@ -135,6 +135,31 @@ func Test_Validation(t *testing.T) {
 		ndbUpdateTests(2, 2, 5, 2, 2, 2, !shouldFail, "allow increasing mysqld node count"),
 		ndbUpdateTests(1, 2, 5, 1, 2, 2, shouldFail, "update spec with replica = 1"),
 
+		{
+			spec: &NdbClusterSpec{
+				RedundancyLevel: 2,
+				DataNode: &NdbDataNodeSpec{
+					NodeCount: 2,
+				},
+				MysqlNode: &NdbMysqldSpec{
+					NodeCount:          2,
+					ConnectionPoolSize: 2,
+				},
+			},
+			oldSpec: &NdbClusterSpec{
+				RedundancyLevel: 2,
+				DataNode: &NdbDataNodeSpec{
+					NodeCount: 2,
+				},
+				MysqlNode: &NdbMysqldSpec{
+					NodeCount:          2,
+					ConnectionPoolSize: 3,
+				},
+			},
+			shouldFail: true,
+			explain:    "decreasing connection pool is not allowed",
+		},
+
 		ndbUpdateNdbPodSpecTests(func(defaultSpec *NdbClusterSpec) {
 			defaultSpec.DataNode.NdbPodSpec = nil
 		}, func(defaultSpec *NdbClusterSpec) {
