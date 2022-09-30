@@ -9,7 +9,7 @@ package fake
 import (
 	"context"
 
-	v1alpha1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	ndbcontrollerv1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -20,29 +20,29 @@ import (
 
 // FakeNdbClusters implements NdbClusterInterface
 type FakeNdbClusters struct {
-	Fake *FakeMysqlV1alpha1
+	Fake *FakeMysqlV1
 	ns   string
 }
 
-var ndbclustersResource = schema.GroupVersionResource{Group: "mysql.oracle.com", Version: "v1alpha1", Resource: "ndbclusters"}
+var ndbclustersResource = schema.GroupVersionResource{Group: "mysql.oracle.com", Version: "v1", Resource: "ndbclusters"}
 
-var ndbclustersKind = schema.GroupVersionKind{Group: "mysql.oracle.com", Version: "v1alpha1", Kind: "NdbCluster"}
+var ndbclustersKind = schema.GroupVersionKind{Group: "mysql.oracle.com", Version: "v1", Kind: "NdbCluster"}
 
 // Get takes name of the ndbCluster, and returns the corresponding ndbCluster object, and an error if there is any.
-func (c *FakeNdbClusters) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.NdbCluster, err error) {
+func (c *FakeNdbClusters) Get(ctx context.Context, name string, options v1.GetOptions) (result *ndbcontrollerv1.NdbCluster, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(ndbclustersResource, c.ns, name), &v1alpha1.NdbCluster{})
+		Invokes(testing.NewGetAction(ndbclustersResource, c.ns, name), &ndbcontrollerv1.NdbCluster{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.NdbCluster), err
+	return obj.(*ndbcontrollerv1.NdbCluster), err
 }
 
 // List takes label and field selectors, and returns the list of NdbClusters that match those selectors.
-func (c *FakeNdbClusters) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.NdbClusterList, err error) {
+func (c *FakeNdbClusters) List(ctx context.Context, opts v1.ListOptions) (result *ndbcontrollerv1.NdbClusterList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(ndbclustersResource, ndbclustersKind, c.ns, opts), &v1alpha1.NdbClusterList{})
+		Invokes(testing.NewListAction(ndbclustersResource, ndbclustersKind, c.ns, opts), &ndbcontrollerv1.NdbClusterList{})
 
 	if obj == nil {
 		return nil, err
@@ -52,8 +52,8 @@ func (c *FakeNdbClusters) List(ctx context.Context, opts v1.ListOptions) (result
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &v1alpha1.NdbClusterList{ListMeta: obj.(*v1alpha1.NdbClusterList).ListMeta}
-	for _, item := range obj.(*v1alpha1.NdbClusterList).Items {
+	list := &ndbcontrollerv1.NdbClusterList{ListMeta: obj.(*ndbcontrollerv1.NdbClusterList).ListMeta}
+	for _, item := range obj.(*ndbcontrollerv1.NdbClusterList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -69,43 +69,43 @@ func (c *FakeNdbClusters) Watch(ctx context.Context, opts v1.ListOptions) (watch
 }
 
 // Create takes the representation of a ndbCluster and creates it.  Returns the server's representation of the ndbCluster, and an error, if there is any.
-func (c *FakeNdbClusters) Create(ctx context.Context, ndbCluster *v1alpha1.NdbCluster, opts v1.CreateOptions) (result *v1alpha1.NdbCluster, err error) {
+func (c *FakeNdbClusters) Create(ctx context.Context, ndbCluster *ndbcontrollerv1.NdbCluster, opts v1.CreateOptions) (result *ndbcontrollerv1.NdbCluster, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(ndbclustersResource, c.ns, ndbCluster), &v1alpha1.NdbCluster{})
+		Invokes(testing.NewCreateAction(ndbclustersResource, c.ns, ndbCluster), &ndbcontrollerv1.NdbCluster{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.NdbCluster), err
+	return obj.(*ndbcontrollerv1.NdbCluster), err
 }
 
 // Update takes the representation of a ndbCluster and updates it. Returns the server's representation of the ndbCluster, and an error, if there is any.
-func (c *FakeNdbClusters) Update(ctx context.Context, ndbCluster *v1alpha1.NdbCluster, opts v1.UpdateOptions) (result *v1alpha1.NdbCluster, err error) {
+func (c *FakeNdbClusters) Update(ctx context.Context, ndbCluster *ndbcontrollerv1.NdbCluster, opts v1.UpdateOptions) (result *ndbcontrollerv1.NdbCluster, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(ndbclustersResource, c.ns, ndbCluster), &v1alpha1.NdbCluster{})
+		Invokes(testing.NewUpdateAction(ndbclustersResource, c.ns, ndbCluster), &ndbcontrollerv1.NdbCluster{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.NdbCluster), err
+	return obj.(*ndbcontrollerv1.NdbCluster), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeNdbClusters) UpdateStatus(ctx context.Context, ndbCluster *v1alpha1.NdbCluster, opts v1.UpdateOptions) (*v1alpha1.NdbCluster, error) {
+func (c *FakeNdbClusters) UpdateStatus(ctx context.Context, ndbCluster *ndbcontrollerv1.NdbCluster, opts v1.UpdateOptions) (*ndbcontrollerv1.NdbCluster, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(ndbclustersResource, "status", c.ns, ndbCluster), &v1alpha1.NdbCluster{})
+		Invokes(testing.NewUpdateSubresourceAction(ndbclustersResource, "status", c.ns, ndbCluster), &ndbcontrollerv1.NdbCluster{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.NdbCluster), err
+	return obj.(*ndbcontrollerv1.NdbCluster), err
 }
 
 // Delete takes name of the ndbCluster and deletes it. Returns an error if one occurs.
 func (c *FakeNdbClusters) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(ndbclustersResource, c.ns, name), &v1alpha1.NdbCluster{})
+		Invokes(testing.NewDeleteAction(ndbclustersResource, c.ns, name), &ndbcontrollerv1.NdbCluster{})
 
 	return err
 }
@@ -114,17 +114,17 @@ func (c *FakeNdbClusters) Delete(ctx context.Context, name string, opts v1.Delet
 func (c *FakeNdbClusters) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(ndbclustersResource, c.ns, listOpts)
 
-	_, err := c.Fake.Invokes(action, &v1alpha1.NdbClusterList{})
+	_, err := c.Fake.Invokes(action, &ndbcontrollerv1.NdbClusterList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched ndbCluster.
-func (c *FakeNdbClusters) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.NdbCluster, err error) {
+func (c *FakeNdbClusters) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *ndbcontrollerv1.NdbCluster, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(ndbclustersResource, c.ns, name, pt, data, subresources...), &v1alpha1.NdbCluster{})
+		Invokes(testing.NewPatchSubresourceAction(ndbclustersResource, c.ns, name, pt, data, subresources...), &ndbcontrollerv1.NdbCluster{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.NdbCluster), err
+	return obj.(*ndbcontrollerv1.NdbCluster), err
 }

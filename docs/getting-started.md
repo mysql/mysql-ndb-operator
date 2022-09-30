@@ -33,7 +33,7 @@ example-ndb   2         Ready:2/2          Ready:2/2    Ready:2/2       3m    Tr
 To list all the pods created by the NDB Operator, run :
 
 ```sh
-kubectl get pods -l mysql.oracle.com/v1alpha1=example-ndb
+kubectl get pods -l mysql.oracle.com/v1=example-ndb
 ```
 
 For `example-ndb` NdbCluster object, two management nodes (\*-mgmd-\* pods), two multi-threaded data nodes (\*-ndbmtd-\* pods) and two MySQL Servers (\*-mysqld-\*) would have been created by the NDB operator :
@@ -52,7 +52,7 @@ example-ndb-ndbmtd-1   1/1     Running   0          3m53s
 The NDB Operator, by default, creates few Services to expose the services offered by the MySQL Cluster nodes within the Kubernetes Cluster.
 
 ```sh
-kubectl get services -l mysql.oracle.com/v1alpha1=example-ndb
+kubectl get services -l mysql.oracle.com/v1=example-ndb
 ```
 
 The above command will generate an output similar to :

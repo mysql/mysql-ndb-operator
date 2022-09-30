@@ -29,7 +29,7 @@ webhooks:
       - apiGroups:
           - mysql.oracle.com
         apiVersions:
-          - v1alpha1
+          - v1
         operations:
           - CREATE
           - UPDATE

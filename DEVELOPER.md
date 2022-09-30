@@ -37,7 +37,7 @@ Once the image is built, it has to be made accessible to the K8s Cluster. For Ki
 
 ### Making changes to the NdbCluster type
 
-If any change is made to the NdbCluster type at [types.go](pkg/apis/ndbcontroller/v1alpha1/types.go), the clientset, informers and the listers at [pkg/generated](pkg/generated) have to be regenerated.
+If any change is made to the NdbCluster type at [types.go](pkg/apis/ndbcontroller/v1/types.go), the clientset, informers and the listers at [pkg/generated](pkg/generated) have to be regenerated.
 
 To regenerate them, run :
 ```sh

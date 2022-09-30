@@ -5,7 +5,7 @@
 package testutils
 
 import (
-	ndbcontroller "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	ndbcontroller "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

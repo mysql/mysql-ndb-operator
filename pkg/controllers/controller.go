@@ -23,11 +23,11 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/mysql/ndb-operator/config/debug"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	ndbinformers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
-	ndblisters "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
+	ndblisters "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/resources/statefulset"
 )
 
@@ -70,7 +70,7 @@ func NewController(
 	ndbSharedIndexInformer ndbinformers.SharedInformerFactory) *Controller {
 
 	// Register for all the required informers
-	ndbClusterInformer := ndbSharedIndexInformer.Mysql().V1alpha1().NdbClusters()
+	ndbClusterInformer := ndbSharedIndexInformer.Mysql().V1().NdbClusters()
 	statefulSetInformer := k8sSharedIndexInformer.Apps().V1().StatefulSets()
 	podInformer := k8sSharedIndexInformer.Core().V1().Pods()
 	serviceInformer := k8sSharedIndexInformer.Core().V1().Services()
@@ -118,17 +118,17 @@ func NewController(
 	ndbClusterInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 
 		AddFunc: func(obj interface{}) {
-			ndb := obj.(*v1alpha1.NdbCluster)
+			ndb := obj.(*v1.NdbCluster)
 			ndbKey := getNdbClusterKey(ndb)
 			klog.Infof("New NdbCluster resource added : %q, queueing it for reconciliation", ndbKey)
 			controller.workqueue.Add(ndbKey)
 		},
 
 		UpdateFunc: func(old, new interface{}) {
-			oldNdb := old.(*v1alpha1.NdbCluster)
+			oldNdb := old.(*v1.NdbCluster)
 			ndbKey := getNdbClusterKey(oldNdb)
 
-			newNdb := new.(*v1alpha1.NdbCluster)
+			newNdb := new.(*v1.NdbCluster)
 			if oldNdb.Generation != newNdb.Generation {
 				// Spec of the NdbCluster resource was updated.
 				klog.Infof("Spec of the NdbCluster resource %q was updated", ndbKey)
@@ -163,7 +163,7 @@ func NewController(
 			// resource will have proper owner resources setup. Due to that, this
 			// delete will automatically be cascaded to all those resources and
 			// the controller doesn't have to do anything.
-			ndb := obj.(*v1alpha1.NdbCluster)
+			ndb := obj.(*v1.NdbCluster)
 			klog.Infof("NdbCluster resource '%s' was deleted", getNdbClusterKey(ndb))
 		},
 	})
@@ -359,7 +359,7 @@ func (c *Controller) processNextWorkItem(ctx context.Context) (continueProcessin
 	return true
 }
 
-func (c *Controller) newSyncContext(ndb *v1alpha1.NdbCluster) *SyncContext {
+func (c *Controller) newSyncContext(ndb *v1.NdbCluster) *SyncContext {
 	return &SyncContext{
 		mgmdController:      c.mgmdController,
 		ndbmtdController:    c.ndbmtdController,

@@ -6,7 +6,7 @@ package statefulset
 
 import (
 	"github.com/mysql/ndb-operator/config/debug"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
 
@@ -31,14 +31,14 @@ type mgmdStatefulSet struct {
 	baseStatefulSet
 }
 
-func (mss *mgmdStatefulSet) NewGoverningService(nc *v1alpha1.NdbCluster) *corev1.Service {
+func (mss *mgmdStatefulSet) NewGoverningService(nc *v1.NdbCluster) *corev1.Service {
 	return newService(nc, mgmdPorts, mss.nodeType, false,
 		nc.Spec.ManagementNode != nil && nc.Spec.ManagementNode.EnableLoadBalancer)
 }
 
 // getPodVolumes returns a slice of volumes to be
 // made available to the management server pods.
-func (mss *mgmdStatefulSet) getPodVolumes(nc *v1alpha1.NdbCluster) []corev1.Volume {
+func (mss *mgmdStatefulSet) getPodVolumes(nc *v1.NdbCluster) []corev1.Volume {
 
 	return []corev1.Volume{
 		// Empty Dir volume for the mgmd data dir
@@ -107,7 +107,7 @@ func (mss *mgmdStatefulSet) getVolumeMounts() []corev1.VolumeMount {
 }
 
 // getContainers returns the containers to run a Management Node
-func (mss *mgmdStatefulSet) getContainers(nc *v1alpha1.NdbCluster) []corev1.Container {
+func (mss *mgmdStatefulSet) getContainers(nc *v1.NdbCluster) []corev1.Container {
 
 	// Command and args to run the management server
 	cmdAndArgs := []string{
@@ -164,7 +164,7 @@ func (mss *mgmdStatefulSet) getPodAntiAffinity() *corev1.PodAntiAffinity {
 }
 
 // NewStatefulSet returns the StatefulSet specification to start and manage the Management nodes.
-func (mss *mgmdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) (*appsv1.StatefulSet, error) {
+func (mss *mgmdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1.NdbCluster) (*appsv1.StatefulSet, error) {
 	statefulSet := mss.newStatefulSet(nc, cs)
 	statefulSetSpec := &statefulSet.Spec
 

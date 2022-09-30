@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
 	"github.com/mysql/ndb-operator/pkg/resources"
@@ -24,9 +24,9 @@ import (
 // NdbStatefulSetInterface defines the methods to be implemented by the StatefulSets of the MySQL Cluster nodes
 type NdbStatefulSetInterface interface {
 	GetTypeName() constants.NdbNodeType
-	GetName(nc *v1alpha1.NdbCluster) string
-	NewGoverningService(nc *v1alpha1.NdbCluster) *corev1.Service
-	NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1alpha1.NdbCluster) (*appsv1.StatefulSet, error)
+	GetName(nc *v1.NdbCluster) string
+	NewGoverningService(nc *v1.NdbCluster) *corev1.Service
+	NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1.NdbCluster) (*appsv1.StatefulSet, error)
 }
 
 type baseStatefulSet struct {
@@ -43,14 +43,14 @@ func (bss *baseStatefulSet) getContainerName(initContainer bool) string {
 }
 
 // getStatefulSetLabels returns the labels of the StatefulSet
-func (bss *baseStatefulSet) getStatefulSetLabels(nc *v1alpha1.NdbCluster) map[string]string {
+func (bss *baseStatefulSet) getStatefulSetLabels(nc *v1.NdbCluster) map[string]string {
 	return nc.GetCompleteLabels(map[string]string{
 		constants.ClusterResourceTypeLabel: bss.nodeType + "-statefulset",
 	})
 }
 
 // getPodLabels generates the labels of the pods controlled by the StatefulSets
-func (bss *baseStatefulSet) getPodLabels(nc *v1alpha1.NdbCluster) map[string]string {
+func (bss *baseStatefulSet) getPodLabels(nc *v1.NdbCluster) map[string]string {
 	return nc.GetCompleteLabels(map[string]string{
 		constants.ClusterNodeTypeLabel: bss.nodeType,
 	})
@@ -82,7 +82,7 @@ func (bss *baseStatefulSet) getHelperScriptVolumeMount() corev1.VolumeMount {
 
 // createContainer creates a new container for the StatefulSet with default values
 func (bss *baseStatefulSet) createContainer(
-	nc *v1alpha1.NdbCluster, containerName string, commandAndArgs []string,
+	nc *v1.NdbCluster, containerName string, commandAndArgs []string,
 	volumeMounts []corev1.VolumeMount, portNumbers []int32) corev1.Container {
 
 	// Expose the ports passed via portNumbers
@@ -138,7 +138,7 @@ func (bss *baseStatefulSet) getWorkDirVolumeMount() corev1.VolumeMount {
 }
 
 // getDefaultInitContainers returns the default init containers to be run
-func (bss *baseStatefulSet) getDefaultInitContainers(nc *v1alpha1.NdbCluster) []corev1.Container {
+func (bss *baseStatefulSet) getDefaultInitContainers(nc *v1.NdbCluster) []corev1.Container {
 
 	// The ndb-pod-initializer is tool is the only default container to be run
 	cmdAndArgs := []string{
@@ -184,7 +184,7 @@ func (bss *baseStatefulSet) getDefaultInitContainers(nc *v1alpha1.NdbCluster) []
 // newStatefulSet defines a new StatefulSet that will be
 // used by the mgmd and ndbmtd StatefulSets
 func (bss *baseStatefulSet) newStatefulSet(
-	nc *v1alpha1.NdbCluster, cs *ndbconfig.ConfigSummary) *appsv1.StatefulSet {
+	nc *v1.NdbCluster, cs *ndbconfig.ConfigSummary) *appsv1.StatefulSet {
 
 	// Fill in the podSpec with any provided ImagePullSecrets
 	var podSpec corev1.PodSpec
@@ -239,7 +239,7 @@ func (bss *baseStatefulSet) newStatefulSet(
 }
 
 // GetName returns the name of the baseStatefulSet
-func (bss *baseStatefulSet) GetName(nc *v1alpha1.NdbCluster) string {
+func (bss *baseStatefulSet) GetName(nc *v1.NdbCluster) string {
 	return nc.GetWorkloadName(bss.nodeType)
 }
 

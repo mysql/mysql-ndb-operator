@@ -7,7 +7,7 @@ package controllers
 import (
 	"fmt"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/resources"
 
 	corev1 "k8s.io/api/core/v1"
@@ -17,7 +17,7 @@ import (
 // statusEqual checks if the given two NdbClusterStatuses are equal.
 // This function does not compare all the fields of the conditions
 // as they are already dependent on the Status field.
-func statusEqual(oldStatus *v1alpha1.NdbClusterStatus, newStatus *v1alpha1.NdbClusterStatus) bool {
+func statusEqual(oldStatus *v1.NdbClusterStatus, newStatus *v1.NdbClusterStatus) bool {
 	return oldStatus.ProcessedGeneration == newStatus.ProcessedGeneration &&
 		oldStatus.ReadyManagementNodes == newStatus.ReadyManagementNodes &&
 		oldStatus.ReadyDataNodes == newStatus.ReadyDataNodes &&
@@ -28,11 +28,11 @@ func statusEqual(oldStatus *v1alpha1.NdbClusterStatus, newStatus *v1alpha1.NdbCl
 }
 
 // calculateNdbClusterStatus generates the current status for the NdbCluster in SyncContext
-func (sc *SyncContext) calculateNdbClusterStatus() *v1alpha1.NdbClusterStatus {
+func (sc *SyncContext) calculateNdbClusterStatus() *v1.NdbClusterStatus {
 
 	// Generate status for the NdbCluster resource
 	nc := sc.ndb
-	status := &v1alpha1.NdbClusterStatus{}
+	status := &v1.NdbClusterStatus{}
 
 	// Generate Management, Data Nodes and MySQL Servers status fields
 	// Node ready status for Management Nodes
@@ -68,15 +68,15 @@ func (sc *SyncContext) calculateNdbClusterStatus() *v1alpha1.NdbClusterStatus {
 		"Ready:%d/%d", numOfReadyMySQLNodes, numOfMySQLServersRequired)
 
 	// Set processedGeneration and upToDate condition
-	upToDateCondition := v1alpha1.NdbClusterCondition{
-		Type:               v1alpha1.NdbClusterUpToDate,
+	upToDateCondition := v1.NdbClusterCondition{
+		Type:               v1.NdbClusterUpToDate,
 		LastTransitionTime: metav1.Now(),
 	}
 	if sc.syncSuccess {
 		status.ProcessedGeneration = nc.Generation
 		// Set the NdbClusterUpToDate condition
 		upToDateCondition.Status = corev1.ConditionTrue
-		upToDateCondition.Reason = v1alpha1.NdbClusterUptoDateReasonSyncSuccess
+		upToDateCondition.Reason = v1.NdbClusterUptoDateReasonSyncSuccess
 		upToDateCondition.Message = fmt.Sprintf(
 			"NdbCluster Spec generation %d was successfully applied to the MySQL Cluster",
 			status.ProcessedGeneration)
@@ -86,11 +86,11 @@ func (sc *SyncContext) calculateNdbClusterStatus() *v1alpha1.NdbClusterStatus {
 		upToDateCondition.Status = corev1.ConditionFalse
 		if nc.Generation == 1 {
 			// The MySQL Cluster nodes are being started for the first time
-			upToDateCondition.Reason = v1alpha1.NdbClusterUptoDateReasonISR
+			upToDateCondition.Reason = v1.NdbClusterUptoDateReasonISR
 			upToDateCondition.Message = "MySQL Cluster is starting up"
 		} else {
 			// Config change is being applied to the nodes
-			upToDateCondition.Reason = v1alpha1.NdbClusterUptoDateReasonSpecUpdateInProgress
+			upToDateCondition.Reason = v1.NdbClusterUptoDateReasonSpecUpdateInProgress
 			upToDateCondition.Message = fmt.Sprintf(
 				"NdbCluster spec generation %d is being applied to the MySQL Cluster", nc.Generation)
 		}

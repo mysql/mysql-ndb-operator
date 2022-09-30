@@ -8,7 +8,7 @@ import (
 	"embed"
 	"fmt"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
 
@@ -25,7 +25,7 @@ var scriptsFS embed.FS
 // updateManagementConfig updates the Data map with a new config.ini
 // if there is any change to the MySQL Cluster configuration.
 func updateManagementConfig(
-	ndb *v1alpha1.NdbCluster, data map[string]string, oldConfigSummary *ndbconfig.ConfigSummary) error {
+	ndb *v1.NdbCluster, data map[string]string, oldConfigSummary *ndbconfig.ConfigSummary) error {
 
 	// Update management if required
 	if oldConfigSummary == nil || oldConfigSummary.MySQLClusterConfigNeedsUpdate(ndb) {
@@ -55,7 +55,7 @@ func updateManagementConfig(
 
 // updateMySQLConfig updates the my.cnf key in the configMap if required
 func updateMySQLConfig(
-	nc *v1alpha1.NdbCluster, data map[string]string, oldConfigSummary *ndbconfig.ConfigSummary) error {
+	nc *v1.NdbCluster, data map[string]string, oldConfigSummary *ndbconfig.ConfigSummary) error {
 
 	if needsUpdate, err := oldConfigSummary.MySQLCnfNeedsUpdate(nc); err != nil {
 		klog.Errorf("Failed to check if the my.cnf needs to be updated : %s", err)
@@ -104,7 +104,7 @@ func updateHelperScripts(data map[string]string) error {
 
 // GetUpdatedConfigMap creates and returns a new config map with updated data
 func GetUpdatedConfigMap(
-	ndb *v1alpha1.NdbCluster, cm *corev1.ConfigMap, oldConfigSummary *ndbconfig.ConfigSummary) *corev1.ConfigMap {
+	ndb *v1.NdbCluster, cm *corev1.ConfigMap, oldConfigSummary *ndbconfig.ConfigSummary) *corev1.ConfigMap {
 	// create a deep copy of the original ConfigMap
 	updatedCm := cm.DeepCopy()
 
@@ -128,7 +128,7 @@ func GetUpdatedConfigMap(
 
 // CreateConfigMap creates a config map object with the
 // information available in the ndb object
-func CreateConfigMap(ndb *v1alpha1.NdbCluster) *corev1.ConfigMap {
+func CreateConfigMap(ndb *v1.NdbCluster) *corev1.ConfigMap {
 
 	/*
 		kind: ConfigMap

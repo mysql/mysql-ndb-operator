@@ -8,7 +8,7 @@ import (
 	"context"
 
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 
@@ -21,7 +21,7 @@ import (
 var _ = ndbtest.NewOrderedTestCase("NdbCluster validation", func(tc *ndbtest.TestContext) {
 	var ns string
 	var ctx context.Context
-	var testNdb *v1alpha1.NdbCluster
+	var testNdb *v1.NdbCluster
 	var ndbclient ndbclientset.Interface
 
 	ginkgo.BeforeAll(func() {
@@ -40,7 +40,7 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster validation", func(tc *ndbtest.Tes
 
 		ginkgo.Specify("a data node count that is not a multiple of redundancyLevel", func() {
 			testNdb.Spec.DataNode.NodeCount = 1
-			_, err := ndbclient.MysqlV1alpha1().NdbClusters(ns).Create(ctx, testNdb, metav1.CreateOptions{})
+			_, err := ndbclient.MysqlV1().NdbClusters(ns).Create(ctx, testNdb, metav1.CreateOptions{})
 			ndbtest.ExpectError(err)
 			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
 				"spec.dataNode.nodeCount: Invalid value: 1: spec.dataNode.nodeCount should be a multiple of the spec.redundancyLevel(=2)"))
@@ -48,7 +48,7 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster validation", func(tc *ndbtest.Tes
 
 		ginkgo.Specify("a data node count that exceeds the maximum", func() {
 			testNdb.Spec.DataNode.NodeCount = 145
-			_, err := ndbclient.MysqlV1alpha1().NdbClusters(ns).Create(ctx, testNdb, metav1.CreateOptions{})
+			_, err := ndbclient.MysqlV1().NdbClusters(ns).Create(ctx, testNdb, metav1.CreateOptions{})
 			ndbtest.ExpectError(err)
 			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
 				"spec.dataNode.nodeCount: Invalid value: 145: spec.dataNode.nodeCount in body should be less than or equal to 144"))
@@ -62,7 +62,7 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster validation", func(tc *ndbtest.Tes
 				"HostName":     getIntStrPtrFromString("localhost"),
 				"dataDir":      getIntStrPtrFromString("/tmp"),
 			}
-			_, err := ndbclient.MysqlV1alpha1().NdbClusters(ns).Create(ctx, testNdb, metav1.CreateOptions{})
+			_, err := ndbclient.MysqlV1().NdbClusters(ns).Create(ctx, testNdb, metav1.CreateOptions{})
 			ndbtest.ExpectError(err)
 			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
 				"spec.dataNode.config.NoOfReplicas: Forbidden: config param \"NoOfReplicas\" is not allowed in spec.dataNode.config"))
@@ -79,7 +79,7 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster validation", func(tc *ndbtest.Tes
 				"PortNumber": getIntStrPtrFromString("33333"),
 				"HostName":   getIntStrPtrFromString("localhost"),
 			}
-			_, err := ndbclient.MysqlV1alpha1().NdbClusters(ns).Create(ctx, testNdb, metav1.CreateOptions{})
+			_, err := ndbclient.MysqlV1().NdbClusters(ns).Create(ctx, testNdb, metav1.CreateOptions{})
 			ndbtest.ExpectError(err)
 			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
 				"spec.managementNode.config.PortNumber: Forbidden: config param \"PortNumber\" is not allowed in spec.managementNode.config"))

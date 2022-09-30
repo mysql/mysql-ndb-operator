@@ -21,12 +21,12 @@ annotations:
       image: mysql/ndb-operator:latest
   artifacthub.io/crds: |
     - kind: NdbCluster
-      version: v1alpha1
+      version: v1
       name: ndbcluster.mysql.oracle.com
       displayName: MySQL NDB Cluster
       description: MySQL NDB Cluster configuration
   artifacthub.io/crdsExamples: |
-    - apiVersion: mysql.oracle.com/v1alpha1
+    - apiVersion: mysql.oracle.com/v1
       kind: NdbCluster
       metadata:
         name: my-ndb

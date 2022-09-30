@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/mysql/ndb-operator/config/debug"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig/configparser"
 )
@@ -112,7 +112,7 @@ func NewConfigSummary(configMapData map[string]string) (*ConfigSummary, error) {
 }
 
 // MySQLClusterConfigNeedsUpdate checks if the config of the MySQL Cluster needs to be updated.
-func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1alpha1.NdbCluster) (needsUpdate bool) {
+func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1.NdbCluster) (needsUpdate bool) {
 	// Check if the default ndbd section has been updated
 	newNdbdConfig := nc.Spec.DataNode.Config
 	// Operator sets NoOfReplicas and ServerPort in the default
@@ -166,7 +166,7 @@ func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1alpha1.NdbCluster) 
 }
 
 // MySQLCnfNeedsUpdate checks if the my.cnf config stored in the configMap needs to be updated
-func (cs *ConfigSummary) MySQLCnfNeedsUpdate(nc *v1alpha1.NdbCluster) (needsUpdate bool, err error) {
+func (cs *ConfigSummary) MySQLCnfNeedsUpdate(nc *v1.NdbCluster) (needsUpdate bool, err error) {
 	myCnf := nc.GetMySQLCnf()
 
 	if cs == nil {

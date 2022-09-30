@@ -28,7 +28,7 @@ func WaitForNdbOperatorReady(ctx context.Context, ndbClientset ndbclient.Interfa
 	nc := crdutils.NewTestNdbCrd(namespace, "test-webhook-ready", 1, 1, 1)
 	err := wait.PollImmediate(500*time.Millisecond, 5*time.Minute, func() (done bool, err error) {
 		// The Webhook server is ready if a dry run attempt to create a new NdbCluster object succeeds
-		_, err = ndbClientset.MysqlV1alpha1().NdbClusters(namespace).Create(ctx, nc, metav1.CreateOptions{
+		_, err = ndbClientset.MysqlV1().NdbClusters(namespace).Create(ctx, nc, metav1.CreateOptions{
 			DryRun: []string{metav1.DryRunAll},
 		})
 

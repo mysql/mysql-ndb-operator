@@ -7,7 +7,7 @@ package e2e
 import (
 	"context"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 
@@ -26,7 +26,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 	var ctx context.Context
 	var ns, ndbName string
 	var c clientset.Interface
-	var testNdb *v1alpha1.NdbCluster
+	var testNdb *v1.NdbCluster
 	var mysqlSfsetName string
 
 	ginkgo.BeforeAll(func() {
@@ -92,7 +92,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 
 		ginkgo.It("should be able to connect to and run queries to create a database and table", func() {
 			// Update testNdb to reflect the changes made by the mutator
-			testNdb.Spec.MysqlNode = &v1alpha1.NdbMysqldSpec{
+			testNdb.Spec.MysqlNode = &v1.NdbMysqldSpec{
 				NodeCount:    1,
 				MaxNodeCount: 1,
 			}
@@ -107,7 +107,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 	// TestCase-2
 	ginkgo.When("NodeCount and MaxNodeCount are increased", func() {
 		ginkgo.BeforeAll(func() {
-			testNdb.Spec.MysqlNode = &v1alpha1.NdbMysqldSpec{
+			testNdb.Spec.MysqlNode = &v1.NdbMysqldSpec{
 				NodeCount:    3,
 				MaxNodeCount: 5,
 			}

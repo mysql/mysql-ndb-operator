@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+# Copyright (c) 2020, 2022, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -36,7 +36,7 @@ bash "${CODEGEN_PKG}"/generate-groups.sh \
   "deepcopy,client,informer,lister" \
   "${PROJECT_MODULE}/pkg/generated" \
   "${PROJECT_MODULE}/pkg/apis" \
-  ndbcontroller:v1alpha1 \
+  ndbcontroller:v1 \
   --output-base  "${OUTPUT_BASE}" \
   --go-header-file "${SCRIPT_ROOT}"/hack/ndb-boilerplate.go.txt
 
@@ -47,6 +47,6 @@ bash "${CODEGEN_PKG}"/generate-groups.sh \
 # and will thus be generated in the directory named the same
 # move stuff from there
 cp -r ${PROJECT_MODULE}/pkg/generated pkg/
-cp ${PROJECT_MODULE}/pkg/apis/ndbcontroller/v1alpha1/zz_generated.deepcopy.go \
-    pkg/apis/ndbcontroller/v1alpha1/zz_generated.deepcopy.go
+cp ${PROJECT_MODULE}/pkg/apis/ndbcontroller/v1/zz_generated.deepcopy.go \
+    pkg/apis/ndbcontroller/v1/zz_generated.deepcopy.go
 rm -rf $(echo ${PROJECT_MODULE} | awk -F "/" '{print $1}')

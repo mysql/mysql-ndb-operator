@@ -46,7 +46,7 @@ spec:
       jsonPath: .status.conditions[?(@.type=='UpToDate')].status
       name: Up-To-Date
       type: string
-    name: v1alpha1
+    name: v1
     schema:
       openAPIV3Schema:
         description: NdbCluster is the Schema for the Ndb CRD API

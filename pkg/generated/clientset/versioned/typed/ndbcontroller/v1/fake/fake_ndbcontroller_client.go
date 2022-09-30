@@ -7,22 +7,22 @@
 package fake
 
 import (
-	v1alpha1 "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/typed/ndbcontroller/v1alpha1"
+	v1 "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/typed/ndbcontroller/v1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )
 
-type FakeMysqlV1alpha1 struct {
+type FakeMysqlV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeMysqlV1alpha1) NdbClusters(namespace string) v1alpha1.NdbClusterInterface {
+func (c *FakeMysqlV1) NdbClusters(namespace string) v1.NdbClusterInterface {
 	return &FakeNdbClusters{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FakeMysqlV1alpha1) RESTClient() rest.Interface {
+func (c *FakeMysqlV1) RESTClient() rest.Interface {
 	var ret *rest.RESTClient
 	return ret
 }

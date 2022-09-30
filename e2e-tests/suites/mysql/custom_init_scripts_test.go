@@ -15,7 +15,7 @@ import (
 
 	mysqlutils "github.com/mysql/ndb-operator/e2e-tests/utils/mysql"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 )
 
@@ -60,7 +60,7 @@ func getConfigMaps() []corev1.ConfigMap {
 // expectQueryIntValue will execute a given query in the database and check if the query output is same
 // as the expected value
 func expectQueryIntValue(
-	ctx context.Context, c clientset.Interface, testNdb *v1alpha1.NdbCluster, query string, expectedValue int) {
+	ctx context.Context, c clientset.Interface, testNdb *v1.NdbCluster, query string, expectedValue int) {
 	ginkgo.By("verifying given query has the right value")
 	db := mysqlutils.Connect(c, testNdb, dbName)
 	row := db.QueryRowContext(ctx, query)
@@ -73,7 +73,7 @@ func expectQueryIntValue(
 
 var _ = ndbtest.NewOrderedTestCase("Custom init scripts", func(tc *ndbtest.TestContext) {
 	var c clientset.Interface
-	var testNdb *v1alpha1.NdbCluster
+	var testNdb *v1.NdbCluster
 	var ctx context.Context
 	ginkgo.BeforeAll(func() {
 		ginkgo.By("extracting values from TestContext")

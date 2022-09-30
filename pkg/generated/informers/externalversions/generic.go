@@ -9,7 +9,7 @@ package externalversions
 import (
 	"fmt"
 
-	v1alpha1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -40,9 +40,9 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=mysql.oracle.com, Version=v1alpha1
-	case v1alpha1.SchemeGroupVersion.WithResource("ndbclusters"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Mysql().V1alpha1().NdbClusters().Informer()}, nil
+	// Group=mysql.oracle.com, Version=v1
+	case v1.SchemeGroupVersion.WithResource("ndbclusters"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Mysql().V1().NdbClusters().Informer()}, nil
 
 	}
 

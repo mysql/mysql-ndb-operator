@@ -19,7 +19,7 @@ const (
 const (
 	// ClusterLabel is applied to all the resources owned by an
 	// NdbCluster resource
-	ClusterLabel = ndbcontroller.GroupName + "/v1alpha1"
+	ClusterLabel = ndbcontroller.GroupName + "/v1"
 	// ClusterNodeTypeLabel is applied to all the pods owned by an
 	// NdbCluster resource
 	ClusterNodeTypeLabel = ndbcontroller.GroupName + "/node-type"

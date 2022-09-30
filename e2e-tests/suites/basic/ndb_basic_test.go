@@ -20,7 +20,7 @@ import (
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbutils"
 	sfset_utils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 )
@@ -30,7 +30,7 @@ var _ = ndbtest.NewOrderedTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 	var ns string
 	var c clientset.Interface
 	var ndbName string
-	var testNdb *v1alpha1.NdbCluster
+	var testNdb *v1.NdbCluster
 
 	ginkgo.BeforeEach(func() {
 		ginkgo.By("extracting values from TestContext")

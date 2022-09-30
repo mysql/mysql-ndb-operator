@@ -17,9 +17,9 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
-	ndblisters "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1alpha1"
+	ndblisters "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/mgmapi"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
 )
@@ -34,7 +34,7 @@ type SyncContext struct {
 	dataNodeSfSet *appsv1.StatefulSet
 	mysqldSfset   *appsv1.StatefulSet
 
-	ndb *v1alpha1.NdbCluster
+	ndb *v1.NdbCluster
 
 	// controller handling creation and changes of resources
 	mysqldController    *MySQLDStatefulSetController
@@ -485,7 +485,7 @@ func (sc *SyncContext) updateNdbClusterStatus(ctx context.Context) (statusUpdate
 	// Update the status. Use RetryOnConflict to automatically handle
 	// conflicts that can occur if the spec changes between the time
 	// the controller gets the NdbCluster object and updates it.
-	ndbClusterInterface := sc.ndbClientset().MysqlV1alpha1().NdbClusters(sc.ndb.Namespace)
+	ndbClusterInterface := sc.ndbClientset().MysqlV1().NdbClusters(sc.ndb.Namespace)
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// Check if the status has changed, if not the K8s update can be skipped
 		if statusEqual(&nc.Status, status) {

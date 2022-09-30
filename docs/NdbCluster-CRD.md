@@ -2,18 +2,18 @@
 <p>Packages:</p>
 <ul>
 <li>
-<a href="#mysql.oracle.com%2fv1alpha1">mysql.oracle.com/v1alpha1</a>
+<a href="#mysql.oracle.com%2fv1">mysql.oracle.com/v1</a>
 </li>
 </ul>
-<h2 id="mysql.oracle.com/v1alpha1">mysql.oracle.com/v1alpha1</h2>
+<h2 id="mysql.oracle.com/v1">mysql.oracle.com/v1</h2>
 <div>
-<p>Package v1alpha1 is the v1alpha1 version of the API.</p>
+<p>Package v1 is the v1 version of the API.</p>
 </div>
 Resource Types:
 <ul><li>
-<a href="#mysql.oracle.com/v1alpha1.NdbCluster">NdbCluster</a>
+<a href="#mysql.oracle.com/v1.NdbCluster">NdbCluster</a>
 </li></ul>
-<h3 id="mysql.oracle.com/v1alpha1.NdbCluster">NdbCluster
+<h3 id="mysql.oracle.com/v1.NdbCluster">NdbCluster
 </h3>
 <div>
 <p>NdbCluster is the Schema for the Ndb CRD API</p>
@@ -32,7 +32,7 @@ Resource Types:
 string</td>
 <td>
 <code>
-mysql.oracle.com/v1alpha1
+mysql.oracle.com/v1
 </code>
 </td>
 </tr>
@@ -47,7 +47,7 @@ string
 <td>
 <code>spec</code><br/>
 <em>
-<a href="#mysql.oracle.com/v1alpha1.NdbClusterSpec">NdbClusterSpec</a>
+<a href="#mysql.oracle.com/v1.NdbClusterSpec">NdbClusterSpec</a>
 </em>
 </td>
 <td>
@@ -58,7 +58,7 @@ string
 <td>
 <code>status</code><br/>
 <em>
-<a href="#mysql.oracle.com/v1alpha1.NdbClusterStatus">NdbClusterStatus</a>
+<a href="#mysql.oracle.com/v1.NdbClusterStatus">NdbClusterStatus</a>
 </em>
 </td>
 <td>
@@ -67,10 +67,10 @@ string
 </tr>
 </tbody>
 </table>
-<h3 id="mysql.oracle.com/v1alpha1.NdbClusterCondition">NdbClusterCondition
+<h3 id="mysql.oracle.com/v1.NdbClusterCondition">NdbClusterCondition
 </h3>
 <p>
-(<em>Appears on:</em><a href="#mysql.oracle.com/v1alpha1.NdbClusterStatus">NdbClusterStatus</a>)
+(<em>Appears on:</em><a href="#mysql.oracle.com/v1.NdbClusterStatus">NdbClusterStatus</a>)
 </p>
 <div>
 <p>NdbClusterCondition describes the state of a MySQL Cluster installation at a certain point.</p>
@@ -87,7 +87,7 @@ string
 <td>
 <code>type</code><br/>
 <em>
-<a href="#mysql.oracle.com/v1alpha1.NdbClusterConditionType">NdbClusterConditionType</a>
+<a href="#mysql.oracle.com/v1.NdbClusterConditionType">NdbClusterConditionType</a>
 </em>
 </td>
 <td>
@@ -140,10 +140,10 @@ string
 </tr>
 </tbody>
 </table>
-<h3 id="mysql.oracle.com/v1alpha1.NdbClusterConditionType">NdbClusterConditionType
+<h3 id="mysql.oracle.com/v1.NdbClusterConditionType">NdbClusterConditionType
 (<code>string</code> alias)</h3>
 <p>
-(<em>Appears on:</em><a href="#mysql.oracle.com/v1alpha1.NdbClusterCondition">NdbClusterCondition</a>)
+(<em>Appears on:</em><a href="#mysql.oracle.com/v1.NdbClusterCondition">NdbClusterCondition</a>)
 </p>
 <div>
 <p>NdbClusterConditionType defines type for NdbCluster condition.</p>
@@ -161,10 +161,10 @@ is up-to-date with the NdbCluster resource spec</p>
 </td>
 </tr></tbody>
 </table>
-<h3 id="mysql.oracle.com/v1alpha1.NdbClusterPodSpec">NdbClusterPodSpec
+<h3 id="mysql.oracle.com/v1.NdbClusterPodSpec">NdbClusterPodSpec
 </h3>
 <p>
-(<em>Appears on:</em><a href="#mysql.oracle.com/v1alpha1.NdbDataNodeSpec">NdbDataNodeSpec</a>, <a href="#mysql.oracle.com/v1alpha1.NdbManagementNodeSpec">NdbManagementNodeSpec</a>, <a href="#mysql.oracle.com/v1alpha1.NdbMysqldSpec">NdbMysqldSpec</a>)
+(<em>Appears on:</em><a href="#mysql.oracle.com/v1.NdbDataNodeSpec">NdbDataNodeSpec</a>, <a href="#mysql.oracle.com/v1.NdbManagementNodeSpec">NdbManagementNodeSpec</a>, <a href="#mysql.oracle.com/v1.NdbMysqldSpec">NdbMysqldSpec</a>)
 </p>
 <div>
 <p>NdbClusterPodSpec contains a subset of PodSpec fields which when set
@@ -246,10 +246,10 @@ If not specified, the pod will be dispatched by default scheduler.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="mysql.oracle.com/v1alpha1.NdbClusterSpec">NdbClusterSpec
+<h3 id="mysql.oracle.com/v1.NdbClusterSpec">NdbClusterSpec
 </h3>
 <p>
-(<em>Appears on:</em><a href="#mysql.oracle.com/v1alpha1.NdbCluster">NdbCluster</a>)
+(<em>Appears on:</em><a href="#mysql.oracle.com/v1.NdbCluster">NdbCluster</a>)
 </p>
 <div>
 <p>NdbClusterSpec defines the desired state of a MySQL NDB Cluster</p>
@@ -291,7 +291,7 @@ This value is immutable.</p>
 <td>
 <code>managementNode</code><br/>
 <em>
-<a href="#mysql.oracle.com/v1alpha1.NdbManagementNodeSpec">NdbManagementNodeSpec</a>
+<a href="#mysql.oracle.com/v1.NdbManagementNodeSpec">NdbManagementNodeSpec</a>
 </em>
 </td>
 <td>
@@ -303,7 +303,7 @@ This value is immutable.</p>
 <td>
 <code>dataNode</code><br/>
 <em>
-<a href="#mysql.oracle.com/v1alpha1.NdbDataNodeSpec">NdbDataNodeSpec</a>
+<a href="#mysql.oracle.com/v1.NdbDataNodeSpec">NdbDataNodeSpec</a>
 </em>
 </td>
 <td>
@@ -314,7 +314,7 @@ This value is immutable.</p>
 <td>
 <code>mysqlNode</code><br/>
 <em>
-<a href="#mysql.oracle.com/v1alpha1.NdbMysqldSpec">NdbMysqldSpec</a>
+<a href="#mysql.oracle.com/v1.NdbMysqldSpec">NdbMysqldSpec</a>
 </em>
 </td>
 <td>
@@ -380,10 +380,10 @@ holds the credentials required for pulling the MySQL Cluster image.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="mysql.oracle.com/v1alpha1.NdbClusterStatus">NdbClusterStatus
+<h3 id="mysql.oracle.com/v1.NdbClusterStatus">NdbClusterStatus
 </h3>
 <p>
-(<em>Appears on:</em><a href="#mysql.oracle.com/v1alpha1.NdbCluster">NdbCluster</a>)
+(<em>Appears on:</em><a href="#mysql.oracle.com/v1.NdbCluster">NdbCluster</a>)
 </p>
 <div>
 <p>NdbClusterStatus is the status for a Ndb resource</p>
@@ -446,7 +446,7 @@ string
 <td>
 <code>conditions</code><br/>
 <em>
-<a href="#mysql.oracle.com/v1alpha1.NdbClusterCondition">[]NdbClusterCondition</a>
+<a href="#mysql.oracle.com/v1.NdbClusterCondition">[]NdbClusterCondition</a>
 </em>
 </td>
 <td>
@@ -470,10 +470,10 @@ spec.mysqlNode.rootPasswordSecretName.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="mysql.oracle.com/v1alpha1.NdbDataNodeSpec">NdbDataNodeSpec
+<h3 id="mysql.oracle.com/v1.NdbDataNodeSpec">NdbDataNodeSpec
 </h3>
 <p>
-(<em>Appears on:</em><a href="#mysql.oracle.com/v1alpha1.NdbClusterSpec">NdbClusterSpec</a>)
+(<em>Appears on:</em><a href="#mysql.oracle.com/v1.NdbClusterSpec">NdbClusterSpec</a>)
 </p>
 <div>
 <p>NdbDataNodeSpec is the specification of data node in MySQL Cluster</p>
@@ -504,7 +504,7 @@ map[string]*<a href="https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntO
 <td>
 <code>ndbPodSpec</code><br/>
 <em>
-<a href="#mysql.oracle.com/v1alpha1.NdbClusterPodSpec">NdbClusterPodSpec</a>
+<a href="#mysql.oracle.com/v1.NdbClusterPodSpec">NdbClusterPodSpec</a>
 </em>
 </td>
 <td>
@@ -545,10 +545,10 @@ the data node pod and the container.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="mysql.oracle.com/v1alpha1.NdbManagementNodeSpec">NdbManagementNodeSpec
+<h3 id="mysql.oracle.com/v1.NdbManagementNodeSpec">NdbManagementNodeSpec
 </h3>
 <p>
-(<em>Appears on:</em><a href="#mysql.oracle.com/v1alpha1.NdbClusterSpec">NdbClusterSpec</a>)
+(<em>Appears on:</em><a href="#mysql.oracle.com/v1.NdbClusterSpec">NdbClusterSpec</a>)
 </p>
 <div>
 <p>NdbManagementNodeSpec is the specification of management node in MySQL Cluster</p>
@@ -579,7 +579,7 @@ map[string]*<a href="https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntO
 <td>
 <code>ndbPodSpec</code><br/>
 <em>
-<a href="#mysql.oracle.com/v1alpha1.NdbClusterPodSpec">NdbClusterPodSpec</a>
+<a href="#mysql.oracle.com/v1.NdbClusterPodSpec">NdbClusterPodSpec</a>
 </em>
 </td>
 <td>
@@ -607,10 +607,10 @@ exposing the management Servers outside the kubernetes cluster.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="mysql.oracle.com/v1alpha1.NdbMysqldSpec">NdbMysqldSpec
+<h3 id="mysql.oracle.com/v1.NdbMysqldSpec">NdbMysqldSpec
 </h3>
 <p>
-(<em>Appears on:</em><a href="#mysql.oracle.com/v1alpha1.NdbClusterSpec">NdbClusterSpec</a>)
+(<em>Appears on:</em><a href="#mysql.oracle.com/v1.NdbClusterSpec">NdbClusterSpec</a>)
 </p>
 <div>
 <p>NdbMysqldSpec is the specification of MySQL Servers to be run as an SQL Frontend</p>
@@ -726,7 +726,7 @@ exposing the MySQL servers outside the kubernetes cluster.</p>
 <td>
 <code>ndbPodSpec</code><br/>
 <em>
-<a href="#mysql.oracle.com/v1alpha1.NdbClusterPodSpec">NdbClusterPodSpec</a>
+<a href="#mysql.oracle.com/v1.NdbClusterPodSpec">NdbClusterPodSpec</a>
 </em>
 </td>
 <td>

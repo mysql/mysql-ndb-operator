@@ -7,7 +7,7 @@ package controllers
 import (
 	"strconv"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1alpha1"
+	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/resources/statefulset"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -32,7 +32,7 @@ func getNamespacedName2(namespace, name string) string {
 
 // getNdbClusterKey returns a key for the
 // given NdbCluster of form <namespace>/<name>.
-func getNdbClusterKey(nc *v1alpha1.NdbCluster) string {
+func getNdbClusterKey(nc *v1.NdbCluster) string {
 	return getNamespacedName(nc)
 }
 
