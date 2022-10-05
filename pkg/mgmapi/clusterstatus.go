@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -105,6 +105,12 @@ func (cs ClusterStatus) ensureNode(nodeId int) *NodeStatus {
 	return nodeStatus
 }
 
+// Nodegroup of data nodes added to cluster through online add procedure
+const (
+	NodeGroupNewDisconnectedDataNode = 65536
+	NodeGroupNewConnectedDataNode    = -256
+)
+
 // IsHealthy returns true if the MySQL Cluster is healthy,
 // i.e., if all the data and management nodes are connected and ready
 func (cs ClusterStatus) IsHealthy() bool {
@@ -121,12 +127,7 @@ func (cs ClusterStatus) IsHealthy() bool {
 				// valid nodegroup until they are inducted into
 				// the cluster. So, any unconnected node without
 				// that nodegroup is an unhealthy node.
-				// TODO: Verify if this still holds true during the online add node.
-				//       If a node is being started on the Node slot with NG 65536,
-				//       it will change its NG to -256 once it gets connected. This
-				//       method might wrongly report such a node as healthy before it
-				//       reaches the connected state.
-				if ns.NodeGroup != 65536 {
+				if ns.NodeGroup != NodeGroupNewDisconnectedDataNode {
 					return false
 				}
 			}
@@ -146,14 +147,19 @@ func (cs ClusterStatus) GetNodesGroupedByNodegroup() [][]int {
 			// not a data node
 			continue
 		}
+		nodegroup := node.NodeGroup
 		if !node.IsConnected {
+			if nodegroup == NodeGroupNewDisconnectedDataNode {
+				// node is not inducted into cluster yet
+				continue
+			}
 			// data node not connected
 			debug.Panic("should be called only when the cluster is healthy")
 			return nil
 		}
-		nodegroup := node.NodeGroup
-		if nodegroup == 65536 || nodegroup == -256 {
-			// node is not inducted into cluster yet
+
+		if nodegroup == NodeGroupNewConnectedDataNode {
+			// ignore new connected data nodes without a nodegroup
 			continue
 		}
 
@@ -181,4 +187,30 @@ func (cs ClusterStatus) GetNodesGroupedByNodegroup() [][]int {
 	}
 
 	return nodesGroupedByNodegroup
+}
+
+// GetConnectedDataNodesWithNodeGroup returns a sorted list
+// of all nodeIds that belong to the given nodegroup ng.
+func (cs ClusterStatus) GetConnectedDataNodesWithNodeGroup(ng int) []int {
+	// Map to store the nodes based on nodegroup
+	var nodesInNodeGroup []int
+	for nodeId, node := range cs {
+		if !node.IsDataNode() || node.NodeGroup != ng {
+			// not a data node or doesn't have the expected nodegroup
+			continue
+		}
+
+		if !node.IsConnected {
+			// data node not connected
+			debug.Panic("should be called only when the cluster is healthy")
+			return nil
+		}
+
+		// append the node id to the map based on nodegroup
+		nodesInNodeGroup = append(nodesInNodeGroup, nodeId)
+	}
+
+	// sort the nodeIds
+	sort.Ints(nodesInNodeGroup)
+	return nodesInNodeGroup
 }

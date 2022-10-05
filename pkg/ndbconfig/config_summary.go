@@ -115,9 +115,7 @@ func NewConfigSummary(configMapData map[string]string) (*ConfigSummary, error) {
 func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1.NdbCluster) (needsUpdate bool) {
 	// Check if the default ndbd section has been updated
 	newNdbdConfig := nc.Spec.DataNode.Config
-	// Operator sets NoOfReplicas and ServerPort in the default
-	// ndbd section, so take them into account when comparing configs.
-	numOfOperatorSetConfigs := 2
+	// Operator sets some default config parameters - take them into account when comparing configs.
 	if len(newNdbdConfig)+numOfOperatorSetConfigs != len(cs.defaultNdbdSection) {
 		// A config has been added (or) removed from default ndbd section
 		return true
@@ -129,6 +127,11 @@ func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1.NdbCluster) (needs
 			// Either the config doesn't exist or the value has been changed
 			return true
 		}
+	}
+
+	// Check if the data nodes are being added
+	if cs.NumOfDataNodes < nc.Spec.DataNode.NodeCount {
+		return true
 	}
 
 	// Check if there is a change in the number of MySQL server

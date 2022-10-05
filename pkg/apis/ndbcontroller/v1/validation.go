@@ -186,18 +186,14 @@ func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorLis
 		return false, errList
 	}
 
-	// Do not allow updating Spec.DataNode.NodeCount and Spec.RedundancyLevel
-	if nc.Spec.DataNode.NodeCount != newNc.Spec.DataNode.NodeCount {
-		var msg string
-		if nc.Spec.DataNode.NodeCount < newNc.Spec.DataNode.NodeCount {
-			msg = "Online add node is not supported by the operator yet"
-		} else {
-			msg = "spec.dataNode.nodeCount cannot be reduced once MySQL Cluster has been started"
-		}
+	// Do not allow decreasing Spec.DataNode.NodeCount
+	if nc.Spec.DataNode.NodeCount > newNc.Spec.DataNode.NodeCount {
 		errList = append(errList,
-			field.Invalid(dataNodePath.Child("nodeCount"), newNc.Spec.DataNode.NodeCount, msg))
+			field.Invalid(dataNodePath.Child("nodeCount"), newNc.Spec.DataNode.NodeCount,
+				"spec.dataNode.nodeCount cannot be reduced once MySQL Cluster has been started"))
 	}
 
+	// Do not allow updating Spec.RedundancyLevel
 	if nc.Spec.RedundancyLevel != newNc.Spec.RedundancyLevel {
 		errList = append(errList,
 			cannotUpdateFieldError(specPath.Child("redundancyLevel"), newNc.Spec.RedundancyLevel))

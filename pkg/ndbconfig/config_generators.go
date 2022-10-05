@@ -15,6 +15,9 @@ import (
 	"github.com/mysql/ndb-operator/pkg/constants"
 )
 
+// Operator sets NoOfReplicas and ServerPort in the default ndbd section
+const numOfOperatorSetConfigs = 2
+
 // MySQL Cluster config template
 var mgmtConfigTmpl = `{{- /* Template to generate management config ini */ -}}
 # Auto generated config.ini - DO NOT EDIT
@@ -29,6 +32,7 @@ Name={{.Name}}
 {{- end}}{{end}}
 
 [ndbd default]
+{{/* update numOfOperatorSetConfigs if a new parameter is added here */ -}}
 NoOfReplicas={{.Spec.RedundancyLevel}}
 # Use a fixed ServerPort for all data nodes
 ServerPort=1186
@@ -52,7 +56,9 @@ DataDir={{GetDataDir}}
 NodeId={{$nodeId}}
 Hostname={{$.Name}}-{{NdbNodeTypeNdbmtd}}-{{$idx}}.{{$.GetServiceName NdbNodeTypeNdbmtd}}.{{$hostnameSuffix}}
 DataDir={{GetDataDir}}
-
+{{if IsNewDataNode $nodeId -}}
+NodeGroup=65536
+{{end}}
 {{end -}}
 # Dedicated API section to be used by NDB Operator
 [api]
@@ -82,10 +88,19 @@ NodeId={{$nodeId}}
 func GetConfigString(ndb *v1.NdbCluster, oldConfigSummary *ConfigSummary) (string, error) {
 
 	var (
-		// Variable that keeps track of the first free data node, mgmd node ids
+		// Variables that keep track of the first free mgmd/data node id and api nodeId
 		ndbdMgmdStartNodeId = 1
 		apiStartNodeId      = constants.NdbNodeTypeAPIStartNodeId
+
+		// newDataNodeStartId tracks the starting nodeId of the new
+		// data nodes during an online add data node scenario
+		newDataNodeStartId = 0
 	)
+
+	if oldConfigSummary != nil && oldConfigSummary.NumOfDataNodes < ndb.Spec.DataNode.NodeCount {
+		// Data Nodes are being added to the configuration.
+		newDataNodeStartId = int(ndb.GetManagementNodeCount() + oldConfigSummary.NumOfDataNodes + 1)
+	}
 
 	tmpl := template.New("config.ini")
 	tmpl.Funcs(template.FuncMap{
@@ -134,6 +149,9 @@ func GetConfigString(ndb *v1.NdbCluster, oldConfigSummary *ConfigSummary) (strin
 			return nodeIdToPodIdx
 		},
 		"GetDataDir": func() string { return constants.DataDir + "/data" },
+		"IsNewDataNode": func(nodeId int) bool {
+			return newDataNodeStartId != 0 && nodeId >= newDataNodeStartId
+		},
 		"GetConfigVersion": func() int32 {
 			if oldConfigSummary == nil {
 				// First version of the management config based on newly added NdbCluster spec.

@@ -25,6 +25,7 @@ type MgmClient interface {
 	GetStatus() (ClusterStatus, error)
 	StopNodes(nodeIds []int) error
 	TryReserveNodeId(nodeId int, nodeType NodeTypeEnum) (int, error)
+	CreateNodeGroup(nodeIds []int) (int, error)
 
 	GetConfigVersion(nodeID ...int) (uint32, error)
 	GetDataMemory(dataNodeId int) (uint64, error)
@@ -76,7 +77,7 @@ func NewMgmClient(connectstring string, desiredNodeId ...int) (*mgmClientImpl, e
 
 // connect creates a tcp connection to the mgmd server
 // Note : always use NewMgmClient to create a client rather
-//        than directly using mgmClientImpl and connect
+// than directly using mgmClientImpl and connect
 func (mci *mgmClientImpl) connect(connectstring string) error {
 
 	// Parse the addresses from connectstring and dial them one
@@ -110,7 +111,7 @@ func (mci *mgmClientImpl) connect(connectstring string) error {
 
 // connectToNodeId creates a tcp connection to the mgmd with the given id
 // Note : always use NewMgmClient to create a client rather
-//        than directly using mgmClientImpl and connectToNodeId
+// than directly using mgmClientImpl and connectToNodeId
 func (mci *mgmClientImpl) connectToNodeId(connectstring string, desiredNodeId int) error {
 
 	var lastDNSError error
@@ -512,16 +513,11 @@ func (mci *mgmClientImpl) StopNodes(nodeIds []int) error {
 	}
 
 	// send the command and read the reply
-	reply, err := mci.executeCommand(
+	_, err := mci.executeCommand(
 		"stop v2", args, true,
 		[]string{"stop reply", "result", "stopped", "disconnect"})
 	if err != nil {
 		return err
-	}
-
-	if reply["result"] != "Ok" {
-		// stop failed
-		return errors.New(reply["result"])
 	}
 
 	return nil
@@ -575,6 +571,44 @@ func (mci *mgmClientImpl) TryReserveNodeId(nodeId int, nodeType NodeTypeEnum) (i
 	}
 
 	return reservedNodeId, nil
+}
+
+// CreateNodeGroup creates a nodegroup with nodes with the given nodeIds
+func (mci *mgmClientImpl) CreateNodeGroup(nodeIds []int) (int, error) {
+
+	// command :
+	// create nodegroup
+	// nodes: <nodeId seperated by blank space>
+
+	// reply :
+	// create nodegroup reply
+	// result: Ok
+	// ng: <nodegroup ID>
+
+	// build args
+	nodeList := fmt.Sprintf("%d", nodeIds[0])
+	for i := 1; i < len(nodeIds); i++ {
+		nodeList += fmt.Sprintf(" %d", nodeIds[i])
+	}
+
+	args := map[string]interface{}{
+		"nodes": nodeList,
+	}
+
+	// send the command and read the reply
+	reply, err := mci.executeCommand(
+		"create nodegroup", args, true,
+		[]string{"create nodegroup reply", "result", "ng"})
+	if err != nil {
+		return -1, err
+	}
+
+	ng, err := strconv.Atoi(reply["ng"])
+	if err != nil {
+		return 0, debug.InternalError("nodegroup in create nodegroup reply has unexpected format : " + err.Error())
+	}
+
+	return ng, nil
 }
 
 // getConfig extracts the value of the config variable 'configKey'

@@ -22,8 +22,9 @@ const (
 
 // System Database names
 const (
-	DbNdbInfo = "ndbinfo"
-	DbMySQL   = "mysql"
+	DbNdbInfo           = "ndbinfo"
+	DbMySQL             = "mysql"
+	DbInformationSchema = "information_schema"
 )
 
 // Connect to the MySQL Server at given mysqldHost
@@ -55,8 +56,8 @@ func Connect(mysqldHost string, dbName string, ndbOperatorPassword string) (*sql
 	return db, nil
 }
 
-// connectToStatefulSet opens a connection to the first MySQL Server pod managed by the given MySQL Server StatefulSet
-func connectToStatefulSet(mysqldSfset *appsv1.StatefulSet, dbName string, ndbOperatorPassword string) (*sql.DB, error) {
+// ConnectToStatefulSet opens a connection to the first MySQL Server pod managed by the given MySQL Server StatefulSet
+func ConnectToStatefulSet(mysqldSfset *appsv1.StatefulSet, dbName string, ndbOperatorPassword string) (*sql.DB, error) {
 
 	// Generate the MySQL Server host using the hostname of StatefulSet's pod-0
 	mysqldHost := fmt.Sprintf("%s-0.%s.%s",

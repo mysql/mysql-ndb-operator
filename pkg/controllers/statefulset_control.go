@@ -242,5 +242,15 @@ func (ndbSfset *ndbNodeStatefulSetImpl) ReconcileStatefulSet(
 	if err != nil {
 		return errorWhileProcessing(err)
 	}
+
+	if ndbSfset.GetTypeName() == constants.NdbNodeTypeNdbmtd &&
+		*(sfset.Spec.Replicas) < *(updatedStatefulSet.Spec.Replicas) {
+		// New data nodes are being added to MySQL Cluster
+		// config but do not start the new nodes yet.
+		*(updatedStatefulSet.Spec.Replicas) = *(sfset.Spec.Replicas)
+		// Set the AddNodeOnlineInProgress Annotation
+		updatedStatefulSet.Annotations[AddNodeOnlineInProgress] = "true"
+	}
+
 	return ndbSfset.patchStatefulSet(ctx, sfset, updatedStatefulSet)
 }

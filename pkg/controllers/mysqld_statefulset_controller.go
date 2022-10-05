@@ -90,7 +90,7 @@ func (mssc *MySQLDStatefulSetController) HandleScaleDown(ctx context.Context, sc
 		operatorSecretName := resources.GetMySQLNDBOperatorPasswordSecretName(nc)
 		operatorPassword, err := secretClient.ExtractPassword(ctx, mysqldSfset.Namespace, operatorSecretName)
 		if err != nil {
-			klog.Errorf("Failed to extract ndb operator password form the secret")
+			klog.Errorf("Failed to extract ndb operator password from the secret")
 			return errorWhileProcessing(err)
 		}
 

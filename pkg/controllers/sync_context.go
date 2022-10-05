@@ -39,7 +39,7 @@ type SyncContext struct {
 	// controller handling creation and changes of resources
 	mysqldController    *MySQLDStatefulSetController
 	mgmdController      NdbStatefulSetControlInterface
-	ndbmtdController    NdbStatefulSetControlInterface
+	ndbmtdController    *ndbmtdStatefulSetController
 	configMapController ConfigMapControlInterface
 	serviceController   ServiceControlInterface
 	pdbController       PodDisruptionBudgetControlInterface
@@ -444,6 +444,11 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 	// Second pass of MySQL Server reconciliation
 	// Reconcile the rest of spec/config change in MySQL Server StatefulSet
 	if sr := sc.mysqldController.ReconcileStatefulSet(ctx, sc); sr.stopSync() {
+		return sr
+	}
+
+	// Handle online add data node request
+	if sr := sc.ndbmtdController.handleAddNodeOnline(ctx, sc); sr.stopSync() {
 		return sr
 	}
 
