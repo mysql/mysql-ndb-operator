@@ -53,9 +53,26 @@ fi
 
 # Other mgmd is running. Local mgmd is ready when it reports the exact
 # same status about the connected mgmd and data nodes as the other mgmd.
-clusterStatusFromLocalMgmd=$(ndb_mgm -c localhost:1186 --connect-retries=1 -e show | sed -n '/id=3/,/id=2/p')
-clusterStatusFromOtherMgmd=$(ndb_mgm -c "${otherMgmdConnectstring}" --connect-retries=1 -e show | sed -n '/id=3/,/id=2/p')
-if [[ "${clusterStatusFromLocalMgmd}" != "${clusterStatusFromOtherMgmd}" ]]; then
+# Note : SQL/API node status is not compared and that seems to be okay for now.
+clusterStatusFromLocalMgmd=$(ndb_mgm -c localhost:1186 --connect-retries=1 -e show)
+clusterStatusFromOtherMgmd=$(ndb_mgm -c "${otherMgmdConnectstring}" --connect-retries=1 -e show)
+# Compare Management nodes' status first
+mgmdStatusFromLocalMgmd=$(echo "${clusterStatusFromLocalMgmd}" | sed -n '/ndb_mgmd(MGM)/,+2p')
+mgmdStatusFromOtherMgmd=$(echo "${clusterStatusFromOtherMgmd}" | sed -n '/ndb_mgmd(MGM)/,+2p')
+if [[ "${mgmdStatusFromLocalMgmd}" != "${mgmdStatusFromOtherMgmd}" ]]; then
+  # Local Mgmd not ready
+  exit 1
+fi
+
+# Compare Data node status
+# Extract the number of data nodes from other mgmd
+numOfNodes=$(echo "${clusterStatusFromOtherMgmd}" | grep -Po '\[ndbd\(NDB\)\]\t\K[0-9]+(?= node\(s\))')
+# This management node might have new data nodes in its configuration
+# but the other might not have it during online add node. So extract
+# and compare only the status of first $numOfNodes data nodes from the status.
+ndmtdStatusFromLocalMgmd=$(echo "${clusterStatusFromLocalMgmd}" | sed -n "/ndbd(NDB)/,+${numOfNodes}p" | sed '1d')
+ndmtdStatusFromOtherMgmd=$(echo "${clusterStatusFromOtherMgmd}" | sed -n "/ndbd(NDB)/,+${numOfNodes}p" | sed '1d')
+if [[ "${ndmtdStatusFromLocalMgmd}" != "${ndmtdStatusFromOtherMgmd}" ]]; then
   # Local Mgmd not ready
   exit 1
 fi

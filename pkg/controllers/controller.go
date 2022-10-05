@@ -41,7 +41,7 @@ type Controller struct {
 
 	// Controllers for various resources
 	mgmdController      NdbStatefulSetControlInterface
-	ndbmtdController    NdbStatefulSetControlInterface
+	ndbmtdController    *ndbmtdStatefulSetController
 	mysqldController    *MySQLDStatefulSetController
 	configMapController ConfigMapControlInterface
 	serviceController   ServiceControlInterface
@@ -104,8 +104,7 @@ func NewController(
 
 		mgmdController: NewNdbNodesStatefulSetControlInterface(
 			kubernetesClient, statefulSetLister, statefulset.NewMgmdStatefulSet()),
-		ndbmtdController: NewNdbNodesStatefulSetControlInterface(
-			kubernetesClient, statefulSetLister, statefulset.NewNdbmtdStatefulSet()),
+		ndbmtdController: newNdbmtdStatefulSetController(kubernetesClient, statefulSetLister),
 		mysqldController: NewMySQLDStatefulSetController(
 			kubernetesClient, statefulSetLister, statefulset.NewMySQLdStatefulSet(configmapLister)),
 

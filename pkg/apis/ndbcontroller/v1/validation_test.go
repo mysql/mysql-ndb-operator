@@ -131,7 +131,8 @@ func Test_Validation(t *testing.T) {
 		mysqldRootPasswordSecretNameTests("root-pass!", shouldFail, "has invalid character"),
 
 		ndbUpdateTests(2, 2, 2, 1, 2, 2, shouldFail, "should not update redundancy"),
-		ndbUpdateTests(2, 4, 2, 2, 2, 2, shouldFail, "should not update data node count"),
+		ndbUpdateTests(2, 4, 2, 2, 2, 2, !shouldFail, "allow increasing data node count"),
+		ndbUpdateTests(2, 4, 2, 2, 6, 2, shouldFail, "should not decrease data node count"),
 		ndbUpdateTests(2, 2, 5, 2, 2, 2, !shouldFail, "allow increasing mysqld node count"),
 		ndbUpdateTests(1, 2, 5, 1, 2, 2, shouldFail, "update spec with replica = 1"),
 

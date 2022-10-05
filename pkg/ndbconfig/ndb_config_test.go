@@ -209,6 +209,96 @@ NodeId=160
 	}
 }
 
+func Test_GetConfigString_withOldConfigSummary(t *testing.T) {
+
+	ndb := testutils.NewTestNdb("default", "example-ndb", 4)
+	ndb.Spec.FreeAPISlots = 1
+	ndb.Spec.MysqlNode.NodeCount = 1
+	ndb.Spec.MysqlNode.MaxNodeCount = 2
+	oldConfigSummary := &ConfigSummary{
+		MySQLClusterConfigVersion: 3,
+		NumOfDataNodes:            2,
+	}
+
+	configString, err := GetConfigString(ndb, oldConfigSummary)
+	if err != nil {
+		t.Errorf("Failed to generate config string from Ndb : %s", err)
+	}
+
+	expectedConfigString := `# Auto generated config.ini - DO NOT EDIT
+
+[system]
+ConfigGenerationNumber=4
+Name=example-ndb
+
+
+
+[ndbd default]
+NoOfReplicas=2
+# Use a fixed ServerPort for all data nodes
+ServerPort=1186
+
+[tcp default]
+AllowUnresolvedHostnames=1
+
+[ndb_mgmd]
+NodeId=1
+Hostname=example-ndb-mgmd-0.example-ndb-mgmd.default
+DataDir=/var/lib/ndb/data
+
+[ndb_mgmd]
+NodeId=2
+Hostname=example-ndb-mgmd-1.example-ndb-mgmd.default
+DataDir=/var/lib/ndb/data
+
+[ndbd]
+NodeId=3
+Hostname=example-ndb-ndbmtd-0.example-ndb-ndbmtd.default
+DataDir=/var/lib/ndb/data
+
+[ndbd]
+NodeId=4
+Hostname=example-ndb-ndbmtd-1.example-ndb-ndbmtd.default
+DataDir=/var/lib/ndb/data
+
+[ndbd]
+NodeId=5
+Hostname=example-ndb-ndbmtd-2.example-ndb-ndbmtd.default
+DataDir=/var/lib/ndb/data
+NodeGroup=65536
+
+[ndbd]
+NodeId=6
+Hostname=example-ndb-ndbmtd-3.example-ndb-ndbmtd.default
+DataDir=/var/lib/ndb/data
+NodeGroup=65536
+
+# Dedicated API section to be used by NDB Operator
+[api]
+NodeId=147
+Dedicated=1
+
+# MySQLD sections to be used exclusively by MySQL Servers
+[mysqld]
+NodeId=148
+Hostname=example-ndb-mysqld-0.example-ndb-mysqld.default
+
+[mysqld]
+NodeId=149
+Hostname=example-ndb-mysqld-1.example-ndb-mysqld.default
+
+# API sections to be used by generic NDBAPI applications
+[api]
+NodeId=150
+
+`
+	if configString != expectedConfigString {
+		t.Error("The generated config string does not match the expected value")
+		t.Errorf("Expected :\n%s\n", expectedConfigString)
+		t.Errorf("Generated :\n%s\n", configString)
+	}
+}
+
 func Test_GetMySQLConfigString(t *testing.T) {
 	nc := testutils.NewTestNdb("default", "example-ndb", 2)
 	nc.Spec.MysqlNode.MyCnf = "config1=value1\nconfig2=value2\n"
