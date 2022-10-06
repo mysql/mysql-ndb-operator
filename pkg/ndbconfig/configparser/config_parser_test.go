@@ -111,7 +111,7 @@ func Test_ParseString(t *testing.T) {
 		return
 	}
 
-	if c == nil || len(c) == 0 {
+	if c == nil {
 		t.Fatal("configIni is empty")
 		return
 	}

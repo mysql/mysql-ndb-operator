@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -53,7 +53,6 @@ import (
 // NodeId=153
 // [mysqld]
 // NodeId=154
-//
 const binConfigDataBase64 = `TkRCQ09ORjIAAALRAAAAAgAAAAUAAAACAAAACgAAAAEAAAAMAAABfQAAAKEAAAABEAAAAQAAAAIg
 AAAFAAAACmxvY2FsaG9zdAAAACAAAAcAAAAjL2hvbWUvbXlzcWwvZGF0YWRpci9uZGJfZGF0YS9u
 b2RlMwAAEAAACQAAAAAQAAALAAAAABAAAGQAAAAZEAAAZQAAAAIQAABmAAAAgBAAAGcAAAPoEAAA

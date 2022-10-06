@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 
@@ -70,7 +70,7 @@ func serve(w http.ResponseWriter, r *http.Request, ac admissionController, execu
 	}
 
 	// Read all the request body content
-	bodyBytes, err := ioutil.ReadAll(r.Body)
+	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		sendAdmissionResponse(w, requestDeniedBad("", err.Error()))
 		return
