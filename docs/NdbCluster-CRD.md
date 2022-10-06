@@ -319,7 +319,10 @@ This value is immutable.</p>
 </td>
 <td>
 <em>(Optional)</em>
-<p>MysqlNode specifies the configuration of the MySQL Servers running in the cluster.</p>
+<p>MysqlNode specifies the configuration of the MySQL Servers running in the cluster.
+Note that the NDB Operator requires atleast one MySQL Server running in the cluster
+for internal operations. If no MySQL Server is specified, the operator will by
+default add one MySQL Server to the spec.</p>
 </td>
 </tr>
 <tr>

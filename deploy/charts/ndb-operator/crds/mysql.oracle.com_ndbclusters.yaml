@@ -1731,7 +1731,10 @@ spec:
                 type: object
               mysqlNode:
                 description: MysqlNode specifies the configuration of the MySQL Servers
-                  running in the cluster.
+                  running in the cluster. Note that the NDB Operator requires atleast
+                  one MySQL Server running in the cluster for internal operations.
+                  If no MySQL Server is specified, the operator will by default add
+                  one MySQL Server to the spec.
                 properties:
                   connectionPoolSize:
                     default: 1
@@ -2507,9 +2510,11 @@ spec:
                         type: array
                     type: object
                   nodeCount:
+                    default: 1
                     description: NodeCount is the number of MySQL Servers to be started
                       by the Operator
                     format: int32
+                    minimum: 1
                     type: integer
                   pvcSpec:
                     description: PVCSpec is the PersistentVolumeClaimSpec to be used
