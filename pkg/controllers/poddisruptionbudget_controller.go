@@ -26,7 +26,7 @@ type podDisruptionBudgetImpl struct {
 }
 
 // NewPodDisruptionBudgetControl creates a new PodDisruptionBudgetControlInterface
-func NewPodDisruptionBudgetControl(
+func newPodDisruptionBudgetControl(
 	client kubernetes.Interface,
 	pdbLister policylisterv1beta1.PodDisruptionBudgetLister) PodDisruptionBudgetControlInterface {
 	return &podDisruptionBudgetImpl{

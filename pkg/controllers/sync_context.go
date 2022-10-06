@@ -37,9 +37,9 @@ type SyncContext struct {
 	ndb *v1.NdbCluster
 
 	// controller handling creation and changes of resources
-	mysqldController    *MySQLDStatefulSetController
-	mgmdController      NdbStatefulSetControlInterface
+	mgmdController      *ndbNodeStatefulSetImpl
 	ndbmtdController    *ndbmtdStatefulSetController
+	mysqldController    *mysqldStatefulSetController
 	configMapController ConfigMapControlInterface
 	serviceController   ServiceControlInterface
 	pdbController       PodDisruptionBudgetControlInterface

@@ -22,16 +22,6 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// NdbStatefulSetControlInterface defines the interface that
-// wraps around the create and update of StatefulSets for node types
-type NdbStatefulSetControlInterface interface {
-	GetTypeName() constants.NdbNodeType
-	GetStatefulSet(sc *SyncContext) (*appsv1.StatefulSet, error)
-	EnsureStatefulSet(ctx context.Context, sc *SyncContext) (*appsv1.StatefulSet, bool, error)
-	ReconcileStatefulSet(
-		ctx context.Context, sfset *appsv1.StatefulSet, sc *SyncContext) syncResult
-}
-
 // ndbNodeStatefulSetImpl implements the NdbStatefulSetControlInterface to manage MySQL Cluster data nodes
 type ndbNodeStatefulSetImpl struct {
 	client             kubernetes.Interface
@@ -39,15 +29,14 @@ type ndbNodeStatefulSetImpl struct {
 	ndbNodeStatefulset statefulset.NdbStatefulSetInterface
 }
 
-// NewNdbNodesStatefulSetControlInterface creates a new ndbNodeStatefulSetImpl
-func NewNdbNodesStatefulSetControlInterface(
+// newMgmdStatefulSetController creates a new ndbNodeStatefulSetImpl for Management Nodes
+func newMgmdStatefulSetController(
 	client kubernetes.Interface,
-	statefulSetLister appslisters.StatefulSetLister,
-	ndbNodeStatefulset statefulset.NdbStatefulSetInterface) NdbStatefulSetControlInterface {
+	statefulSetLister appslisters.StatefulSetLister) *ndbNodeStatefulSetImpl {
 	return &ndbNodeStatefulSetImpl{
 		client:             client,
 		statefulSetLister:  statefulSetLister,
-		ndbNodeStatefulset: ndbNodeStatefulset,
+		ndbNodeStatefulset: statefulset.NewMgmdStatefulSet(),
 	}
 }
 
