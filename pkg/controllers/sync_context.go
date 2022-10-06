@@ -470,8 +470,8 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 			return errorWhileProcessing(err)
 		}
 		// Only the config map was updated during this loop.
-		// The config changes still need to be applied to the MySQL Cluster.
-		return requeueInSeconds(0)
+		// The next loop will actually start the sync
+		return finishProcessing()
 	}
 
 	// MySQL Cluster in sync with the NdbCluster spec

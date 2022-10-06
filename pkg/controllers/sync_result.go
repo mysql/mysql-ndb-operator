@@ -1,10 +1,8 @@
-// Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
 package controllers
-
-import "time"
 
 // syncResult defines the common methods that the
 // result of a synchronization step has to implement.
@@ -20,10 +18,6 @@ type syncResult interface {
 	// before continuing.
 	stopSync() bool
 
-	// requeueSync returns if the sync needs to be requeue
-	// and the duration after which it needs to be requeued.
-	requeueSync() (requeue bool, requeueIn time.Duration)
-
 	// getError returns any error that occurred
 	// during the sync step
 	getError() error
@@ -34,10 +28,7 @@ type syncResult interface {
 // which synchronisation can continue further.
 type syncResultContinueProcessing struct{}
 
-func (r *syncResultContinueProcessing) stopSync() bool { return false }
-func (r *syncResultContinueProcessing) requeueSync() (requeue bool, requeueIn time.Duration) {
-	return false, 0
-}
+func (r *syncResultContinueProcessing) stopSync() bool  { return false }
 func (r *syncResultContinueProcessing) getError() error { return nil }
 
 // syncResultStopProcessing implements the syncResult
@@ -62,36 +53,15 @@ type syncResultErrorOccurred struct {
 
 func (r *syncResultErrorOccurred) getError() error { return r.err }
 
-// syncResultRequeue implements the syncResult interface
-// and should be returned by the sync steps after which
-// the synchronisation has to be stopped and restarted
-// at a later time.
-type syncResultRequeue struct {
-	syncResultStopProcessing
-	requeueInterval time.Duration
-}
-
-func (r *syncResultRequeue) requeueSync() (requeue bool, requeueIn time.Duration) {
-	return true, r.requeueInterval
-}
-
 // helper methods to return SyncResult from sync step methods
 func continueProcessing() syncResult {
 	return &syncResultContinueProcessing{}
 }
 
 func finishProcessing() syncResult {
-	// stop but don't requeue
 	return &syncResultStopProcessing{}
 }
 
 func errorWhileProcessing(err error) syncResult {
 	return &syncResultErrorOccurred{err: err}
-}
-
-func requeueInSeconds(secs int) syncResult {
-	// stop and requeue later
-	return &syncResultRequeue{
-		requeueInterval: time.Duration(secs) * time.Second,
-	}
 }

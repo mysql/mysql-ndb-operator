@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 )
@@ -28,13 +29,16 @@ type ConfigMapControlInterface interface {
 }
 
 type configMapControl struct {
-	k8sClient kubernetes.Interface
+	k8sClient       kubernetes.Interface
+	configMapLister listerscorev1.ConfigMapLister
 }
 
 // NewConfigMapControl creates a new ConfigMapControl
-func NewConfigMapControl(client kubernetes.Interface) ConfigMapControlInterface {
+func NewConfigMapControl(
+	client kubernetes.Interface, configMapLister listerscorev1.ConfigMapLister) ConfigMapControlInterface {
 	return &configMapControl{
-		k8sClient: client,
+		k8sClient:       client,
+		configMapLister: configMapLister,
 	}
 }
 
@@ -43,12 +47,9 @@ func (cmc *configMapControl) getConfigMapInterface(namespace string) typedcorev1
 }
 
 // getConfigMap retrieves the ConfigMap from the API Server
-func (cmc *configMapControl) getConfigMap(
-	ctx context.Context, namespace, name string) (*corev1.ConfigMap, error) {
-	// Cache is not used as it might be outdated and all
-	// other resources depend on the ConfigMap being right.
-	configMapInterface := cmc.getConfigMapInterface(namespace)
-	return configMapInterface.Get(ctx, name, metav1.GetOptions{})
+func (cmc *configMapControl) getConfigMap(namespace, name string) (*corev1.ConfigMap, error) {
+	// Get configMap from cache
+	return cmc.configMapLister.ConfigMaps(namespace).Get(name)
 
 }
 
@@ -56,10 +57,9 @@ func (cmc *configMapControl) getConfigMap(
 func (cmc *configMapControl) EnsureConfigMap(
 	ctx context.Context, sc *SyncContext) (cm *corev1.ConfigMap, existed bool, err error) {
 
-	// Retrieve the ConfigMap directly from the K8s API Server and not from cache.
 	nc := sc.ndb
 	configMapName := nc.GetConfigMapName()
-	cm, err = cmc.getConfigMap(ctx, nc.Namespace, configMapName)
+	cm, err = cmc.getConfigMap(nc.Namespace, configMapName)
 
 	if err == nil {
 		// ConfigMap already exists
@@ -74,16 +74,16 @@ func (cmc *configMapControl) EnsureConfigMap(
 
 	if !errors.IsNotFound(err) {
 		// Failed to lookup ConfigMap
-		klog.Errorf("Failed to retrieve ConfigMap \"%s/%s\"", nc.Namespace, configMapName)
+		klog.Errorf("Failed to retrieve ConfigMap %q : %s", getNamespacedName2(nc.Namespace, configMapName), err)
 		return nil, false, err
 	}
 
 	// ConfigMap doesn't exist; create it.
-	klog.Infof("Creating ConfigMap \"%s/%s\"", nc.Namespace, configMapName)
+	klog.Infof("Creating ConfigMap %q", getNamespacedName2(nc.Namespace, configMapName))
 	cm = resources.CreateConfigMap(nc)
 	cm, err = cmc.getConfigMapInterface(nc.Namespace).Create(ctx, cm, metav1.CreateOptions{})
 	if err != nil {
-		klog.Errorf("Failed to create ConfigMap \"%s/%s\" : %s", nc.Namespace, configMapName, err)
+		klog.Errorf("Failed to create ConfigMap %q : %s", getNamespacedName2(nc.Namespace, configMapName), err)
 		return nil, false, err
 	}
 
@@ -95,12 +95,11 @@ func (cmc *configMapControl) EnsureConfigMap(
 func (cmc *configMapControl) PatchConfigMap(
 	ctx context.Context, sc *SyncContext) (cm *corev1.ConfigMap, err error) {
 
-	// Retrieve the ConfigMap directly from the K8s API Server and not from cache.
 	nc := sc.ndb
 	configMapName := nc.GetConfigMapName()
-	cmOrg, err := cmc.getConfigMap(ctx, nc.Namespace, configMapName)
+	cmOrg, err := cmc.getConfigMap(nc.Namespace, configMapName)
 	if err != nil {
-		klog.Errorf("Error retrieving ConfigMap \"%s/%s\" : %s", nc.Namespace, configMapName, err)
+		klog.Errorf("Error retrieving ConfigMap %q : %s", getNamespacedName2(nc.Namespace, configMapName), err)
 		return nil, err
 	}
 
@@ -132,8 +131,8 @@ func (cmc *configMapControl) PatchConfigMap(
 			ctx, cmOrg.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 
 		if err != nil {
-			klog.Errorf("Failed to patch ConfigMap \"%s/%s\" : %s",
-				nc.Namespace, configMapName, err)
+			klog.Errorf("Failed to patch ConfigMap %q : %s",
+				getNamespacedName2(nc.Namespace, configMapName), err)
 			return false, err
 		}
 

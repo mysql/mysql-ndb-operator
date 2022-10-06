@@ -97,7 +97,7 @@ func NewController(
 		informerSyncedMethods: informerSyncedMethods,
 		ndbsLister:            ndbClusterInformer.Lister(),
 		podLister:             podInformer.Lister(),
-		configMapController:   NewConfigMapControl(kubernetesClient),
+		configMapController:   NewConfigMapControl(kubernetesClient, configmapLister),
 		serviceController:     NewServiceControl(kubernetesClient, serviceLister),
 		workqueue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Ndbs"),
 		recorder:              newEventRecorder(kubernetesClient),
@@ -238,6 +238,33 @@ func NewController(
 		0,
 	)
 
+	// Set up event handlers for ConfigMap updates
+	configmapInformer.Informer().AddEventHandlerWithResyncPeriod(
+		cache.FilteringResourceEventHandler{
+			FilterFunc: func(obj interface{}) bool {
+				// Filter out all ConfigMaps not owned by any NdbCluster resources.
+				// The ConfigMap labels will have the names of their respective
+				// NdbCluster owners.
+				configmap := obj.(*corev1.ConfigMap)
+				_, clusterLabelExists := configmap.GetLabels()[constants.ClusterLabel]
+				return clusterLabelExists
+			},
+
+			Handler: cache.ResourceEventHandlerFuncs{
+				// A ConfigMap owned by an NdbCluster object was updated
+				// Requeue owner for reconciliation
+				UpdateFunc: func(oldObj, newObj interface{}) {
+					newConfigMap := newObj.(*corev1.ConfigMap)
+					controller.extractAndEnqueueNdbCluster(newConfigMap)
+				},
+			},
+		},
+
+		// Set resyncPeriod to 0 to ignore all re-sync events
+		0,
+
+	)
+
 	return controller
 }
 
@@ -348,12 +375,6 @@ func (c *Controller) processNextWorkItem(ctx context.Context) (continueProcessin
 
 	// The reconciliation loop was successful. Clear rateLimiter.
 	c.workqueue.Forget(item)
-
-	// Requeue the item if necessary
-	if requeue, requeueInterval := sr.requeueSync(); requeue {
-		klog.Infof("NdbCluster resource %q will be re-queued for further reconciliation", key)
-		c.workqueue.AddAfter(item, requeueInterval)
-	}
 
 	return true
 }
