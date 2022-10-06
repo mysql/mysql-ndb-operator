@@ -129,6 +129,8 @@ type NdbDataNodeSpec struct {
 // NdbMysqldSpec is the specification of MySQL Servers to be run as an SQL Frontend
 type NdbMysqldSpec struct {
 	// NodeCount is the number of MySQL Servers to be started by the Operator
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Minimum=1
 	NodeCount int32 `json:"nodeCount"`
 	// MaxNodeCount is the count up to which the MySQL Servers would be
 	// allowed to scale up without forcing a MySQL Cluster config update.
@@ -217,6 +219,9 @@ type NdbClusterSpec struct {
 	// DataNode specifies the configuration of the data node running in MySQL Cluster.
 	DataNode *NdbDataNodeSpec `json:"dataNode,omitempty"`
 	// MysqlNode specifies the configuration of the MySQL Servers running in the cluster.
+	// Note that the NDB Operator requires atleast one MySQL Server running in the cluster
+	// for internal operations. If no MySQL Server is specified, the operator will by
+	// default add one MySQL Server to the spec.
 	// +optional
 	MysqlNode *NdbMysqldSpec `json:"mysqlNode,omitempty"`
 	// The number of extra API sections declared in the MySQL Cluster
