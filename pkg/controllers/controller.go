@@ -28,7 +28,6 @@ import (
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	ndbinformers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
 	ndblisters "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1"
-	"github.com/mysql/ndb-operator/pkg/resources/statefulset"
 )
 
 // Controller is the main controller implementation for Ndb resources
@@ -40,9 +39,9 @@ type Controller struct {
 	ndbsLister ndblisters.NdbClusterLister
 
 	// Controllers for various resources
-	mgmdController      NdbStatefulSetControlInterface
+	mgmdController      *ndbNodeStatefulSetImpl
 	ndbmtdController    *ndbmtdStatefulSetController
-	mysqldController    *MySQLDStatefulSetController
+	mysqldController    *mysqldStatefulSetController
 	configMapController ConfigMapControlInterface
 	serviceController   ServiceControlInterface
 	pdbController       PodDisruptionBudgetControlInterface
@@ -102,13 +101,12 @@ func NewController(
 		workqueue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Ndbs"),
 		recorder:              newEventRecorder(kubernetesClient),
 
-		mgmdController: NewNdbNodesStatefulSetControlInterface(
-			kubernetesClient, statefulSetLister, statefulset.NewMgmdStatefulSet()),
+		mgmdController:   newMgmdStatefulSetController(kubernetesClient, statefulSetLister),
 		ndbmtdController: newNdbmtdStatefulSetController(kubernetesClient, statefulSetLister),
-		mysqldController: NewMySQLDStatefulSetController(
-			kubernetesClient, statefulSetLister, statefulset.NewMySQLdStatefulSet(configmapLister)),
+		mysqldController: newMySQLDStatefulSetController(
+			kubernetesClient, statefulSetLister, configmapLister),
 
-		pdbController: NewPodDisruptionBudgetControl(
+		pdbController: newPodDisruptionBudgetControl(
 			kubernetesClient, pdbInformer.Lister()),
 	}
 
@@ -262,7 +260,6 @@ func NewController(
 
 		// Set resyncPeriod to 0 to ignore all re-sync events
 		0,
-
 	)
 
 	return controller

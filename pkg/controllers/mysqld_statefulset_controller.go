@@ -16,7 +16,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
-	listerappsv1 "k8s.io/client-go/listers/apps/v1"
+	listersappsv1 "k8s.io/client-go/listers/apps/v1"
+	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog/v2"
 )
 
@@ -28,20 +29,20 @@ const (
 	rootUserGeneration = ndbcontroller.GroupName + "/root-user-generation"
 )
 
-type MySQLDStatefulSetController struct {
+type mysqldStatefulSetController struct {
 	ndbNodeStatefulSetImpl
 }
 
-// NewMySQLDStatefulSetController creates a new MySQLDStatefulSetController
-func NewMySQLDStatefulSetController(
+// NewMySQLDStatefulSetController creates a new mysqldStatefulSetController
+func newMySQLDStatefulSetController(
 	client kubernetes.Interface,
-	statefulSetLister listerappsv1.StatefulSetLister,
-	ndbNodeStatefulset statefulset.NdbStatefulSetInterface) *MySQLDStatefulSetController {
-	return &MySQLDStatefulSetController{
+	statefulSetLister listersappsv1.StatefulSetLister,
+	configmapLister listerscorev1.ConfigMapLister) *mysqldStatefulSetController {
+	return &mysqldStatefulSetController{
 		ndbNodeStatefulSetImpl{
 			client:             client,
 			statefulSetLister:  statefulSetLister,
-			ndbNodeStatefulset: ndbNodeStatefulset,
+			ndbNodeStatefulset: statefulset.NewMySQLdStatefulSet(configmapLister),
 		},
 	}
 }
@@ -52,7 +53,7 @@ func NewMySQLDStatefulSetController(
 // management and data nodes. This is to ensure that during a scale down, the MySQL
 // Servers are shutdown before a possible reduction in the number of API sections in
 // the config.
-func (mssc *MySQLDStatefulSetController) HandleScaleDown(ctx context.Context, sc *SyncContext) syncResult {
+func (mssc *mysqldStatefulSetController) HandleScaleDown(ctx context.Context, sc *SyncContext) syncResult {
 
 	nc := sc.ndb
 	mysqldSfset := sc.mysqldSfset
@@ -136,7 +137,7 @@ func (mssc *MySQLDStatefulSetController) HandleScaleDown(ctx context.Context, sc
 // ReconcileStatefulSet compares the MySQL Server spec defined in NdbCluster resource
 // and applies any changes to the statefulset if required. This method is called after
 // the new config has been ensured in both Management and Data Nodes.
-func (mssc *MySQLDStatefulSetController) ReconcileStatefulSet(ctx context.Context, sc *SyncContext) syncResult {
+func (mssc *mysqldStatefulSetController) ReconcileStatefulSet(ctx context.Context, sc *SyncContext) syncResult {
 	mysqldSfset := sc.mysqldSfset
 	cs := sc.configSummary
 	nc := sc.ndb
@@ -193,7 +194,7 @@ func (mssc *MySQLDStatefulSetController) ReconcileStatefulSet(ctx context.Contex
 }
 
 // reconcileRootUser creates or updates the root user with the recent NdbCluster spec
-func (mssc *MySQLDStatefulSetController) reconcileRootUser(ctx context.Context, sc *SyncContext) syncResult {
+func (mssc *mysqldStatefulSetController) reconcileRootUser(ctx context.Context, sc *SyncContext) syncResult {
 	mysqldSfset := sc.mysqldSfset
 	if mysqldSfset == nil {
 		// Nothing to do as the MySQL Servers do not exist
