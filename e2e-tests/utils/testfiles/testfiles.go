@@ -9,8 +9,8 @@ package testfiles
 import (
 	"fmt"
 	"github.com/onsi/gomega"
-	"io/ioutil"
 	"k8s.io/klog/v2"
+	"os"
 	"path/filepath"
 	"runtime"
 )
@@ -34,7 +34,7 @@ func GetAbsPath(path string) string {
 // ReadTestFile looks for the file relative to the configured root directory.
 func ReadTestFile(filePath string) []byte {
 	fullPath := filepath.Join(root, filePath)
-	data, err := ioutil.ReadFile(fullPath)
+	data, err := os.ReadFile(fullPath)
 	gomega.ExpectWithOffset(1, err).Should(
 		gomega.Succeed(), fmt.Sprintf("Failed to read file %q", filePath))
 	return data

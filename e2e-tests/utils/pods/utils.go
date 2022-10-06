@@ -40,7 +40,7 @@ func GetPodsWithLabel(ctx context.Context, clientset kubernetes.Interface,
 // CollectPodLogs streams all the logs of a pod until it either fails
 // or completes and then returns the collected logs in a bytes.Buffer.
 // Note : This function will block the caller until the pod stops as
-//        the method follows the log stream of the pod.
+// the method follows the log stream of the pod.
 func CollectPodLogs(ctx context.Context, clientset kubernetes.Interface, namespace, podName string) *bytes.Buffer {
 	// Enable follow to stream logs until the pod gets stopped/killed
 	podLogOptions := &corev1.PodLogOptions{
@@ -86,7 +86,7 @@ func getConditionStatus(pod *corev1.Pod, conditionType corev1.PodConditionType) 
 
 // WatchForPodError watches the containers in the given pod for any errors or crashes.
 // It returns true when any of the container stops due to an error or
-//            false when the all the containers complete without an error.
+// false when the all the containers complete without an error.
 // Note : this method should be called only when the pod is ready.
 func WatchForPodError(ctx context.Context, clientset kubernetes.Interface, namespace, podName string) bool {
 	// Start watching the pod

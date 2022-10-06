@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -91,7 +90,7 @@ func (tc *testCase) doPost(t *testing.T) *v1.AdmissionResponse {
 	}
 
 	// Decode the response body into the AdmissionReview struct
-	bodyBytes, err := ioutil.ReadAll(response.Body)
+	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Errorf("Failed to read http response : %v", err)
 		return nil
