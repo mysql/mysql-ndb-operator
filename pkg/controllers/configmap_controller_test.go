@@ -2,8 +2,6 @@
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
-// NOTE: NOT READY AT ALL - FIX BUT DON'T USE
-
 package controllers
 
 import (
@@ -19,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
+	"k8s.io/client-go/tools/cache"
 )
 
 func Test_TestThingsRelatedToConfigMaps(t *testing.T) {
@@ -116,7 +115,16 @@ func TestCreateConfigMap(t *testing.T) {
 	f := newFixture(t, ndb)
 	defer f.close()
 
-	cmc := NewConfigMapControl(f.k8sclient)
+	cmInformer := f.k8sIf.Core().V1().ConfigMaps()
+	cmc := NewConfigMapControl(f.k8sclient, cmInformer.Lister())
+
+	// Register handler to get a notification when the cache receives a configmap create event
+	cmCreated := make(chan struct{})
+	cmInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			close(cmCreated)
+		},
+	})
 
 	f.newController()
 	sc := f.c.newSyncContext(ndb)
@@ -129,7 +137,7 @@ func TestCreateConfigMap(t *testing.T) {
 	}
 	if cm == nil {
 		t.Fatalf("Unexpected error EnsuringConfigMap: return null pointer")
-		// return to suppress incorrect staticcheck warnings for SA5011
+		// return to suppress incorrect static check warnings for SA5011
 		return
 	}
 	if existed {
@@ -138,6 +146,9 @@ func TestCreateConfigMap(t *testing.T) {
 
 	// Validate cm
 	validateMgmtConfig(t, cm, ndb)
+
+	// Wait for cache update before proceeding
+	<-cmCreated
 
 	// Verify that EnsureConfigMap returns properly when the config map exists already
 	// No Action is expected
