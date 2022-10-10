@@ -73,7 +73,6 @@ func NewController(
 	statefulSetInformer := k8sSharedIndexInformer.Apps().V1().StatefulSets()
 	podInformer := k8sSharedIndexInformer.Core().V1().Pods()
 	serviceInformer := k8sSharedIndexInformer.Core().V1().Services()
-	pdbInformer := k8sSharedIndexInformer.Policy().V1beta1().PodDisruptionBudgets()
 	configmapInformer := k8sSharedIndexInformer.Core().V1().ConfigMaps()
 
 	// Extract all the InformerSynced methods
@@ -82,7 +81,6 @@ func NewController(
 		statefulSetInformer.Informer().HasSynced,
 		podInformer.Informer().HasSynced,
 		serviceInformer.Informer().HasSynced,
-		pdbInformer.Informer().HasSynced,
 		configmapInformer.Informer().HasSynced,
 	}
 
@@ -105,9 +103,13 @@ func NewController(
 		ndbmtdController: newNdbmtdStatefulSetController(kubernetesClient, statefulSetLister),
 		mysqldController: newMySQLDStatefulSetController(
 			kubernetesClient, statefulSetLister, configmapLister),
+	}
 
-		pdbController: newPodDisruptionBudgetControl(
-			kubernetesClient, pdbInformer.Lister()),
+	// Setup informer and controller for v1beta1.PDB if K8s Server has the support
+	if ServerSupportsV1Beta1Policy(kubernetesClient) {
+		pdbInformer := k8sSharedIndexInformer.Policy().V1beta1().PodDisruptionBudgets()
+		controller.informerSyncedMethods = append(controller.informerSyncedMethods, pdbInformer.Informer().HasSynced)
+		controller.pdbController = newPodDisruptionBudgetControl(kubernetesClient, pdbInformer.Lister())
 	}
 
 	klog.Info("Setting up event handlers")

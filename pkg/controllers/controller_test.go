@@ -328,10 +328,10 @@ func filterInformerActions(actions []core.Action) []core.Action {
 	ret := []core.Action{}
 	for _, action := range actions {
 		// Ignore all gets used by the controllers
-		if action.GetNamespace() == "default" &&
-			(action.Matches("get", "configmaps") ||
-				action.Matches("get", "secrets") ||
-				action.Matches("get", "ndbclusters")) {
+		if (action.GetNamespace() == "default" &&
+			(action.Matches("get", "secrets") ||
+				action.Matches("get", "ndbclusters"))) ||
+			(action.GetNamespace() == "" && action.Matches("get", "version")) {
 			//klog.Infof("Filtering +%v", action)
 			continue
 		}
@@ -441,13 +441,8 @@ func TestCreatesCluster(t *testing.T) {
 	markStatefulSetAsReadyOnAdd(f)
 
 	// Expect actions for first loop
-	// One PDB for data nodes
-	omd := getObjectMetadata("test-pdb-ndbmtd", ndb)
-	f.expectCreateAction(ns, "policy", "v1beta1", "poddisruptionbudgets",
-		&policyv1beta1.PodDisruptionBudget{ObjectMeta: *omd})
-
 	// One configmap for NdbCluster resource
-	omd.Name = "test-config"
+	omd := getObjectMetadata("test-config", ndb)
 	f.expectCreateAction(ns, "", "v1", "configmaps", &corev1.ConfigMap{ObjectMeta: *omd})
 
 	// Secret for the NDB operator user password

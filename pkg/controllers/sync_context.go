@@ -102,6 +102,11 @@ func (sc *SyncContext) validateMySQLServerStatefulSet() (*appsv1.StatefulSet, er
 // ensurePodDisruptionBudgets creates PodDisruptionBudgets for data nodes
 func (sc *SyncContext) ensurePodDisruptionBudget(ctx context.Context) (existed bool, err error) {
 	// ensure ndbmtd PDB
+	if sc.pdbController == nil {
+		// v1beta1 policy is not supported
+		// return true to suppress operator's "created" log
+		return true, nil
+	}
 	return sc.pdbController.EnsurePodDisruptionBudget(
 		ctx, sc, sc.ndbmtdController.GetTypeName())
 }
