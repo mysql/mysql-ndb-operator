@@ -6,6 +6,7 @@ package controllers
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/mysql/ndb-operator/pkg/resources"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -14,6 +15,25 @@ import (
 	policylisterv1beta1 "k8s.io/client-go/listers/policy/v1beta1"
 	"k8s.io/klog/v2"
 )
+
+func ServerSupportsV1Beta1Policy(client kubernetes.Interface) bool {
+	info, err := client.Discovery().ServerVersion()
+	if err != nil {
+		klog.Warning(
+			"Cannot use PodDisruptionBudgets as operator is unable to detect connected K8s server version :", err)
+		return false
+	}
+
+	majorVersion, _ := strconv.Atoi(info.Major)
+	minorVersion, _ := strconv.Atoi(info.Minor)
+	if majorVersion == 1 && minorVersion < 25 && minorVersion >= 19 {
+		return true
+	}
+
+	klog.Warningf(
+		"Cannot use PodDisruptionBudgets as K8s Server version %q doesn't support v1beta1/policy", info.String())
+	return false
+}
 
 type PodDisruptionBudgetControlInterface interface {
 	EnsurePodDisruptionBudget(
