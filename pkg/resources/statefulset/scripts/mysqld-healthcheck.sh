@@ -8,18 +8,13 @@
 
 set -o errexit
 
-# Location of the required script and cnf is passed as the first arg to the script
+# Location of the required cnf is passed as the first arg to the script
 healthCheckCnf="${1}/healthcheck.cnf"
-mysqlInitComplete="${1}/mysql-init-complete"
 
-# Entrypoint script in docker image touches the mysql-init-complete file after
-# the initialisation is complete and before the main server process is started.
-if [ ! -f "${mysqlInitComplete}" ]; then
-  # initialisation is not complete yet
-  exit 1
-fi
+# Ping server to see if it is ready
+mysqladmin --defaults-extra-file="${healthCheckCnf}" ping
 
-# MySQL initialisation is complete
+# MySQL Server is ready
 # Check if the MySQL Cluster binlog setup is ongoing
 setupDone=$(mysql --defaults-extra-file="${healthCheckCnf}" \
                   -NB -e 'select mysql.IsNdbclusterSetupComplete()')
