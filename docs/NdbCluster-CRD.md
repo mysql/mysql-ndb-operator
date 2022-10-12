@@ -351,8 +351,7 @@ string
 <td>
 <em>(Optional)</em>
 <p>The name of the MySQL Ndb Cluster image to be used.
-If not specified, &ldquo;mysql/mysql-cluster:8.0.31&rdquo; will be used.
-Lowest supported version is 8.0.26.</p>
+If not specified, &ldquo;mysql/mysql-cluster:8.0.31&rdquo; will be used.</p>
 </td>
 </tr>
 <tr>
