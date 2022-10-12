@@ -958,8 +958,7 @@ spec:
               image:
                 default: mysql/mysql-cluster:8.0.31
                 description: The name of the MySQL Ndb Cluster image to be used. If
-                  not specified, "mysql/mysql-cluster:8.0.31" will be used. Lowest
-                  supported version is 8.0.26.
+                  not specified, "mysql/mysql-cluster:8.0.31" will be used.
                 type: string
               imagePullPolicy:
                 default: IfNotPresent
