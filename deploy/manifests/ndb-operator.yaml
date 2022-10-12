@@ -2935,7 +2935,7 @@ kind: Deployment
 metadata:
   labels:
     app: ndb-operator-webhook-deployment
-    release: 8.0.31-1.0.0
+    release: 8.0.32-1.1.0
   name: ndb-operator-webhook-server
   namespace: ndb-operator
 spec:
@@ -2955,7 +2955,7 @@ spec:
         - -service=ndb-operator-webhook-service
         command:
         - ndb-operator-webhook
-        image: mysql/ndb-operator:8.0.31-1.0.0
+        image: mysql/ndb-operator:8.0.32-1.1.0
         imagePullPolicy: IfNotPresent
         name: ndb-operator-webhook
         ports:
@@ -2972,7 +2972,7 @@ kind: Deployment
 metadata:
   labels:
     app: ndb-operator
-    release: 8.0.31-1.0.0
+    release: 8.0.32-1.1.0
   name: ndb-operator-app
   namespace: ndb-operator
 spec:
@@ -2995,8 +2995,8 @@ spec:
         - ndb-operator
         env:
         - name: NDB_OPERATOR_IMAGE
-          value: mysql/ndb-operator:8.0.31-1.0.0
-        image: mysql/ndb-operator:8.0.31-1.0.0
+          value: mysql/ndb-operator:8.0.32-1.1.0
+        image: mysql/ndb-operator:8.0.32-1.1.0
         imagePullPolicy: IfNotPresent
         name: ndb-operator-controller
         ports:
