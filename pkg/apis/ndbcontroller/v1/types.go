@@ -5,11 +5,7 @@
 package v1
 
 import (
-	"crypto/md5"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/mysql/ndb-operator/pkg/constants"
@@ -346,25 +342,6 @@ func (nc *NdbCluster) GetConfigMapName() string {
 // GetPodDisruptionBudgetName returns the PDB name of a given resource
 func (nc *NdbCluster) GetPodDisruptionBudgetName(resource string) string {
 	return fmt.Sprintf("%s-pdb-%s", nc.Name, resource)
-}
-
-// CalculateNewConfigHash Calculate a hash of the current Spec
-/* TODO - not quite clear if its deterministic
-there is no documented guarantee that reflect used in Marshal
-has a guaranteed order of fields in the struct or if e.g. compiler could change it */
-func (nc *NdbCluster) CalculateNewConfigHash() (string, error) {
-	jsonNdb, err := json.Marshal(nc.Spec)
-	if err != nil {
-		return "", err
-	}
-	hash := md5.New()
-	_, err = io.WriteString(hash, string(jsonNdb))
-	if err != nil {
-		return "", err
-	}
-	h := hash.Sum(nil)
-
-	return base64.StdEncoding.EncodeToString(h), nil
 }
 
 // GetManagementNodeCount returns the number of
