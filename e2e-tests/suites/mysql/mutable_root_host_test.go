@@ -12,7 +12,7 @@ import (
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbutils"
 	secretutils "github.com/mysql/ndb-operator/e2e-tests/utils/secret"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 	"github.com/onsi/ginkgo/v2"
@@ -71,7 +71,7 @@ var _ = ndbtest.NewOrderedTestCase("Mutable root host", func(tc *ndbtest.TestCon
 		ndbtest.KubectlApplyNdbObjNoWait(testNdb)
 		// validate the status updates made by the operator during the sync
 		ndbutils.ValidateNdbClusterStatusUpdatesDuringSync(
-			ctx, tc.NdbClientset(), ns, ndbName)
+			ctx, tc.NdbClientset(), ns, ndbName, false)
 	})
 
 	// Due to Bug #33904288: host change from % -> any address is not getting distributed

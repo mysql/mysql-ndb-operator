@@ -62,9 +62,9 @@ func (mssc *mysqldStatefulSetController) HandleScaleDown(ctx context.Context, sc
 		// Nothing to scale down
 		return continueProcessing()
 	}
-
+	NdbGeneration := sc.configSummary.NdbClusterGeneration
 	// StatefulSet exists
-	if !statefulsetUpdateComplete(mysqldSfset) {
+	if !sc.isStatefulsetUpdated(sc.mysqldSfset, NdbGeneration, Complete) {
 		// Previous StatefulSet update is not complete yet.
 		// Finish processing. Reconciliation will
 		// continue once the StatefulSet update has been

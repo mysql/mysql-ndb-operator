@@ -264,6 +264,37 @@ func NewController(
 		0,
 	)
 
+	// Set up event handlers for Pod Status changes
+	podInformer.Informer().AddEventHandlerWithResyncPeriod(
+
+		cache.FilteringResourceEventHandler{
+			FilterFunc: func(obj interface{}) bool {
+				// Filter out all Pods not owned by any NdbCluster resources.
+				// The Pod labels will have the names of their respective
+				// NdbCluster owners.
+				pod := obj.(*corev1.Pod)
+				_, clusterLabelExists := pod.GetLabels()[constants.ClusterLabel]
+				return clusterLabelExists
+			},
+
+			Handler: cache.ResourceEventHandlerFuncs{
+				// When a pod owned by an NdbCluster resource fails or
+				// recovers from an error, the NdbCluster status needs to be updated.
+				UpdateFunc: func(oldObj, newObj interface{}) {
+					oldPod := oldObj.(*corev1.Pod)
+					newPod := newObj.(*corev1.Pod)
+					if !reflect.DeepEqual(getPodErrors(oldPod), getPodErrors(newPod)) {
+						// The error status of the Pod has changed.
+						controller.extractAndEnqueueNdbCluster(newPod)
+					}
+				},
+			},
+		},
+
+		// Set resyncPeriod to 0 to ignore all re-sync events
+		0,
+	)
+
 	return controller
 }
 

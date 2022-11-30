@@ -10,24 +10,14 @@ import (
 
 	"github.com/mysql/ndb-operator/pkg/mgmapi"
 
-	"github.com/mysql/ndb-operator/e2e-tests/utils/mgmapi"
+	mgmapiutils "github.com/mysql/ndb-operator/e2e-tests/utils/mgmapi"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 	clientset "k8s.io/client-go/kubernetes"
 )
-
-func getIntStrPtrFromString(value string) *intstr.IntOrString {
-	v := intstr.FromString(value)
-	return &v
-}
-
-func getIntStrPtrFromInt(value int) *intstr.IntOrString {
-	v := intstr.FromInt(value)
-	return &v
-}
 
 var _ = ndbtest.NewOrderedTestCase("MySQL Cluster config update", func(tc *ndbtest.TestContext) {
 	var ns string

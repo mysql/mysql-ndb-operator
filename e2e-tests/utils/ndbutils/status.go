@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 
 	"github.com/onsi/ginkgo/v2"
@@ -23,9 +23,10 @@ import (
 )
 
 // expectValidInfoInStatus verifies if all the status fields have valid values
-func expectValidInfoInStatus(nc *v1.NdbCluster, initialSystemRestart bool) {
+func expectValidInfoInStatus(nc *v1.NdbCluster, initialSystemRestart bool) string {
 	status := &nc.Status
 	allNodesReady := nc.Generation == status.ProcessedGeneration
+	var receivedReason string
 
 	// Loop the three NodeReady status variables and validate their values
 	for _, s := range []*struct {
@@ -66,20 +67,26 @@ func expectValidInfoInStatus(nc *v1.NdbCluster, initialSystemRestart bool) {
 	for _, condition := range status.Conditions {
 		switch condition.Type {
 		case v1.NdbClusterUpToDate:
+			var expectedReasons []string
 			expectedStatus := corev1.ConditionFalse
-			expectedReason := v1.NdbClusterUptoDateReasonSpecUpdateInProgress
+			expectedReasons = append(expectedReasons, v1.NdbClusterUptoDateReasonSpecUpdateInProgress)
+			expectedReasons = append(expectedReasons, v1.NdbClusterUptoDateReasonError)
 			if allNodesReady {
 				expectedStatus = corev1.ConditionTrue
-				expectedReason = v1.NdbClusterUptoDateReasonSyncSuccess
+				expectedReasons = append(expectedReasons, v1.NdbClusterUptoDateReasonSyncSuccess)
 			} else if initialSystemRestart {
-				expectedReason = v1.NdbClusterUptoDateReasonISR
+				expectedReasons = append(expectedReasons, v1.NdbClusterUptoDateReasonISR)
+				expectedReasons = append(expectedReasons, v1.NdbClusterUptoDateReasonError)
 			}
 			gomega.Expect(condition.Status).To(
 				gomega.Equal(expectedStatus), "NdbClusterUpToDate condition has an invalid status")
-			gomega.Expect(condition.Reason).To(
-				gomega.Equal(expectedReason), "NdbClusterUpToDate condition has an invalid reason")
+			gomega.Expect(condition.Reason).Should(
+				gomega.BeElementOf(expectedReasons),
+				"NdbClusterUpToDate condition has an invalid reason")
 			gomega.Expect(condition.LastTransitionTime.IsZero()).NotTo(
 				gomega.BeTrue(), "NdbClusterUpToDate condition LastTransitionTime is not set")
+
+			receivedReason = condition.Reason
 		}
 	}
 
@@ -97,6 +104,7 @@ func expectValidInfoInStatus(nc *v1.NdbCluster, initialSystemRestart bool) {
 				gomega.BeEmpty(), "status.generatedRootPasswordSecretName has unexpected value")
 		}
 	}
+	return receivedReason
 }
 
 const (
@@ -104,11 +112,14 @@ const (
 )
 
 // ValidateNdbClusterStatusUpdatesDuringSync validates all updates done
-// to a NdbCluster status when a sync is ongoing. It returns when the
-// NdbCluster spec is finally in sync with the MySQL Cluster.
+// to a NdbCluster status when a sync is ongoing. If waitForSyncError is
+// set, the function waits for the error to occur and returns when the error
+// is detected. If waitForSyncError is not set, the function returns when the
+// NdbCluster spec is in sync with the MySQL Cluster
 func ValidateNdbClusterStatusUpdatesDuringSync(
-	ctx context.Context, ndbClient ndbclientset.Interface, ns, name string) {
-
+	ctx context.Context, ndbClient ndbclientset.Interface, ns, name string, waitForSyncError bool) {
+	var previousReason string
+	var errorCount int
 	// create a context with timeout
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, watchTimeout)
 	defer cancel()
@@ -136,7 +147,22 @@ func ValidateNdbClusterStatusUpdatesDuringSync(
 			if watchEvent.Type == watch.Modified {
 				// Validate the Node ready status
 				nc = watchEvent.Object.(*v1.NdbCluster)
-				expectValidInfoInStatus(nc, initialSystemRestart)
+				receivedReason := expectValidInfoInStatus(nc, initialSystemRestart)
+				if waitForSyncError {
+					// Sometimes we can get error during init phase due to DNS issues
+					// So, we declare error only on receiving sync error for 3 consecutive
+					// ndb updates
+					if previousReason != v1.NdbClusterUptoDateReasonError {
+						errorCount = 0
+					}
+					if receivedReason == v1.NdbClusterUptoDateReasonError {
+						errorCount++
+					}
+					if errorCount >= 3 {
+						return
+					}
+					previousReason = receivedReason
+				}
 			}
 		}
 	}
