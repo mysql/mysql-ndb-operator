@@ -11,13 +11,14 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	ndblisters "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/mgmapi"
@@ -56,6 +57,15 @@ type SyncContext struct {
 	// recorder is an event recorder for recording Event resources to the Kubernetes API.
 	recorder events.EventRecorder
 }
+
+const (
+	// ClusterLabel is applied to all the resources owned by an
+	// NdbCluster resource
+	Ready = "Ready"
+	// ClusterNodeTypeLabel is applied to all the pods owned by an
+	// NdbCluster resource
+	Complete = "Complete"
+)
 
 func (sc *SyncContext) kubeClientset() kubernetes.Interface {
 	return sc.kubernetesClient
@@ -299,6 +309,19 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 		return errorWhileProcessing(err)
 	}
 
+	initialSystemRestart := sc.ndb.Status.ProcessedGeneration == 0
+
+	nc := sc.ndb
+	if nc.HasSyncError() {
+		// Patch config map if new spec is available
+		patched, err := sc.patchConfigMap(ctx)
+		if patched {
+			return finishProcessing()
+		} else if err != nil {
+			return errorWhileProcessing(err)
+		}
+	}
+
 	// create the management stateful set if it doesn't exist
 	if sc.mgmdNodeSfset, resourceExists, err = sc.ensureManagementServerStatefulSet(ctx); err != nil {
 		return errorWhileProcessing(err)
@@ -311,8 +334,31 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 		klog.Infof("Reconciliation will continue after all the management nodes are ready.")
 		return finishProcessing()
 	}
-	initialSystemRestart := sc.ndb.Status.ProcessedGeneration == 0
+
 	if initialSystemRestart && !statefulsetUpdateComplete(sc.mgmdNodeSfset) {
+		if !workloadHasConfigGeneration(sc.mgmdNodeSfset, sc.configSummary.NdbClusterGeneration) {
+			// Note: This case will arise during initial system restart, when there is an
+			// error applying the NDB spec and the user updated the spec to rectify the error.
+			// Since, the Configmap is already updated, just patching the statefulset alone
+			// should work. But, mgmd statefulset has pod management policy set to OrderedReady.
+			// Due to an issue in k8s, patching statefulset with OrderedReady does not restart the
+			// pod until the backoff timer expires. And if the backoff time is high, the pods will
+			// need to wait longer to get restarted. So, manually delete the pod after patching the
+			// Statefulset.
+
+			// User updated the NDB spec and the statefulset needs to be patched.
+			klog.Infof("A new generation of NdbCluster spec exists and the statefulset %q needs to be updated", getNamespacedName(sc.mgmdNodeSfset))
+			if sr := sc.reconcileManagementNodeStatefulSet(ctx); sr.stopSync() {
+				if err := sr.getError(); err == nil {
+					// ManagementNodeStatefulSet patched successfully
+					klog.Infof("Delete smallest ordinal pod manually to avoid delay in restart")
+					_, err := sc.deletePodOnStsUpdate(ctx, sc.mgmdNodeSfset, 0)
+					return errorWhileProcessing(err)
+				}
+				return sr
+			}
+		}
+
 		// Management nodes are starting for the first time, and
 		// one of them is not ready yet which implies that this
 		// reconciliation was triggered only to update the
@@ -333,7 +379,15 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 		klog.Infof("Reconciliation will continue after all the data nodes are ready.")
 		return finishProcessing()
 	}
+
 	if initialSystemRestart && !statefulsetUpdateComplete(sc.dataNodeSfSet) {
+		if !workloadHasConfigGeneration(sc.dataNodeSfSet, sc.configSummary.NdbClusterGeneration) {
+			// User updated the NDB spec and the statefulset needs to be patched
+			klog.Infof("A new generation of NdbCluster spec exists and the statefulset %q needs to be updated", getNamespacedName(sc.dataNodeSfSet))
+			if sr := sc.reconcileDataNodeStatefulSet(ctx); sr.stopSync() {
+				return sr
+			}
+		}
 		// Data nodes are starting for the first time, and some of
 		// them are not ready yet which implies that this
 		// reconciliation was triggered only to update the NdbCluster
@@ -346,7 +400,8 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 	if sc.mysqldSfset, err = sc.validateMySQLServerStatefulSet(); err != nil {
 		return errorWhileProcessing(err)
 	}
-	if sc.mysqldSfset != nil && !statefulsetUpdateComplete(sc.mysqldSfset) {
+
+	if sc.mysqldSfset != nil && !statefulsetUpdateComplete(sc.mysqldSfset) && !nc.HasSyncError() {
 		// MySQL Server StatefulSet exists, but it is not complete yet
 		// which implies that this reconciliation was triggered only
 		// to update the NdbCluster status. No need to proceed further.
@@ -362,15 +417,59 @@ func (sc *SyncContext) ensureAllResources(ctx context.Context) syncResult {
 	return continueProcessing()
 }
 
+// retrievePodErrors lists all the pods owned by the current NdbCluster
+// resource and then returns any errors encountered by them.
+func (sc *SyncContext) retrievePodErrors() (errs []string) {
+	nc := sc.ndb
+
+	// List all pods owned by NdbCluster resource
+	pods, listErr := sc.podLister.Pods(nc.Namespace).List(labels.Set(nc.GetLabels()).AsSelector())
+	if listErr != nil {
+		klog.Errorf("Failed to list pods owned by NdbCluster %q : %s", getNamespacedName(nc), listErr)
+		return []string{listErr.Error()}
+	}
+
+	// Retrieve errors from all listed pods
+	for _, pod := range pods {
+		errs = append(errs, getPodErrors(pod)...)
+	}
+
+	return errs
+}
+
+// isStatefulsetUpdated checks if the given StatefulSet has the expectedConfigGeneration.
+// If the StatefulSet is in ready/completed state or the StatefulSet does not have the
+// expectedConfigGeneration it returns true. In all other cases it returns false.
+func (sc *SyncContext) isStatefulsetUpdated(statefulset *appsv1.StatefulSet, expectedConfigGeneration int64, completeOrReady string) bool {
+	if statefulset == nil {
+		return true
+	} else if !workloadHasConfigGeneration(statefulset, expectedConfigGeneration) {
+		// The statefulset does not have the expected generation.
+		return true
+	} else {
+		if completeOrReady == Ready {
+			return statefulsetReady(statefulset)
+		} else if completeOrReady == Complete {
+			return statefulsetUpdateComplete(statefulset)
+		}
+		klog.Infof("invalid argument: upgradeOrReady string")
+		return false
+	}
+}
+
 // ensureWorkloadsReadiness checks if all the workloads created for the
 // NdbCluster resource are ready. The sync is stopped if they are not ready.
 func (sc *SyncContext) ensureWorkloadsReadiness() syncResult {
-	// The data node StatefulSet should be ready and both the
-	// mgmd and MySQL StatefulSets should be complete.
-	if statefulsetUpdateComplete(sc.mgmdNodeSfset) &&
-		statefulsetReady(sc.dataNodeSfSet) &&
-		(sc.mysqldSfset == nil ||
-			statefulsetUpdateComplete(sc.mysqldSfset)) {
+
+	NdbGeneration := sc.configSummary.NdbClusterGeneration
+
+	// The data node StatefulSet should be ready and both the mgmd and MySQL StatefulSets should
+	// be complete if the workloads has same ndb generation as config summary. If the workloads
+	// has different generation, then this implies that there is a spec change and hence that
+	// particular workload needs to be patched. So, no need to wait for the stale versions
+	if sc.isStatefulsetUpdated(sc.mgmdNodeSfset, NdbGeneration, Complete) &&
+		sc.isStatefulsetUpdated(sc.dataNodeSfSet, NdbGeneration, Ready) &&
+		sc.isStatefulsetUpdated(sc.mysqldSfset, NdbGeneration, Complete) {
 		klog.Infof("All workloads owned by the NdbCluster resource %q are ready", getNamespacedName(sc.ndb))
 		return continueProcessing()
 	}
@@ -378,6 +477,7 @@ func (sc *SyncContext) ensureWorkloadsReadiness() syncResult {
 	// Some workload is not ready yet => some pods are not ready yet
 	klog.Infof("Some pods owned by the NdbCluster resource %q are not ready yet",
 		getNamespacedName(sc.ndb))
+
 	// Stop processing.
 	// Reconciliation will continue when all the pods are ready.
 	return finishProcessing()
@@ -432,6 +532,15 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 	// the update will be rolled out by the controller once the StatefulSet
 	// is patched.
 	if sr := sc.reconcileManagementNodeStatefulSet(ctx); sr.stopSync() {
+		if err := sr.getError(); err == nil {
+			// ManagementNodeStatefulSet patched successfully
+			if sc.ndb.HasSyncError() {
+				mgmdReplicaCount := *(sc.mgmdNodeSfset.Spec.Replicas)
+				klog.Infof("Delete largest ordinal pod manually to avoid delay in restart")
+				_, err := sc.deletePodOnStsUpdate(ctx, sc.mgmdNodeSfset, mgmdReplicaCount-1)
+				return errorWhileProcessing(err)
+			}
+		}
 		return sr
 	}
 	klog.Info("All Management node pods are up-to-date and ready")
@@ -468,15 +577,14 @@ func (sc *SyncContext) sync(ctx context.Context) syncResult {
 	klog.Infof("The generation of the config in the configMap : \"%d\"", sc.configSummary.NdbClusterGeneration)
 
 	// Check if the config map has processed the latest NdbCluster Generation
-	if sc.configSummary.NdbClusterGeneration != sc.ndb.Generation {
-		// The Ndb object spec has changed - patch the config map
-		klog.Info("A new generation of NdbCluster spec exists and the config map needs to be updated")
-		if _, err := sc.configMapController.PatchConfigMap(ctx, sc); err != nil {
-			return errorWhileProcessing(err)
-		}
+	patched, err := sc.patchConfigMap(ctx)
+	if patched {
 		// Only the config map was updated during this loop.
 		// The next loop will actually start the sync
 		return finishProcessing()
+	} else if err != nil {
+		klog.Errorf("Failed to patch the ConfigMap. Error : %v", err)
+		return errorWhileProcessing(err)
 	}
 
 	// MySQL Cluster in sync with the NdbCluster spec
@@ -536,4 +644,37 @@ func (sc *SyncContext) updateNdbClusterStatus(ctx context.Context) (statusUpdate
 	}
 
 	return statusUpdated, err
+}
+
+// patchConfigMap patches the config map with the newer spec of the NdbCluster resource
+func (sc *SyncContext) patchConfigMap(ctx context.Context) (bool, error) {
+	// Check if the config map has processed the latest NdbCluster Generation
+	if sc.configSummary.NdbClusterGeneration != sc.ndb.Generation {
+		// The Ndb object spec has changed - patch the config map
+		klog.Info("A new generation of NdbCluster spec exists and the config map needs to be updated")
+		if _, err := sc.configMapController.PatchConfigMap(ctx, sc); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+
+	// ConfigMap already upToDate
+	return false, nil
+}
+
+// deletePodOnStsUpdate deletes the pod with given pod ordinal index
+func (sc *SyncContext) deletePodOnStsUpdate(
+	ctx context.Context, mgmdSfset *appsv1.StatefulSet, podOrdinalIndex int32) (podDeleted bool, err error) {
+	namespace := mgmdSfset.Namespace
+	podName := fmt.Sprintf(
+		"%s-%d", mgmdSfset.Name, podOrdinalIndex)
+	// Delete it and let the statefulset controller restart it with the latest pod definition.
+	err = sc.kubeClientset().CoreV1().Pods(namespace).Delete(ctx, podName, metav1.DeleteOptions{})
+	if err != nil {
+		klog.Errorf("Failed to delete pod '%s/%s' running : %s", namespace, podName, err)
+		return false, err
+	}
+	klog.Errorf("Successfully deleted pod '%s/%s'", namespace, podName)
+	// The pod has been deleted.
+	return true, nil
 }

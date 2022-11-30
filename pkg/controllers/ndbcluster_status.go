@@ -6,12 +6,14 @@ package controllers
 
 import (
 	"fmt"
+	"strings"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/resources"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
 )
 
 // statusEqual checks if the given two NdbClusterStatuses are equal.
@@ -24,7 +26,9 @@ func statusEqual(oldStatus *v1.NdbClusterStatus, newStatus *v1.NdbClusterStatus)
 		oldStatus.ReadyMySQLServers == newStatus.ReadyMySQLServers &&
 		oldStatus.GeneratedRootPasswordSecretName == newStatus.GeneratedRootPasswordSecretName &&
 		// TODO: Improve this comparison when more conditions are added
-		oldStatus.Conditions[0].Status == newStatus.Conditions[0].Status
+		oldStatus.Conditions[0].Status == newStatus.Conditions[0].Status &&
+		oldStatus.Conditions[0].Reason == newStatus.Conditions[0].Reason &&
+		oldStatus.Conditions[0].Message == newStatus.Conditions[0].Message
 }
 
 // calculateNdbClusterStatus generates the current status for the NdbCluster in SyncContext
@@ -82,9 +86,15 @@ func (sc *SyncContext) calculateNdbClusterStatus() *v1.NdbClusterStatus {
 			status.ProcessedGeneration)
 	} else {
 		// The sync is ongoing
-		status.ProcessedGeneration = nc.Generation - 1
+		status.ProcessedGeneration = nc.Status.ProcessedGeneration
+
 		upToDateCondition.Status = corev1.ConditionFalse
-		if nc.Generation == 1 {
+		if errMsgs := sc.retrievePodErrors(); errMsgs != nil {
+			// One or more pods owned by the NdbCluster resource is failing
+			klog.Errorf("One or more pods owned by the ndbcluster resource %q are failing : \n%s", getNamespacedName(nc), errMsgs)
+			upToDateCondition.Reason = v1.NdbClusterUptoDateReasonError
+			upToDateCondition.Message = strings.Join(errMsgs, "\n")
+		} else if nc.Generation == 1 {
 			// The MySQL Cluster nodes are being started for the first time
 			upToDateCondition.Reason = v1.NdbClusterUptoDateReasonISR
 			upToDateCondition.Message = "MySQL Cluster is starting up"

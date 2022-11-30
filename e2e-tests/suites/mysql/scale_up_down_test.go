@@ -7,12 +7,12 @@ package e2e
 import (
 	"context"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 
 	mgmapiutils "github.com/mysql/ndb-operator/e2e-tests/utils/mgmapi"
-	"github.com/mysql/ndb-operator/e2e-tests/utils/mysql"
+	mysqlutils "github.com/mysql/ndb-operator/e2e-tests/utils/mysql"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbutils"
 	statefulsetutils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
@@ -73,7 +73,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Servers scaling up and down", func(tc 
 		ndbtest.KubectlApplyNdbObjNoWait(testNdb)
 		// validate the status updates made by the operator during the sync
 		ndbutils.ValidateNdbClusterStatusUpdatesDuringSync(
-			ctx, tc.NdbClientset(), ns, ndbName)
+			ctx, tc.NdbClientset(), ns, ndbName, false)
 	})
 
 	// TestCase-1

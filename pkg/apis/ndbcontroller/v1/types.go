@@ -267,6 +267,10 @@ const (
 	// NdbClusterUpToDate condition is set to true once it is in sync
 	// with the NdbCluster.Spec.
 	NdbClusterUptoDateReasonSyncSuccess string = "SyncSuccess"
+	// NdbClusterUptoDateReasonError is the reason used when
+	// the NdbClusterUpToDate condition is set to False when sync
+	// encounters an error.
+	NdbClusterUptoDateReasonError string = "SyncError"
 )
 
 // NdbClusterCondition describes the state of a MySQL Cluster installation at a certain point.
@@ -431,4 +435,21 @@ func (nc *NdbCluster) GetMySQLCnf() string {
 // GetWorkloadName returns the name K8s workload that manages the given NdbNodeType
 func (nc *NdbCluster) GetWorkloadName(nodeType constants.NdbNodeType) string {
 	return nc.Name + "-" + nodeType
+}
+
+// getCondition returns the NdbClusterCondition of condType from NdbCluster resource
+func (nc *NdbCluster) getCondition(condType NdbClusterConditionType) *NdbClusterCondition {
+	for _, condition := range nc.Status.Conditions {
+		if condition.Type == condType {
+			return &condition
+		}
+	}
+
+	return nil
+}
+
+// HasSyncError returns if there is any error in the NdbClusterUpToDate condition
+func (nc *NdbCluster) HasSyncError() bool {
+	upToDateCond := nc.getCondition(NdbClusterUpToDate)
+	return upToDateCond != nil && upToDateCond.Reason == NdbClusterUptoDateReasonError
 }

@@ -469,7 +469,7 @@ func (t *testRunner) getGinkgoTestCommand(suiteDir string, testcaseOptions ...st
 		"go", "run", "github.com/onsi/ginkgo/v2/ginkgo",
 		"-r",          // recursively run all suites in the given directory
 		"-keep-going", // keep running all test suites even if one fails
-		"-timeout=2h", // increase total Ginkgo run timeout
+		"-timeout=3h", // increase total Ginkgo run timeout
 	}
 
 	if options.verbose {

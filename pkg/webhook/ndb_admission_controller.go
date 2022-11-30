@@ -5,7 +5,7 @@
 package webhook
 
 import (
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,11 +55,15 @@ func (nv *ndbAdmissionController) validateUpdate(
 	reqUID types.UID, newObj runtime.Object, oldObj runtime.Object) *admissionv1.AdmissionResponse {
 
 	oldNC := oldObj.(*v1.NdbCluster)
-	if oldNC.Status.ProcessedGeneration != oldNC.Generation {
-		// The previous update is still being applied, and
-		// the operator can handle only one update at a moment.
+	// The Operator can handle only one update at a moment, so disallow
+	// any update when the previous update has not completed yet.
+	// In case of previous update failing due to an error, allow the
+	// new update as it might be attempting to fix the error.
+	if oldNC.Status.ProcessedGeneration != oldNC.Generation && !oldNC.HasSyncError() {
+		// The previous update is still being applied, and the sync has
+		// not encountered any errors so far - disallow new update.
 		return requestDenied(reqUID,
-			errors.NewTooManyRequestsError("previous update to the Ndb resource is still being applied"))
+			errors.NewTooManyRequestsError("previous update to the NdbCluster resource is still being applied"))
 	}
 
 	newNC := newObj.(*v1.NdbCluster)
