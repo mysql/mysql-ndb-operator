@@ -23,7 +23,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/mysql/ndb-operator/config/debug"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	ndbinformers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
@@ -220,7 +220,7 @@ func NewController(
 						}
 					}
 
-					controller.extractAndEnqueueNdbCluster(newStatefulSet)
+					controller.extractAndEnqueueNdbCluster(newStatefulSet, "StatefulSet", "updated")
 				},
 
 				// When a statefulset owned by a NdbCluster resource
@@ -229,7 +229,7 @@ func NewController(
 				DeleteFunc: func(obj interface{}) {
 					sfset := obj.(*appsv1.StatefulSet)
 					klog.Infof("StatefulSet %q is deleted", getNamespacedName(sfset))
-					controller.extractAndEnqueueNdbCluster(sfset)
+					controller.extractAndEnqueueNdbCluster(sfset, "StatefulSet", "deleted")
 				},
 			},
 		},
@@ -255,7 +255,7 @@ func NewController(
 				// Requeue owner for reconciliation
 				UpdateFunc: func(oldObj, newObj interface{}) {
 					newConfigMap := newObj.(*corev1.ConfigMap)
-					controller.extractAndEnqueueNdbCluster(newConfigMap)
+					controller.extractAndEnqueueNdbCluster(newConfigMap, "ConfigMap", "updated")
 				},
 			},
 		},
@@ -283,9 +283,10 @@ func NewController(
 				UpdateFunc: func(oldObj, newObj interface{}) {
 					oldPod := oldObj.(*corev1.Pod)
 					newPod := newObj.(*corev1.Pod)
+
 					if !reflect.DeepEqual(getPodErrors(oldPod), getPodErrors(newPod)) {
 						// The error status of the Pod has changed.
-						controller.extractAndEnqueueNdbCluster(newPod)
+						controller.extractAndEnqueueNdbCluster(newPod, "Pod", "updated")
 					}
 				},
 			},
@@ -318,7 +319,7 @@ func (c *Controller) ndbClusterExists(namespace, name string) (bool, error) {
 // extractAndEnqueueNdbCluster extracts the key of NdbCluster that owns
 // the given Workload object (i.e. a deployment or a statefulset) and
 // then adds it to the controller's workqueue for reconciliation.
-func (c *Controller) extractAndEnqueueNdbCluster(obj metav1.Object) {
+func (c *Controller) extractAndEnqueueNdbCluster(obj metav1.Object, resource string, event string) {
 	ndbClusterName := obj.GetLabels()[constants.ClusterLabel]
 	if exists, _ := c.ndbClusterExists(obj.GetNamespace(), ndbClusterName); !exists {
 		// Some error occurred during Get or the object doesn't exist
@@ -326,7 +327,8 @@ func (c *Controller) extractAndEnqueueNdbCluster(obj metav1.Object) {
 		return
 	}
 	key := getNamespacedName2(obj.GetNamespace(), ndbClusterName)
-	klog.Infof("NdbCluster resource %q is re-queued for further reconciliation", key)
+	objName := getNamespacedName2(obj.GetNamespace(), obj.GetName())
+	klog.Infof("NdbCluster resource %q is re-queued for further reconciliation as the %s %q owned by the NdbCluster is %s", key, resource, objName, event)
 	c.workqueue.Add(key)
 }
 
