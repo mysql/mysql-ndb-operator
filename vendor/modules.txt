@@ -59,6 +59,9 @@ github.com/google/go-cmp/cmp/internal/value
 github.com/google/gofuzz
 # github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38
 github.com/google/pprof/profile
+# github.com/google/safetext v0.0.0-20220905092116-b49f7bc46da2
+github.com/google/safetext/common
+github.com/google/safetext/yamltemplate
 # github.com/google/uuid v1.1.2
 github.com/google/uuid
 # github.com/googleapis/gnostic v0.4.1
@@ -650,7 +653,7 @@ sigs.k8s.io/controller-tools/pkg/schemapatcher
 sigs.k8s.io/controller-tools/pkg/schemapatcher/internal/yaml
 sigs.k8s.io/controller-tools/pkg/version
 sigs.k8s.io/controller-tools/pkg/webhook
-# sigs.k8s.io/kind v0.16.0
+# sigs.k8s.io/kind v0.17.0
 ## explicit
 sigs.k8s.io/kind
 sigs.k8s.io/kind/cmd/kind/app
