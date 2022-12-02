@@ -674,7 +674,7 @@ func (sc *SyncContext) deletePodOnStsUpdate(
 		klog.Errorf("Failed to delete pod '%s/%s' running : %s", namespace, podName, err)
 		return false, err
 	}
-	klog.Errorf("Successfully deleted pod '%s/%s'", namespace, podName)
+	klog.Infof("Successfully deleted pod '%s/%s'", namespace, podName)
 	// The pod has been deleted.
 	return true, nil
 }
