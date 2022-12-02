@@ -7,8 +7,9 @@ package event_utils
 import (
 	"context"
 	"errors"
-	"github.com/onsi/gomega"
 	"time"
+
+	"github.com/onsi/gomega"
 
 	v1 "k8s.io/api/events/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -72,11 +73,17 @@ func WaitForEvent(clientset clientset.Interface, namespace, eventReason string,
 	// Listen to all events and wait for an event with eventReason to occur
 	for {
 		select {
-		case watchEvent := <-watcher.ResultChan():
-			event := watchEvent.Object.(*v1.Event)
-			if event.Reason == eventReason {
-				return nil
+		case watchEvent, isSuccess := <-watcher.ResultChan():
+			if !isSuccess {
+				panic("Watcher received a error event")
+
+			} else if watchEvent.Type != "ERROR" {
+				event := watchEvent.Object.(*v1.Event)
+				if event.Reason == eventReason {
+					return nil
+				}
 			}
+
 		case <-ctx.Done():
 			// wait timeout
 			return errors.New("waitForEvent timed out")
