@@ -2954,7 +2954,7 @@ spec:
         - -service=ndb-operator-webhook-service
         command:
         - ndb-operator-webhook
-        image: mysql/ndb-operator:8.0.31-1.0.1
+        image: mysql/ndb-operator:8.0.32-1.0.1
         imagePullPolicy: IfNotPresent
         name: ndb-operator-webhook
         ports:
@@ -2994,8 +2994,8 @@ spec:
         - ndb-operator
         env:
         - name: NDB_OPERATOR_IMAGE
-          value: mysql/ndb-operator:8.0.31-1.0.1
-        image: mysql/ndb-operator:8.0.31-1.0.1
+          value: mysql/ndb-operator:8.0.32-1.0.1
+        image: mysql/ndb-operator:8.0.32-1.0.1
         imagePullPolicy: IfNotPresent
         name: ndb-operator-controller
         ports:
