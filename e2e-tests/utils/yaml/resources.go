@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -7,12 +7,13 @@ package yaml
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
-	"gopkg.in/yaml.v2"
 	"strings"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	ginkgo "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+	"gopkg.in/yaml.v3"
+
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 )
 
 // K8sObject identifies a K8s object in a yaml file

@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -17,7 +17,7 @@ import (
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbutils"
 	statefulsetutils "github.com/mysql/ndb-operator/e2e-tests/utils/statefulset"
 
-	"github.com/onsi/ginkgo/v2"
+	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	clientset "k8s.io/client-go/kubernetes"
 )

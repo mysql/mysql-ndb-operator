@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+# Copyright (c) 2021, 2023, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
 # Script to generate Ndb CRD and the release artifact
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
-CRD_GEN_OPTS="crd:trivialVersions=true"
 CRD_GEN_INPUT_PATH="./pkg/apis/..."
 HELM_CHART_PATH="deploy/charts/ndb-operator"
 CRD_GEN_OUTPUT="${HELM_CHART_PATH}/crds"
@@ -16,7 +15,7 @@ CONTROLLER_GEN_CMD="go run sigs.k8s.io/controller-tools/cmd/controller-gen"
 
 # Generate Ndb CRD
 echo "Generating Ndb CRD..."
-${CONTROLLER_GEN_CMD} ${CRD_GEN_OPTS} paths=${CRD_GEN_INPUT_PATH} output:crd:artifacts:config=${CRD_GEN_OUTPUT}
+${CONTROLLER_GEN_CMD} "crd" paths=${CRD_GEN_INPUT_PATH} output:crd:artifacts:config=${CRD_GEN_OUTPUT}
 # creationTimestamp in the CRD is always generated as null
 # https://github.com/kubernetes-sigs/controller-tools/issues/402
 # remove it as a workaround

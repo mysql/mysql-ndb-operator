@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -12,11 +12,11 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	policylisterv1beta1 "k8s.io/client-go/listers/policy/v1beta1"
-	"k8s.io/klog/v2"
+	policylisterv1 "k8s.io/client-go/listers/policy/v1"
+	klog "k8s.io/klog/v2"
 )
 
-func ServerSupportsV1Beta1Policy(client kubernetes.Interface) bool {
+func ServerSupportsV1Policy(client kubernetes.Interface) bool {
 	info, err := client.Discovery().ServerVersion()
 	if err != nil {
 		klog.Warning(
@@ -31,7 +31,7 @@ func ServerSupportsV1Beta1Policy(client kubernetes.Interface) bool {
 	}
 
 	klog.Warningf(
-		"Cannot use PodDisruptionBudgets as K8s Server version %q doesn't support v1beta1/policy", info.String())
+		"Cannot use PodDisruptionBudgets as K8s Server version %q doesn't support v1/policy", info.String())
 	return false
 }
 
@@ -42,13 +42,13 @@ type PodDisruptionBudgetControlInterface interface {
 
 type podDisruptionBudgetImpl struct {
 	k8sClient kubernetes.Interface
-	pdbLister policylisterv1beta1.PodDisruptionBudgetLister
+	pdbLister policylisterv1.PodDisruptionBudgetLister
 }
 
 // NewPodDisruptionBudgetControl creates a new PodDisruptionBudgetControlInterface
 func newPodDisruptionBudgetControl(
 	client kubernetes.Interface,
-	pdbLister policylisterv1beta1.PodDisruptionBudgetLister) PodDisruptionBudgetControlInterface {
+	pdbLister policylisterv1.PodDisruptionBudgetLister) PodDisruptionBudgetControlInterface {
 	return &podDisruptionBudgetImpl{
 		k8sClient: client,
 		pdbLister: pdbLister,
@@ -85,7 +85,7 @@ func (pdbi *podDisruptionBudgetImpl) EnsurePodDisruptionBudget(
 	klog.Infof("Creating a PodDisruptionBudget for node type %q : \"%s/%s\"",
 		nodeType, nc.Namespace, pdbName)
 	pdb = resources.NewPodDisruptionBudget(nc, nodeType)
-	pdbInterface := sc.kubeClientset().PolicyV1beta1().PodDisruptionBudgets(sc.ndb.Namespace)
+	pdbInterface := sc.kubeClientset().PolicyV1().PodDisruptionBudgets(sc.ndb.Namespace)
 	_, err = pdbInterface.Create(ctx, pdb, metav1.CreateOptions{})
 
 	if err != nil && !apierrors.IsAlreadyExists(err) {

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -20,7 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 
 	"github.com/mysql/ndb-operator/config/debug"
 	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
@@ -105,9 +105,9 @@ func NewController(
 			kubernetesClient, statefulSetLister, configmapLister),
 	}
 
-	// Setup informer and controller for v1beta1.PDB if K8s Server has the support
-	if ServerSupportsV1Beta1Policy(kubernetesClient) {
-		pdbInformer := k8sSharedIndexInformer.Policy().V1beta1().PodDisruptionBudgets()
+	// Setup informer and controller for v1.PDB if K8s Server has the support
+	if ServerSupportsV1Policy(kubernetesClient) {
+		pdbInformer := k8sSharedIndexInformer.Policy().V1().PodDisruptionBudgets()
 		controller.informerSyncedMethods = append(controller.informerSyncedMethods, pdbInformer.Informer().HasSynced)
 		controller.pdbController = newPodDisruptionBudgetControl(kubernetesClient, pdbInformer.Lister())
 	}

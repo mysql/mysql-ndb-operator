@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -13,7 +13,7 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	policyv1beta1 "k8s.io/api/policy/v1beta1"
+	policyv1 "k8s.io/api/policy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -22,7 +22,7 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 
 	ndbcontroller "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/fake"
@@ -205,7 +205,6 @@ func (f *fixture) checkActions() {
 }
 
 func extractObjectMetaData(actual core.Action, extO, actO runtime.Object, t *testing.T) (metav1.ObjectMeta, metav1.ObjectMeta) {
-
 	var expOM, actOM metav1.ObjectMeta
 	switch actual.GetResource().Resource {
 	case "configmaps":
@@ -215,8 +214,8 @@ func extractObjectMetaData(actual core.Action, extO, actO runtime.Object, t *tes
 		expOM = extO.(*appsv1.StatefulSet).ObjectMeta
 		actOM = actO.(*appsv1.StatefulSet).ObjectMeta
 	case "poddisruptionbudgets":
-		expOM = extO.(*policyv1beta1.PodDisruptionBudget).ObjectMeta
-		actOM = actO.(*policyv1beta1.PodDisruptionBudget).ObjectMeta
+		expOM = extO.(*policyv1.PodDisruptionBudget).ObjectMeta
+		actOM = actO.(*policyv1.PodDisruptionBudget).ObjectMeta
 	case "services":
 		expOM = extO.(*corev1.Service).ObjectMeta
 		actOM = actO.(*corev1.Service).ObjectMeta

@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -16,7 +16,7 @@ import (
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 
 	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
@@ -113,7 +113,7 @@ func (sc *SyncContext) validateMySQLServerStatefulSet() (*appsv1.StatefulSet, er
 func (sc *SyncContext) ensurePodDisruptionBudget(ctx context.Context) (existed bool, err error) {
 	// ensure ndbmtd PDB
 	if sc.pdbController == nil {
-		// v1beta1 policy is not supported
+		// v1 policy is not supported
 		// return true to suppress operator's "created" log
 		return true, nil
 	}

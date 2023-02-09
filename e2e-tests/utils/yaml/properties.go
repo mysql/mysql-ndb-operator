@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 func replaceAll(values *interface{}, key string, newValue string) {
@@ -21,8 +21,11 @@ func replaceAll(values *interface{}, key string, newValue string) {
 			replaceAll(&v, key, newValue)
 		}
 
-	case map[interface{}]interface{}:
-		valuesMap := (*values).(map[interface{}]interface{})
+	// yaml.v2 (dec *Decoder)decode(v interface{}) function uses map[interface{}]interface{} type
+	// for the value pointer v, where as the yaml.v3 uses map[string]interface{} type for storing
+	// the yaml file. So, change the type of the values
+	case map[string]interface{}:
+		valuesMap := (*values).(map[string]interface{})
 		for k, v := range valuesMap {
 			if key == k {
 				(valuesMap)[key] = newValue
