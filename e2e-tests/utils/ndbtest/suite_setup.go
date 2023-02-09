@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -9,11 +9,11 @@ package ndbtest
 import (
 	"context"
 	"flag"
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
 	"os"
 	"testing"
-	"time"
+
+	ginkgo "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 
 	ndbclient "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	"github.com/mysql/ndb-operator/pkg/helpers"
@@ -21,7 +21,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 )
 
 func init() {
@@ -168,10 +168,6 @@ func RunGinkgoSuite(
 
 	// Update ginkgo config
 	_, reporterConfig := ginkgo.GinkgoConfiguration()
-	// Ndb operator tests can take more than the default
-	// 5 secs to complete. To avoid getting marked as slow,
-	// update the default slow spec threshold to 5 minutes.
-	reporterConfig.SlowSpecThreshold = 5 * time.Minute
 	// disable succinct report option to get a mini detailed report
 	reporterConfig.Succinct = false
 	// Print stack trace on failure

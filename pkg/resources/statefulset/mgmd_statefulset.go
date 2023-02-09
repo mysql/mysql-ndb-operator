@@ -1,4 +1,4 @@
-// Copyright (c) 2022, Oracle and/or its affiliates.
+// Copyright (c) 2022, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -6,7 +6,7 @@ package statefulset
 
 import (
 	"github.com/mysql/ndb-operator/config/debug"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
 
@@ -130,7 +130,7 @@ func (mss *mgmdStatefulSet) getContainers(nc *v1.NdbCluster) []corev1.Container 
 
 	// Startup probe for the mgmd container
 	mgmdContainer.StartupProbe = &corev1.Probe{
-		Handler: corev1.Handler{
+		ProbeHandler: corev1.ProbeHandler{
 			Exec: &corev1.ExecAction{
 				Command: []string{
 					"/bin/bash",
@@ -146,7 +146,7 @@ func (mss *mgmdStatefulSet) getContainers(nc *v1.NdbCluster) []corev1.Container 
 
 	// Readiness probe checks if the port 1186 is open
 	mgmdContainer.ReadinessProbe = &corev1.Probe{
-		Handler: corev1.Handler{
+		ProbeHandler: corev1.ProbeHandler{
 			TCPSocket: &corev1.TCPSocketAction{
 				Port: intstr.FromInt(1186),
 			},

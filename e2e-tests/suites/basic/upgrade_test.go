@@ -1,17 +1,18 @@
-// Copyright (c) 2022, Oracle and/or its affiliates.
+// Copyright (c) 2022, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
 package e2e
 
 import (
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
 	"strings"
 
-	"github.com/mysql/ndb-operator/e2e-tests/utils/mgmapi"
+	ginkgo "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+
+	mgmapiutils "github.com/mysql/ndb-operator/e2e-tests/utils/mgmapi"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 
 	"k8s.io/client-go/kubernetes"

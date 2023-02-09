@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -9,7 +9,7 @@ import (
 
 	"github.com/mysql/ndb-operator/config/debug"
 	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
@@ -18,7 +18,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 )
 
 const (
@@ -282,7 +282,7 @@ func (mss *mysqldStatefulSet) getContainers(nc *v1.NdbCluster) []corev1.Containe
 		mss.getMySQLServerCmd(nc), mss.getVolumeMounts(nc), mysqldPorts)
 
 	// Create an exec handler that runs the MysqldHealthCheckScript to be used in health probes
-	healthProbeHandler := corev1.Handler{
+	healthProbeHandler := corev1.ProbeHandler{
 		Exec: &corev1.ExecAction{
 			Command: []string{
 				"/bin/bash",
@@ -295,14 +295,14 @@ func (mss *mysqldStatefulSet) getContainers(nc *v1.NdbCluster) []corev1.Containe
 	// Setup health probes.
 	// Startup probe - expects MySQL to get ready within 5 minutes
 	mysqldContainer.StartupProbe = &corev1.Probe{
-		Handler:          healthProbeHandler,
+		ProbeHandler:     healthProbeHandler,
 		PeriodSeconds:    2,
 		FailureThreshold: 150,
 	}
 
 	// Readiness probe
 	mysqldContainer.ReadinessProbe = &corev1.Probe{
-		Handler: healthProbeHandler,
+		ProbeHandler: healthProbeHandler,
 	}
 
 	return []corev1.Container{mysqldContainer}

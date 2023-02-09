@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -323,7 +323,7 @@ type NdbClusterList struct {
 func (nc *NdbCluster) GetLabels() map[string]string {
 	// Ndb main label ...
 	l := map[string]string{
-		constants.ClusterLabel: nc.Name,
+		constants.ClusterLabel: nc.ObjectMeta.Name,
 	}
 	return l
 }
@@ -336,16 +336,16 @@ func (nc *NdbCluster) GetCompleteLabels(resourceLabels map[string]string) map[st
 
 // GetServiceName returns the Service name of a given resource
 func (nc *NdbCluster) GetServiceName(resource string) string {
-	return fmt.Sprintf("%s-%s", nc.Name, resource)
+	return fmt.Sprintf("%s-%s", nc.ObjectMeta.Name, resource)
 }
 
 func (nc *NdbCluster) GetConfigMapName() string {
-	return nc.Name + "-config"
+	return nc.ObjectMeta.Name + "-config"
 }
 
 // GetPodDisruptionBudgetName returns the PDB name of a given resource
 func (nc *NdbCluster) GetPodDisruptionBudgetName(resource string) string {
-	return fmt.Sprintf("%s-pdb-%s", nc.Name, resource)
+	return fmt.Sprintf("%s-pdb-%s", nc.ObjectMeta.Name, resource)
 }
 
 // GetManagementNodeCount returns the number of
@@ -390,9 +390,9 @@ func (nc *NdbCluster) GetConnectstring() string {
 	port := "1186"
 
 	connectstring := ""
-	mgmdPodNamePrefix := nc.Name + "-mgmd"
+	mgmdPodNamePrefix := nc.ObjectMeta.Name + "-mgmd"
 	mgmdServiceName := nc.GetServiceName("mgmd")
-	ndbNameSpace := nc.Namespace
+	ndbNameSpace := nc.ObjectMeta.Namespace
 	for i := int32(0); i < nc.GetManagementNodeCount(); i++ {
 		if i > 0 {
 			connectstring += ","
@@ -434,7 +434,7 @@ func (nc *NdbCluster) GetMySQLCnf() string {
 
 // GetWorkloadName returns the name K8s workload that manages the given NdbNodeType
 func (nc *NdbCluster) GetWorkloadName(nodeType constants.NdbNodeType) string {
-	return nc.Name + "-" + nodeType
+	return nc.ObjectMeta.Name + "-" + nodeType
 }
 
 // getCondition returns the NdbClusterCondition of condType from NdbCluster resource
