@@ -752,8 +752,8 @@ spec:
                                 format: int32
                                 type: integer
                             image:
-                                default: mysql/mysql-cluster:8.0.31
-                                description: The name of the MySQL Ndb Cluster image to be used. If not specified, "mysql/mysql-cluster:8.0.31" will be used.
+                                default: mysql/mysql-cluster:8.0.32
+                                description: The name of the MySQL Ndb Cluster image to be used. If not specified, "mysql/mysql-cluster:8.0.32" will be used.
                                 type: string
                             imagePullPolicy:
                                 default: IfNotPresent
@@ -2287,7 +2287,7 @@ kind: Deployment
 metadata:
     labels:
         app: ndb-operator-webhook-deployment
-        release: 8.0.32-1.0.1
+        release: 8.0.33-1.0.2
     name: ndb-operator-webhook-server
     namespace: ndb-operator
 spec:
@@ -2307,7 +2307,7 @@ spec:
                     - -service=ndb-operator-webhook-service
                   command:
                     - ndb-operator-webhook
-                  image: mysql/ndb-operator:8.0.31-1.0.1
+                  image: mysql/ndb-operator:8.0.33-1.0.2
                   imagePullPolicy: IfNotPresent
                   name: ndb-operator-webhook
                   ports:
@@ -2324,7 +2324,7 @@ kind: Deployment
 metadata:
     labels:
         app: ndb-operator
-        release: 8.0.32-1.0.1
+        release: 8.0.33-1.0.2
     name: ndb-operator-app
     namespace: ndb-operator
 spec:
@@ -2347,8 +2347,8 @@ spec:
                     - ndb-operator
                   env:
                     - name: NDB_OPERATOR_IMAGE
-                      value: mysql/ndb-operator:8.0.31-1.0.1
-                  image: mysql/ndb-operator:8.0.31-1.0.1
+                      value: mysql/ndb-operator:8.0.33-1.0.2
+                  image: mysql/ndb-operator:8.0.33-1.0.2
                   imagePullPolicy: IfNotPresent
                   name: ndb-operator-controller
                   ports:

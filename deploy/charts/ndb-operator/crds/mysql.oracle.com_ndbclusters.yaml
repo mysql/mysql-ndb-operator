@@ -1323,9 +1323,9 @@ spec:
                 format: int32
                 type: integer
               image:
-                default: mysql/mysql-cluster:8.0.31
+                default: mysql/mysql-cluster:8.0.32
                 description: The name of the MySQL Ndb Cluster image to be used. If
-                  not specified, "mysql/mysql-cluster:8.0.31" will be used.
+                  not specified, "mysql/mysql-cluster:8.0.32" will be used.
                 type: string
               imagePullPolicy:
                 default: IfNotPresent
