@@ -1,4 +1,4 @@
-# Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+# Copyright (c) 2021, 2023, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -6,7 +6,7 @@
 # a docker container running Oracle Linux 8.
 # Note : This Dockerfile is designed to be used by the build.sh script
 # in the parent directory and might not work as intended if used directly.
-FROM oraclelinux:8-slim
+FROM container-registry.oracle.com/os/oraclelinux:8-slim
 
 # Install the tools required for building MySQL
 RUN echo "[main]" > /etc/dnf/dnf.conf \

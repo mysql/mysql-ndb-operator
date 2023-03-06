@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -783,10 +783,10 @@ func (t *testRunner) loadImagesIntoK8sCluster() bool {
 	// This is done here to avoid delays inside the actual testcases.
 	for _, image := range []string{
 		// default image used by the tests
-		"mysql/mysql-cluster:latest",
+		"container-registry.oracle.com/mysql/community-cluster:latest",
 		// images used by the upgrade_test.go testcase
-		"mysql/mysql-cluster:8.0.28",
-		"mysql/mysql-cluster:8.0.30",
+		"container-registry.oracle.com/mysql/community-cluster:8.0.28",
+		"container-registry.oracle.com/mysql/community-cluster:8.0.30",
 	} {
 		// Pull the image into local docker
 		dockerPullCmd := []string{

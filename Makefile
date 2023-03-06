@@ -67,6 +67,9 @@ endif
 ifdef https_proxy
 	BUILD_ARGS := $(BUILD_ARGS) --build-arg https_proxy=$(https_proxy)
 endif
+ifdef GOLANG_ALPINE_IMAGE
+	BUILD_ARGS := $(BUILD_ARGS) --build-arg GOLANG_ALPINE_IMAGE=$(GOLANG_ALPINE_IMAGE)
+endif
 
 .PHONY: operator-image-release
 operator-image-release:
@@ -75,8 +78,14 @@ operator-image-release:
 
 # Build e2e-tests-tests image in docker
 .PHONY: e2e-tests-image
+ifdef GOLANG_IMAGE
+e2e-tests-image:
+	$(DOCKER_CMD) build -t e2e-tests -f docker/e2e-tests/Dockerfile --build-arg GOLANG_IMAGE=$(GOLANG_IMAGE) .
+else
 e2e-tests-image:
 	$(DOCKER_CMD) build -t e2e-tests -f docker/e2e-tests/Dockerfile .
+endif
+
 
 .PHONY: unit-test
 unit-test:

@@ -54,7 +54,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Cluster minor upgrade", func(tc *ndbte
 		ginkgo.BeforeAll(func() {
 			// Note : this image is preloaded into the K8s Cluster nodes by
 			// the run-e2e-test.go tool to avoid any delays within this testcase.
-			testNdb.Spec.Image = "mysql/mysql-cluster:8.0.28"
+			testNdb.Spec.Image = "container-registry.oracle.com/mysql/community-cluster:8.0.28"
 			ndbtest.KubectlApplyNdbObj(c, testNdb)
 		})
 
@@ -67,7 +67,7 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Cluster minor upgrade", func(tc *ndbte
 		ginkgo.BeforeAll(func() {
 			// Note : this image is preloaded into the K8s Cluster nodes by
 			// the run-e2e-test.go tool to avoid any delays within this testcase.
-			testNdb.Spec.Image = "mysql/mysql-cluster:8.0.30"
+			testNdb.Spec.Image = "container-registry.oracle.com/mysql/community-cluster:8.0.30"
 			ndbtest.KubectlApplyNdbObj(c, testNdb)
 		})
 

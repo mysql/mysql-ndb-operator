@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2020, 2022, Oracle and/or its affiliates.
+# Copyright (c) 2020, 2023, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -152,7 +152,7 @@ fi
 
 # Build container image
 mysql_cluster_version_str=$(get_version_str "${mysql_cluster_version[@]}")
-image_name=mysql/mysql-cluster:"${mysql_cluster_version_str}-${IMAGE_TAG}"
+image_name=container-registry.oracle.com/mysql/community-cluster:"${mysql_cluster_version_str}-${IMAGE_TAG}"
 if ! DOCKER_BUILDKIT=1 docker build -t "${image_name}" -f Dockerfile ${DOCKER_CTX_FILES} ; then
   fatal "Failed to build mysql-cluster-builder docker image"
 fi

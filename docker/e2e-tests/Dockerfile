@@ -1,8 +1,8 @@
 # Copyright (c) 2021, 2023, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
-
-FROM golang:1.20
+ARG GOLANG_IMAGE=golang:1.20
+FROM $GOLANG_IMAGE
 
 # install kubectl
 ARG KUBE_VERSION=v1.21.6
