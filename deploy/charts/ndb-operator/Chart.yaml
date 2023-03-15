@@ -1,7 +1,7 @@
 apiVersion: v2
 name: ndb-operator
 version: 1.0.2
-kubeVersion: ">= 1.19.0-0"
+kubeVersion: ">= 1.21.0-0"
 description: A Helm chart for deploying the Oracle MySQL NDB Cluster Operator
 appVersion: "8.0.33-1.0.2"
 keywords:
@@ -11,8 +11,6 @@ keywords:
   - Ndbcluster
 home: https://github.com/mysql/mysql-ndb-operator
 maintainers:
-  - name: Lakshmi Narayanan Sreethar
-    email: lakshmi.narayanan.sreethar@oracle.com
   - name: Dinesh Surya Prakash
     email: dinesh.prakash@oracle.com
 annotations:
