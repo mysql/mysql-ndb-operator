@@ -25,24 +25,22 @@ entries:
       artifacthub.io/operator: "true"
       artifacthub.io/operatorCapabilities: Seamless Upgrades
     apiVersion: v2
-    appVersion: 8.0.32-1.0.1
-    created: "2023-01-17T13:27:05.676197299+01:00"
+    appVersion: 8.0.33-1.0.2
+    created: "2023-04-21T09:59:37.959974104+02:00"
     description: A Helm chart for deploying the Oracle MySQL NDB Cluster Operator
-    digest: cfb57d0219c1b046b04813f573b296ee74256a9f4f8e2f9300b4e68e87c40763
+    digest: 032233927eb944ccadc985291c62cb56f8d99e3045daf0a8db6a0a4b224df940
     home: https://github.com/mysql/mysql-ndb-operator
     keywords:
     - NDB Operator
     - MySQL Cluster
     - NDB
     - Ndbcluster
-    kubeVersion: '>= 1.19.0-0'
+    kubeVersion: '>= 1.21.0-0'
     maintainers:
-    - email: lakshmi.narayanan.sreethar@oracle.com
-      name: Lakshmi Narayanan Sreethar
     - email: dinesh.prakash@oracle.com
       name: Dinesh Surya Prakash
     name: ndb-operator
     urls:
-    - ndb-operator-1.0.1.tgz
-    version: 1.0.1
-generated: "2023-01-17T13:27:05.674720555+01:00"
+    - ndb-operator-1.0.2.tgz
+    version: 1.0.2
+generated: "2023-04-21T09:59:37.958072817+02:00"
