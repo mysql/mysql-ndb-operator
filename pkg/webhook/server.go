@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/mysql/ndb-operator/pkg/controllers"
@@ -25,6 +26,11 @@ import (
 
 const (
 	webHookServerAddr = ":9443"
+
+	// Note: when the operator is installed using OLM, OLM will install the
+	// certificate in the below mentioned hardcoded path
+	certFile = "tmp/k8s-webhook-server/serving-certs/tls.crt"
+	keyFile  = "tmp/k8s-webhook-server/serving-certs/tls.key"
 )
 
 // tlsData holds the pem encoded certificate and privateKey
@@ -158,34 +164,51 @@ func setWebhookServerTLSCerts(ctx context.Context, ws *http.Server) {
 		klog.Fatalf("Could not get current namespace : %s", err)
 	}
 
-	// Create a new certificate
-	td := createCertificate(config.serviceName, namespace)
+	var cert tls.Certificate
 
-	// get k8s clientset
-	clientset := getK8sClientset()
-	if clientset == nil {
-		klog.Fatal("Failed to create k8s clientset")
-	}
+	// Check if the certificate and key files exist
+	_, certErr := os.Stat(certFile)
+	_, keyErr := os.Stat(keyFile)
 
-	// update the validating webhook config with the certificate
-	vwcInterface := controllers.NewValidatingWebhookConfigController(clientset)
-	if !vwcInterface.UpdateWebhookConfigCertificate(
-		ctx, "webhook-server="+namespace+"-"+config.serviceName, td.certificate) {
-		klog.Fatal("Failed to update validating webhook configs with the new certificate")
-	}
+	if certErr != nil || keyErr != nil {
+		// Either certificate or key file is missing, generate new certificate
+		td := createCertificate(config.serviceName, namespace)
 
-	// update the mutating webhook config with the certificate
-	mwcInterface := controllers.NewMutatingWebhookConfigController(clientset)
-	if !mwcInterface.UpdateWebhookConfigCertificate(
-		ctx, "webhook-server="+namespace+"-"+config.serviceName, td.certificate) {
-		klog.Fatal("Failed to update mutating webhook configs with the new certificate")
+		// Get k8s clientset
+		clientset := getK8sClientset()
+		if clientset == nil {
+			klog.Fatal("Failed to create k8s clientset")
+		}
+
+		// Update the validating webhook config with the certificate
+		vwcInterface := controllers.NewValidatingWebhookConfigController(clientset)
+		if !vwcInterface.UpdateWebhookConfigCertificate(
+			ctx, "webhook-server="+namespace+"-"+config.serviceName, td.certificate) {
+			klog.Fatal("Failed to update validating webhook configs with the new certificate")
+		}
+
+		// Update the mutating webhook config with the certificate
+		mwcInterface := controllers.NewMutatingWebhookConfigController(clientset)
+		if !mwcInterface.UpdateWebhookConfigCertificate(
+			ctx, "webhook-server="+namespace+"-"+config.serviceName, td.certificate) {
+			klog.Fatal("Failed to update mutating webhook configs with the new certificate")
+		}
+
+		// Load the TLS certificate and key
+		cert, err = tls.X509KeyPair(td.certificate, td.privateKey)
+		if err != nil {
+			klog.Fatal(err)
+		}
+
+	} else {
+		// Load the TLS certificate and key files
+		cert, err = tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			klog.Fatal("Failed to load TLS certificate and key:", err)
+		}
 	}
 
 	// Add certificate to server config
-	cert, err := tls.X509KeyPair(td.certificate, td.privateKey)
-	if err != nil {
-		klog.Fatal(err)
-	}
 	ws.TLSConfig = &tls.Config{
 		Certificates: []tls.Certificate{cert},
 	}
