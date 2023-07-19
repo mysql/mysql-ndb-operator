@@ -18,10 +18,8 @@ import (
 	klog "k8s.io/klog/v2"
 )
 
-type SecretControlInterface interface {
+type DefaultSecretControlInterface interface {
 	IsControlledBy(ctx context.Context, secretName string, ndb *v1.NdbCluster) bool
-	EnsureMySQLRootPassword(ctx context.Context, ndb *v1.NdbCluster) (*corev1.Secret, error)
-	EnsureNDBOperatorPassword(ctx context.Context, nc *v1.NdbCluster) (*corev1.Secret, error)
 	Delete(ctx context.Context, namespace, secretName string) error
 	ExtractPassword(ctx context.Context, namespace, name string) (string, error)
 }
@@ -65,14 +63,27 @@ func (sd *secretDefaults) ExtractPassword(ctx context.Context, namespace, name s
 	return string(secret.Data[corev1.BasicAuthPasswordKey]), nil
 }
 
-// mysqlUserPasswordSecrets implements SecretControlInterface and
+// NewTDESecretInterface creates and returns a new DefaultSecretControlInterface
+func NewTDESecretInterface(client kubernetes.Interface) DefaultSecretControlInterface {
+	return &secretDefaults{
+		client: client,
+	}
+}
+
+type MySQLUserPasswordSecretControlInterface interface {
+	DefaultSecretControlInterface
+	EnsureMySQLRootPassword(ctx context.Context, ndb *v1.NdbCluster) (*corev1.Secret, error)
+	EnsureNDBOperatorPassword(ctx context.Context, nc *v1.NdbCluster) (*corev1.Secret, error)
+}
+
+// mysqlUserPasswordSecrets implements MySQLUserPasswordSecretControlInterface and
 // can handle a password required for the MySQL user accounts.
 type mysqlUserPasswordSecrets struct {
 	secretDefaults
 }
 
-// NewMySQLUserPasswordSecretInterface creates and returns a new SecretControlInterface
-func NewMySQLUserPasswordSecretInterface(client kubernetes.Interface) SecretControlInterface {
+// NewMySQLUserPasswordSecretInterface creates and returns a new MySQLUserPasswordSecretControlInterface
+func NewMySQLUserPasswordSecretInterface(client kubernetes.Interface) MySQLUserPasswordSecretControlInterface {
 	return &mysqlUserPasswordSecrets{
 		secretDefaults{
 			client: client,

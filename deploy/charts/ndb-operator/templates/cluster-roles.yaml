@@ -67,6 +67,8 @@ rules:
       - get
       - create
       - delete
+      - list
+      - watch
 
   - apiGroups: ["events.k8s.io"]
     resources: ["events"]

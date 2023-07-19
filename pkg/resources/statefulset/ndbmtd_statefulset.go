@@ -16,6 +16,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	klog "k8s.io/klog/v2"
 )
 
@@ -27,6 +28,7 @@ var (
 // ndbmtdStatefulSet implements the NdbStatefulSetInterface to control a set of data nodes
 type ndbmtdStatefulSet struct {
 	baseStatefulSet
+	secretLister listerscorev1.SecretLister
 }
 
 func (nss *ndbmtdStatefulSet) NewGoverningService(nc *v1.NdbCluster) *corev1.Service {
@@ -211,7 +213,7 @@ func (nss *ndbmtdStatefulSet) getResourceRequestRequirements(nc *v1.NdbCluster) 
 }
 
 // getContainers returns the containers to run a data Node
-func (nss *ndbmtdStatefulSet) getContainers(nc *v1.NdbCluster) []corev1.Container {
+func (nss *ndbmtdStatefulSet) getContainers(nc *v1.NdbCluster) ([]corev1.Container, error) {
 
 	// Command and args to run the Data node
 	cmdAndArgs := []string{
@@ -226,6 +228,18 @@ func (nss *ndbmtdStatefulSet) getContainers(nc *v1.NdbCluster) []corev1.Containe
 	if debug.Enabled {
 		// Increase verbosity in debug mode
 		cmdAndArgs = append(cmdAndArgs, "-v")
+	}
+
+	if nc.Spec.TDESecretName != "" {
+		secret, err := nss.secretLister.Secrets(nc.Namespace).Get(nc.Spec.TDESecretName)
+		if err != nil {
+			// Secret does not exist
+			klog.Errorf("Failed to retrieve Secret %q : %s", nc.Spec.TDESecretName, err)
+			return nil, err
+		}
+
+		pass := string(secret.Data[corev1.BasicAuthPasswordKey])
+		cmdAndArgs = append(cmdAndArgs, "--filesystem-password="+pass)
 	}
 
 	ndbmtdContainer := nss.createContainer(
@@ -267,7 +281,7 @@ func (nss *ndbmtdStatefulSet) getContainers(nc *v1.NdbCluster) []corev1.Containe
 		klog.Warningf("Failed to set ResourceRequirements to %s", ndbmtdContainer.Name)
 	}
 
-	return []corev1.Container{ndbmtdContainer}
+	return []corev1.Container{ndbmtdContainer}, nil
 }
 
 func (nss *ndbmtdStatefulSet) getPodAntiAffinity() *corev1.PodAntiAffinity {
@@ -279,6 +293,7 @@ func (nss *ndbmtdStatefulSet) getPodAntiAffinity() *corev1.PodAntiAffinity {
 
 // NewStatefulSet returns the StatefulSet specification to start and manage the Data nodes.
 func (nss *ndbmtdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1.NdbCluster) (*appsv1.StatefulSet, error) {
+	var err error
 	statefulSet := nss.newStatefulSet(nc, cs)
 	statefulSetSpec := &statefulSet.Spec
 
@@ -305,7 +320,11 @@ func (nss *ndbmtdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 
 	// Update template pod spec
 	podSpec := &statefulSetSpec.Template.Spec
-	podSpec.Containers = nss.getContainers(nc)
+	podSpec.Containers, err = nss.getContainers(nc)
+	if err != nil {
+		klog.Errorf("Failed to get containers for the statefulset %s", statefulSet.Name)
+		return nil, err
+	}
 	podSpec.Volumes = append(podSpec.Volumes, nss.getPodVolumes(nc)...)
 	// Set default AntiAffinity rules
 	podSpec.Affinity = &corev1.Affinity{
@@ -318,10 +337,11 @@ func (nss *ndbmtdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 }
 
 // NewNdbmtdStatefulSet returns a new NdbStatefulSetInterface for data nodes
-func NewNdbmtdStatefulSet() NdbStatefulSetInterface {
+func NewNdbmtdStatefulSet(secretLister listerscorev1.SecretLister) NdbStatefulSetInterface {
 	return &ndbmtdStatefulSet{
 		baseStatefulSet{
 			nodeType: constants.NdbNodeTypeNdbmtd,
 		},
+		secretLister,
 	}
 }

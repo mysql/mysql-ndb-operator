@@ -36,6 +36,9 @@ Name={{.Name}}
 NoOfReplicas={{.Spec.RedundancyLevel}}
 # Use a fixed ServerPort for all data nodes
 ServerPort=1186
+{{- if .Spec.TDESecretName }}
+EncryptedFileSystem=1
+{{ end }}
 {{- range $configKey, $configValue := .Spec.DataNode.Config }}
 {{$configKey}}={{$configValue}}
 {{- end}}
