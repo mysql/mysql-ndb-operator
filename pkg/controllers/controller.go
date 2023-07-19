@@ -74,6 +74,7 @@ func NewController(
 	podInformer := k8sSharedIndexInformer.Core().V1().Pods()
 	serviceInformer := k8sSharedIndexInformer.Core().V1().Services()
 	configmapInformer := k8sSharedIndexInformer.Core().V1().ConfigMaps()
+	secretInformer := k8sSharedIndexInformer.Core().V1().Secrets()
 
 	// Extract all the InformerSynced methods
 	informerSyncedMethods := []cache.InformerSynced{
@@ -82,11 +83,13 @@ func NewController(
 		podInformer.Informer().HasSynced,
 		serviceInformer.Informer().HasSynced,
 		configmapInformer.Informer().HasSynced,
+		secretInformer.Informer().HasSynced,
 	}
 
 	serviceLister := serviceInformer.Lister()
 	statefulSetLister := statefulSetInformer.Lister()
 	configmapLister := configmapInformer.Lister()
+	secretLister := secretInformer.Lister()
 
 	controller := &Controller{
 		kubernetesClient:      kubernetesClient,
@@ -100,7 +103,7 @@ func NewController(
 		recorder:              newEventRecorder(kubernetesClient),
 
 		mgmdController:   newMgmdStatefulSetController(kubernetesClient, statefulSetLister),
-		ndbmtdController: newNdbmtdStatefulSetController(kubernetesClient, statefulSetLister),
+		ndbmtdController: newNdbmtdStatefulSetController(kubernetesClient, statefulSetLister, secretLister),
 		mysqldController: newMySQLDStatefulSetController(
 			kubernetesClient, statefulSetLister, configmapLister),
 	}

@@ -228,6 +228,13 @@ type NdbClusterSpec struct {
 	// +kubebuilder:default=2
 	// +optional
 	FreeAPISlots int32 `json:"freeAPISlots,omitempty"`
+	// The name of the Secret that holds the encryption key or password
+	// required for Transparent Data Encryption (TDE) in MySQL Cluster.
+	// If a value is provided, the ndb operator will enable TDE and utilize the password
+	// stored in the Secret as the file system password for all data nodes within the
+	// MySQL Cluster. If no value is provided, TDE will not be enabled for MySQL Cluster.
+	// +optional
+	TDESecretName string `json:"tdeSecretName,omitempty"`
 	// The name of the MySQL Ndb Cluster image to be used.
 	// If not specified, "container-registry.oracle.com/mysql/community-cluster:8.1.0" will be used.
 	// +kubebuilder:default="container-registry.oracle.com/mysql/community-cluster:8.1.0"

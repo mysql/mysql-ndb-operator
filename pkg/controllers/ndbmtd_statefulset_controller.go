@@ -17,6 +17,7 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 	listerappsv1 "k8s.io/client-go/listers/apps/v1"
+	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	klog "k8s.io/klog/v2"
 )
 
@@ -26,12 +27,12 @@ type ndbmtdStatefulSetController struct {
 
 // newNdbmtdStatefulSetController creates a new ndbmtdStatefulSetController
 func newNdbmtdStatefulSetController(client kubernetes.Interface,
-	statefulSetLister listerappsv1.StatefulSetLister) *ndbmtdStatefulSetController {
+	statefulSetLister listerappsv1.StatefulSetLister, secretLister listerscorev1.SecretLister) *ndbmtdStatefulSetController {
 	return &ndbmtdStatefulSetController{
 		ndbNodeStatefulSetImpl{
 			client:             client,
 			statefulSetLister:  statefulSetLister,
-			ndbNodeStatefulset: statefulset.NewNdbmtdStatefulSet(),
+			ndbNodeStatefulset: statefulset.NewNdbmtdStatefulSet(secretLister),
 		},
 	}
 }

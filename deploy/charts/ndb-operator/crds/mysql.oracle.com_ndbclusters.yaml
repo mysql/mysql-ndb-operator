@@ -3694,6 +3694,14 @@ spec:
                 maximum: 4
                 minimum: 1
                 type: integer
+              tdeSecretName:
+                description: The name of the Secret that holds the encryption key
+                  or password required for Transparent Data Encryption (TDE) in MySQL
+                  Cluster. If a value is provided, the ndb operator will enable TDE
+                  and utilize the password stored in the Secret as the file system
+                  password for all data nodes within the MySQL Cluster. If no value
+                  is provided, TDE will not be enabled for MySQL Cluster.
+                type: string
             type: object
           status:
             description: The status of the NdbCluster resource and the MySQL Cluster
