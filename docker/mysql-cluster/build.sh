@@ -37,9 +37,9 @@ function get_version_str() {
 # Verifies the version of the MySQL Cluster
 function check_version() {
   version=("$@")
-  if [ "${version[0]}" -ne "8" ] ||
-    [ "${version[1]}" -ne "0" ] ||
-    [ "${version[2]}" -lt "22" ]; then
+  if [ "${version[0]}" -lt "8" ] ||
+     ([ "${version[0]}" -eq "8" ] && [ "${version[1]}" -lt "0" ]) ||
+     ([ "${version[0]}" -eq "8" ] && [ "${version[1]}" -eq "0" ] && [ "${version[2]}" -lt "22" ]); then
     version_str=$(get_version_str "${mysql_cluster_version[@]}")
     fatal "MySQL Cluster version ${version_str} is not supported. Please use version 8.0.22 or above."
   fi
