@@ -13,7 +13,7 @@ RUN echo "[main]" > /etc/dnf/dnf.conf \
     && microdnf update \
     && microdnf install cmake git make gcc gcc-c++ diffutils \
      openssl-devel openldap-devel cyrus-sasl-devel cyrus-sasl-scram libudev-devel \
-     ncurses-devel libcurl-devel bison libtirpc-devel java-11-openjdk-devel \
+     ncurses-devel libcurl-devel bison libtirpc-devel java-17-openjdk-devel \
     && microdnf --enablerepo=ol8_codeready_builder install rpcgen
 
 VOLUME /mysql-cluster /build
