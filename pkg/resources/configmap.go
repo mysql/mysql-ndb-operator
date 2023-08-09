@@ -50,6 +50,9 @@ func updateManagementConfig(
 	data[constants.ManagementLoadBalancer] = fmt.Sprintf("%v",
 		ndb.Spec.ManagementNode != nil && ndb.Spec.ManagementNode.EnableLoadBalancer)
 
+	// add/update the TDE password secret name
+	data[constants.TDEPasswordSecretName] = ndb.Spec.TDESecretName
+
 	return nil
 }
 

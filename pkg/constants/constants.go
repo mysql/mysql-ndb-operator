@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -64,6 +64,8 @@ const (
 	MySQLConfigKey = "my.cnf"
 	// MySQLRootHost is the key to the MySQL Server's root account's host.
 	MySQLRootHost = "mysqlRootHost"
+	// TDEPasswordSecretName refers to the name of the secret that stores the password used for Transparent Data Encryption (TDE)
+	TDEPasswordSecretName = "tdePasswordSecretName"
 )
 
 // List of scripts loaded into the configmap
