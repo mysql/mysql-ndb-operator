@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/mysql/ndb-operator/config/debug"
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig/configparser"
 )
@@ -49,6 +49,8 @@ type ConfigSummary struct {
 	myCnfConfig configparser.ConfigIni
 	// The host of the MySQL root user
 	MySQLRootHost string
+	// TDEPasswordSecretName refers to the name of the secret that stores the password used for Transparent Data Encryption (TDE)
+	TDEPasswordSecretName string
 }
 
 // parseInt32 parses the given string into an Int32
@@ -94,6 +96,7 @@ func NewConfigSummary(configMapData map[string]string) (*ConfigSummary, error) {
 		defaultNdbdSection:     config.GetSection("ndbd default"),
 		defaultMgmdSection:     config.GetSection("mgmd default"),
 		MySQLRootHost:          configMapData[constants.MySQLRootHost],
+		TDEPasswordSecretName:  configMapData[constants.TDEPasswordSecretName],
 	}
 
 	// Update MySQL Config details if it exists
@@ -113,13 +116,20 @@ func NewConfigSummary(configMapData map[string]string) (*ConfigSummary, error) {
 
 // MySQLClusterConfigNeedsUpdate checks if the config of the MySQL Cluster needs to be updated.
 func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1.NdbCluster) (needsUpdate bool) {
-	// Check if the default ndbd section has been updated
+
 	newNdbdConfig := nc.Spec.DataNode.Config
 	// Operator sets some default config parameters - take them into account when comparing configs.
-	if len(newNdbdConfig)+numOfOperatorSetConfigs != len(cs.defaultNdbdSection) {
+	totalNdbdConfig := len(newNdbdConfig) + numOfOperatorSetConfigs
+	// Add a count for EncryptedFileSystem if TDE is enabled
+	if cs.TDEPasswordSecretName != "" {
+		totalNdbdConfig = totalNdbdConfig + 1
+	}
+	// Check if the default ndbd section has been updated
+	if totalNdbdConfig != len(cs.defaultNdbdSection) {
 		// A config has been added (or) removed from default ndbd section
 		return true
 	}
+
 	// Check if all configs exist and their value has not changed
 	// TODO: Compare with actual values from the DataNodes
 	for configKey, configValue := range newNdbdConfig {
@@ -138,6 +148,13 @@ func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1.NdbCluster) (needs
 	// slots or number of free api slots.
 	if cs.NumOfMySQLServerSlots != GetNumOfSectionsRequiredForMySQLServers(nc) {
 		return true
+	}
+
+	// Check if there is a change in the TDE password
+	if cs.TDEPasswordSecretName != GetTDEStatus(nc) {
+		if cs.TDEPasswordSecretName == "" || GetTDEStatus(nc) == "" {
+			return true
+		}
 	}
 
 	// Check if more freeAPISlots slots are being declared by the new spec.
