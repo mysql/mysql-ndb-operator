@@ -214,9 +214,14 @@ func (ndbSfset *ndbNodeStatefulSetImpl) ReconcileStatefulSet(
 	ctx context.Context, sfset *appsv1.StatefulSet, sc *SyncContext) syncResult {
 
 	cs := sc.configSummary
+
 	if workloadHasConfigGeneration(sfset, cs.NdbClusterGeneration) {
-		// StatefulSet upto date
-		return continueProcessing()
+		if !(ndbSfset.GetTypeName() == constants.NdbNodeTypeNdbmtd &&
+			isInitialFlagSet(sfset) &&
+			!sc.configSummary.DataNodeInitialRestart) {
+			// StatefulSet upto date
+			return continueProcessing()
+		}
 	}
 
 	// StatefulSet has to be patched

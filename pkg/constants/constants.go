@@ -66,6 +66,8 @@ const (
 	MySQLRootHost = "mysqlRootHost"
 	// TDEPasswordSecretName refers to the name of the secret that stores the password used for Transparent Data Encryption (TDE)
 	TDEPasswordSecretName = "tdePasswordSecretName"
+	// DataNodeInitialRestart indicates if the data nodes need to perform a initial restart
+	DataNodeInitialRestart = "dataNodeInitialRestart"
 )
 
 // List of scripts loaded into the configmap

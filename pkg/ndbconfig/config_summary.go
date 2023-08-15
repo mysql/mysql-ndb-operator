@@ -51,6 +51,8 @@ type ConfigSummary struct {
 	MySQLRootHost string
 	// TDEPasswordSecretName refers to the name of the secret that stores the password used for Transparent Data Encryption (TDE)
 	TDEPasswordSecretName string
+	// dataNodeInitialRestart indicates if the data nodes need to perform a initial restart
+	DataNodeInitialRestart bool
 }
 
 // parseInt32 parses the given string into an Int32
@@ -97,6 +99,7 @@ func NewConfigSummary(configMapData map[string]string) (*ConfigSummary, error) {
 		defaultMgmdSection:     config.GetSection("mgmd default"),
 		MySQLRootHost:          configMapData[constants.MySQLRootHost],
 		TDEPasswordSecretName:  configMapData[constants.TDEPasswordSecretName],
+		DataNodeInitialRestart: parseBool(configMapData[constants.DataNodeInitialRestart]),
 	}
 
 	// Update MySQL Config details if it exists
@@ -151,8 +154,10 @@ func (cs *ConfigSummary) MySQLClusterConfigNeedsUpdate(nc *v1.NdbCluster) (needs
 	}
 
 	// Check if there is a change in the TDE password
-	if cs.TDEPasswordSecretName != GetTDEStatus(nc) {
-		if cs.TDEPasswordSecretName == "" || GetTDEStatus(nc) == "" {
+	if cs.TDEPasswordSecretName != GetTDESecretName(nc) {
+		// If the field is unset in new or old config. Then the EncryptedFileSystem config parameter
+		// needs to be added/deleted from the config.ini
+		if cs.TDEPasswordSecretName == "" || GetTDESecretName(nc) == "" {
 			return true
 		}
 	}

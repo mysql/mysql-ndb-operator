@@ -213,7 +213,7 @@ func (nss *ndbmtdStatefulSet) getResourceRequestRequirements(nc *v1.NdbCluster) 
 }
 
 // getContainers returns the containers to run a data Node
-func (nss *ndbmtdStatefulSet) getContainers(nc *v1.NdbCluster) ([]corev1.Container, error) {
+func (nss *ndbmtdStatefulSet) getContainers(nc *v1.NdbCluster, addInitialFlag bool) ([]corev1.Container, error) {
 
 	// Command and args to run the Data node
 	cmdAndArgs := []string{
@@ -240,6 +240,10 @@ func (nss *ndbmtdStatefulSet) getContainers(nc *v1.NdbCluster) ([]corev1.Contain
 
 		pass := string(secret.Data[corev1.BasicAuthPasswordKey])
 		cmdAndArgs = append(cmdAndArgs, "--filesystem-password="+pass)
+	}
+
+	if addInitialFlag {
+		cmdAndArgs = append(cmdAndArgs, "--initial")
 	}
 
 	ndbmtdContainer := nss.createContainer(
@@ -320,7 +324,7 @@ func (nss *ndbmtdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 
 	// Update template pod spec
 	podSpec := &statefulSetSpec.Template.Spec
-	podSpec.Containers, err = nss.getContainers(nc)
+	podSpec.Containers, err = nss.getContainers(nc, cs.DataNodeInitialRestart)
 	if err != nil {
 		klog.Errorf("Failed to get containers for the statefulset %s", statefulSet.Name)
 		return nil, err
