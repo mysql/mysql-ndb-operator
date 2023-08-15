@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -7,6 +7,7 @@ package controllers
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/resources/statefulset"
@@ -53,6 +54,26 @@ func statefulsetUpdateComplete(statefulset *appsv1.StatefulSet) bool {
 		// https://github.com/kubernetes/kubernetes/issues/106055
 		(statefulset.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType ||
 			statefulset.Status.CurrentReplicas == *(statefulset.Spec.Replicas))
+}
+
+// isInitialFlagSet() returns true when the StatefulSet container
+// specification includes the --initial flag and returns false in all other cases
+func isInitialFlagSet(dataNodeSfSet *appsv1.StatefulSet) bool {
+
+	// check if the StatefulSet is valid
+	if dataNodeSfSet == nil {
+		return false
+	}
+
+	container := dataNodeSfSet.Spec.Template.Spec.Containers[0]
+	// Check if the Command of the container contains "--initial"
+	for _, arg := range container.Command {
+		if strings.Contains(arg, "--initial") {
+			return true
+		}
+	}
+
+	return false
 }
 
 // statefulsetReady considers a StatefulSet to be ready if all the pods

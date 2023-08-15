@@ -12,8 +12,8 @@ func GetNumOfSectionsRequiredForMySQLServers(nc *v1.NdbCluster) int32 {
 	return nc.GetMySQLServerMaxNodeCount() * nc.GetMySQLServerConnectionPoolSize()
 }
 
-// GetTDEStatus returns if the TDE feature is enabled
+// GetTDESecretName returns TDE secret name to be used
 // in the current NdbCluster spec.
-func GetTDEStatus(nc *v1.NdbCluster) string {
+func GetTDESecretName(nc *v1.NdbCluster) string {
 	return nc.Spec.TDESecretName
 }

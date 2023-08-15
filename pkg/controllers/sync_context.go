@@ -658,6 +658,15 @@ func (sc *SyncContext) patchConfigMap(ctx context.Context) (bool, error) {
 		return true, nil
 	}
 
+	if isInitialFlagSet(sc.dataNodeSfSet) {
+		// Patch the config map
+		klog.Info("Initial restart of Data nodes are completed and the config map needs to be updated to remove the initial flag")
+		if _, err := sc.configMapController.PatchConfigMap(ctx, sc); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+
 	// ConfigMap already upToDate
 	return false, nil
 }

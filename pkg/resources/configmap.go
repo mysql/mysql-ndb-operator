@@ -43,6 +43,12 @@ func updateManagementConfig(
 		data[constants.ConfigIniKey] = configString
 	}
 
+	if oldConfigSummary != nil && oldConfigSummary.TDEPasswordSecretName != ndb.Spec.TDESecretName {
+		// TDE password is changed, All data nodes need to perform initial node restart to adopt
+		// to this change
+		data[constants.DataNodeInitialRestart] = "true"
+	}
+
 	// add/update the API slot information
 	data[constants.NumOfMySQLServers] = fmt.Sprintf("%d", ndb.GetMySQLServerNodeCount())
 
@@ -111,6 +117,19 @@ func GetUpdatedConfigMap(
 	// create a deep copy of the original ConfigMap
 	updatedCm := cm.DeepCopy()
 
+	// If the generations are the same, the patch config map is only called to remove the
+	// initial flag. When data node pods are restarted with the --initial flag, they lose all
+	// data in their data directory and start fresh by rebuilding data from other nodes.
+	// Therefore, using --initial in the data node container command is not appropriate. Once
+	// the need for initial restart is over, the operator removes the --initial flag from the
+	// data node container command. This ensures that when a pod goes down for any reason,
+	// restarting the data node pod takes less time as the required data is already present
+	// in the data node's directory.
+	if oldConfigSummary != nil && oldConfigSummary.NdbClusterGeneration == ndb.Generation {
+		updatedCm.Data[constants.DataNodeInitialRestart] = "false"
+		return updatedCm
+	}
+
 	// Update the config.ini
 	if err := updateManagementConfig(ndb, updatedCm.Data, oldConfigSummary); err != nil {
 		klog.Errorf("Failed to update the config map : %v", err)
@@ -167,6 +186,9 @@ func CreateConfigMap(ndb *v1.NdbCluster) *corev1.ConfigMap {
 	if updateHelperScripts(data) != nil {
 		return nil
 	}
+
+	// Add the data node initial restart value
+	data[constants.DataNodeInitialRestart] = "false"
 
 	// Update the generation the config map is based on
 	data[constants.NdbClusterGeneration] = fmt.Sprintf("%d", ndb.Generation)
