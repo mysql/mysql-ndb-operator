@@ -190,15 +190,22 @@ func (bss *baseStatefulSet) newStatefulSet(
 	var podSpec corev1.PodSpec
 	imagePullSecretName := nc.Spec.ImagePullSecretName
 	if imagePullSecretName != "" {
-		podSpec.ImagePullSecrets = []corev1.LocalObjectReference{
-			{
-				Name: imagePullSecretName,
-			},
-		}
+		podSpec.ImagePullSecrets = append(podSpec.ImagePullSecrets, corev1.LocalObjectReference{
+			Name: imagePullSecretName,
+		})
 	}
 
-	// add the default init container and the empty dir volume
+	// Add the default init container and add the ndbOperatorImagePullSecretName
+	// to the existing ImagePullSecrets list.
 	podSpec.InitContainers = bss.getDefaultInitContainers(nc)
+	ndbOperatorImagePullSecretName := os.Getenv("NDB_OPERATOR_IMAGE_PULL_SECRET_NAME")
+	if ndbOperatorImagePullSecretName != "" {
+		podSpec.ImagePullSecrets = append(podSpec.ImagePullSecrets, corev1.LocalObjectReference{
+			Name: ndbOperatorImagePullSecretName,
+		})
+	}
+
+	// Add the empty dir volume
 	podSpec.Volumes = []corev1.Volume{*bss.getEmptyDirPodVolume(workDirVolName)}
 
 	// Labels to be used for the statefulset pods

@@ -2348,6 +2348,8 @@ spec:
                   env:
                     - name: NDB_OPERATOR_IMAGE
                       value: container-registry.oracle.com/mysql/community-ndb-operator:8.0.34-1.0.3
+                    - name: NDB_OPERATOR_IMAGE_PULL_SECRET_NAME
+                      value: null
                   image: container-registry.oracle.com/mysql/community-ndb-operator:8.0.34-1.0.3
                   imagePullPolicy: IfNotPresent
                   name: ndb-operator-controller
