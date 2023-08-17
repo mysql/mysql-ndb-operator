@@ -83,6 +83,8 @@ spec:
             # Expose the image name via env to the operator app
             - name: NDB_OPERATOR_IMAGE
               value: {{.Values.image}}
+            - name: NDB_OPERATOR_IMAGE_PULL_SECRET_NAME
+              value: {{.Values.imagePullSecretName}}
   # set maxUnavailable to 0 so that helm will wait for the pod to become ready
   strategy:
     rollingUpdate:
