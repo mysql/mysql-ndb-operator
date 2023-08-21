@@ -22,15 +22,18 @@ const (
 	TestRootPassword = "ndbpass"
 )
 
-func CreateSecretForMySQLRootAccount(ctx context.Context, clientset kubernetes.Interface, secretName, namespace string) {
-	ginkgo.By("creating MySQL root account secret")
+func CreateSecret(ctx context.Context, clientset kubernetes.Interface, secretName, namespace string) {
+	CreateSecretWithPassword(ctx, clientset, secretName, namespace, TestRootPassword)
+}
+
+func CreateSecretWithPassword(ctx context.Context, clientset kubernetes.Interface, secretName, namespace string, password string) {
 	// build Secret, create it in K8s and return
 	rootPassSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: namespace,
 		},
-		Data: map[string][]byte{corev1.BasicAuthPasswordKey: []byte(TestRootPassword)},
+		Data: map[string][]byte{corev1.BasicAuthPasswordKey: []byte(password)},
 		Type: corev1.SecretTypeBasicAuth,
 	}
 

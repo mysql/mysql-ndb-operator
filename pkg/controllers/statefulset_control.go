@@ -216,6 +216,11 @@ func (ndbSfset *ndbNodeStatefulSetImpl) ReconcileStatefulSet(
 	cs := sc.configSummary
 
 	if workloadHasConfigGeneration(sfset, cs.NdbClusterGeneration) {
+		// Check if it is the second iteration of the sync handler. In the first iteration,
+		// the --initial flag will be added to the data node pods, and the ConfigMap will
+		// be patched to remove the DataNodeInitialRestart field to trigger the second iteration.
+		// During this second iteration, the change will be noted by the statefulset, and it will
+		// be patched again to remove the --initial flag from the data node pod's command argument.
 		if !(ndbSfset.GetTypeName() == constants.NdbNodeTypeNdbmtd &&
 			isInitialFlagSet(sfset) &&
 			!sc.configSummary.DataNodeInitialRestart) {

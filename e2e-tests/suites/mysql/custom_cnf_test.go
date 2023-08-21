@@ -52,7 +52,8 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Custom cnf", func(tc *ndbtest.TestCont
 
 		// create the secret in K8s
 		mysqlRootSecretName := ndbName + "-root-secret"
-		secretutils.CreateSecretForMySQLRootAccount(ctx, c, mysqlRootSecretName, ns)
+		ginkgo.By("creating MySQL root account secret")
+		secretutils.CreateSecret(ctx, c, mysqlRootSecretName, ns)
 		testNdb.Spec.MysqlNode.RootPasswordSecretName = mysqlRootSecretName
 
 		// Setup cleanup methods

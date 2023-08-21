@@ -51,7 +51,7 @@ type ConfigSummary struct {
 	MySQLRootHost string
 	// TDEPasswordSecretName refers to the name of the secret that stores the password used for Transparent Data Encryption (TDE)
 	TDEPasswordSecretName string
-	// dataNodeInitialRestart indicates if the data nodes need to perform a initial restart
+	// DataNodeInitialRestart indicates if the data nodes need to perform a initial restart
 	DataNodeInitialRestart bool
 }
 
