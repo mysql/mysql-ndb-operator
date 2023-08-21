@@ -42,7 +42,8 @@ var _ = ndbtest.NewOrderedTestCase("Mutable root host", func(tc *ndbtest.TestCon
 
 		// create the secret in K8s
 		mysqlRootSecretName := ndbName + "-root-secret"
-		secretutils.CreateSecretForMySQLRootAccount(ctx, c, mysqlRootSecretName, ns)
+		ginkgo.By("creating MySQL root account secret")
+		secretutils.CreateSecret(ctx, c, mysqlRootSecretName, ns)
 		testNdb.Spec.MysqlNode.RootPasswordSecretName = mysqlRootSecretName
 
 		mysqlPod0Name = testNdb.GetWorkloadName(constants.NdbNodeTypeMySQLD) + "-0"
