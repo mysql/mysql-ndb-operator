@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright (c) 2022, Oracle and/or its affiliates.
+# Copyright (c) 2022, 2023, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -170,8 +170,14 @@ EOF
 echo
 for f in /docker-entrypoint-initdb.d/*; do
   case "$f" in
-    *.sql) echo "[Entrypoint] running $f"; "${mysql[@]}" < "$f" && echo ;;
-    *)     echo "[Entrypoint] ignoring $f" ;;
+    *.sql)
+      echo "[Entrypoint] running $f"
+      "${mysql[@]}" < "$f"
+      echo "Command succeeded"
+      ;;
+    *)     
+      echo "[Entrypoint] ignoring $f"
+      ;;
   esac
   echo
 done
