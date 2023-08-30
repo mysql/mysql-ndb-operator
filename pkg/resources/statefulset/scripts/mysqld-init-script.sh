@@ -169,8 +169,14 @@ EOF
 echo
 for f in /docker-entrypoint-initdb.d/*; do
   case "$f" in
-    *.sql) echo "[Entrypoint] running $f"; "${mysql[@]}" < "$f" && echo ;;
-    *)     echo "[Entrypoint] ignoring $f" ;;
+    *.sql)
+      echo "[Entrypoint] running $f"
+      "${mysql[@]}" < "$f"
+      echo "Command succeeded"
+      ;;
+    *)     
+      echo "[Entrypoint] ignoring $f"
+      ;;
   esac
   echo
 done
