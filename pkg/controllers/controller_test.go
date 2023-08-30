@@ -348,6 +348,8 @@ func filterInformerActions(actions []core.Action) []core.Action {
 				action.Matches("watch", "poddisruptionbudgets") ||
 				action.Matches("list", "statefulsets") ||
 				action.Matches("watch", "statefulsets") ||
+				action.Matches("list", "secrets") ||
+				action.Matches("watch", "secrets") ||
 				action.Matches("list", "validatingwebhookconfigurations")) {
 			//klog.Infof("Filtering +%v", action)
 			continue
