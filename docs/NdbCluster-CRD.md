@@ -343,6 +343,22 @@ these free slots.</p>
 </tr>
 <tr>
 <td>
+<code>tdeSecretName</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>The name of the Secret that holds the encryption key or password
+required for Transparent Data Encryption (TDE) in MySQL Cluster.
+If a value is provided, the ndb operator will enable TDE and utilize the password
+stored in the Secret as the file system password for all data nodes within the
+MySQL Cluster. If no value is provided, TDE will not be enabled for MySQL Cluster.</p>
+</td>
+</tr>
+<tr>
+<td>
 <code>image</code><br/>
 <em>
 string
