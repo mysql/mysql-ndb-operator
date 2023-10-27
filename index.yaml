@@ -25,24 +25,24 @@ entries:
       artifacthub.io/operator: "true"
       artifacthub.io/operatorCapabilities: Seamless Upgrades
     apiVersion: v2
-    appVersion: 8.1.0-1.1.0
-    created: "2023-07-26T16:04:28.731575915+02:00"
+    appVersion: 8.2.0-1.2.0
+    created: "2023-10-27T09:16:50.466004415+02:00"
     description: A Helm chart for deploying the Oracle MySQL NDB Cluster Operator
-    digest: 670f47be5adac04221c07f6be0d8623d0c40fb44b1ae32c3bbb233048cc3001f
+    digest: 9dda19e73491e026e47ac8e7c3488fc7ab6217e5676b1c1ab5ff8f7ba8a22a5b
     home: https://github.com/mysql/mysql-ndb-operator
     keywords:
     - NDB Operator
     - MySQL Cluster
     - NDB
     - Ndbcluster
-    kubeVersion: '>= 1.21.0-0'
+    kubeVersion: '>= 1.23.0-0'
     maintainers:
     - email: dinesh.prakash@oracle.com
       name: Dinesh Surya Prakash
     name: ndb-operator
     urls:
-    - ndb-operator-1.1.0.tgz
-    version: 1.1.0
+    - ndb-operator-1.2.0.tgz
+    version: 1.2.0
   - annotations:
       artifacthub.io/crds: |
         - kind: NdbCluster
@@ -67,22 +67,22 @@ entries:
       artifacthub.io/operator: "true"
       artifacthub.io/operatorCapabilities: Seamless Upgrades
     apiVersion: v2
-    appVersion: 8.0.34-1.0.3
-    created: "2023-07-26T16:04:28.729966372+02:00"
+    appVersion: 8.0.35-1.0.4
+    created: "2023-10-27T09:16:50.465027613+02:00"
     description: A Helm chart for deploying the Oracle MySQL NDB Cluster Operator
-    digest: fa29b08ba78105fb6f33b51e44307072c0da2a9de13eed74a9f379e2a9b18a64
+    digest: ebae30feb4ec62728a9f7a7cc8c85c7df48a0acf196b12a41477b6687897ecaa
     home: https://github.com/mysql/mysql-ndb-operator
     keywords:
     - NDB Operator
     - MySQL Cluster
     - NDB
     - Ndbcluster
-    kubeVersion: '>= 1.21.0-0'
+    kubeVersion: '>= 1.23.0-0'
     maintainers:
     - email: dinesh.prakash@oracle.com
       name: Dinesh Surya Prakash
     name: ndb-operator
     urls:
-    - ndb-operator-1.0.3.tgz
-    version: 1.0.3
-generated: "2023-07-26T16:04:28.727554056+02:00"
+    - ndb-operator-1.0.4.tgz
+    version: 1.0.4
+generated: "2023-10-27T09:16:50.463771262+02:00"
