@@ -1,0 +1,34 @@
+# Create a PV for the mysqld node
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ndb-pv1
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 500Mi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/mnt/data1"
+---
+apiVersion: mysql.oracle.com/v1
+kind: NdbCluster
+metadata:
+  name: example-ndb-mysqld-pvc
+spec:
+  redundancyLevel: 2
+  dataNode:
+    nodeCount: 2
+  mysqlNode:
+    nodeCount: 1
+    pvcSpec:
+      storageClassName: manual
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 500Mi
+
