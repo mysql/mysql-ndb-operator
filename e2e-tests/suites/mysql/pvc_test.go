@@ -45,9 +45,9 @@ var _ = ndbtest.NewOrderedTestCase("MySQL PVC", func(tc *ndbtest.TestContext) {
 	ginkgo.When("the example-ndb-mysqld-pvc yaml is applied", func() {
 
 		ginkgo.BeforeAll(func() {
-			ndbtest.KubectlApplyNdbYaml(c, ns, "docs/examples", ndbName)
+			ndbtest.KubectlApplyNdbYaml(c, ns, "e2e-tests/test_yaml", ndbName)
 			ginkgo.DeferCleanup(func() {
-				ndbtest.KubectlDeleteNdbYaml(c, ns, ndbName, "docs/examples", ndbName)
+				ndbtest.KubectlDeleteNdbYaml(c, ns, ndbName, "e2e-tests/test_yaml", ndbName)
 			})
 		})
 

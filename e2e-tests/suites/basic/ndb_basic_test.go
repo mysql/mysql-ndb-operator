@@ -53,11 +53,11 @@ var _ = ndbtest.NewOrderedTestCase("Ndb basic", func(tc *ndbtest.TestContext) {
 	ginkgo.When("the example-ndb yaml is applied", func() {
 
 		ginkgo.BeforeAll(func() {
-			ndbtest.KubectlApplyNdbYaml(c, ns, "docs/examples", ndbName)
+			ndbtest.KubectlApplyNdbYaml(c, ns, "e2e-tests/test_yaml", ndbName)
 		})
 
 		ginkgo.AfterAll(func() {
-			ndbtest.KubectlDeleteNdbYaml(c, ns, ndbName, "docs/examples", ndbName)
+			ndbtest.KubectlDeleteNdbYaml(c, ns, ndbName, "e2e-tests/test_yaml", ndbName)
 		})
 
 		ginkgo.It("should deploy MySQL cluster in K8s", func() {
