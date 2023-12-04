@@ -140,7 +140,7 @@ func (mss *mgmdStatefulSet) getContainers(nc *v1.NdbCluster) []corev1.Container 
 		},
 		// Startup probe - expects mgmd to get ready within a minute
 		PeriodSeconds:    1,
-		TimeoutSeconds:   10,
+		TimeoutSeconds:   20,
 		FailureThreshold: 60,
 	}
 
