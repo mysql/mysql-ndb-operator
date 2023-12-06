@@ -229,8 +229,8 @@ type NdbClusterSpec struct {
 	// +optional
 	FreeAPISlots int32 `json:"freeAPISlots,omitempty"`
 	// The name of the MySQL Ndb Cluster image to be used.
-	// If not specified, "container-registry.oracle.com/mysql/community-cluster:8.0.35" will be used.
-	// +kubebuilder:default="container-registry.oracle.com/mysql/community-cluster:8.0.35"
+	// If not specified, "container-registry.oracle.com/mysql/community-cluster:8.0.36" will be used.
+	// +kubebuilder:default="container-registry.oracle.com/mysql/community-cluster:8.0.36"
 	// +optional
 	Image string `json:"image,omitempty"`
 	// ImagePullPolicy describes a policy for if/when to
