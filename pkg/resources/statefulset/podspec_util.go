@@ -1,13 +1,31 @@
-// Copyright (c) 2022, Oracle and/or its affiliates.
+// Copyright (c) 2022, 2024, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
 package statefulset
 
 import (
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	corev1 "k8s.io/api/core/v1"
 )
+
+func addResourcesToContainer(container *corev1.Container, resources *corev1.ResourceRequirements) {
+	if container.Resources.Limits == nil {
+		container.Resources.Limits = make(corev1.ResourceList)
+	}
+	if container.Resources.Requests == nil {
+		container.Resources.Requests = make(corev1.ResourceList)
+	}
+
+	// Copy individual limits and requests separately to ensure that we overwrite
+	// the defaults only if the ndbPodSpec has specified a ResourceName explicitly.
+	for key, value := range resources.Limits {
+		container.Resources.Limits[key] = value
+	}
+	for key, value := range resources.Requests {
+		container.Resources.Requests[key] = value
+	}
+}
 
 // Copy values from ndbPodSpec into podSpec
 func CopyPodSpecFromNdbPodSpec(podSpec *corev1.PodSpec, ndbPodSpec *v1.NdbClusterPodSpec) {
@@ -27,23 +45,18 @@ func CopyPodSpecFromNdbPodSpec(podSpec *corev1.PodSpec, ndbPodSpec *v1.NdbCluste
 		if len(podSpec.Containers) == 0 {
 			panic("CopyPodSpecFromNdbPodSpec should be called only after the containers are set")
 		}
-		containerResources := &podSpec.Containers[0].Resources
 
-		if containerResources.Limits == nil {
-			containerResources.Limits = make(corev1.ResourceList)
-		}
+		// Add resources to main containers
+		addResourcesToContainer(&podSpec.Containers[0], resources)
 
-		if containerResources.Requests == nil {
-			containerResources.Requests = make(corev1.ResourceList)
-		}
-
-		// Copy individual limits and requests separately to ensure that we overwrite
-		// the defaults only if the ndbPodSpec has specified a ResourceName explicitly.
-		for key, value := range resources.Limits {
-			containerResources.Limits[key] = value
-		}
-		for key, value := range resources.Requests {
-			containerResources.Requests[key] = value
+		// Add resources to init containers
+		// Kubernetes identifies the highest value for each resource among all init containers, then compares
+		// it with the sum of resource values across the containers and selects the highest value
+		// to determine node scheduling for this pod. So, setting the resource field of all init
+		// containers same as the main container does not impact the node scheduling process. But, this hack
+		// is essential because OpenShift raises warnings when a container lacks a resource field.
+		for i := range podSpec.InitContainers {
+			addResourcesToContainer(&podSpec.InitContainers[i], resources)
 		}
 	}
 

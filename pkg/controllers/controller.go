@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2024, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -11,8 +11,10 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -39,15 +41,17 @@ type Controller struct {
 	ndbsLister ndblisters.NdbClusterLister
 
 	// Controllers for various resources
-	mgmdController      *ndbNodeStatefulSetImpl
-	ndbmtdController    *ndbmtdStatefulSetController
-	mysqldController    *mysqldStatefulSetController
-	configMapController ConfigMapControlInterface
-	serviceController   ServiceControlInterface
-	pdbController       PodDisruptionBudgetControlInterface
+	mgmdController           *ndbNodeStatefulSetImpl
+	ndbmtdController         *ndbmtdStatefulSetController
+	mysqldController         *mysqldStatefulSetController
+	configMapController      ConfigMapControlInterface
+	serviceController        ServiceControlInterface
+	serviceAccountController ServiceAccountControlInterface
+	pdbController            PodDisruptionBudgetControlInterface
 
 	// K8s Listers
 	podLister     corelisters.PodLister
+	pvcLister     corelisters.PersistentVolumeClaimLister
 	serviceLister corelisters.ServiceLister
 
 	// Slice of InformerSynced methods for all the informers used by the controller
@@ -75,6 +79,8 @@ func NewController(
 	serviceInformer := k8sSharedIndexInformer.Core().V1().Services()
 	configmapInformer := k8sSharedIndexInformer.Core().V1().ConfigMaps()
 	secretInformer := k8sSharedIndexInformer.Core().V1().Secrets()
+	serviceAccountInformer := k8sSharedIndexInformer.Core().V1().ServiceAccounts()
+	pvcInformer := k8sSharedIndexInformer.Core().V1().PersistentVolumeClaims()
 
 	// Extract all the InformerSynced methods
 	informerSyncedMethods := []cache.InformerSynced{
@@ -84,23 +90,28 @@ func NewController(
 		serviceInformer.Informer().HasSynced,
 		configmapInformer.Informer().HasSynced,
 		secretInformer.Informer().HasSynced,
+		serviceAccountInformer.Informer().HasSynced,
+		pvcInformer.Informer().HasSynced,
 	}
 
 	serviceLister := serviceInformer.Lister()
 	statefulSetLister := statefulSetInformer.Lister()
 	configmapLister := configmapInformer.Lister()
 	secretLister := secretInformer.Lister()
+	serviceAccountLister := serviceAccountInformer.Lister()
 
 	controller := &Controller{
-		kubernetesClient:      kubernetesClient,
-		ndbClient:             ndbClient,
-		informerSyncedMethods: informerSyncedMethods,
-		ndbsLister:            ndbClusterInformer.Lister(),
-		podLister:             podInformer.Lister(),
-		configMapController:   NewConfigMapControl(kubernetesClient, configmapLister),
-		serviceController:     NewServiceControl(kubernetesClient, serviceLister),
-		workqueue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Ndbs"),
-		recorder:              newEventRecorder(kubernetesClient),
+		kubernetesClient:         kubernetesClient,
+		ndbClient:                ndbClient,
+		informerSyncedMethods:    informerSyncedMethods,
+		ndbsLister:               ndbClusterInformer.Lister(),
+		podLister:                podInformer.Lister(),
+		pvcLister:                pvcInformer.Lister(),
+		configMapController:      NewConfigMapControl(kubernetesClient, configmapLister),
+		serviceController:        NewServiceControl(kubernetesClient, serviceLister),
+		serviceAccountController: NewServiceAccountControl(kubernetesClient, serviceAccountLister),
+		workqueue:                workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Ndbs"),
+		recorder:                 newEventRecorder(kubernetesClient),
 
 		mgmdController:   newMgmdStatefulSetController(kubernetesClient, statefulSetLister),
 		ndbmtdController: newNdbmtdStatefulSetController(kubernetesClient, statefulSetLister, secretLister),
@@ -166,7 +177,23 @@ func NewController(
 			// delete will automatically be cascaded to all those resources and
 			// the controller doesn't have to do anything.
 			ndb := obj.(*v1.NdbCluster)
+
 			klog.Infof("NdbCluster resource '%s' was deleted", getNdbClusterKey(ndb))
+
+			// List all pvcs owned by NdbCluster resource
+			pvcs, listErr := controller.pvcLister.List(labels.Set(ndb.GetLabels()).AsSelector())
+			if listErr != nil {
+				klog.Errorf("Failed to list pvc's owned by NdbCluster %q : %s", getNamespacedName(ndb), listErr)
+			}
+
+			// Delete all pvc
+			for _, pvc := range pvcs {
+				err := controller.kubernetesClient.CoreV1().PersistentVolumeClaims(ndb.Namespace).Delete(context.Background(), pvc.Name, metav1.DeleteOptions{})
+				if err != nil && !errors.IsNotFound(err) {
+					// Delete failed with an error.
+					klog.Errorf("Failed to delete pvc %q : %s", pvc, err)
+				}
+			}
 		},
 	})
 
@@ -416,19 +443,21 @@ func (c *Controller) processNextWorkItem(ctx context.Context) (continueProcessin
 
 func (c *Controller) newSyncContext(ndb *v1.NdbCluster) *SyncContext {
 	return &SyncContext{
-		mgmdController:      c.mgmdController,
-		ndbmtdController:    c.ndbmtdController,
-		mysqldController:    c.mysqldController,
-		configMapController: c.configMapController,
-		serviceController:   c.serviceController,
-		pdbController:       c.pdbController,
-		ndb:                 ndb,
-		kubernetesClient:    c.kubernetesClient,
-		ndbClient:           c.ndbClient,
-		ndbsLister:          c.ndbsLister,
-		podLister:           c.podLister,
-		serviceLister:       c.serviceLister,
-		recorder:            c.recorder,
+		mgmdController:           c.mgmdController,
+		ndbmtdController:         c.ndbmtdController,
+		mysqldController:         c.mysqldController,
+		configMapController:      c.configMapController,
+		serviceController:        c.serviceController,
+		serviceaccountController: c.serviceAccountController,
+		pdbController:            c.pdbController,
+		ndb:                      ndb,
+		kubernetesClient:         c.kubernetesClient,
+		ndbClient:                c.ndbClient,
+		ndbsLister:               c.ndbsLister,
+		podLister:                c.podLister,
+		pvcLister:                c.pvcLister,
+		serviceLister:            c.serviceLister,
+		recorder:                 c.recorder,
 	}
 }
 
@@ -456,7 +485,6 @@ func (c *Controller) newSyncContext(ndb *v1.NdbCluster) *SyncContext {
 func (c *Controller) syncHandler(ctx context.Context, key string) (result syncResult) {
 
 	klog.Infof("Sync handler: %s", key)
-
 	// Convert the namespace/name string into a distinct namespace and name
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {

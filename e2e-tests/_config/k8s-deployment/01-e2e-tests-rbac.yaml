@@ -34,6 +34,23 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - persistentvolumeclaims
+  verbs:
+  - list
+  - delete
+  - watch
+
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - list
+  - watch  
+
+- apiGroups:
+  - ""
+  resources:
   - secrets
   verbs:
   - get
