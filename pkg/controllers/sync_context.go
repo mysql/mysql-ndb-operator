@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2024, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -38,17 +38,19 @@ type SyncContext struct {
 	ndb *v1.NdbCluster
 
 	// controller handling creation and changes of resources
-	mgmdController      *ndbNodeStatefulSetImpl
-	ndbmtdController    *ndbmtdStatefulSetController
-	mysqldController    *mysqldStatefulSetController
-	configMapController ConfigMapControlInterface
-	serviceController   ServiceControlInterface
-	pdbController       PodDisruptionBudgetControlInterface
+	mgmdController           *ndbNodeStatefulSetImpl
+	ndbmtdController         *ndbmtdStatefulSetController
+	mysqldController         *mysqldStatefulSetController
+	configMapController      ConfigMapControlInterface
+	serviceController        ServiceControlInterface
+	serviceaccountController ServiceAccountControlInterface
+	pdbController            PodDisruptionBudgetControlInterface
 
 	kubernetesClient kubernetes.Interface
 	ndbClient        ndbclientset.Interface
 	ndbsLister       ndblisters.NdbClusterLister
 	podLister        listerscorev1.PodLister
+	pvcLister        listerscorev1.PersistentVolumeClaimLister
 	serviceLister    listerscorev1.ServiceLister
 
 	// bool flag to control the NdbCluster status processedGeneration value

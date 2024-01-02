@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2024, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -344,6 +344,11 @@ func (nc *NdbCluster) GetCompleteLabels(resourceLabels map[string]string) map[st
 // GetServiceName returns the Service name of a given resource
 func (nc *NdbCluster) GetServiceName(resource string) string {
 	return fmt.Sprintf("%s-%s", nc.ObjectMeta.Name, resource)
+}
+
+// GetServiceAccountName returns the Service account name
+func (nc *NdbCluster) GetServiceAccountName() string {
+	return fmt.Sprintf("%s-sa", nc.ObjectMeta.Name)
 }
 
 func (nc *NdbCluster) GetConfigMapName() string {

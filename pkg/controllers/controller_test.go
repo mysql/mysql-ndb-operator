@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2024, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -222,6 +222,9 @@ func extractObjectMetaData(actual core.Action, extO, actO runtime.Object, t *tes
 	case "secrets":
 		expOM = extO.(*corev1.Secret).ObjectMeta
 		actOM = actO.(*corev1.Secret).ObjectMeta
+	case "serviceaccounts":
+		expOM = extO.(*corev1.ServiceAccount).ObjectMeta
+		actOM = actO.(*corev1.ServiceAccount).ObjectMeta
 	case "ndbclusters":
 		expOM = extO.(*ndbcontroller.NdbCluster).ObjectMeta
 		actOM = actO.(*ndbcontroller.NdbCluster).ObjectMeta
@@ -344,6 +347,10 @@ func filterInformerActions(actions []core.Action) []core.Action {
 				action.Matches("watch", "configmaps") ||
 				action.Matches("list", "services") ||
 				action.Matches("watch", "services") ||
+				action.Matches("list", "serviceaccounts") ||
+				action.Matches("watch", "serviceaccounts") ||
+				action.Matches("list", "persistentvolumeclaims") ||
+				action.Matches("watch", "persistentvolumeclaims") ||
 				action.Matches("list", "poddisruptionbudgets") ||
 				action.Matches("watch", "poddisruptionbudgets") ||
 				action.Matches("list", "statefulsets") ||
@@ -453,6 +460,10 @@ func TestCreatesCluster(t *testing.T) {
 	// one service for mgmd
 	omd.Name = "test-mgmd"
 	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
+
+	// One StatefulSet for management nodes
+	omd.Name = "test-sa"
+	f.expectCreateAction(ns, "", "v1", "serviceaccounts", &corev1.ServiceAccount{ObjectMeta: *omd})
 
 	// One StatefulSet for management nodes
 	omd.Name = "test-mgmd"

@@ -44,6 +44,21 @@ rules:
       - delete
 
   - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs:
+      - list
+      - watch
+      - delete
+      - create
+
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs:
+      - list
+      - watch
+      - delete
+
+  - apiGroups: [""]
     resources: ["services"]
     verbs:
       - list
