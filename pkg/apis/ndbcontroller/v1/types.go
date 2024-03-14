@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2024, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -229,8 +229,8 @@ type NdbClusterSpec struct {
 	// +optional
 	FreeAPISlots int32 `json:"freeAPISlots,omitempty"`
 	// The name of the MySQL Ndb Cluster image to be used.
-	// If not specified, "container-registry.oracle.com/mysql/community-cluster:8.0.36" will be used.
-	// +kubebuilder:default="container-registry.oracle.com/mysql/community-cluster:8.0.36"
+	// If not specified, "container-registry.oracle.com/mysql/community-cluster:8.0.37" will be used.
+	// +kubebuilder:default="container-registry.oracle.com/mysql/community-cluster:8.0.37"
 	// +optional
 	Image string `json:"image,omitempty"`
 	// ImagePullPolicy describes a policy for if/when to
