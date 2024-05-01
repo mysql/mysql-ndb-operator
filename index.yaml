@@ -25,10 +25,10 @@ entries:
       artifacthub.io/operator: "true"
       artifacthub.io/operatorCapabilities: Seamless Upgrades
     apiVersion: v2
-    appVersion: 8.3.0-1.3.0
-    created: "2024-01-17T06:27:37.620823625+01:00"
+    appVersion: 8.4.0-1.4.0
+    created: "2024-05-01T04:57:18.747116391+02:00"
     description: A Helm chart for deploying the Oracle MySQL NDB Cluster Operator
-    digest: 9342c13d511c5d6821b4330469cbae4c0017c2a5872af53823199b13aecf1248
+    digest: bc34c4880a3bbdf91372edb7f802602b01a1bf776b72ef24d250e3f3ad0a9675
     home: https://github.com/mysql/mysql-ndb-operator
     keywords:
     - NDB Operator
@@ -41,8 +41,8 @@ entries:
       name: Dinesh Surya Prakash
     name: ndb-operator
     urls:
-    - ndb-operator-1.3.0.tgz
-    version: 1.3.0
+    - ndb-operator-1.4.0.tgz
+    version: 1.4.0
   - annotations:
       artifacthub.io/crds: |
         - kind: NdbCluster
@@ -67,10 +67,10 @@ entries:
       artifacthub.io/operator: "true"
       artifacthub.io/operatorCapabilities: Seamless Upgrades
     apiVersion: v2
-    appVersion: 8.0.36-1.0.5
-    created: "2024-01-17T06:27:37.61976091+01:00"
+    appVersion: 8.0.37-1.0.6
+    created: "2024-05-01T04:57:18.74384713+02:00"
     description: A Helm chart for deploying the Oracle MySQL NDB Cluster Operator
-    digest: 10d850787a47e4c957ddf74962487e03524dbaf58a8624ef0f59e664e5b33688
+    digest: 7d3df910510f2b62518aa7308181bda2a73422cef21bece23cfa18ed4cf2fd08
     home: https://github.com/mysql/mysql-ndb-operator
     keywords:
     - NDB Operator
@@ -83,6 +83,6 @@ entries:
       name: Dinesh Surya Prakash
     name: ndb-operator
     urls:
-    - ndb-operator-1.0.5.tgz
-    version: 1.0.5
-generated: "2024-01-17T06:27:37.618367228+01:00"
+    - ndb-operator-1.0.6.tgz
+    version: 1.0.6
+generated: "2024-05-01T04:57:18.742181836+02:00"
