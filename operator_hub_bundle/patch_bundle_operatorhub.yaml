@@ -160,8 +160,8 @@ spec:
     - ndb
     - in-memory
   maintainers:
-    - name: DineshSuryaPrakash
-      email: dinesh.prakash@oracle.com
+    - name: PauloSilva
+      email: paulo.p.silva@oracle.com
   provider:
     name: MySQL
     url: https://artifacthub.io/packages/helm/mysql-ndb-operator/ndb-operator
