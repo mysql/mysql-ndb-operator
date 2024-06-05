@@ -11,8 +11,8 @@ keywords:
   - Ndbcluster
 home: https://github.com/mysql/mysql-ndb-operator
 maintainers:
-  - name: Dinesh Surya Prakash
-    email: dinesh.prakash@oracle.com
+  - name: Paulo Silva
+    email: paulo.p.silva@oracle.com
 annotations:
   artifacthub.io/images: |
     - name: ndb-operator
