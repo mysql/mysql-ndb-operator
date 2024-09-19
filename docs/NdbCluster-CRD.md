@@ -367,7 +367,7 @@ string
 <td>
 <em>(Optional)</em>
 <p>The name of the MySQL Ndb Cluster image to be used.
-If not specified, &ldquo;container-registry.oracle.com/mysql/community-cluster:8.4.2&rdquo; will be used.</p>
+If not specified, &ldquo;container-registry.oracle.com/mysql/community-cluster:8.4.3&rdquo; will be used.</p>
 </td>
 </tr>
 <tr>
