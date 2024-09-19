@@ -1323,9 +1323,9 @@ spec:
                 format: int32
                 type: integer
               image:
-                default: container-registry.oracle.com/mysql/community-cluster:8.4.2
+                default: container-registry.oracle.com/mysql/community-cluster:8.4.3
                 description: The name of the MySQL Ndb Cluster image to be used. If
-                  not specified, "container-registry.oracle.com/mysql/community-cluster:8.4.2"
+                  not specified, "container-registry.oracle.com/mysql/community-cluster:8.4.3"
                   will be used.
                 type: string
               imagePullPolicy:
