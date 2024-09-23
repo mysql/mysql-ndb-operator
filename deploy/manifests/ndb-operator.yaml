@@ -2287,7 +2287,8 @@ kind: Deployment
 metadata:
     labels:
         app: ndb-operator-webhook-deployment
-        release: 8.0.40-1.0.9    name: ndb-operator-webhook-server
+        release: 8.0.40-1.0.9
+        name: ndb-operator-webhook-server
     namespace: ndb-operator
 spec:
     selector:
@@ -2306,7 +2307,8 @@ spec:
                     - -service=ndb-operator-webhook-service
                   command:
                     - ndb-operator-webhook
-                  image: container-registry.oracle.com/mysql/community-ndb-operator:8.0.40-1.0.9                  imagePullPolicy: IfNotPresent
+                  image: container-registry.oracle.com/mysql/community-ndb-operator:8.0.40-1.0.9
+                  imagePullPolicy: IfNotPresent
                   name: ndb-operator-webhook
                   ports:
                     - containerPort: 9443
@@ -2322,7 +2324,8 @@ kind: Deployment
 metadata:
     labels:
         app: ndb-operator
-        release: 8.0.40-1.0.9    name: ndb-operator-app
+        release: 8.0.40-1.0.9
+        name: ndb-operator-app
     namespace: ndb-operator
 spec:
     replicas: 1
@@ -2344,9 +2347,11 @@ spec:
                     - ndb-operator
                   env:
                     - name: NDB_OPERATOR_IMAGE
-                      value: container-registry.oracle.com/mysql/community-ndb-operator:8.0.40-1.0.9                    - name: NDB_OPERATOR_IMAGE_PULL_SECRET_NAME
+                      value: container-registry.oracle.com/mysql/community-ndb-operator:8.0.40-1.0.9
+                    - name: NDB_OPERATOR_IMAGE_PULL_SECRET_NAME
                       value: null
-                  image: container-registry.oracle.com/mysql/community-ndb-operator:8.0.40-1.0.9                  imagePullPolicy: IfNotPresent
+                  image: container-registry.oracle.com/mysql/community-ndb-operator:8.0.40-1.0.9
+                  imagePullPolicy: IfNotPresent
                   name: ndb-operator-controller
                   ports:
                     - containerPort: 1186

@@ -1,7 +1,8 @@
 # Yaml file with default values for the NDB Operator templates
 
 # default image, pull secret and pull policy
-image: container-registry.oracle.com/mysql/community-ndb-operator:8.0.40-1.0.9imagePullPolicy: IfNotPresent
+image: container-registry.oracle.com/mysql/community-ndb-operator:8.0.40-1.0.9
+imagePullPolicy: IfNotPresent
 imagePullSecretName:
 
 # The operator is by default cluster-scoped.
