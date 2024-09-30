@@ -2288,7 +2288,7 @@ metadata:
     labels:
         app: ndb-operator-webhook-deployment
         release: 8.0.40-1.0.9
-        name: ndb-operator-webhook-server
+    name: ndb-operator-webhook-server
     namespace: ndb-operator
 spec:
     selector:
@@ -2325,7 +2325,7 @@ metadata:
     labels:
         app: ndb-operator
         release: 8.0.40-1.0.9
-        name: ndb-operator-app
+    name: ndb-operator-app
     namespace: ndb-operator
 spec:
     replicas: 1
