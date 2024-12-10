@@ -54,7 +54,7 @@ DOCKER_CMD := DOCKER_BUILDKIT=1 docker
 # Build NDB Operator container image
 .PHONY: operator-image
 operator-image: build
-	$(DOCKER_CMD) build -t mysql/ndb-operator:$(shell cat VERSION) -f docker/ndb-operator/Dockerfile .
+	$(DOCKER_CMD) build -t localhost/mysql/ndb-operator:$(shell cat VERSION) -f docker/ndb-operator/Dockerfile .
 
 # Build args to be passed to release docker build
 BUILD_ARGS := --build-arg gitCommit=$(GIT_COMMIT_ID)

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2024, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -67,7 +67,7 @@ var kindK8sNodeImages = map[string]string{
 }
 
 var (
-	kindCmd = []string{"go", "run", "sigs.k8s.io/kind"}
+	kindCmd = []string{"systemd-run", "--scope", "--user", "-p", "Delegate=yes", "go", "run", "sigs.k8s.io/kind"}
 )
 
 // shortUUID returns a short UUID to be used by the methods
@@ -344,7 +344,7 @@ func (t *testRunner) init(ctx context.Context) {
 	t.testDir = filepath.Dir(currentFilePath)
 
 	// By default, use the latest e2e-tests image
-	t.e2eTestImageName = "e2e-tests"
+	t.e2eTestImageName = "localhost/e2e-tests"
 
 	// Run the pod in the default namespace
 	t.e2eTestPodNamespace = "default"
@@ -766,7 +766,7 @@ func (t *testRunner) loadImagesIntoK8sCluster() bool {
 		versionNumber := string(versionBytes)
 		// trim the newline from version
 		versionNumber = versionNumber[:len(versionNumber)-1]
-		options.ndbOperatorImage = "mysql/ndb-operator:" + versionNumber
+		options.ndbOperatorImage = "localhost/mysql/ndb-operator:" + versionNumber
 	}
 	if !t.p.loadImageIntoK8sCluster(t, options.ndbOperatorImage) {
 		return false
@@ -884,10 +884,10 @@ func init() {
 		"Enable this to run tests from outside the K8s cluster.\n"+
 			"By default, this is not enabled and the tests will be run as a pod from inside K8s Cluster.")
 
-	// use v1.21 as default kind k8s version
-	flag.StringVar(&options.kindK8sVersion, "kind-k8s-version", "1.21",
+	// use v1.23 as default kind k8s version
+	flag.StringVar(&options.kindK8sVersion, "kind-k8s-version", "1.23",
 		"Kind k8s version used to run tests.\n"+
-			"Example usage: -kind-k8s-version=1.20")
+			"Example usage: -kind-k8s-version=1.23")
 
 	// test suites to be run.
 	flag.StringVar(&options.suites, "suites", "",
