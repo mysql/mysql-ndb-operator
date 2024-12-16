@@ -11,7 +11,7 @@ metadata:
     description: >-
       The MySQL NDB Operator is a Kubernetes operator for managing a MySQL NDB
       Cluster setup inside a Kubernetes Cluster.
-    containerImage: container-registry.oracle.com/mysql/community-ndb-operator:9.1.0-1.6.0
+    containerImage: container-registry.oracle.com/mysql/community-ndb-operator:9.2.0-1.7.0
     #support: ''
     capabilities: Seamless Upgrades
     #repository: ''
@@ -151,10 +151,10 @@ spec:
     ```
 
     This will delete all the data, the pods running the MySQL Cluster nodes and also delete all other associated K8s resources created by the NDB Operator.
-  version: 1.0.2
-  replaces: ''
+  version: 1.7.0
+  replaces: 1.6.0
   #skips: []
-  minKubeVersion: 1.19.0
+  minKubeVersion: 1.21.0
   keywords:
     - mysql
     - ndb
