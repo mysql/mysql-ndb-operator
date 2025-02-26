@@ -155,6 +155,15 @@ spec:
   replaces: 1.6.0
   #skips: []
   minKubeVersion: 1.23.0
+  installModes:
+    - supported: true
+      type: OwnNamespace
+    - supported: true
+      type: SingleNamespace
+    - supported: false
+      type: MultiNamespace
+    - supported: true
+      type: AllNamespaces
   keywords:
     - mysql
     - ndb

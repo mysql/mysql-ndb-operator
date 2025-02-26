@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -41,12 +41,24 @@ func main() {
 		// Operator is running inside K8s Pods
 		cfg, err = restclient.InClusterConfig()
 
-		if !config.ClusterScoped {
-			// Operator is namespace-scoped.
-			// Use the namespace it is deployed in to watch for changes.
-			config.WatchNamespace, err = helpers.GetCurrentNamespace()
-			if err != nil {
-				klog.Fatalf("Could not get current namespace : %s", err)
+		// First, we check if the namespace to watch is available from the environment.
+		// Only if it could not be found, the command flags will be used.
+		watchNamespace := helpers.GetWatchNamespaceFromEnvironment()
+		if watchNamespace != "" {
+			// Operator is in Single Namespace install mode
+			klog.Infof("Getting watch namespace from environment: %s", watchNamespace)
+			config.ClusterScoped = false
+			config.WatchNamespace = watchNamespace
+		} else {
+			klog.Info("No namespace to watch found in environment. Using flags.")
+			if !config.ClusterScoped && config.WatchNamespace == "" {
+				// Operator is namespace-scoped.
+				// If no namespace is specified
+				// Use the namespace it is deployed in to watch for changes.
+				config.WatchNamespace, err = helpers.GetCurrentNamespace()
+				if err != nil {
+					klog.Fatalf("Could not get current namespace : %s", err)
+				}
 			}
 		}
 	} else {

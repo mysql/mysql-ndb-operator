@@ -47,6 +47,7 @@ kubectl apply -f https://raw.githubusercontent.com/mysql/mysql-ndb-operator/main
 ```
 
 To run the operator in a different namespace, the manifest file has to be updated before applying it to the K8s Server.
+To modify the install mode from the default cluster-wide scope, you can set the `-cluster-scoped` argument to `false` in the manifest file. Additionally, you can specify a custom namespace to monitor for NdbCluster resource changes using the `-watch-namespace` flag. If a namespace is provided, the NDB Operator will exclusively watch for changes within that namespace. Otherwise, it will default to monitoring the namespace where the operator itself is deployed.
 
 ### Verify Installation
 
