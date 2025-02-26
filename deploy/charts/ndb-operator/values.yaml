@@ -10,3 +10,4 @@ imagePullSecretName:
 # will be watching for NdbCluster resource changes only in the namespace
 # it is released into (controlled by helm's --namespace option).
 clusterScoped: true
+watchNamespace:

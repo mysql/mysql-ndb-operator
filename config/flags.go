@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -23,17 +23,13 @@ var (
 
 func ValidateFlags() {
 
-	runningInsideK8s := helpers.IsAppRunningInsideK8s()
-	if runningInsideK8s && WatchNamespace != "" {
-		// Ignore WatchNamespace if operator is running inside cluster
-		klog.Warning("Ignoring option 'watch-namespace' as operator is running inside K8s Cluster")
-		WatchNamespace = ""
-	} else if ClusterScoped && WatchNamespace != "" {
+	if ClusterScoped && WatchNamespace != "" {
 		// Ignore WatchNamespace if operator is cluster-scoped
 		klog.Warning("Ignoring option 'watch-namespace' as 'cluster-scoped' is enabled")
 		WatchNamespace = ""
 	}
 
+	runningInsideK8s := helpers.IsAppRunningInsideK8s()
 	if !runningInsideK8s {
 		if Kubeconfig == "" && MasterURL == "" {
 			// Operator is running out of K8s Cluster but kubeconfig/masterURL are not specified.
@@ -56,8 +52,7 @@ func InitFlags() {
 	flag.StringVar(&MasterURL, "master", "",
 		"The address of the Kubernetes API server. Overrides any value in kubeconfig. Only required if out-of-cluster.")
 	flag.StringVar(&WatchNamespace, "watch-namespace", "",
-		"The namespace to be watched by the operator for NdbCluster resource changes."+
-			"Only required if out-of-cluster.")
+		"The namespace to be watched by the operator for NdbCluster resource changes.")
 	flag.BoolVar(&ClusterScoped, "cluster-scoped", true, ""+
 		"When enabled, operator looks for NdbCluster resource changes across K8s cluster.")
 }

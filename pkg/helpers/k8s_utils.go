@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -67,8 +67,23 @@ func GetServiceAddressAndPort(service *corev1.Service) (string, int32) {
 // GetCurrentNamespace returns the current namespace value,
 // on failure to fetch current namespace value it returns error.
 func GetCurrentNamespace() (string, error) {
+	// First, it checks the environment for value set with CURRENT_NAMESPACE environment variable
+	var currentNamespaceEnvVariable = "CURRENT_NAMESPACE"
+	currentNamespace, variableFound := os.LookupEnv(currentNamespaceEnvVariable)
+
+	if variableFound {
+		return currentNamespace, nil
+	}
+
 	// Default namespace to be used by containers are placed in,
 	// "/var/run/secrets/kubernetes.io/serviceaccount/namespace" file in each container
 	namespace, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+
 	return string(namespace), err
+}
+
+func GetWatchNamespaceFromEnvironment() string {
+	var watchNamespaceEnvVariable = "WATCH_NAMESPACE"
+	namespace, _ := os.LookupEnv(watchNamespaceEnvVariable)
+	return namespace
 }

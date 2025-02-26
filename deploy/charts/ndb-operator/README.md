@@ -4,7 +4,7 @@ This chart installs the NdbCluster CRD, deploys the Ndb Operator and the webhook
 
 ## License
 
-Copyright (c) 2021, 2024, Oracle and/or its affiliates.
+Copyright (c) 2021, 2025, Oracle and/or its affiliates.
 
 License information can be found in the LICENSE file. This distribution may include materials developed by third parties. For license and attribution notices for these materials, please refer to the LICENSE file.
 
@@ -64,16 +64,17 @@ Note that removing the NdbCluster CRD will also stop and delete any MySQL Cluste
 
 ## Configuration
 
-The following table has the configurable options supported by the chart and their defaults.
+The following table lists the configurable options supported by the chart, along with their default values.
 
-| Parameter             | Description                         | Default                     |
-| ----------------------| ------------------------------------| ----------------------------|
-| `image`               | NDB Operator image name with tag    | `mysql/ndb-operator:latest` |
-| `imagePullPolicy`     | NDB Operator image pull policy      | `IfNotPresent`              |
-| `imagePullSecretName` | NDB Operator image pull secret name |                             |
-| `clusterScoped`       | Scope of the Ndb Operator.<br>If `true`, the operator is cluster-scoped and will watch for changes to any NdbCluster resource across all namespaces.<br>If `false`, the operator is namespace-scoped and will only watch for changes in the namespace it is released into. | `true`|
+| Parameter             | Description                                                                                                                                                                                                                                 | Default                     |
+| ----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------|
+| `image`               | The name of the NDB Operator image, including its tag.                                                                                                                                                                                      | `mysql/ndb-operator:latest` |
+| `imagePullPolicy`     | The image pull policy for the NDB Operator.                                                                                                                                                                                                 | `IfNotPresent`              |
+| `imagePullSecretName` | The name of the secret used to authenticate image pulls for the NDB Operator.                                                                                                                                                               | None                        |
+| `clusterScoped`       | Determines the scope of the NDB Operator.<br>When set to `true`, the operator watches for changes to any NdbCluster resource across all namespaces.<br>When set to `false`, the operator only watches for changes within its own namespace. | `true`                      |
+| `watchNamespace`      | Specifies the namespace to monitor for NdbCluster resource changes.<br>This option is only applicable when `clusterScoped` is set to `false`. If not specified, the operator will only watch the namespace where it is deployed.            | None                        |
 
-These options can be set using the '–set' argument of the helm CLI.
+These options can be set using the '–set' argument of the Helm CLI.
 
 For example, to specify a custom imagePullPolicy,
 ```bash
