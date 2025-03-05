@@ -4,14 +4,14 @@ The MySQL NDB Operator is a Kubernetes operator for managing a MySQL NDB Cluster
 
 ## License
 
-Copyright (c) 2021, 2024, Oracle and/or its affiliates.
+Copyright (c) 2021, 2025, Oracle and/or its affiliates.
 
 License information can be found in the LICENSE file. This distribution may include materials developed by third parties. For license and attribution notices for these materials, please refer to the LICENSE file.
 
 ## Installation
 
 ### Prerequisites
- - Kubernetes Version 1.19+
+ - Kubernetes Version 1.23+
 
 ### Install using helm
 
