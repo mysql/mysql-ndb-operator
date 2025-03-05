@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2024, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -57,13 +57,16 @@ var options struct {
 // K8s image used by KinD to bring up cluster
 // https://github.com/kubernetes-sigs/kind/releases
 var kindK8sNodeImages = map[string]string{
-	"1.19": "kindest/node:v1.19.16@sha256:476cb3269232888437b61deca013832fee41f9f074f9bed79f57e4280f7c48b7",
-	"1.20": "kindest/node:v1.20.15@sha256:a32bf55309294120616886b5338f95dd98a2f7231519c7dedcec32ba29699394",
-	"1.21": "kindest/node:v1.21.14@sha256:9d9eb5fb26b4fbc0c6d95fa8c790414f9750dd583f5d7cee45d92e8c26670aa1",
-	"1.22": "kindest/node:v1.22.15@sha256:7d9708c4b0873f0fe2e171e2b1b7f45ae89482617778c1c875f1053d4cef2e41",
-	"1.23": "kindest/node:v1.23.12@sha256:ef453bb7c79f0e3caba88d2067d4196f427794086a7d0df8df4f019d5e336b61",
-	"1.24": "kindest/node:v1.24.6@sha256:577c630ce8e509131eab1aea12c022190978dd2f745aac5eb1fe65c0807eb315",
-	"1.25": "kindest/node:v1.25.2@sha256:f52781bc0d7a19fb6c405c2af83abfeb311f130707a0e219175677e366cc45d1",
+	"1.23": "kindest/node:v1.23.17@sha256:14d0a9a892b943866d7e6be119a06871291c517d279aedb816a4b4bc0ec0a5b3",
+	"1.24": "kindest/node:v1.24.17@sha256:bad10f9b98d54586cba05a7eaa1b61c6b90bfc4ee174fdc43a7b75ca75c95e51",
+	"1.25": "kindest/node:v1.25.16@sha256:6110314339b3b44d10da7d27881849a87e092124afab5956f2e10ecdb463b025",
+	"1.26": "kindest/node:v1.26.15@sha256:c79602a44b4056d7e48dc20f7504350f1e87530fe953428b792def00bc1076dd",
+	"1.27": "kindest/node:v1.27.16@sha256:2d21a61643eafc439905e18705b8186f3296384750a835ad7a005dceb9546d20",
+	"1.28": "kindest/node:v1.28.15@sha256:a7c05c7ae043a0b8c818f5a06188bc2c4098f6cb59ca7d1856df00375d839251",
+	"1.29": "kindest/node:v1.29.14@sha256:8703bd94ee24e51b778d5556ae310c6c0fa67d761fae6379c8e0bb480e6fea29",
+	"1.30": "kindest/node:v1.30.10@sha256:4de75d0e82481ea846c0ed1de86328d821c1e6a6a91ac37bf804e5313670e507",
+	"1.31": "kindest/node:v1.31.6@sha256:28b7cbb993dfe093c76641a0c95807637213c9109b761f1d422c2400e22b8e87",
+	"1.32": "kindest/node:v1.32.2@sha256:f226345927d7e348497136874b6d207e0b32cc52154ad8323129352923a3142f",
 }
 
 var (
@@ -884,10 +887,10 @@ func init() {
 		"Enable this to run tests from outside the K8s cluster.\n"+
 			"By default, this is not enabled and the tests will be run as a pod from inside K8s Cluster.")
 
-	// use v1.23 as default kind k8s version
-	flag.StringVar(&options.kindK8sVersion, "kind-k8s-version", "1.23",
+	// use v1.32 as default kind k8s version
+	flag.StringVar(&options.kindK8sVersion, "kind-k8s-version", "1.32",
 		"Kind k8s version used to run tests.\n"+
-			"Example usage: -kind-k8s-version=1.23")
+			"Example usage: -kind-k8s-version=1.30")
 
 	// test suites to be run.
 	flag.StringVar(&options.suites, "suites", "",

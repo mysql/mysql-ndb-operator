@@ -11,7 +11,7 @@ License information can be found in the LICENSE file. This distribution may incl
 ## Installation
 
 ### Prerequisites
- - Kubernetes Version 1.19+
+ - Kubernetes Version 1.23+
 
 ### Install using helm
 
