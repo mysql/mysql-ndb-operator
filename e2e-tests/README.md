@@ -4,7 +4,7 @@ This folder contains test suites written in gingko and a tool to run the e2e tes
 
 ### License
 
-Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+Copyright (c) 2021, 2025, Oracle and/or its affiliates.
 
 License information can be found in the LICENSE file. This distribution may include materials developed by third parties. For license and attribution notices for these materials, please refer to the LICENSE file.
 
@@ -27,7 +27,7 @@ $ go run e2e-tests/run-e2e-test.go --help
     	More details : https://onsi.github.io/ginkgo/#location-based-filtering
   -kind-k8s-version string
     	Kind k8s version used to run tests.
-    	Example usage: -kind-k8s-version=1.20 (default "1.21")
+        Example usage: -kind-k8s-version=1.20 (default "1.23")
   -kubeconfig string
     	Kubeconfig of the existing K8s cluster to run tests on.
     	This will not be used if '--use-kind' is enabled. (default "$HOME/.kube/config")
