@@ -11,7 +11,7 @@ License information can be found in the LICENSE file. This distribution may incl
 ## Prerequisites
  - [Golang v1.16](https://go.dev/dl/) or above to compile the operator.
  - [Docker](https://docs.docker.com/get-docker/) to build the NDB Operator and other container images. Docker is also used to run the E2E testcases.
- - [Minikube](https://minikube.sigs.k8s.io/docs/) or [KinD](https://kind.sigs.k8s.io/) to deploy and test the NDB Operator. A minimum version of Kubernetes 1.19 is required. If using minikube, the default memory config might not be adequate and the memory should be increased using `minikube config set` command. For example to deploy the example at [docs/examples/example-ndb.yaml](docs/examples/example-ndb.yaml), minikube requires a memory of atleast 5GB, and it can be set by `minikube config set memory 5GB`.
+ - [Minikube](https://minikube.sigs.k8s.io/docs/) or [KinD](https://kind.sigs.k8s.io/) to deploy and test the NDB Operator. A minimum version of Kubernetes 1.23 is required. If using minikube, the default memory config might not be adequate and the memory should be increased using `minikube config set` command. For example to deploy the example at [docs/examples/example-ndb.yaml](docs/examples/example-ndb.yaml), minikube requires a memory of atleast 5GB, and it can be set by `minikube config set memory 5GB`.
 
 ## Build NDB Operator
 

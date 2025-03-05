@@ -10,7 +10,7 @@ License information can be found in the LICENSE file. This distribution may incl
 
 ## Prerequisites
 
-- Kubernetes v1.19.0+
+- Kubernetes v1.23.0+
 
 ## Install the Chart
 
