@@ -1,4 +1,4 @@
-// Copyright (c) 2022, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2022, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -64,24 +64,24 @@ var _ = ndbtest.NewOrderedTestCase("Node Selectors and Pod affinity", func(tc *n
 		testNdb = testutils.NewTestNdb(namespace, "node-spec-test", 2)
 		// Add Tolerations to all node types to enable scheduling them
 		// on KinD master which has a NoSchedule taint.
-		tolerateTaintOnKinDMaster := corev1.Toleration{
-			Key:      "node-role.kubernetes.io/master",
+		tolerateTaintOnKinDControlPlane := corev1.Toleration{
+			Key:      "node-role.kubernetes.io/control-plane",
 			Operator: corev1.TolerationOpEqual,
 			Effect:   corev1.TaintEffectNoSchedule,
 		}
 		testNdb.Spec.ManagementNode.NdbPodSpec = &v1.NdbClusterPodSpec{
 			Tolerations: []corev1.Toleration{
-				tolerateTaintOnKinDMaster,
+				tolerateTaintOnKinDControlPlane,
 			},
 		}
 		testNdb.Spec.DataNode.NdbPodSpec = &v1.NdbClusterPodSpec{
 			Tolerations: []corev1.Toleration{
-				tolerateTaintOnKinDMaster,
+				tolerateTaintOnKinDControlPlane,
 			},
 		}
 		testNdb.Spec.MysqlNode.NdbPodSpec = &v1.NdbClusterPodSpec{
 			Tolerations: []corev1.Toleration{
-				tolerateTaintOnKinDMaster,
+				tolerateTaintOnKinDControlPlane,
 			},
 		}
 		ginkgo.DeferCleanup(func() {
