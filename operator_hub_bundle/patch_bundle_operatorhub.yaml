@@ -154,7 +154,7 @@ spec:
   version: 1.7.0
   replaces: 1.6.0
   #skips: []
-  minKubeVersion: 1.21.0
+  minKubeVersion: 1.23.0
   keywords:
     - mysql
     - ndb

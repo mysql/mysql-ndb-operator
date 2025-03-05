@@ -1,7 +1,7 @@
-# Copyright (c) 2022, 2023, Oracle and/or its affiliates.
+# Copyright (c) 2022, 2025, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
-ARG GOLANG_ALPINE_IMAGE=golang:1.20.0-alpine3.17
+ARG GOLANG_ALPINE_IMAGE=docker.io/golang:1.24.1-alpine3.21
 FROM $GOLANG_ALPINE_IMAGE as builder
 RUN apk add --no-cache make
 
