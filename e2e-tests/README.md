@@ -27,7 +27,7 @@ $ go run e2e-tests/run-e2e-test.go --help
     	More details : https://onsi.github.io/ginkgo/#location-based-filtering
   -kind-k8s-version string
     	Kind k8s version used to run tests.
-        Example usage: -kind-k8s-version=1.20 (default "1.23")
+        Example usage: -kind-k8s-version=1.30 (default "1.32")
   -kubeconfig string
     	Kubeconfig of the existing K8s cluster to run tests on.
     	This will not be used if '--use-kind' is enabled. (default "$HOME/.kube/config")
