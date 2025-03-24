@@ -1,4 +1,4 @@
-Copyright (c) 2021, 2024, Oracle and/or its affiliates.
+Copyright (c) 2021, 2025, Oracle and/or its affiliates.
 
 This is a release of MySQL NDB Operator, a Kubernetes Operator for MySQL NDB Cluster
 

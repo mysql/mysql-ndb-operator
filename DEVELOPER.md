@@ -4,7 +4,7 @@ The wiki describes how to build and test MySQL NDB Operator from the source code
 
 ## License
 
-Copyright (c) 2022, Oracle and/or its affiliates.
+Copyright (c) 2025, Oracle and/or its affiliates.
 
 License information can be found in the LICENSE file. This distribution may include materials developed by third parties. For license and attribution notices for these materials, please refer to the LICENSE file.
 
