@@ -26,9 +26,9 @@ entries:
       artifacthub.io/operatorCapabilities: Seamless Upgrades
     apiVersion: v2
     appVersion: 9.3.0-1.8.0
-    created: "2025-04-16T09:48:52.090150321+02:00"
+    created: "2025-04-16T10:01:17.072142833+02:00"
     description: A Helm chart for deploying the Oracle MySQL NDB Cluster Operator
-    digest: 69c3ba5a1a8e4c79668bc1be59cb196a4392e6f0de2085a71b082e5ea0ff20d9
+    digest: 913cc2df4d56be1a354e903727716a7dc93ee551ac46b3534e9c16e7c46fe93c
     home: https://github.com/mysql/mysql-ndb-operator
     keywords:
     - NDB Operator
@@ -68,9 +68,9 @@ entries:
       artifacthub.io/operatorCapabilities: Seamless Upgrades
     apiVersion: v2
     appVersion: 8.4.5-1.4.5
-    created: "2025-04-16T09:48:52.088328231+02:00"
+    created: "2025-04-16T10:01:17.071023838+02:00"
     description: A Helm chart for deploying the Oracle MySQL NDB Cluster Operator
-    digest: c84ce78ca9b3c397ab22329991799f9d759f506125d917e3a72562a75b108282
+    digest: 0a6c68f102b834d9e6bbcc950f009b7ea487ea9d6534d81589ae5ab7b8b08b69
     home: https://github.com/mysql/mysql-ndb-operator
     keywords:
     - NDB Operator
@@ -110,9 +110,9 @@ entries:
       artifacthub.io/operatorCapabilities: Seamless Upgrades
     apiVersion: v2
     appVersion: 8.0.42-1.0.11
-    created: "2025-04-16T09:48:52.087270513+02:00"
+    created: "2025-04-16T10:01:17.070075398+02:00"
     description: A Helm chart for deploying the Oracle MySQL NDB Cluster Operator
-    digest: 10afb632d1200bb9fbe93112188051cbc5c924bab5bd08674a53251c22f0044b
+    digest: d338f45f8eec6ebac97d5209d75f1eedefc36ff7c5cda732dcf054c70478c6dc
     home: https://github.com/mysql/mysql-ndb-operator
     keywords:
     - NDB Operator
@@ -127,4 +127,4 @@ entries:
     urls:
     - ndb-operator-1.0.11.tgz
     version: 1.0.11
-generated: "2025-04-16T09:48:52.086109297+02:00"
+generated: "2025-04-16T10:01:17.068938518+02:00"
