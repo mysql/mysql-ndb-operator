@@ -1,10 +1,10 @@
 ## Build MySQL Cluster docker image
 
-Ndb operator uses the public images available in dockerhub. By default, the mysql/mysql-cluster:latest image is used. A custom MySQL Cluster image can also be built and used with the operator. The docker files and scripts required for building a MySQL Cluster image are included in this directory.
+Ndb operator uses the public images available in Oracle Container Registry. By default, the `container-registry.oracle.com/mysql/community-cluster:9.3.0` image is used. A custom MySQL Cluster image can also be built and used with the operator. The docker files and scripts required for building a MySQL Cluster image are included in this directory.
 
 ### License
 
-Copyright (c) 2021, Oracle and/or its affiliates.
+Copyright (c) 2021, 2025, Oracle and/or its affiliates.
 
 License information can be found in the LICENSE file. This distribution may include materials developed by third parties. For license and attribution notices for these materials, please refer to the LICENSE file.
 
