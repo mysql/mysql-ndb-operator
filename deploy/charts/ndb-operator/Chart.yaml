@@ -16,7 +16,7 @@ maintainers:
 annotations:
   artifacthub.io/images: |
     - name: ndb-operator
-      image: mysql/ndb-operator:latest
+      image: container-registry.oracle.com/mysql/community-ndb-operator:8.4.5-1.4.5
   artifacthub.io/crds: |
     - kind: NdbCluster
       version: v1

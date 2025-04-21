@@ -68,10 +68,11 @@ The following table has the configurable options supported by the chart and thei
 
 | Parameter             | Description                         | Default                     |
 | ----------------------| ------------------------------------| ----------------------------|
-| `image`               | NDB Operator image name with tag    | `mysql/ndb-operator:latest` |
+| `image`               | NDB Operator image name with tag    | `container-registry.oracle.com/mysql/community-ndb-operator:8.4.5-1.4.5` |
 | `imagePullPolicy`     | NDB Operator image pull policy      | `IfNotPresent`              |
 | `imagePullSecretName` | NDB Operator image pull secret name |                             |
 | `clusterScoped`       | Scope of the Ndb Operator.<br>If `true`, the operator is cluster-scoped and will watch for changes to any NdbCluster resource across all namespaces.<br>If `false`, the operator is namespace-scoped and will only watch for changes in the namespace it is released into. | `true`|
+
 
 These options can be set using the '–set' argument of the helm CLI.
 
