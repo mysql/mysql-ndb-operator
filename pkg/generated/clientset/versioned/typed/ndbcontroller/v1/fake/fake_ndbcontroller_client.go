@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -17,7 +17,7 @@ type FakeMysqlV1 struct {
 }
 
 func (c *FakeMysqlV1) NdbClusters(namespace string) v1.NdbClusterInterface {
-	return &FakeNdbClusters{c, namespace}
+	return newFakeNdbClusters(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

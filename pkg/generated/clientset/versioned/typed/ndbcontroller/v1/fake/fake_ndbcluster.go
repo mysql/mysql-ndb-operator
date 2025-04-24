@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -7,124 +7,30 @@
 package fake
 
 import (
-	"context"
-
-	ndbcontrollerv1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	ndbcontrollerv1 "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/typed/ndbcontroller/v1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeNdbClusters implements NdbClusterInterface
-type FakeNdbClusters struct {
+// fakeNdbClusters implements NdbClusterInterface
+type fakeNdbClusters struct {
+	*gentype.FakeClientWithList[*v1.NdbCluster, *v1.NdbClusterList]
 	Fake *FakeMysqlV1
-	ns   string
 }
 
-var ndbclustersResource = schema.GroupVersionResource{Group: "mysql.oracle.com", Version: "v1", Resource: "ndbclusters"}
-
-var ndbclustersKind = schema.GroupVersionKind{Group: "mysql.oracle.com", Version: "v1", Kind: "NdbCluster"}
-
-// Get takes name of the ndbCluster, and returns the corresponding ndbCluster object, and an error if there is any.
-func (c *FakeNdbClusters) Get(ctx context.Context, name string, options v1.GetOptions) (result *ndbcontrollerv1.NdbCluster, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(ndbclustersResource, c.ns, name), &ndbcontrollerv1.NdbCluster{})
-
-	if obj == nil {
-		return nil, err
+func newFakeNdbClusters(fake *FakeMysqlV1, namespace string) ndbcontrollerv1.NdbClusterInterface {
+	return &fakeNdbClusters{
+		gentype.NewFakeClientWithList[*v1.NdbCluster, *v1.NdbClusterList](
+			fake.Fake,
+			namespace,
+			v1.SchemeGroupVersion.WithResource("ndbclusters"),
+			v1.SchemeGroupVersion.WithKind("NdbCluster"),
+			func() *v1.NdbCluster { return &v1.NdbCluster{} },
+			func() *v1.NdbClusterList { return &v1.NdbClusterList{} },
+			func(dst, src *v1.NdbClusterList) { dst.ListMeta = src.ListMeta },
+			func(list *v1.NdbClusterList) []*v1.NdbCluster { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1.NdbClusterList, items []*v1.NdbCluster) { list.Items = gentype.FromPointerSlice(items) },
+		),
+		fake,
 	}
-	return obj.(*ndbcontrollerv1.NdbCluster), err
-}
-
-// List takes label and field selectors, and returns the list of NdbClusters that match those selectors.
-func (c *FakeNdbClusters) List(ctx context.Context, opts v1.ListOptions) (result *ndbcontrollerv1.NdbClusterList, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewListAction(ndbclustersResource, ndbclustersKind, c.ns, opts), &ndbcontrollerv1.NdbClusterList{})
-
-	if obj == nil {
-		return nil, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &ndbcontrollerv1.NdbClusterList{ListMeta: obj.(*ndbcontrollerv1.NdbClusterList).ListMeta}
-	for _, item := range obj.(*ndbcontrollerv1.NdbClusterList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested ndbClusters.
-func (c *FakeNdbClusters) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(ndbclustersResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a ndbCluster and creates it.  Returns the server's representation of the ndbCluster, and an error, if there is any.
-func (c *FakeNdbClusters) Create(ctx context.Context, ndbCluster *ndbcontrollerv1.NdbCluster, opts v1.CreateOptions) (result *ndbcontrollerv1.NdbCluster, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(ndbclustersResource, c.ns, ndbCluster), &ndbcontrollerv1.NdbCluster{})
-
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*ndbcontrollerv1.NdbCluster), err
-}
-
-// Update takes the representation of a ndbCluster and updates it. Returns the server's representation of the ndbCluster, and an error, if there is any.
-func (c *FakeNdbClusters) Update(ctx context.Context, ndbCluster *ndbcontrollerv1.NdbCluster, opts v1.UpdateOptions) (result *ndbcontrollerv1.NdbCluster, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(ndbclustersResource, c.ns, ndbCluster), &ndbcontrollerv1.NdbCluster{})
-
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*ndbcontrollerv1.NdbCluster), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeNdbClusters) UpdateStatus(ctx context.Context, ndbCluster *ndbcontrollerv1.NdbCluster, opts v1.UpdateOptions) (*ndbcontrollerv1.NdbCluster, error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(ndbclustersResource, "status", c.ns, ndbCluster), &ndbcontrollerv1.NdbCluster{})
-
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*ndbcontrollerv1.NdbCluster), err
-}
-
-// Delete takes name of the ndbCluster and deletes it. Returns an error if one occurs.
-func (c *FakeNdbClusters) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(ndbclustersResource, c.ns, name), &ndbcontrollerv1.NdbCluster{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeNdbClusters) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(ndbclustersResource, c.ns, listOpts)
-
-	_, err := c.Fake.Invokes(action, &ndbcontrollerv1.NdbClusterList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched ndbCluster.
-func (c *FakeNdbClusters) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *ndbcontrollerv1.NdbCluster, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(ndbclustersResource, c.ns, name, pt, data, subresources...), &ndbcontrollerv1.NdbCluster{})
-
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*ndbcontrollerv1.NdbCluster), err
 }
