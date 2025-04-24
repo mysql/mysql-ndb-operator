@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -7,10 +7,10 @@
 package v1
 
 import (
-	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	ndbcontrollerv1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // NdbClusterLister helps list NdbClusters.
@@ -18,7 +18,7 @@ import (
 type NdbClusterLister interface {
 	// List lists all NdbClusters in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.NdbCluster, err error)
+	List(selector labels.Selector) (ret []*ndbcontrollerv1.NdbCluster, err error)
 	// NdbClusters returns an object that can list and get NdbClusters.
 	NdbClusters(namespace string) NdbClusterNamespaceLister
 	NdbClusterListerExpansion
@@ -26,25 +26,17 @@ type NdbClusterLister interface {
 
 // ndbClusterLister implements the NdbClusterLister interface.
 type ndbClusterLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*ndbcontrollerv1.NdbCluster]
 }
 
 // NewNdbClusterLister returns a new NdbClusterLister.
 func NewNdbClusterLister(indexer cache.Indexer) NdbClusterLister {
-	return &ndbClusterLister{indexer: indexer}
-}
-
-// List lists all NdbClusters in the indexer.
-func (s *ndbClusterLister) List(selector labels.Selector) (ret []*v1.NdbCluster, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.NdbCluster))
-	})
-	return ret, err
+	return &ndbClusterLister{listers.New[*ndbcontrollerv1.NdbCluster](indexer, ndbcontrollerv1.Resource("ndbcluster"))}
 }
 
 // NdbClusters returns an object that can list and get NdbClusters.
 func (s *ndbClusterLister) NdbClusters(namespace string) NdbClusterNamespaceLister {
-	return ndbClusterNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return ndbClusterNamespaceLister{listers.NewNamespaced[*ndbcontrollerv1.NdbCluster](s.ResourceIndexer, namespace)}
 }
 
 // NdbClusterNamespaceLister helps list and get NdbClusters.
@@ -52,36 +44,15 @@ func (s *ndbClusterLister) NdbClusters(namespace string) NdbClusterNamespaceList
 type NdbClusterNamespaceLister interface {
 	// List lists all NdbClusters in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.NdbCluster, err error)
+	List(selector labels.Selector) (ret []*ndbcontrollerv1.NdbCluster, err error)
 	// Get retrieves the NdbCluster from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.NdbCluster, error)
+	Get(name string) (*ndbcontrollerv1.NdbCluster, error)
 	NdbClusterNamespaceListerExpansion
 }
 
 // ndbClusterNamespaceLister implements the NdbClusterNamespaceLister
 // interface.
 type ndbClusterNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all NdbClusters in the indexer for a given namespace.
-func (s ndbClusterNamespaceLister) List(selector labels.Selector) (ret []*v1.NdbCluster, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.NdbCluster))
-	})
-	return ret, err
-}
-
-// Get retrieves the NdbCluster from the indexer for a given namespace and name.
-func (s ndbClusterNamespaceLister) Get(name string) (*v1.NdbCluster, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1.Resource("ndbcluster"), name)
-	}
-	return obj.(*v1.NdbCluster), nil
+	listers.ResourceIndexer[*ndbcontrollerv1.NdbCluster]
 }
