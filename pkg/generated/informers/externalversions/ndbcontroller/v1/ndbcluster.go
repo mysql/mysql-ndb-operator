@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -7,13 +7,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	ndbcontrollerv1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	apisndbcontrollerv1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	versioned "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	internalinterfaces "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions/internalinterfaces"
-	v1 "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1"
+	ndbcontrollerv1 "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -24,7 +24,7 @@ import (
 // NdbClusters.
 type NdbClusterInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.NdbClusterLister
+	Lister() ndbcontrollerv1.NdbClusterLister
 }
 
 type ndbClusterInformer struct {
@@ -50,16 +50,28 @@ func NewFilteredNdbClusterInformer(client versioned.Interface, namespace string,
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.MysqlV1().NdbClusters(namespace).List(context.TODO(), options)
+				return client.MysqlV1().NdbClusters(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.MysqlV1().NdbClusters(namespace).Watch(context.TODO(), options)
+				return client.MysqlV1().NdbClusters(namespace).Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.MysqlV1().NdbClusters(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.MysqlV1().NdbClusters(namespace).Watch(ctx, options)
 			},
 		},
-		&ndbcontrollerv1.NdbCluster{},
+		&apisndbcontrollerv1.NdbCluster{},
 		resyncPeriod,
 		indexers,
 	)
@@ -70,9 +82,9 @@ func (f *ndbClusterInformer) defaultInformer(client versioned.Interface, resyncP
 }
 
 func (f *ndbClusterInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&ndbcontrollerv1.NdbCluster{}, f.defaultInformer)
+	return f.factory.InformerFor(&apisndbcontrollerv1.NdbCluster{}, f.defaultInformer)
 }
 
-func (f *ndbClusterInformer) Lister() v1.NdbClusterLister {
-	return v1.NewNdbClusterLister(f.Informer().GetIndexer())
+func (f *ndbClusterInformer) Lister() ndbcontrollerv1.NdbClusterLister {
+	return ndbcontrollerv1.NewNdbClusterLister(f.Informer().GetIndexer())
 }
