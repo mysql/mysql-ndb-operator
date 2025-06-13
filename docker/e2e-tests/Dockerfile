@@ -1,7 +1,7 @@
 # Copyright (c) 2021, 2025, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
-ARG GOLANG_IMAGE=docker.io/golang:1.24.1
+ARG GOLANG_IMAGE=docker.io/golang:1.24.4
 FROM $GOLANG_IMAGE
 
 # install kubectl
