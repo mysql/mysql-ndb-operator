@@ -64,9 +64,10 @@ var kindK8sNodeImages = map[string]string{
 	"1.27": "kindest/node:v1.27.16@sha256:2d21a61643eafc439905e18705b8186f3296384750a835ad7a005dceb9546d20",
 	"1.28": "kindest/node:v1.28.15@sha256:a7c05c7ae043a0b8c818f5a06188bc2c4098f6cb59ca7d1856df00375d839251",
 	"1.29": "kindest/node:v1.29.14@sha256:8703bd94ee24e51b778d5556ae310c6c0fa67d761fae6379c8e0bb480e6fea29",
-	"1.30": "kindest/node:v1.30.10@sha256:4de75d0e82481ea846c0ed1de86328d821c1e6a6a91ac37bf804e5313670e507",
-	"1.31": "kindest/node:v1.31.6@sha256:28b7cbb993dfe093c76641a0c95807637213c9109b761f1d422c2400e22b8e87",
-	"1.32": "kindest/node:v1.32.2@sha256:f226345927d7e348497136874b6d207e0b32cc52154ad8323129352923a3142f",
+	"1.30": "kindest/node:v1.30.13@sha256:397209b3d947d154f6641f2d0ce8d473732bd91c87d9575ade99049aa33cd648",
+	"1.31": "kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211",
+	"1.32": "kindest/node:v1.32.5@sha256:e3b2327e3a5ab8c76f5ece68936e4cafaa82edf58486b769727ab0b3b97a5b0d",
+	"1.33": "kindest/node:v1.33.1@sha256:050072256b9a903bd914c0b2866828150cb229cea0efe5892e2b644d5dd3b34f",
 }
 
 var (
@@ -887,8 +888,8 @@ func init() {
 		"Enable this to run tests from outside the K8s cluster.\n"+
 			"By default, this is not enabled and the tests will be run as a pod from inside K8s Cluster.")
 
-	// use v1.32 as default kind k8s version
-	flag.StringVar(&options.kindK8sVersion, "kind-k8s-version", "1.32",
+	// use v1.33 as default kind k8s version
+	flag.StringVar(&options.kindK8sVersion, "kind-k8s-version", "1.33",
 		"Kind k8s version used to run tests.\n"+
 			"Example usage: -kind-k8s-version=1.30")
 
