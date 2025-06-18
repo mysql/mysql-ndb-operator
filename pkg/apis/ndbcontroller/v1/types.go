@@ -236,8 +236,8 @@ type NdbClusterSpec struct {
 	// +optional
 	TDESecretName string `json:"tdeSecretName,omitempty"`
 	// The name of the MySQL Ndb Cluster image to be used.
-	// If not specified, "container-registry.oracle.com/mysql/community-cluster:8.4.5" will be used.
-	// +kubebuilder:default="container-registry.oracle.com/mysql/community-cluster:8.4.5"
+	// If not specified, "container-registry.oracle.com/mysql/community-cluster:8.4.6" will be used.
+	// +kubebuilder:default="container-registry.oracle.com/mysql/community-cluster:8.4.6"
 	// +optional
 	Image string `json:"image,omitempty"`
 	// ImagePullPolicy describes a policy for if/when to
