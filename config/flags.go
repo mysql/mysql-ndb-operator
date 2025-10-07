@@ -18,7 +18,12 @@ var (
 	// WatchNamespace is the namespace which needs to be watched by the operator.
 	WatchNamespace string
 	// ClusterScoped if set, operator will watch the entire cluster
-	ClusterScoped bool
+	ClusterScoped          bool
+	EnableSecurityContext  bool
+	UsePlatformAssignedIDs bool
+	RunAsUser              uint
+	RunAsGroup             uint
+	FSGroup                uint
 )
 
 func ValidateFlags() {
@@ -44,6 +49,12 @@ func ValidateFlags() {
 		}
 	}
 
+	if !EnableSecurityContext {
+		if UsePlatformAssignedIDs {
+			klog.Warning("Ignoring option 'use-platform-assigned-ids' as 'enable-security-context' is not set")
+		}
+	}
+
 }
 
 func InitFlags() {
@@ -55,4 +66,11 @@ func InitFlags() {
 		"The namespace to be watched by the operator for NdbCluster resource changes.")
 	flag.BoolVar(&ClusterScoped, "cluster-scoped", true, ""+
 		"When enabled, operator looks for NdbCluster resource changes across K8s cluster.")
+	flag.BoolVar(&EnableSecurityContext, "enable-security-context", false,
+		"When enabled, NDB Cluster pods will be deployed with stricter security restrictions.")
+	flag.BoolVar(&UsePlatformAssignedIDs, "use-platform-assigned-ids", false, ""+
+		"Only applied when 'enable-security-context' is true. When enabled, it will let the platform automatically assign the UID and GID to the running NDB Cluster processes.")
+	flag.UintVar(&RunAsUser, "run-as-user", 27, "UID used to run the NDB Cluster processes, when not automatically assigned by the platform")
+	flag.UintVar(&RunAsGroup, "run-as-group", 27, "GID used to run the NDB Cluster processes, when not automatically assigned by the platform")
+	flag.UintVar(&FSGroup, "fs-group", 27, "GID used for mounting volumes in NDB Cluster pods, when not automatically assigned by the platform")
 }

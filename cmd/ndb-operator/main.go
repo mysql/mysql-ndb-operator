@@ -86,6 +86,19 @@ func main() {
 		klog.Infof("Watching for changes in namespace %q", config.WatchNamespace)
 	}
 
+	if config.EnableSecurityContext {
+		klog.Info("Pods launched by NDB Operator will have their security context enabled.")
+		klog.Info("Please make sure your persistent volumes have the correct permissions for data access")
+		if config.UsePlatformAssignedIDs {
+			klog.Info("The NDB Operator will deploy the NDB process with the UID and GID values assigned automatically by the platform.")
+		} else {
+			klog.Infof("The NDB Operator will deploy the NDB processes with UID: %d, GID: %d, FSGroup: %d",
+				config.RunAsUser, config.RunAsGroup, config.FSGroup)
+		}
+	} else {
+		klog.Info("Pods launched by NDB Operator will not have their security context enabled")
+	}
+
 	// Create a SharedInformerFactory and limit it to config.WatchNamespace.
 	// For cluster-scoped mode, config.WatchNamespace will be empty
 	// and the SharedInformer will not be limited to any namespace.

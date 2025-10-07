@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -71,7 +71,7 @@ func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1.NdbCluster) ([]corev1.Volume
 						{
 							Key:  constants.MysqldInitScript,
 							Path: constants.MysqldInitScript,
-							Mode: &ownerCanExecMode,
+							Mode: &groupCanExecMode,
 						},
 						{
 							Key:  constants.MysqldHealthCheckScript,
@@ -127,12 +127,14 @@ func (mss *mysqldStatefulSet) getPodVolumes(ndb *v1.NdbCluster) ([]corev1.Volume
 	}
 
 	// Append the custom init script volume to the podVolumes
-	podVolumes = append(podVolumes, corev1.Volume{
-		Name: mysqldInitScriptsVolName,
-		VolumeSource: corev1.VolumeSource{
-			Projected: &initScriptPvs,
+	podVolumes = append(podVolumes,
+		corev1.Volume{
+			Name: mysqldInitScriptsVolName,
+			VolumeSource: corev1.VolumeSource{
+				Projected: &initScriptPvs,
+			},
 		},
-	})
+	)
 
 	if len(ndb.GetMySQLCnf()) > 0 {
 		// Load the cnf configmap key as a volume
@@ -272,6 +274,8 @@ func (mss *mysqldStatefulSet) getInitDBContainer(nc *v1.NdbCluster) corev1.Conta
 		},
 	})
 
+	mss.applyContainerSecurityContextWithWritableRootFS(&mysqlInitContainer)
+
 	return mysqlInitContainer
 }
 
@@ -304,6 +308,8 @@ func (mss *mysqldStatefulSet) getContainers(nc *v1.NdbCluster) []corev1.Containe
 	mysqldContainer.ReadinessProbe = &corev1.Probe{
 		ProbeHandler: healthProbeHandler,
 	}
+
+	mss.applyContainerSecurityContextWithWritableRootFS(&mysqldContainer)
 
 	return []corev1.Container{mysqldContainer}
 }
@@ -342,6 +348,9 @@ func (mss *mysqldStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 
 	// Update template pod spec
 	podSpec := &statefulSetSpec.Template.Spec
+
+	mss.applyPodDefaultSecurityContext(podSpec)
+
 	podSpec.InitContainers = append(podSpec.InitContainers, mss.getInitDBContainer(nc))
 	podSpec.Containers = mss.getContainers(nc)
 
