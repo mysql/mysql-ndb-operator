@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright (c) 2022, 2023, Oracle and/or its affiliates.
+# Copyright (c) 2022, 2025, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -20,8 +20,12 @@ _get_config() {
 	"$@" --verbose --help 2>/dev/null | grep "^$conf" | awk '$1 == "'"$conf"'" { print $2; exit }'
 }
 
-# Operator runs the image as root use, but the MySQL Server will be run as mysql user.
-install_devnull="install /dev/null -m0600 -omysql -gmysql"
+# Operator runs the image as root user, but the MySQL Server will be run as mysql user.
+if [ $(id -u) = "0" ]; then
+  install_devnull="install /dev/null -m0600 -omysql -gmysql"
+else
+  install_devnull="install /dev/null -m0600"
+fi
 MYSQLD_USER=mysql
 
 # Validate the config passed to the script.

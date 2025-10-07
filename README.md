@@ -49,6 +49,14 @@ kubectl apply -f https://raw.githubusercontent.com/mysql/mysql-ndb-operator/main
 To run the operator in a different namespace, the manifest file has to be updated before applying it to the K8s Server.
 To modify the install mode from the default cluster-wide scope, you can set the `-cluster-scoped` argument to `false` in the manifest file. Additionally, you can specify a custom namespace to monitor for NdbCluster resource changes using the `-watch-namespace` flag. If a namespace is provided, the NDB Operator will exclusively watch for changes within that namespace. Otherwise, it will default to monitoring the namespace where the operator itself is deployed.
 
+### Security
+
+Starting from version 9.5.0 onwards, the NDB Operator is deployed with a stricter security context following the least-privilege principle. Namely, NDB Operator pods are run as non-root without any extra Linux capabilities enabled, privilege escalation is disabled and the Secure Computing Mode (seccomp) restricted to the runtime default. The root filesystem is also kept as read-only. By default, NDB Operator processes will run with UID and GID set to 27 but this may cause issues when deploying in Kuberenetes platforms which automatically assign UID/GIDs. If that is the case, please read the security section of [README](deploy/charts/ndb-operator/README.md) where you can find how to unset these values.
+
+The same hardening mode can be applied as an option to NDB Cluster pods being deployed. This is not done by default because it may break some deployments using Persistent Volumes due to ownership of directories and files. When enabled, one should ensure that the GID of required files matches the one used by NDB Cluster processes, which is, by default, 27.
+
+More details about the available security options can be find in the deployment [README](deploy/charts/ndb-operator/README.md).
+
 ### Verify Installation
 
 Once installed, either using helm or using the yaml file, the ndb-operator and a webhook server will be running in the K8s server.

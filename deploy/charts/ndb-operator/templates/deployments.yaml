@@ -22,6 +22,14 @@ spec:
       imagePullSecrets:
         - name: {{.Values.imagePullSecretName}}
       {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        {{- if .Values.operatorRunAsUser }}
+        runAsUser: {{.Values.operatorRunAsUser}}
+        {{- end }}
+        {{- if .Values.operatorRunAsGroup }}
+        runAsGroup: {{.Values.operatorRunAsGroup}}
+        {{- end }}
       containers:
         - name: ndb-operator-webhook
           image: {{.Values.image}}
@@ -38,6 +46,15 @@ spec:
               path: /health
               port: {{template "webhook-service.port"}}
               scheme: HTTPS
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+              - ALL
   # set maxUnavailable to 0 so that helm will wait for the pod to become ready
   strategy:
     rollingUpdate:
@@ -69,6 +86,14 @@ spec:
       {{- end }}
       hostname: ndb-operator-pod
       subdomain: ndb-operator-svc
+      securityContext:
+        runAsNonRoot: true
+        {{- if .Values.operatorRunAsUser }}
+        runAsUser: {{.Values.operatorRunAsUser}}
+        {{- end }}
+        {{- if .Values.operatorRunAsGroup }}
+        runAsGroup: {{.Values.operatorRunAsGroup}}
+        {{- end }}
       containers:
         - name: ndb-operator-controller
           image: {{.Values.image}}
@@ -78,8 +103,32 @@ spec:
           args:
             - -cluster-scoped={{.Values.clusterScoped}}
             - -watch-namespace={{.Values.watchNamespace}}
+            {{- if .Values.enableSecurityContext }}
+            - -enable-security-context={{.Values.enableSecurityContext}}
+            {{- end }}
+            {{- if .Values.usePlatformAssignedIDs }}
+            - -use-platform-assigned-ids={{.Values.usePlatformAssignedIDs}}
+            {{- end }}
+            {{- if .Values.runAsUser}}
+            - -run-as-user={{.Values.runAsUser}}
+            {{- end }}
+            {{- if .Values.runAsGroup }}
+            - -run-as-group={{.Values.runAsGroup}}
+            {{- end }}
+            {{- if .Values.fsGroup }}
+            - -fs-group={{.Values.fsGroup}}
+            {{- end }}
           ports:
             - containerPort: 1186
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+              - ALL
           env:
             - name: CURRENT_NAMESPACE
               valueFrom:

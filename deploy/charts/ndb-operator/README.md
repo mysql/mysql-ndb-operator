@@ -80,3 +80,17 @@ For example, to specify a custom imagePullPolicy,
 ```bash
 helm install --set imagePullPolicy=Always ndbop deploy/charts/ndb-operator
 ```
+
+### Security
+
+The following table lists the configurable security options supported by the chart, along with their default values.
+
+| Parameter             | Description                                                                                                                                                                                                                                 | Default                     |
+| ----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------|
+| `operatorRunAsUser` | Sets the UID of the NDB Operator processes. This should be left empty when the K8S platform automatically assigns the UID to the processes. | `27` |
+| `operatorRunAsGroup` | Sets the GID of the NDB Operator processes. This should be left empty when the K8S platform automatically assigns the GID to the processes. | `27` |
+| `enableSecurityContext` | Enables the deployment of NDB pods with a stricter security context. | `false` |
+| `usePlatformAssignedIDs` | Allows the K8S platform to automatically assign the UID and GID to the NDB Cluster processes. This should only be used when the target K8S platform supports automatic assignment. | `false` |
+| `runAsUser` | Sets the UID of the NDB Cluster processes. | `27` |
+| `runAsGroup` | Sets the GID of the NDB Cluster processes. | `27` |
+| `fsGroup` | Sets the FS Group of the mounted partitions. This is useful when using persistent volumes to store data. | `27` |

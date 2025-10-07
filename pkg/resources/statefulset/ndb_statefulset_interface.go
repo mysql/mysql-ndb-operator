@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2024, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mysql/ndb-operator/config"
 	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/ndbconfig"
@@ -94,7 +95,7 @@ func (bss *baseStatefulSet) createContainer(
 	}
 
 	klog.Infof("Creating container %q from image %s", containerName, nc.Spec.Image)
-	return corev1.Container{
+	container := corev1.Container{
 		Name: containerName,
 		// Use the image provided in spec
 		Image:           nc.Spec.Image,
@@ -127,6 +128,10 @@ func (bss *baseStatefulSet) createContainer(
 		Command:      []string{"/bin/bash", "-ecx", strings.Join(commandAndArgs, " ")},
 		VolumeMounts: volumeMounts,
 	}
+
+	bss.applyContainerDefaultSecurityContext(&container)
+
+	return container
 }
 
 // getWorkDirVolumeMount returns the VolumeMount for the work directory
@@ -178,6 +183,8 @@ func (bss *baseStatefulSet) getDefaultInitContainers(nc *v1.NdbCluster) []corev1
 	container.Image = ndbOperatorImageName
 	container.ImagePullPolicy = corev1.PullIfNotPresent
 
+	bss.applyContainerDefaultSecurityContext(&container)
+
 	return []corev1.Container{container}
 }
 
@@ -209,6 +216,8 @@ func (bss *baseStatefulSet) newStatefulSet(
 	podSpec.Volumes = []corev1.Volume{*bss.getEmptyDirPodVolume(workDirVolName)}
 
 	podSpec.ServiceAccountName = nc.GetServiceAccountName()
+
+	bss.applyPodDefaultSecurityContext(&podSpec)
 
 	// Labels to be used for the statefulset pods
 	podLabels := bss.getPodLabels(nc)
@@ -244,6 +253,25 @@ func (bss *baseStatefulSet) newStatefulSet(
 			// and is responsible for the network identity of the set.
 			ServiceName: nc.GetServiceName(bss.nodeType),
 		},
+	}
+}
+
+func (bss *baseStatefulSet) applyPodDefaultSecurityContext(podSpec *corev1.PodSpec) {
+	if config.EnableSecurityContext {
+		podSpec.SecurityContext = podDefaultSecurityContext()
+	}
+}
+
+func (bss *baseStatefulSet) applyContainerDefaultSecurityContext(containerSpec *corev1.Container) {
+	if config.EnableSecurityContext {
+		containerSpec.SecurityContext = containerDefaultSecurityContext()
+	}
+}
+
+func (bss *baseStatefulSet) applyContainerSecurityContextWithWritableRootFS(containerSpec *corev1.Container) {
+	if config.EnableSecurityContext {
+		containerSpec.SecurityContext = containerDefaultSecurityContext()
+		containerSpec.SecurityContext.ReadOnlyRootFilesystem = boolPtr(false)
 	}
 }
 

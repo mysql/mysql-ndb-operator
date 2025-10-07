@@ -1,4 +1,4 @@
-// Copyright (c) 2022, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2022, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -275,6 +275,8 @@ func (nss *ndbmtdStatefulSet) getContainers(nc *v1.NdbCluster, addInitialFlag bo
 		FailureThreshold: 450,
 	}
 
+	nss.applyContainerDefaultSecurityContext(&ndbmtdContainer)
+
 	// Set resource request to data node container
 	resList, err := nss.getResourceRequestRequirements(nc)
 	if err == nil {
@@ -334,6 +336,9 @@ func (nss *ndbmtdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1
 	podSpec.Affinity = &corev1.Affinity{
 		PodAntiAffinity: nss.getPodAntiAffinity(),
 	}
+
+	nss.applyPodDefaultSecurityContext(podSpec)
+
 	// Copy down any podSpec specified via CRD
 	CopyPodSpecFromNdbPodSpec(podSpec, nc.Spec.DataNode.NdbPodSpec)
 

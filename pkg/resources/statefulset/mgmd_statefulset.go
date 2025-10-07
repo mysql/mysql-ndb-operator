@@ -1,4 +1,4 @@
-// Copyright (c) 2022, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2022, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -153,6 +153,8 @@ func (mss *mgmdStatefulSet) getContainers(nc *v1.NdbCluster) []corev1.Container 
 		},
 	}
 
+	mss.applyContainerDefaultSecurityContext(&mgmdContainer)
+
 	return []corev1.Container{mgmdContainer}
 }
 
@@ -176,6 +178,9 @@ func (mss *mgmdStatefulSet) NewStatefulSet(cs *ndbconfig.ConfigSummary, nc *v1.N
 
 	// Update template pod spec
 	podSpec := &statefulSetSpec.Template.Spec
+
+	mss.applyPodDefaultSecurityContext(podSpec)
+
 	podSpec.Containers = mss.getContainers(nc)
 	podSpec.Volumes = append(podSpec.Volumes, mss.getPodVolumes(nc)...)
 	// Set default AntiAffinity rules

@@ -11,3 +11,9 @@ imagePullSecretName:
 # it is released into (controlled by helm's --namespace option).
 clusterScoped: true
 watchNamespace:
+
+operatorRunAsUser: 27
+operatorRunAsGroup: 27
+
+enableSecurityContext: false
+usePlatformAssignedIDs: false
