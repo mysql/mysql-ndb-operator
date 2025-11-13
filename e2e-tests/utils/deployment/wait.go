@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -58,7 +58,7 @@ func WaitForDeploymentComplete(c clientset.Interface, namespace, name string) er
 
 		reason = fmt.Sprintf("deployment %s create status: Generation: %d, Replicas: %d\n%#v",
 			name, deployment.Generation, *(deployment.Spec.Replicas), deployment.Status)
-		klog.V(4).Infof(reason)
+		klog.V(4).Info(reason)
 
 		return false, nil
 	})
@@ -91,7 +91,7 @@ func WaitForDeploymentToDisappear(c clientset.Interface, namespace, name string)
 
 		reason = fmt.Sprintf("deployment %s disappear status: Generation: %d, Replicas: %d\n%#v",
 			name, deployment.Generation, *(deployment.Spec.Replicas), deployment.Status)
-		klog.V(4).Infof(reason)
+		klog.V(4).Info(reason)
 
 		return false, nil
 	})
