@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -56,7 +56,7 @@ func WaitForStatefulSetComplete(c clientset.Interface, namespace, name string) e
 
 		reason = fmt.Sprintf("statefulset %s complete status: Generation: %d, Replicas: %d\n%#v",
 			name, sfset.Generation, *(sfset.Spec.Replicas), sfset.Status)
-		klog.V(4).Infof(reason)
+		klog.V(4).Info(reason)
 
 		return false, nil
 	})
@@ -91,7 +91,7 @@ func WaitForStatefulSetToDisappear(c clientset.Interface, namespace, name string
 
 		reason = fmt.Sprintf("statefulset %s disappear status: Generation: %d, Replicas: %d\n%#v",
 			name, sfset.Generation, *(sfset.Spec.Replicas), sfset.Status)
-		klog.V(4).Infof(reason)
+		klog.V(4).Info(reason)
 
 		return false, nil
 	})
