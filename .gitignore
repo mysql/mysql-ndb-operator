@@ -49,3 +49,7 @@ e2e-tests/_artifacts/
 # Goland 
 .idea
 *.iml
+
+# Internal documentation and tooling
+memory-bank/
+.clinerules

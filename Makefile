@@ -112,3 +112,12 @@ fmt:
 	go fmt ./e2e-tests/...
 	go fmt e2e-tests/run-e2e-test.go
 
+.PHONY: vet verify-codegen verify
+vet:
+	go vet ./...
+
+verify-codegen:
+	./hack/verify-codegen.sh
+
+verify: vet verify-codegen
+
