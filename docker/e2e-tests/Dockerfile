@@ -1,16 +1,16 @@
 # Copyright (c) 2021, 2025, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
-ARG GOLANG_IMAGE=docker.io/golang:1.24.4
+ARG GOLANG_IMAGE=docker.io/golang:1.25.4
 FROM $GOLANG_IMAGE
 
 # install kubectl
-ARG KUBE_VERSION=v1.32.2
+ARG KUBE_VERSION=v1.34.2
 RUN curl -LO "https://dl.k8s.io/release/$KUBE_VERSION/bin/linux/amd64/kubectl" && \
       install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
 # install helm
-ARG HELM_VERSION=v3.17.1
+ARG HELM_VERSION=v3.19.2
 RUN curl -LO https://get.helm.sh/helm-$HELM_VERSION-linux-amd64.tar.gz && \
       tar -zxf helm-$HELM_VERSION-linux-amd64.tar.gz && \
       install -o root -g root -m 0755 linux-amd64/helm /usr/bin/helm
