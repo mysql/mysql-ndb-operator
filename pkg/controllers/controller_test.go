@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -18,6 +18,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/version"
+	discoveryfake "k8s.io/client-go/discovery/fake"
 	kubeinformers "k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
@@ -28,6 +30,7 @@ import (
 	"github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/fake"
 	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
+	"github.com/mysql/ndb-operator/pkg/resources"
 )
 
 type fixture struct {
@@ -73,6 +76,17 @@ func newFixture(t *testing.T, ndbclusters ...*ndbcontroller.NdbCluster) *fixture
 	f.ndbIf = informers.NewSharedInformerFactory(f.ndbclient, 0)
 
 	f.k8sclient = k8sfake.NewSimpleClientset(f.k8sObjects...)
+	// Configure fake discovery so ServerSupportsV1Policy returns true in tests
+	fd := f.k8sclient.Discovery().(*discoveryfake.FakeDiscovery)
+	fd.FakedServerVersion = &version.Info{Major: "1", Minor: "23"}
+	fd.Resources = []*metav1.APIResourceList{
+		{
+			GroupVersion: "policy/v1",
+			APIResources: []metav1.APIResource{
+				{Name: "poddisruptionbudgets"},
+			},
+		},
+	}
 	f.k8sIf = kubeinformers.NewSharedInformerFactory(f.k8sclient, 0)
 
 	return f
@@ -330,7 +344,7 @@ func filterInformerActions(actions []core.Action) []core.Action {
 		if (action.GetNamespace() == "default" &&
 			(action.Matches("get", "secrets") ||
 				action.Matches("get", "ndbclusters"))) ||
-			(action.GetNamespace() == "" && action.Matches("get", "version")) {
+			(action.GetNamespace() == "" && (action.Matches("get", "version") || action.Matches("get", "resource"))) {
 			//klog.Infof("Filtering +%v", action)
 			continue
 		}
@@ -440,6 +454,10 @@ func TestCreatesCluster(t *testing.T) {
 	markStatefulSetAsReadyOnAdd(f)
 
 	// Expect actions for first loop
+	// PodDisruptionBudget for data nodes (ndbmtd)
+	pdb := resources.NewPodDisruptionBudget(ndb, "ndbmtd")
+	f.expectCreateAction(ns, "policy", "v1", "poddisruptionbudgets", pdb)
+
 	// One configmap for NdbCluster resource
 	omd := getObjectMetadata("test-config", ndb)
 	f.expectCreateAction(ns, "", "v1", "configmaps", &corev1.ConfigMap{ObjectMeta: *omd})
