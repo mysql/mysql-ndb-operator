@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2025, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -17,6 +17,21 @@ import (
 )
 
 func ServerSupportsV1Policy(client kubernetes.Interface) bool {
+	// Prefer capability discovery over version parsing
+	resources, err := client.Discovery().ServerResourcesForGroupVersion("policy/v1")
+	if err == nil {
+		for _, r := range resources.APIResources {
+			if r.Name == "poddisruptionbudgets" {
+				return true
+			}
+		}
+		klog.Warningf(
+			"Cannot use PodDisruptionBudgets: resource %q not found in %q", "poddisruptionbudgets", "policy/v1")
+		return false
+	}
+
+	// Fallback: minimum supported version gate (>= 1.23)
+	klog.V(2).Infof("Discovery failed for %q (%v); falling back to server version check (>= 1.23)", "policy/v1", err)
 	info, err := client.Discovery().ServerVersion()
 	if err != nil {
 		klog.Warning(
@@ -26,12 +41,13 @@ func ServerSupportsV1Policy(client kubernetes.Interface) bool {
 
 	majorVersion, _ := strconv.Atoi(info.Major)
 	minorVersion, _ := strconv.Atoi(info.Minor)
-	if majorVersion == 1 && minorVersion < 25 && minorVersion >= 19 {
+
+	if majorVersion > 1 || (majorVersion == 1 && minorVersion >= 23) {
 		return true
 	}
 
 	klog.Warningf(
-		"Cannot use PodDisruptionBudgets as K8s Server version %q doesn't support v1/policy", info.String())
+		"Cannot use PodDisruptionBudgets: K8s Server version %q is < v1.23 (minimum supported)", info.String())
 	return false
 }
 
