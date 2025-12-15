@@ -1,9 +1,9 @@
 apiVersion: v2
 name: ndb-operator
-version: 1.0.13
+version: 1.0.14
 kubeVersion: ">= 1.23.0-0"
 description: A Helm chart for deploying the Oracle MySQL NDB Cluster Operator
-appVersion: "8.0.44-1.0.13"
+appVersion: "8.0.45-1.0.14"
 keywords:
   - NDB Operator
   - MySQL Cluster
@@ -16,7 +16,7 @@ maintainers:
 annotations:
   artifacthub.io/images: |
     - name: ndb-operator
-      image: container-registry.oracle.com/mysql/community-ndb-operator:8.0.44-1.0.13
+      image: container-registry.oracle.com/mysql/community-ndb-operator:8.0.45-1.0.14
   artifacthub.io/crds: |
     - kind: NdbCluster
       version: v1
