@@ -1301,10 +1301,10 @@ spec:
                                 format: int32
                                 type: integer
                             image:
-                                default: container-registry.oracle.com/mysql/community-cluster:9.5.0
+                                default: container-registry.oracle.com/mysql/community-cluster:9.6.0
                                 description: |-
                                     The name of the MySQL Ndb Cluster image to be used.
-                                    If not specified, "container-registry.oracle.com/mysql/community-cluster:9.5.0" will be used.
+                                    If not specified, "container-registry.oracle.com/mysql/community-cluster:9.6.0" will be used.
                                 type: string
                             imagePullPolicy:
                                 default: IfNotPresent
@@ -3911,7 +3911,7 @@ kind: Deployment
 metadata:
     labels:
         app: ndb-operator-webhook-deployment
-        release: 9.5.0-1.10.0
+        release: 9.6.0-1.11.0
     name: ndb-operator-webhook-server
     namespace: ndb-operator
 spec:
@@ -3931,7 +3931,7 @@ spec:
                     - -service=ndb-operator-webhook-service
                   command:
                     - ndb-operator-webhook
-                  image: container-registry.oracle.com/mysql/community-ndb-operator:9.5.0-1.10.0
+                  image: container-registry.oracle.com/mysql/community-ndb-operator:9.6.0-1.11.0
                   imagePullPolicy: IfNotPresent
                   name: ndb-operator-webhook
                   ports:
@@ -3961,7 +3961,7 @@ kind: Deployment
 metadata:
     labels:
         app: ndb-operator
-        release: 9.5.0-1.10.0
+        release: 9.6.0-1.11.0
     name: ndb-operator-app
     namespace: ndb-operator
 spec:
@@ -3993,10 +3993,10 @@ spec:
                         fieldRef:
                             fieldPath: metadata.annotations['olm.targetNamespaces']
                     - name: NDB_OPERATOR_IMAGE
-                      value: container-registry.oracle.com/mysql/community-ndb-operator:9.5.0-1.10.0
+                      value: container-registry.oracle.com/mysql/community-ndb-operator:9.6.0-1.11.0
                     - name: NDB_OPERATOR_IMAGE_PULL_SECRET_NAME
                       value: null
-                  image: container-registry.oracle.com/mysql/community-ndb-operator:9.5.0-1.10.0
+                  image: container-registry.oracle.com/mysql/community-ndb-operator:9.6.0-1.11.0
                   imagePullPolicy: IfNotPresent
                   name: ndb-operator-controller
                   ports:
