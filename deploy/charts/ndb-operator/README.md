@@ -4,7 +4,7 @@ This chart installs the NdbCluster CRD, deploys the Ndb Operator and the webhook
 
 ## License
 
-Copyright (c) 2021, 2025, Oracle and/or its affiliates.
+Copyright (c) 2021, 2026, Oracle and/or its affiliates.
 
 License information can be found in the LICENSE file. This distribution may include materials developed by third parties. For license and attribution notices for these materials, please refer to the LICENSE file.
 
