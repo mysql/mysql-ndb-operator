@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -11,6 +11,7 @@ import (
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
 	"github.com/mysql/ndb-operator/pkg/resources"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -35,6 +36,9 @@ func TestMysqlRootPasswordSecrets(t *testing.T) {
 	if secret == nil {
 		t.Error("Error ensuring secret : secret is nil")
 	}
+	if _, ok := secret.Data[corev1.BasicAuthPasswordKey]; !ok {
+		t.Errorf("Expected generated root password secret to contain %q", corev1.BasicAuthPasswordKey)
+	}
 
 	// expect one create action
 	f.expectCreateAction(ns, "", "v1", "secrets", secret)
@@ -53,7 +57,10 @@ func TestMysqlRootPasswordSecrets(t *testing.T) {
 
 	// Test custom secret ensuring when the secret exists
 	// Create the custom secret
-	customSecret := resources.NewMySQLRootPasswordSecret(ndb)
+	customSecret, err := resources.NewMySQLRootPasswordSecret(ndb)
+	if err != nil {
+		t.Fatalf("Failed to create custom secret fixture: %v", err)
+	}
 	customSecret.Name = customSecretName
 	secret, err = f.k8sclient.CoreV1().Secrets(ns).Create(context.TODO(), customSecret, metav1.CreateOptions{})
 	if err != nil {
@@ -89,6 +96,9 @@ func TestMysqlRootPasswordSecrets(t *testing.T) {
 		t.Fatal("Error ensuring secret : secret is nil")
 		// return to suppress incorrect static check warnings for SA5011
 		return
+	}
+	if _, ok := secret.Data[corev1.BasicAuthPasswordKey]; !ok {
+		t.Errorf("Expected generated operator password secret to contain %q", corev1.BasicAuthPasswordKey)
 	}
 	// expect one create action
 	f.expectCreateAction(ns, "", "v1", "secrets", secret)

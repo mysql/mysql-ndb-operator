@@ -1,42 +1,46 @@
-// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
 package resources
 
 import (
-	"math/rand"
-	"time"
+	"crypto/rand"
+	"encoding/base64"
+	"fmt"
+	"io"
 
-	"github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var random = rand.New(rand.NewSource(time.Now().UnixNano()))
-
 const (
-	validPasswordChars  = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	mysqldRootPassword  = "mysqld-root-password"
-	ndbOperatorPassword = "ndb-operator-password"
+	generatedPasswordBytesLength = 24
+	mysqldRootPassword           = "mysqld-root-password"
+	ndbOperatorPassword          = "ndb-operator-password"
 )
 
-// generateRandomPassword generates a random alpha numeric password of length n
-func generateRandomPassword(n int) string {
+// generateRandomPassword generates a cryptographically secure random password
+// of length n.
+func generateRandomPassword(n int) (string, error) {
 	b := make([]byte, n)
-	for i := range b {
-		b[i] = validPasswordChars[random.Int63()%int64(len(validPasswordChars))]
+	if _, err := io.ReadFull(rand.Reader, b); err != nil {
+		return "", fmt.Errorf("failed to generate random password: %w", err)
 	}
-	return string(b)
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 // NewBasicAuthSecretWithRandomPassword creates and returns a new
 // basic authentication secret with a random password
 func newBasicAuthSecretWithRandomPassword(ndb *v1.NdbCluster,
-	secretName string, secretLabelPrefix string) *corev1.Secret {
-	// Generate a random password of length 16
-	rootPassword := generateRandomPassword(16)
+	secretName string, secretLabelPrefix string) (*corev1.Secret, error) {
+	// Generate a random password of predefined length
+	password, err := generateRandomPassword(generatedPasswordBytesLength)
+	if err != nil {
+		return nil, err
+	}
 	// Labels to be applied to the secret
 	secretLabels := ndb.GetCompleteLabels(map[string]string{
 		constants.ClusterResourceTypeLabel: secretLabelPrefix + "-secret",
@@ -49,9 +53,9 @@ func newBasicAuthSecretWithRandomPassword(ndb *v1.NdbCluster,
 			Namespace:       ndb.GetNamespace(),
 			OwnerReferences: ndb.GetOwnerReferences(),
 		},
-		Data: map[string][]byte{corev1.BasicAuthPasswordKey: []byte(rootPassword)},
+		Data: map[string][]byte{corev1.BasicAuthPasswordKey: []byte(password)},
 		Type: corev1.SecretTypeBasicAuth,
-	}
+	}, nil
 }
 
 // GetMySQLRootPasswordSecretName returns the name of the root password secret
@@ -64,7 +68,7 @@ func GetMySQLRootPasswordSecretName(ndb *v1.NdbCluster) (secretName string, cust
 }
 
 // NewMySQLRootPasswordSecret creates and returns a new root password secret
-func NewMySQLRootPasswordSecret(ndb *v1.NdbCluster) *corev1.Secret {
+func NewMySQLRootPasswordSecret(ndb *v1.NdbCluster) (*corev1.Secret, error) {
 	secretName, _ := GetMySQLRootPasswordSecretName(ndb)
 	return newBasicAuthSecretWithRandomPassword(ndb, secretName, mysqldRootPassword)
 }
@@ -75,7 +79,7 @@ func GetMySQLNDBOperatorPasswordSecretName(nc *v1.NdbCluster) (secretName string
 }
 
 // NewMySQLNDBOperatorPasswordSecret creates and returns a new root password secret
-func NewMySQLNDBOperatorPasswordSecret(nc *v1.NdbCluster) *corev1.Secret {
+func NewMySQLNDBOperatorPasswordSecret(nc *v1.NdbCluster) (*corev1.Secret, error) {
 	secretName := GetMySQLNDBOperatorPasswordSecretName(nc)
 	return newBasicAuthSecretWithRandomPassword(nc, secretName, ndbOperatorPassword)
 }
