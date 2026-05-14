@@ -1,4 +1,4 @@
-// Copyright (c) 2022, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2022, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -12,6 +12,10 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	klog "k8s.io/klog/v2"
 )
+
+type sqlExecutor interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
 
 // rootUserExists returns true if the root user with given rootHost exists
 func rootUserExists(db *sql.DB, rootHost string) (bool, error) {
@@ -42,15 +46,11 @@ func CreateRootUserIfNotExist(mysqldSfset *appsv1.StatefulSet, rootHost, rootPas
 
 	// The root user with given host does not exist.
 	// So, create user in database
-	klog.Infof("Creating the root user with host = %s", rootHost)
-	query := fmt.Sprintf("create user 'root'@'%s' identified by '%s'", rootHost, rootPassword)
-	_, err = db.Exec(query)
-	if err != nil {
-		klog.Infof("Error executing %s: %s", query, err.Error())
+	if err = createRootUser(db, rootHost, rootPassword); err != nil {
 		return err
 	}
 
-	query = fmt.Sprintf("grant all on *.* to 'root'@'%s' with grant option", rootHost)
+	query := fmt.Sprintf("grant all on *.* to 'root'@'%s' with grant option", rootHost)
 	_, err = db.Exec(query)
 	if err != nil {
 		klog.Infof("Error executing %s: %s", query, err.Error())
@@ -64,6 +64,16 @@ func CreateRootUserIfNotExist(mysqldSfset *appsv1.StatefulSet, rootHost, rootPas
 	}
 
 	return nil
+}
+
+func createRootUser(db sqlExecutor, rootHost, rootPassword string) error {
+	klog.Infof("Creating the root user with host = %s", rootHost)
+	query := fmt.Sprintf("create user 'root'@'%s' identified by '%s'", rootHost, rootPassword)
+	_, err := db.Exec(query)
+	if err != nil {
+		klog.Infof("CREATE USER 'root'@'%s' failed: %s", rootHost, err.Error())
+	}
+	return err
 }
 
 // DeleteRootUserIfExists deletes the root user from the database.
