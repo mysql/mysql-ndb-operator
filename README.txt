@@ -9,4 +9,6 @@ and attribution notices for these materials, please refer to the LICENSE file.
 For more information on MySQL NDB Operator visit https://dev.mysql.com/doc/index-cluster.html.
 For additional downloads and the source of MySQL NDB Operator visit http://dev.mysql.com/downloads.
 
+Contributing information for code and non-code submissions can be found in the CONTRIBUTING.md file.
+
 MySQL NDB Operator is brought to you by the MySQL team at Oracle.
