@@ -1,4 +1,4 @@
-// Copyright (c) 2022, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2022, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -6,7 +6,6 @@ package e2e
 
 import (
 	"context"
-	"net"
 
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -15,11 +14,13 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	"github.com/mysql/ndb-operator/e2e-tests/utils/k8sutils"
+	mgmapiutils "github.com/mysql/ndb-operator/e2e-tests/utils/mgmapi"
 	"github.com/mysql/ndb-operator/e2e-tests/utils/ndbtest"
+	networkpolicyutils "github.com/mysql/ndb-operator/e2e-tests/utils/networkpolicy"
 	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
 	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
-	"github.com/mysql/ndb-operator/pkg/mgmapi"
 )
 
 const ServiceTypeHeadless = "Headless"
@@ -35,15 +36,6 @@ func expectServiceType(ctx context.Context, svcInterface typedcorev1.ServiceInte
 	} else {
 		gomega.Expect(svc.Spec.Type).To(gomega.Equal(serviceType))
 	}
-}
-
-func testMgmdConnection(mgmdHost string) {
-	connectString := mgmdHost + ":1186"
-	mgmClient, err := mgmapi.NewMgmClient(connectString)
-	gomega.Expect(err).Should(gomega.Succeed(),
-		"failed to connect to management server at %s", connectString)
-	_, err = mgmClient.GetStatus()
-	ndbtest.ExpectNoError(err, "GetStatus failed")
 }
 
 var _ = ndbtest.NewOrderedTestCase("NdbCluster Services", func(tc *ndbtest.TestContext) {
@@ -85,72 +77,30 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster Services", func(tc *ndbtest.TestC
 			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeNdbmtd, ServiceTypeHeadless)
 		})
 
-		ginkgo.It("should be able to access mgmd via the service", func() {
-			serviceName := testNdb.GetServiceName(constants.NdbNodeTypeMgmd) + "." + testNdb.Namespace
-			testMgmdConnection(serviceName)
-		})
-	})
-
-	ginkgo.When("the Management Service LoadBalancer is enabled", func() {
-		ginkgo.It("should not affect the service to the Management nodes and its IPs", func() {
-			// Run GetStatus in parallel via service and management pod IP.
-			serviceName := testNdb.GetServiceName("mgmd") + "." + testNdb.Namespace
-
-			// Record the IPs of the service before updating NdbCluster
-			ipBeforeUpdate, err := net.LookupIP(serviceName)
-			ndbtest.ExpectNoError(err, "unable to lookup, invalid_host")
-			gomega.Expect(ipBeforeUpdate).NotTo(gomega.BeNil())
-
-			// Ip/Services to be tested during service update
-			connectStrings := []string{
-				serviceName, ipBeforeUpdate[0].String(),
-			}
-
-			stop := make(chan bool, 2)
-			for i := range connectStrings {
-				// Run GetStatus in parallel via service and management pod IP
-				// to verify that the service is not affected during patch.
-				connectString := connectStrings[i]
-				go func() {
-					defer ginkgo.GinkgoRecover()
-					for {
-						select {
-						default:
-							testMgmdConnection(connectString)
-						case <-stop:
-							return
-						}
-					}
-				}()
-
-				defer func() {
-					stop <- true
-				}()
-			}
-
-			// Enable Management Load Balancer
-			testNdb.Spec.ManagementNode.EnableLoadBalancer = true
-			ndbtest.KubectlApplyNdbObj(c, testNdb)
-
-			// Get the IPs of the service after updating NdbCluster
-			ipAfterUpdate, err := net.LookupIP(serviceName)
-			ndbtest.ExpectNoError(err, "unable to lookup, invalid_host")
-			gomega.Expect(ipAfterUpdate).NotTo(gomega.BeNil())
-
-			gomega.Expect(ipBeforeUpdate).To(
-				gomega.Equal(ipAfterUpdate), "Management IP changed during service patch request")
+		ginkgo.It("should allow explicitly labeled same-namespace pods to access mgmd via the service", func() {
+			mgmapiutils.ExpectCanConnectToMgmd(c, testNdb)
 		})
 
-		ginkgo.It("should create LoadBalancer services for Management Server", func() {
-			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMgmd, corev1.ServiceTypeLoadBalancer)
+		ginkgo.It("should require NetworkPolicy enforcement from the cluster CNI", func() {
+			gomega.Expect(networkpolicyutils.IsNetworkPolicyEnforced(ctx, c, ns)).To(gomega.BeTrue(),
+				"the E2E environment must enforce networking.k8s.io/v1 NetworkPolicy")
 		})
 
-		ginkgo.It("should create ClusterIP services for MySQL Servers", func() {
-			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMySQLD, corev1.ServiceTypeClusterIP)
+		ginkgo.It("should block unlabeled same-namespace pods from accessing mgmd", func() {
+			mgmapiutils.ExpectCannotConnectToMgmd(c, testNdb)
 		})
 
-		ginkgo.It("should create headless service for Data Nodes", func() {
-			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeNdbmtd, ServiceTypeHeadless)
+		ginkgo.It("should block labeled pods from another namespace", func() {
+			// Spoof every allowed pod label to prove the namespace is the trust boundary.
+			externalNamespace := ns + "-mgmd-client"
+			_, err := k8sutils.CreateNamespace(ctx, c, externalNamespace)
+			ndbtest.ExpectNoError(err, "failed to create cross-namespace mgmd client namespace")
+			defer func() {
+				err := k8sutils.DeleteNamespace(ctx, c, externalNamespace)
+				ndbtest.ExpectNoError(err, "failed to delete cross-namespace mgmd client namespace")
+			}()
+
+			mgmapiutils.ExpectCannotConnectToMgmdFromNamespace(c, testNdb, externalNamespace)
 		})
 	})
 
@@ -161,8 +111,8 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster Services", func(tc *ndbtest.TestC
 			ndbtest.KubectlApplyNdbObj(c, testNdb)
 		})
 
-		ginkgo.It("should create LoadBalancer services for Management and MySQL Server", func() {
-			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMgmd, corev1.ServiceTypeLoadBalancer)
+		ginkgo.It("should keep Management Server ClusterIP and create LoadBalancer service for MySQL Server", func() {
+			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMgmd, corev1.ServiceTypeClusterIP)
 			expectServiceType(ctx, svcInterface, testNdb, constants.NdbNodeTypeMySQLD, corev1.ServiceTypeLoadBalancer)
 		})
 

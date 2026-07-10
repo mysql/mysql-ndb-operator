@@ -1,4 +1,4 @@
-// Copyright (c) 2022, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2022, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -85,6 +85,16 @@ var _ = ndbtest.NewOrderedTestCase("NdbCluster validation", func(tc *ndbtest.Tes
 				"spec.managementNode.config.PortNumber: Forbidden: config param \"PortNumber\" is not allowed in spec.managementNode.config"))
 			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
 				"spec.managementNode.config.HostName: Forbidden: config param \"HostName\" is not allowed in spec.managementNode.config"))
+		})
+	})
+
+	ginkgo.When("management node LoadBalancer is enabled in NdbCluster spec", func() {
+		ginkgo.It("should reject the NdbCluster", func() {
+			testNdb.Spec.ManagementNode.EnableLoadBalancer = true
+			_, err := ndbclient.MysqlV1().NdbClusters(ns).Create(ctx, testNdb, metav1.CreateOptions{})
+			ndbtest.ExpectError(err)
+			gomega.Expect(err.Error()).Should(gomega.ContainSubstring(
+				"spec.managementNode.enableLoadBalancer is deprecated and cannot be enabled for management nodes"))
 		})
 	})
 })
