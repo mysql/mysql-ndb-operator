@@ -159,6 +159,10 @@ string
 <td><p>NdbClusterUpToDate specifies if the spec of the MySQL Cluster
 is up-to-date with the NdbCluster resource spec</p>
 </td>
+</tr><tr><td><p>&#34;ManagementAccessProtected&#34;</p></td>
+<td><p>NdbClusterManagementAccessProtected reports whether the operator-managed
+controls that restrict access to the management protocol are enabled.</p>
+</td>
 </tr></tbody>
 </table>
 <h3 id="mysql.oracle.com/v1.NdbClusterPodSpec">NdbClusterPodSpec
@@ -616,11 +620,9 @@ bool
 </td>
 <td>
 <em>(Optional)</em>
-<p>EnableLoadBalancer exposes the management servers externally using the
-kubernetes cloud provider&rsquo;s load balancer. By default, the operator creates a ClusterIP
-type service to expose the management server pods internally within the kubernetes cluster.
-If EnableLoadBalancer is set to true, a LoadBalancer type service will be created instead,
-exposing the management Servers outside the kubernetes cluster.</p>
+<p>EnableLoadBalancer identifies legacy management servers exposed using the
+kubernetes cloud provider&rsquo;s load balancer. This field is deprecated. Existing
+NdbClusters may retain it for recovery compatibility until it is disabled.</p>
 </td>
 </tr>
 </tbody>

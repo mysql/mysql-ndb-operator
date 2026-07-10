@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -6,6 +6,7 @@ package webhook
 
 import (
 	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	"github.com/mysql/ndb-operator/pkg/constants"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -75,10 +76,22 @@ func (nv *ndbAdmissionController) validateUpdate(
 	return requestAllowed(reqUID)
 }
 
-func (nv *ndbAdmissionController) mutate(obj runtime.Object) *jsonPatchOperations {
+func (nv *ndbAdmissionController) mutate(obj runtime.Object, operation admissionv1.Operation) *jsonPatchOperations {
 	nc := obj.(*v1.NdbCluster)
 
 	var patchOps jsonPatchOperations
+
+	// Ensures the explicit annotation enabling the management network policy is
+	// explictly set on new NdbClusters.
+	if operation == admissionv1.Create {
+		if nc.Annotations == nil {
+			patchOps.add("/metadata/annotations", map[string]interface{}{
+				constants.ManagementNetworkPolicyAnnotation: "true",
+			})
+		} else {
+			patchOps.add("/metadata/annotations/mysql.oracle.com~1enable-management-network-policy", "true")
+		}
+	}
 
 	// Always attach atleast one MySQL Server to the MySQL Cluster setup
 	if nc.Spec.MysqlNode == nil {

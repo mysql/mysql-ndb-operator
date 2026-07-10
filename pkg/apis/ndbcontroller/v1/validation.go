@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/mysql/ndb-operator/pkg/constants"
@@ -54,6 +55,35 @@ func validateConfigParams(config map[string]*intstr.IntOrString, specPath *field
 
 // HasValidSpec validates the spec of the NdbCluster object
 func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
+	_, errList := nc.hasValidSpec(true)
+	errList = append(errList, nc.validateManagementNetworkPolicyAnnotation(true)...)
+	return len(errList) == 0, errList
+}
+
+// New objects cannot opt out. Updates validate syntax here and enforce the
+// one-way transition to enabled in IsValidSpecUpdate.
+func (nc *NdbCluster) validateManagementNetworkPolicyAnnotation(disallowDisabled bool) field.ErrorList {
+	value, exists := nc.GetAnnotations()[constants.ManagementNetworkPolicyAnnotation]
+	if !exists {
+		return nil
+	}
+
+	annotationPath := field.NewPath("metadata", "annotations").Key(constants.ManagementNetworkPolicyAnnotation)
+	enabled, err := strconv.ParseBool(value)
+	if err != nil {
+		return field.ErrorList{field.Invalid(annotationPath, value, "must be a boolean value")}
+	}
+	if disallowDisabled && !enabled {
+		return field.ErrorList{field.Forbidden(annotationPath,
+			"management node NetworkPolicy cannot be disabled for new NdbClusters")}
+	}
+
+	return nil
+}
+
+// hasValidSpec validates shared create/update fields. Updates may retain a
+// pre-existing management LoadBalancer, while creates must reject it.
+func (nc *NdbCluster) hasValidSpec(disallowManagementLoadBalancer bool) (bool, field.ErrorList) {
 	spec := nc.Spec
 
 	var errList field.ErrorList
@@ -94,6 +124,11 @@ func (nc *NdbCluster) HasValidSpec() (bool, field.ErrorList) {
 	if nc.Spec.ManagementNode != nil {
 		if err := validateConfigParams(nc.Spec.ManagementNode.Config, managementNodePath.Child("config")); err != nil {
 			errList = append(errList, err...)
+		}
+		if disallowManagementLoadBalancer && nc.ManagementLoadBalancerEnabled() {
+			errList = append(errList,
+				field.Forbidden(managementNodePath.Child("enableLoadBalancer"),
+					"spec.managementNode.enableLoadBalancer is deprecated and cannot be enabled for management nodes"))
 		}
 	}
 
@@ -227,8 +262,23 @@ func (nc *NdbCluster) IsValidSpecUpdate(newNc *NdbCluster) (bool, field.ErrorLis
 				"connectionPoolSize cannot be reduced once MySQL Cluster has been started"))
 	}
 
+	// Legacy exposure settings may be retained or tightened, but not newly enabled.
+	if !nc.ManagementLoadBalancerEnabled() && newNc.ManagementLoadBalancerEnabled() {
+		errList = append(errList,
+			field.Forbidden(managementNodePath.Child("enableLoadBalancer"),
+				"spec.managementNode.enableLoadBalancer is deprecated and cannot be newly enabled for management nodes"))
+	}
+
+	if nc.ManagementNetworkPolicyExpected() && !newNc.ManagementNetworkPolicyExpected() {
+		annotationPath := field.NewPath("metadata", "annotations").Key(constants.ManagementNetworkPolicyAnnotation)
+		errList = append(errList,
+			field.Forbidden(annotationPath,
+				"management node NetworkPolicy cannot be disabled after it has been enabled"))
+	}
+	errList = append(errList, newNc.validateManagementNetworkPolicyAnnotation(false)...)
+
 	// Check if the new NdbCluster valid is spec
-	if isValid, specErrList := newNc.HasValidSpec(); !isValid {
+	if isValid, specErrList := newNc.hasValidSpec(false); !isValid {
 		errList = append(errList, specErrList...)
 	}
 

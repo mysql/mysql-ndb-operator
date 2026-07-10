@@ -6,6 +6,7 @@ package v1
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/mysql/ndb-operator/pkg/constants"
@@ -84,11 +85,9 @@ type NdbManagementNodeSpec struct {
 	// statefulset definition.
 	// +optional
 	NdbPodSpec *NdbClusterPodSpec `json:"ndbPodSpec,omitempty"`
-	// EnableLoadBalancer exposes the management servers externally using the
-	// kubernetes cloud provider's load balancer. By default, the operator creates a ClusterIP
-	// type service to expose the management server pods internally within the kubernetes cluster.
-	// If EnableLoadBalancer is set to true, a LoadBalancer type service will be created instead,
-	// exposing the management Servers outside the kubernetes cluster.
+	// EnableLoadBalancer identifies legacy management servers exposed using the
+	// kubernetes cloud provider's load balancer. This field is deprecated. Existing
+	// NdbClusters may retain it for recovery compatibility until it is disabled.
 	// +kubebuilder:default=false
 	// +optional
 	EnableLoadBalancer bool `json:"enableLoadBalancer,omitempty"`
@@ -259,6 +258,10 @@ const (
 	// NdbClusterUpToDate specifies if the spec of the MySQL Cluster
 	// is up-to-date with the NdbCluster resource spec
 	NdbClusterUpToDate NdbClusterConditionType = "UpToDate"
+	// NdbClusterManagementAccessProtected reports whether the operator-managed
+	// controls that restrict access to the management protocol are enabled. It
+	// does not verify enforcement by the cluster network plugin.
+	NdbClusterManagementAccessProtected NdbClusterConditionType = "ManagementAccessProtected"
 )
 
 const (
@@ -278,6 +281,15 @@ const (
 	// the NdbClusterUpToDate condition is set to False when sync
 	// encounters an error.
 	NdbClusterUptoDateReasonError string = "SyncError"
+	// NdbClusterManagementAccessProtectedReason is used when the managed
+	// NetworkPolicy is enabled and no management LoadBalancer is requested.
+	NdbClusterManagementAccessProtectedReason string = "ManagementAccessProtected"
+	// NdbClusterManagementNetworkPolicyDisabledReason is used when a cluster has
+	// explicitly retained the legacy behavior without a managed NetworkPolicy.
+	NdbClusterManagementNetworkPolicyDisabledReason string = "ManagementNetworkPolicyDisabled"
+	// NdbClusterManagementLoadBalancerEnabledReason is used while a legacy
+	// management LoadBalancer remains enabled.
+	NdbClusterManagementLoadBalancerEnabledReason string = "ManagementLoadBalancerEnabled"
 )
 
 // NdbClusterCondition describes the state of a MySQL Cluster installation at a certain point.
@@ -344,6 +356,29 @@ func (nc *NdbCluster) GetCompleteLabels(resourceLabels map[string]string) map[st
 // GetServiceName returns the Service name of a given resource
 func (nc *NdbCluster) GetServiceName(resource string) string {
 	return fmt.Sprintf("%s-%s", nc.ObjectMeta.Name, resource)
+}
+
+// GetManagementNetworkPolicyName returns the managed mgmd NetworkPolicy name.
+func (nc *NdbCluster) GetManagementNetworkPolicyName() string {
+	return fmt.Sprintf("%s-network-policy", nc.GetServiceName(constants.NdbNodeTypeMgmd))
+}
+
+// ManagementLoadBalancerEnabled reports whether the deprecated spec flag remains set.
+// Legacy clusters retain the requested exposure across Service recovery.
+func (nc *NdbCluster) ManagementLoadBalancerEnabled() bool {
+	return nc.Spec.ManagementNode != nil && nc.Spec.ManagementNode.EnableLoadBalancer
+}
+
+// ManagementNetworkPolicyExpected returns false only for an explicit legacy
+// opt-out. Missing or malformed values fail closed so older admission paths
+// cannot leave a cluster unprotected during an upgrade.
+func (nc *NdbCluster) ManagementNetworkPolicyExpected() bool {
+	if value, exists := nc.GetAnnotations()[constants.ManagementNetworkPolicyAnnotation]; exists {
+		enabled, err := strconv.ParseBool(value)
+		return err != nil || enabled
+	}
+
+	return true
 }
 
 // GetServiceAccountName returns the Service account name

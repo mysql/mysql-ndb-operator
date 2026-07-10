@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -26,6 +26,13 @@ const (
 	// ClusterResourceTypeLabel is applied to all K8s resources except
 	// pods owned by an NdbCluster resource
 	ClusterResourceTypeLabel = ndbcontroller.GroupName + "/resource-type"
+	// ManagementNetworkPolicyAnnotation controls the managed NetworkPolicy
+	// that restricts access to the management nodes. Protection is enabled by
+	// default; an explicit false value is a legacy pre-upgrade opt-out.
+	ManagementNetworkPolicyAnnotation = ndbcontroller.GroupName + "/enable-management-network-policy"
+	// ManagementAccessLabel selects explicitly authorized same-namespace pods.
+	// Namespace writers remain trusted because labels are not identities.
+	ManagementAccessLabel = ndbcontroller.GroupName + "/allow-mgmd-access"
 )
 
 const DataDir = "/var/lib/ndb"

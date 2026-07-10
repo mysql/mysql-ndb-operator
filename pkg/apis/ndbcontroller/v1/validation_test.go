@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -35,6 +35,59 @@ func nodeNumberTests(redundancy, dnc, mysqldc int32, fail bool, short string) *v
 		shouldFail: fail,
 		explain: fmt.Sprintf("%3d redundancy, %3d data nodes, %3d mysql nodes - %s",
 			redundancy, dnc, mysqldc, short),
+	}
+}
+
+func newLBTests(enableLoadBalancer bool, fail bool, short string) *validationCase {
+	return &validationCase{
+		spec: &NdbClusterSpec{
+			RedundancyLevel: 2,
+			ManagementNode: &NdbManagementNodeSpec{
+				EnableLoadBalancer: enableLoadBalancer,
+			},
+			DataNode: &NdbDataNodeSpec{
+				NodeCount: 2,
+			},
+			MysqlNode: &NdbMysqldSpec{
+				NodeCount:    2,
+				MaxNodeCount: 4,
+			},
+		},
+		shouldFail: fail,
+		explain:    short,
+	}
+}
+
+func updateLBTests(oldEnableLoadBalancer bool, newEnableLoadBalancer bool, fail bool, short string) *validationCase {
+	return &validationCase{
+		spec: &NdbClusterSpec{
+			RedundancyLevel: 2,
+			ManagementNode: &NdbManagementNodeSpec{
+				EnableLoadBalancer: newEnableLoadBalancer,
+			},
+			DataNode: &NdbDataNodeSpec{
+				NodeCount: 2,
+			},
+			MysqlNode: &NdbMysqldSpec{
+				NodeCount:    2,
+				MaxNodeCount: 4,
+			},
+		},
+		oldSpec: &NdbClusterSpec{
+			RedundancyLevel: 2,
+			ManagementNode: &NdbManagementNodeSpec{
+				EnableLoadBalancer: oldEnableLoadBalancer,
+			},
+			DataNode: &NdbDataNodeSpec{
+				NodeCount: 2,
+			},
+			MysqlNode: &NdbMysqldSpec{
+				NodeCount:    2,
+				MaxNodeCount: 4,
+			},
+		},
+		shouldFail: fail,
+		explain:    short,
 	}
 }
 
@@ -124,6 +177,14 @@ func Test_Validation(t *testing.T) {
 		nodeNumberTests(2, 2, 2, !shouldFail, "all okay"),
 		nodeNumberTests(1, 2, 2, !shouldFail, "2 dn and redundancy 1 is okay"),
 		nodeNumberTests(2, 2, 0, !shouldFail, "okay with no mysqlds"),
+
+		newLBTests(false, !shouldFail, "okay"),
+		newLBTests(true, shouldFail, "should reject management load balancer on create"),
+
+		updateLBTests(false, true, shouldFail, "should reject newly enabled management load balancer on update"),
+		updateLBTests(true, true, !shouldFail, "should allow legacy management load balancer to remain enabled"),
+		updateLBTests(true, false, !shouldFail, "should allow disabling legacy management load balancer"),
+		updateLBTests(false, false, !shouldFail, "should allow keeping management load balancer disabled"),
 
 		mysqldRootPasswordSecretNameTests("root-pass.123", !shouldFail, "valid name"),
 		mysqldRootPasswordSecretNameTests("-root-pass123", shouldFail, "should start with an alphabet"),

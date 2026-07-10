@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -6,7 +6,6 @@ package webhook
 
 import (
 	"fmt"
-	"regexp"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,8 +23,8 @@ type admissionController interface {
 	// validate functions should validate the request and return a AdmissionResponse
 	validateCreate(reqUID types.UID, obj runtime.Object) *admissionv1.AdmissionResponse
 	validateUpdate(reqUID types.UID, obj runtime.Object, oldObj runtime.Object) *admissionv1.AdmissionResponse
-	// mutate function should return the JSONPatch that needs to be applied to the resource
-	mutate(obj runtime.Object) *jsonPatchOperations
+	// mutate should return the operation-specific JSONPatch for the resource.
+	mutate(obj runtime.Object, operation admissionv1.Operation) *jsonPatchOperations
 }
 
 func unsupportedValidatorOperation(reqUID types.UID, operation admissionv1.Operation) *admissionv1.AdmissionResponse {
@@ -58,12 +57,8 @@ func validate(req *admissionv1.AdmissionRequest, ac admissionController) *admiss
 		return ac.validateCreate(req.UID, obj)
 
 	case admissionv1.Update:
-		// any updates made from the ndb-operator can be accepted without validation
-		if updateFromNdbOperator, _ := regexp.MatchString(
-			"system:serviceaccount:.*:ndb-operator", req.UserInfo.Username); updateFromNdbOperator {
-			klog.Info("Skipping validation for an update from ndb-operator")
-			return requestAllowed(req.UID)
-		}
+		// Validate every matching update. Status uses the ndbclusters/status
+		// subresource and is outside the webhook rule, so no identity bypass is needed.
 
 		// retrieve new and old objects
 		obj, _, err := decoder.Decode(req.Object.Raw, defaultGVK, ac.newObject())
@@ -105,7 +100,7 @@ func mutate(req *admissionv1.AdmissionRequest, ac admissionController) *admissio
 	}
 
 	// Call the admissions controller's mutate method
-	patchOps := ac.mutate(obj)
+	patchOps := ac.mutate(obj, req.Operation)
 
 	if patchOps.empty() {
 		// Nothing to do
