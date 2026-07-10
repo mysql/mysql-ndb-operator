@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -10,6 +10,7 @@ import (
 	"context"
 	"flag"
 	"os"
+	"strings"
 	"testing"
 
 	ginkgo "github.com/onsi/ginkgo/v2"
@@ -78,6 +79,11 @@ func newClientsets(t *testing.T) (kubernetes.Interface, ndbclient.Interface) {
 		cfg, err = clientcmd.BuildConfigFromFlags("", ndbTestSuite.kubeConfig)
 	}
 	if err != nil {
+		// Plain `go test ./...` has no cluster; skip only that expected setup error.
+		if !runningInsideK8s && ndbTestSuite.kubeConfig == "" &&
+			strings.Contains(err.Error(), "no configuration has been provided") {
+			t.Skipf("Skipping e2e suite because no kubeconfig or in-cluster Kubernetes config is available: %s", err)
+		}
 		t.Fatalf("Error getting kubeconfig: %s", err.Error())
 	}
 

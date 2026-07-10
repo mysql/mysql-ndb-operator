@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Copyright (c) 2020, 2022, Oracle and/or its affiliates.
+# Copyright (c) 2020, 2026, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -39,9 +39,11 @@ LDFLAGS="${LDFLAGS} -X '${PKG}/config.gitCommit=${GIT_COMMIT_ID}'"
 BINARIES="./bin/${OS}_${ARCH}"
 mkdir -p "${BINARIES}"
 
+# Build only commands shipped in the operator images. E2E helper commands are
+# packaged by the E2E image and must not enter production build artifacts.
 go build                    \
     -v                      \
     -o "${BINARIES}"        \
     -ldflags  "${LDFLAGS}"  \
     -tags "${BUILD_TAGS}"   \
-    ./...
+    ./cmd/...

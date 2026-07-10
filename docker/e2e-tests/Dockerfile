@@ -1,4 +1,4 @@
-# Copyright (c) 2021, 2025, Oracle and/or its affiliates.
+# Copyright (c) 2021, 2026, Oracle and/or its affiliates.
 #
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 ARG GOLANG_IMAGE=docker.io/golang:1.25.4
@@ -20,6 +20,10 @@ WORKDIR /ndb-operator-e2e-testing/
 
 # Copy the required files/directories in project directory to workdir.
 COPY . .
+
+# Package the short-lived clients used to verify allowed and denied pod traffic.
+RUN go build -o /usr/local/bin/e2e-mgmapi-client ./e2e-tests/cmd/mgmapi-client && \
+      go build -o /usr/local/bin/e2e-networkpolicy-probe ./e2e-tests/cmd/networkpolicy-probe
 
 ENTRYPOINT ["docker/e2e-tests/entrypoint.sh"]
 CMD ["go", "run", "github.com/onsi/ginkgo/ginkgo", "-r", "-keep-going", "e2e-tests/suites"]

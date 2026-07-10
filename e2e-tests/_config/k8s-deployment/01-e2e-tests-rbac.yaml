@@ -67,6 +67,7 @@ rules:
   - endpoints
   - pods
   verbs:
+  - create
   - get
   - list
   - patch
@@ -175,6 +176,18 @@ rules:
   - get
   - list
   - watch
+
+# The CNI probe creates and removes a temporary deny-ingress policy.
+- apiGroups: ["networking.k8s.io"]
+  resources:
+  - networkpolicies
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+  - delete
 
 - apiGroups:
   - rbac.authorization.k8s.io

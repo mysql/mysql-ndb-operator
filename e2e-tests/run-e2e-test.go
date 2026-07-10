@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2025, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -52,6 +52,8 @@ var options struct {
 	verbose         bool
 	// NDB Operator image to be used by the tests
 	ndbOperatorImage string
+	// E2E test image used by the runner and helper pods.
+	e2eTestImage string
 }
 
 // K8s image used by KinD to bring up cluster
@@ -326,9 +328,11 @@ type testRunner struct {
 	testDir string
 	// p is the provider used to execute the test
 	p provider
-	// e2eTestImageName is the name of the e2e
-	// tests docker image
-	e2eTestImageName string
+	// Image settings are shared by the test runner and its short-lived helpers.
+	e2eTestImageName       string
+	e2eTestImagePullPolicy v1.PullPolicy
+	// Distinguish local images that KinD must load from pullable supplied images.
+	e2eTestImageBuilt bool
 	// pod name and namespace
 	e2eTestPodName, e2eTestPodNamespace string
 	// cleanup methods that need to be executed after
@@ -348,8 +352,9 @@ func (t *testRunner) init(ctx context.Context) {
 	var _, currentFilePath, _, _ = runtime.Caller(0)
 	t.testDir = filepath.Dir(currentFilePath)
 
-	// By default, use the latest e2e-tests image
+	// Default to a local image; a supplied pullable image overrides this in run().
 	t.e2eTestImageName = "localhost/e2e-tests"
+	t.e2eTestImagePullPolicy = v1.PullNever
 
 	// Run the pod in the default namespace
 	t.e2eTestPodNamespace = "default"
@@ -598,7 +603,34 @@ func (t *testRunner) newE2ETestPod(command []string) *v1.Pod {
 		// Container name, image used and image pull policy
 		Name:            "e2e-tests-container",
 		Image:           t.e2eTestImageName,
-		ImagePullPolicy: v1.PullNever,
+		ImagePullPolicy: t.e2eTestImagePullPolicy,
+		// Short-lived network clients reuse this image and the runner's node.
+		Env: []v1.EnvVar{
+			{
+				Name:  "E2E_TEST_IMAGE",
+				Value: t.e2eTestImageName,
+			},
+			{
+				Name:  "E2E_TEST_IMAGE_PULL_POLICY",
+				Value: string(t.e2eTestImagePullPolicy),
+			},
+			{
+				Name: "E2E_TEST_POD_NAME",
+				ValueFrom: &v1.EnvVarSource{
+					FieldRef: &v1.ObjectFieldSelector{
+						FieldPath: "metadata.name",
+					},
+				},
+			},
+			{
+				Name: "E2E_TEST_POD_NAMESPACE",
+				ValueFrom: &v1.EnvVarSource{
+					FieldRef: &v1.ObjectFieldSelector{
+						FieldPath: "metadata.namespace",
+					},
+				},
+			},
+		},
 		// The e2e-tests-image has an entrypoint script that will
 		// run the tests and handle signals. Add the command to
 		// be run as container Args.
@@ -610,6 +642,9 @@ func (t *testRunner) newE2ETestPod(command []string) *v1.Pod {
 			// Pod name and namespace
 			Name:      t.e2eTestPodName,
 			Namespace: t.e2eTestPodNamespace,
+			Labels: map[string]string{
+				"app": "e2e-tests",
+			},
 		},
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{e2eTestsContainer},
@@ -777,8 +812,9 @@ func (t *testRunner) loadImagesIntoK8sCluster() bool {
 		return false
 	}
 
-	if !options.runOutOfCluster {
-		// Load e2e-tests docker image into cluster nodes for in-cluster runs
+	// Load a locally built e2e-tests image into providers that require it. A
+	// user-supplied image is pulled by the test and helper pods instead.
+	if t.e2eTestImageBuilt {
 		if !t.p.loadImageIntoK8sCluster(t, t.e2eTestImageName) {
 			return false
 		}
@@ -840,8 +876,14 @@ func (t *testRunner) run() bool {
 		t.p.teardownK8sCluster(t)
 	})
 
-	// Build the test image if running inside KinD Cluster
-	if options.useKind && !options.runOutOfCluster {
+	if options.e2eTestImage != "" {
+		t.e2eTestImageName = options.e2eTestImage
+		t.e2eTestImagePullPolicy = v1.PullIfNotPresent
+	}
+
+	// Helper pods require the E2E image even when Ginkgo itself runs outside
+	// the cluster, so build it for every KinD mode unless an image was supplied.
+	if options.useKind && options.e2eTestImage == "" {
 		// Append a short uuid to the image tag to allow
 		// multiple run-e2e-tests to run in parallel.
 		t.e2eTestImageName += ":" + shortUUID()
@@ -849,6 +891,7 @@ func (t *testRunner) run() bool {
 		if !t.buildE2ETestImage() {
 			return false
 		}
+		t.e2eTestImageBuilt = true
 	}
 
 	// Set up the K8s cluster
@@ -860,6 +903,17 @@ func (t *testRunner) run() bool {
 	// Load required images into K8s Cluster
 	if !t.loadImagesIntoK8sCluster() {
 		// Failed to load required images in K8s Cluster
+		return false
+	}
+
+	// Out-of-cluster Ginkgo processes pass these values to helper pods. The
+	// in-cluster runner receives the same values through its Pod environment.
+	if err := os.Setenv("E2E_TEST_IMAGE", t.e2eTestImageName); err != nil {
+		log.Printf("❌ Failed to set E2E_TEST_IMAGE: %s", err)
+		return false
+	}
+	if err := os.Setenv("E2E_TEST_IMAGE_PULL_POLICY", string(t.e2eTestImagePullPolicy)); err != nil {
+		log.Printf("❌ Failed to set E2E_TEST_IMAGE_PULL_POLICY: %s", err)
 		return false
 	}
 
@@ -885,11 +939,15 @@ func init() {
 		"Kubeconfig of the existing K8s cluster to run tests on.\n"+
 			"This will not be used if '--use-kind' is enabled.")
 
+	flag.StringVar(&options.e2eTestImage, "e2e-test-image", "",
+		"Pullable E2E test image to use for the runner and helper pods.\n"+
+			"If omitted with '--use-kind', the tool builds and loads the image automatically.")
+
 	flag.BoolVar(&options.runOutOfCluster, "run-out-of-cluster", false,
 		"Enable this to run tests from outside the K8s cluster.\n"+
 			"By default, this is not enabled and the tests will be run as a pod from inside K8s Cluster.")
 
-	// use v1.33 as default kind k8s version
+	// Use Kubernetes v1.34 for KinD unless the caller selects another version.
 	flag.StringVar(&options.kindK8sVersion, "kind-k8s-version", "1.34",
 		"Kind k8s version used to run tests.\n"+
 			"Example usage: -kind-k8s-version=1.30")

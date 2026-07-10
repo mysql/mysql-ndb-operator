@@ -1,4 +1,4 @@
-// Copyright (c) 2022, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2022, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -21,9 +21,7 @@ import (
 // expectMySQLClusterVersion verifies if all the nodes in the MySQL Cluster
 // run the version specified in the NdbCluster resource's image value.
 func expectMySQLClusterVersion(clientset kubernetes.Interface, nc *v1.NdbCluster) {
-	mgmClient := mgmapiutils.ConnectToMgmd(clientset, nc)
-	status, err := mgmClient.GetStatus()
-	gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+	status := mgmapiutils.GetStatus(clientset, nc)
 	expectedVersion := strings.Split(nc.Spec.Image, ":")[1]
 	for _, node := range status {
 		if node.IsConnected {

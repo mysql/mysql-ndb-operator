@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -48,14 +48,14 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Cluster config update", func(tc *ndbte
 
 		ginkgo.It("should start the datanodes' with the specified config", func() {
 			expectedDataMemory := uint64(200 * 1024 * 1024)
-			mgmapiutils.ForEachConnectedNodes(c, testNdb, mgmapi.NodeTypeNDB, func(mgmClient mgmapi.MgmClient, nodeId int) {
-				gomega.Expect(mgmClient.GetDataMemory(nodeId)).To(gomega.Equal(expectedDataMemory))
+			mgmapiutils.ForEachConnectedNode(c, testNdb, mgmapi.NodeTypeNDB, func(nodeId int) {
+				gomega.Expect(mgmapiutils.GetDataMemory(c, testNdb, nodeId)).To(gomega.Equal(expectedDataMemory))
 			})
 		})
 
 		ginkgo.It("should have started the management nodes with default config", func() {
-			mgmapiutils.ForEachConnectedNodes(c, testNdb, mgmapi.NodeTypeMGM, func(mgmClient mgmapi.MgmClient, nodeId int) {
-				gomega.Expect(mgmClient.GetMgmdArbitrationRank()).To(gomega.BeEquivalentTo(1))
+			mgmapiutils.ForEachConnectedNode(c, testNdb, mgmapi.NodeTypeMGM, func(nodeId int) {
+				gomega.Expect(mgmapiutils.GetMgmdArbitrationRank(c, testNdb)).To(gomega.BeEquivalentTo(1))
 			})
 		})
 
@@ -75,14 +75,14 @@ var _ = ndbtest.NewOrderedTestCase("MySQL Cluster config update", func(tc *ndbte
 
 		ginkgo.It("should have updated the update the DataNodes' config", func() {
 			expectedDataMemory := uint64(300 * 1024 * 1024)
-			mgmapiutils.ForEachConnectedNodes(c, testNdb, mgmapi.NodeTypeNDB, func(mgmClient mgmapi.MgmClient, nodeId int) {
-				gomega.Expect(mgmClient.GetDataMemory(nodeId)).To(gomega.Equal(expectedDataMemory))
+			mgmapiutils.ForEachConnectedNode(c, testNdb, mgmapi.NodeTypeNDB, func(nodeId int) {
+				gomega.Expect(mgmapiutils.GetDataMemory(c, testNdb, nodeId)).To(gomega.Equal(expectedDataMemory))
 			})
 		})
 
 		ginkgo.It("should have updated the update the management nodes' config", func() {
-			mgmapiutils.ForEachConnectedNodes(c, testNdb, mgmapi.NodeTypeMGM, func(mgmClient mgmapi.MgmClient, nodeId int) {
-				gomega.Expect(mgmClient.GetMgmdArbitrationRank()).To(gomega.BeEquivalentTo(2))
+			mgmapiutils.ForEachConnectedNode(c, testNdb, mgmapi.NodeTypeMGM, func(nodeId int) {
+				gomega.Expect(mgmapiutils.GetMgmdArbitrationRank(c, testNdb)).To(gomega.BeEquivalentTo(2))
 			})
 		})
 
