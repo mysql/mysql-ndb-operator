@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2025, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -9,15 +9,18 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/version"
 	discoveryfake "k8s.io/client-go/discovery/fake"
 	kubeinformers "k8s.io/client-go/informers"
@@ -27,6 +30,7 @@ import (
 	klog "k8s.io/klog/v2"
 
 	ndbcontroller "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/generated/clientset/versioned/fake"
 	informers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
 	"github.com/mysql/ndb-operator/pkg/helpers/testutils"
@@ -59,6 +63,8 @@ type fixture struct {
 }
 
 func newFixture(t *testing.T, ndbclusters ...*ndbcontroller.NdbCluster) *fixture {
+	t.Setenv("CURRENT_NAMESPACE", metav1.NamespaceDefault)
+
 	f := &fixture{
 		t:          t,
 		k8sObjects: []runtime.Object{},
@@ -120,6 +126,45 @@ func (f *fixture) close() {
 	klog.Info("Closing fixture")
 	// close the stop channel to stop the informers
 	close(f.stopCh)
+}
+
+func drainWorkqueue(c *Controller) {
+	for c.workqueue.Len() > 0 {
+		item, shutdown := c.workqueue.Get()
+		if shutdown {
+			return
+		}
+		c.workqueue.Done(item)
+		c.workqueue.Forget(item)
+	}
+}
+
+func waitForQueuedKeys(t *testing.T, c *Controller, count int) map[string]bool {
+	t.Helper()
+	err := wait.PollUntilContextTimeout(
+		context.Background(), 10*time.Millisecond, time.Second, true,
+		func(context.Context) (bool, error) {
+			return c.workqueue.Len() >= count, nil
+		})
+	if err != nil {
+		t.Fatalf("Expected %d queued keys, got %d", count, c.workqueue.Len())
+	}
+
+	keys := make(map[string]bool, count)
+	for c.workqueue.Len() > 0 {
+		item, shutdown := c.workqueue.Get()
+		if shutdown {
+			break
+		}
+		key, ok := item.(string)
+		if !ok {
+			t.Fatalf("Expected string workqueue item, got %T", item)
+		}
+		keys[key] = true
+		c.workqueue.Done(item)
+		c.workqueue.Forget(item)
+	}
+	return keys
 }
 
 // runControllerAndValidateActions runs the controller and validate the actions
@@ -239,6 +284,9 @@ func extractObjectMetaData(actual core.Action, extO, actO runtime.Object, t *tes
 	case "serviceaccounts":
 		expOM = extO.(*corev1.ServiceAccount).ObjectMeta
 		actOM = actO.(*corev1.ServiceAccount).ObjectMeta
+	case "networkpolicies":
+		expOM = extO.(*networkingv1.NetworkPolicy).ObjectMeta
+		actOM = actO.(*networkingv1.NetworkPolicy).ObjectMeta
 	case "ndbclusters":
 		expOM = extO.(*ndbcontroller.NdbCluster).ObjectMeta
 		actOM = actO.(*ndbcontroller.NdbCluster).ObjectMeta
@@ -336,13 +384,15 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 	}
 }
 
-// filterInformerActions filters list and watch actions for testing resources.
-// Since list and watch don't change resource state we can filter it to lower
-// nose level in our tests.
+// filterInformerActions removes read-only informer/discovery traffic and
+// asynchronous Event writes so tests compare only reconciliation actions.
 func filterInformerActions(actions []core.Action) []core.Action {
 	//klog.Infof("Filtering %d ndbActions", len(ndbActions))
 	ret := []core.Action{}
 	for _, action := range actions {
+		if action.Matches("create", "events") || action.Matches("patch", "events") {
+			continue
+		}
 		// Ignore all gets used by the controllers
 		if (action.GetNamespace() == "default" &&
 			(action.Matches("get", "secrets") ||
@@ -367,6 +417,8 @@ func filterInformerActions(actions []core.Action) []core.Action {
 				action.Matches("watch", "persistentvolumeclaims") ||
 				action.Matches("list", "poddisruptionbudgets") ||
 				action.Matches("watch", "poddisruptionbudgets") ||
+				action.Matches("list", "networkpolicies") ||
+				action.Matches("watch", "networkpolicies") ||
 				action.Matches("list", "statefulsets") ||
 				action.Matches("watch", "statefulsets") ||
 				action.Matches("list", "secrets") ||
@@ -453,6 +505,9 @@ func TestCreatesCluster(t *testing.T) {
 
 	ns := metav1.NamespaceDefault
 	ndb := testutils.NewTestNdb(ns, "test", 2)
+	ndb.Annotations = map[string]string{
+		constants.ManagementNetworkPolicyAnnotation: "true",
+	}
 
 	f := newFixture(t, ndb)
 	defer f.close()
@@ -470,6 +525,10 @@ func TestCreatesCluster(t *testing.T) {
 	// One configmap for NdbCluster resource
 	omd := getObjectMetadata("test-config", ndb)
 	f.expectCreateAction(ns, "", "v1", "configmaps", &corev1.ConfigMap{ObjectMeta: *omd})
+
+	// Management ingress protection must be created before cluster workloads.
+	networkPolicy := resources.NewManagementNetworkPolicy(ndb, ns)
+	f.expectCreateAction(ns, "networking.k8s.io", "v1", "networkpolicies", networkPolicy)
 
 	// Secret for the NDB operator user password
 	omd.Name = "test-ndb-operator-password"
@@ -532,4 +591,202 @@ func TestCreatesCluster(t *testing.T) {
 
 	// The reconciliation loop ends here.
 	f.runControllerAndValidateActions(ndb, false, nil)
+}
+
+func TestClusterWithoutNetworkPolicyAnnotationCreatesNetworkPolicy(t *testing.T) {
+	ns := metav1.NamespaceDefault
+	ndb := testutils.NewTestNdb(ns, "test", 2)
+	ndb.Status.ProcessedGeneration = 0
+
+	f := newFixture(t, ndb)
+	defer f.close()
+	f.newController()
+
+	pdb := resources.NewPodDisruptionBudget(ndb, "ndbmtd")
+	f.expectCreateAction(ns, "policy", "v1", "poddisruptionbudgets", pdb)
+
+	omd := getObjectMetadata("test-config", ndb)
+	f.expectCreateAction(ns, "", "v1", "configmaps", &corev1.ConfigMap{ObjectMeta: *omd})
+
+	networkPolicy := resources.NewManagementNetworkPolicy(ndb, ns)
+	f.expectCreateAction(ns, "networking.k8s.io", "v1", "networkpolicies", networkPolicy)
+
+	omd.Name = "test-ndb-operator-password"
+	f.expectCreateAction(ns, "", "v1", "secrets", &corev1.Secret{ObjectMeta: *omd})
+
+	omd.Name = "test-mgmd"
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
+
+	omd.Name = "test-sa"
+	f.expectCreateAction(ns, "", "v1", "serviceaccounts", &corev1.ServiceAccount{ObjectMeta: *omd})
+
+	omd.Name = "test-mgmd"
+	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
+
+	f.expectNdbClusterStatusUpdateAction(ns, "mysql.oracle.com", "v1", "ndbclusters")
+
+	f.runControllerAndValidateActions(ndb, false, nil)
+}
+
+func TestExistingClusterWithExplicitNetworkPolicyOptOutDoesNotCreateNetworkPolicy(t *testing.T) {
+	ns := metav1.NamespaceDefault
+	ndb := testutils.NewTestNdb(ns, "test", 2)
+	ndb.Status.ProcessedGeneration = ndb.Generation
+	ndb.Annotations = map[string]string{
+		constants.ManagementNetworkPolicyAnnotation: "false",
+	}
+
+	f := newFixture(t, ndb)
+	defer f.close()
+	f.newController()
+
+	pdb := resources.NewPodDisruptionBudget(ndb, "ndbmtd")
+	f.expectCreateAction(ns, "policy", "v1", "poddisruptionbudgets", pdb)
+
+	omd := getObjectMetadata("test-config", ndb)
+	f.expectCreateAction(ns, "", "v1", "configmaps", &corev1.ConfigMap{ObjectMeta: *omd})
+
+	omd.Name = "test-ndb-operator-password"
+	f.expectCreateAction(ns, "", "v1", "secrets", &corev1.Secret{ObjectMeta: *omd})
+
+	omd.Name = "test-mgmd"
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
+
+	omd.Name = "test-sa"
+	f.expectCreateAction(ns, "", "v1", "serviceaccounts", &corev1.ServiceAccount{ObjectMeta: *omd})
+
+	omd.Name = "test-mgmd"
+	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
+
+	f.expectNdbClusterStatusUpdateAction(ns, "mysql.oracle.com", "v1", "ndbclusters")
+
+	f.runControllerAndValidateActions(ndb, false, nil)
+}
+
+func TestExistingClusterWithNetworkPolicyAnnotationCreatesNetworkPolicy(t *testing.T) {
+	ns := metav1.NamespaceDefault
+	ndb := testutils.NewTestNdb(ns, "test", 2)
+	ndb.Status.ProcessedGeneration = ndb.Generation
+	ndb.Annotations = map[string]string{
+		constants.ManagementNetworkPolicyAnnotation: "true",
+	}
+
+	f := newFixture(t, ndb)
+	defer f.close()
+	f.newController()
+
+	pdb := resources.NewPodDisruptionBudget(ndb, "ndbmtd")
+	f.expectCreateAction(ns, "policy", "v1", "poddisruptionbudgets", pdb)
+
+	omd := getObjectMetadata("test-config", ndb)
+	f.expectCreateAction(ns, "", "v1", "configmaps", &corev1.ConfigMap{ObjectMeta: *omd})
+
+	networkPolicy := resources.NewManagementNetworkPolicy(ndb, ns)
+	f.expectCreateAction(ns, "networking.k8s.io", "v1", "networkpolicies", networkPolicy)
+
+	omd.Name = "test-ndb-operator-password"
+	f.expectCreateAction(ns, "", "v1", "secrets", &corev1.Secret{ObjectMeta: *omd})
+
+	omd.Name = "test-mgmd"
+	f.expectCreateAction(ns, "", "v1", "services", &corev1.Service{ObjectMeta: *omd})
+
+	omd.Name = "test-sa"
+	f.expectCreateAction(ns, "", "v1", "serviceaccounts", &corev1.ServiceAccount{ObjectMeta: *omd})
+
+	omd.Name = "test-mgmd"
+	f.expectCreateAction(ns, "apps", "v1", "statefulsets", &appsv1.StatefulSet{ObjectMeta: *omd})
+
+	f.expectNdbClusterStatusUpdateAction(ns, "mysql.oracle.com", "v1", "ndbclusters")
+
+	f.runControllerAndValidateActions(ndb, false, nil)
+}
+
+func TestNetworkPolicyFromInformerObjectHandlesTombstone(t *testing.T) {
+	networkPolicy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-policy", Namespace: metav1.NamespaceDefault},
+	}
+	tombstone := cache.DeletedFinalStateUnknown{
+		Key: "default/test-policy",
+		Obj: networkPolicy,
+	}
+
+	got, ok := networkPolicyFromInformerObject(tombstone)
+	if !ok || got != networkPolicy {
+		t.Fatalf("Failed to recover NetworkPolicy from informer tombstone: %#v, %t", got, ok)
+	}
+}
+
+func TestNetworkPolicyLabelUpdateEnqueuesOriginalCluster(t *testing.T) {
+	ns := metav1.NamespaceDefault
+	originalNdb := testutils.NewTestNdb(ns, "original", 2)
+	otherNdb := testutils.NewTestNdb(ns, "other", 2)
+
+	f := newFixture(t, originalNdb, otherNdb)
+	defer f.close()
+
+	networkPolicy := resources.NewManagementNetworkPolicy(originalNdb, ns)
+	networkPolicy.ResourceVersion = "1"
+	networkPolicy, err := f.k8sclient.NetworkingV1().NetworkPolicies(ns).Create(
+		context.Background(), networkPolicy, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatal("Failed to create test NetworkPolicy:", err)
+	}
+	f.newController()
+	drainWorkqueue(f.c)
+
+	updatedNetworkPolicy := networkPolicy.DeepCopy()
+	updatedNetworkPolicy.ResourceVersion = "2"
+	// A mutable label must not redirect reconciliation away from the owner.
+	updatedNetworkPolicy.Labels[constants.ClusterLabel] = otherNdb.Name
+	_, err = f.k8sclient.NetworkingV1().NetworkPolicies(ns).Update(
+		context.Background(), updatedNetworkPolicy, metav1.UpdateOptions{})
+	if err != nil {
+		t.Fatal("Failed to update test NetworkPolicy:", err)
+	}
+
+	queuedKeys := waitForQueuedKeys(t, f.c, 1)
+	originalKey := getNdbClusterKey(originalNdb)
+	if !queuedKeys[originalKey] {
+		t.Fatalf("Expected original NdbCluster %q to be queued, got %v", originalKey, queuedKeys)
+	}
+	if otherKey := getNdbClusterKey(otherNdb); queuedKeys[otherKey] {
+		t.Fatalf("Did not expect unrelated NdbCluster %q to be queued", otherKey)
+	}
+}
+
+func TestNetworkPolicyOwnerUpdateEnqueuesBothClusters(t *testing.T) {
+	ns := metav1.NamespaceDefault
+	originalNdb := testutils.NewTestNdb(ns, "original", 2)
+	otherNdb := testutils.NewTestNdb(ns, "other", 2)
+
+	f := newFixture(t, originalNdb, otherNdb)
+	defer f.close()
+
+	networkPolicy := resources.NewManagementNetworkPolicy(originalNdb, ns)
+	networkPolicy.ResourceVersion = "1"
+	networkPolicy, err := f.k8sclient.NetworkingV1().NetworkPolicies(ns).Create(
+		context.Background(), networkPolicy, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatal("Failed to create test NetworkPolicy:", err)
+	}
+	f.newController()
+	drainWorkqueue(f.c)
+
+	updatedNetworkPolicy := networkPolicy.DeepCopy()
+	updatedNetworkPolicy.ResourceVersion = "2"
+	// Queue both sides of an ownership change so neither cluster misses repair.
+	updatedNetworkPolicy.OwnerReferences = otherNdb.GetOwnerReferences()
+	_, err = f.k8sclient.NetworkingV1().NetworkPolicies(ns).Update(
+		context.Background(), updatedNetworkPolicy, metav1.UpdateOptions{})
+	if err != nil {
+		t.Fatal("Failed to update test NetworkPolicy:", err)
+	}
+
+	queuedKeys := waitForQueuedKeys(t, f.c, 2)
+	for _, ndb := range []*ndbcontroller.NdbCluster{originalNdb, otherNdb} {
+		key := getNdbClusterKey(ndb)
+		if !queuedKeys[key] {
+			t.Errorf("Expected NdbCluster %q to be queued, got %v", key, queuedKeys)
+		}
+	}
 }

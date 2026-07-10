@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -28,6 +28,10 @@ const (
 	// ReasonInSync is the reason used for an Event when the MySQL Cluster
 	// is already in sync with the spec of the Ndb object.
 	ReasonInSync = "InSync"
+	// ReasonManagementLoadBalancerDeprecated is used when a management LoadBalancer is still enabled.
+	ReasonManagementLoadBalancerDeprecated = "ManagementLoadBalancerDeprecated"
+	// ReasonManagementNetworkPolicyDisabled is used when an existing cluster explicitly retained legacy access.
+	ReasonManagementNetworkPolicyDisabled = "ManagementNetworkPolicyDisabled"
 
 	// ActionNone is the action used for an Event when the operator does nothing.
 	ActionNone = "None"
@@ -47,6 +51,10 @@ const (
 	// MessageInSync is the message used for an Event when the MySQL Cluster
 	// is already in sync with the spec of the Ndb object.
 	MessageInSync = "MySQL Cluster is in sync with the Ndb object"
+	// MessageManagementLoadBalancerDeprecated is the deprecation warning for management LoadBalancers.
+	MessageManagementLoadBalancerDeprecated = "spec.managementNode.enableLoadBalancer is deprecated for management nodes and will be removed in a future release"
+	// MessageManagementNetworkPolicyDisabled is the warning used for clusters with the legacy opt-out.
+	MessageManagementNetworkPolicyDisabled = "Management node NetworkPolicy is explicitly disabled; set annotation %s=\"true\" to enable protection"
 )
 
 // reporting controller for the events

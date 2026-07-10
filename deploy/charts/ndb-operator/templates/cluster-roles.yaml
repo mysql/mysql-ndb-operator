@@ -111,6 +111,17 @@ rules:
       - watch
       - create
 
+  # Reconcile the operator-managed mgmd ingress policy.
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - networkpolicies
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - patch
+
   - apiGroups: ["mysql.oracle.com"]
     resources:
       - ndbclusters

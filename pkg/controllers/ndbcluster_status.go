@@ -1,4 +1,4 @@
-// Copyright (c) 2022, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2022, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	v1 "github.com/mysql/ndb-operator/pkg/apis/ndbcontroller/v1"
+	"github.com/mysql/ndb-operator/pkg/constants"
 	"github.com/mysql/ndb-operator/pkg/resources"
 
 	corev1 "k8s.io/api/core/v1"
@@ -16,19 +17,70 @@ import (
 	klog "k8s.io/klog/v2"
 )
 
-// statusEqual checks if the given two NdbClusterStatuses are equal.
-// This function does not compare all the fields of the conditions
-// as they are already dependent on the Status field.
+// statusEqual checks if the given two NdbClusterStatuses are equal. Condition
+// transition timestamps are ignored because they change only when a
+// condition's status changes.
 func statusEqual(oldStatus *v1.NdbClusterStatus, newStatus *v1.NdbClusterStatus) bool {
 	return oldStatus.ProcessedGeneration == newStatus.ProcessedGeneration &&
 		oldStatus.ReadyManagementNodes == newStatus.ReadyManagementNodes &&
 		oldStatus.ReadyDataNodes == newStatus.ReadyDataNodes &&
 		oldStatus.ReadyMySQLServers == newStatus.ReadyMySQLServers &&
 		oldStatus.GeneratedRootPasswordSecretName == newStatus.GeneratedRootPasswordSecretName &&
-		// TODO: Improve this comparison when more conditions are added
-		oldStatus.Conditions[0].Status == newStatus.Conditions[0].Status &&
-		oldStatus.Conditions[0].Reason == newStatus.Conditions[0].Reason &&
-		oldStatus.Conditions[0].Message == newStatus.Conditions[0].Message
+		conditionsEqual(oldStatus.Conditions, newStatus.Conditions)
+}
+
+// conditionsEqual compares by type because condition list order is not significant.
+func conditionsEqual(oldConditions, newConditions []v1.NdbClusterCondition) bool {
+	if len(oldConditions) != len(newConditions) {
+		return false
+	}
+
+	oldByType := make(map[v1.NdbClusterConditionType]v1.NdbClusterCondition, len(oldConditions))
+	for _, condition := range oldConditions {
+		oldByType[condition.Type] = condition
+	}
+	if len(oldByType) != len(oldConditions) {
+		return false
+	}
+
+	seenNewTypes := make(map[v1.NdbClusterConditionType]struct{}, len(newConditions))
+	for _, newCondition := range newConditions {
+		if _, duplicate := seenNewTypes[newCondition.Type]; duplicate {
+			return false
+		}
+		seenNewTypes[newCondition.Type] = struct{}{}
+		oldCondition, exists := oldByType[newCondition.Type]
+		if !exists || !conditionStateEqual(oldCondition, newCondition) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func conditionStateEqual(oldCondition, newCondition v1.NdbClusterCondition) bool {
+	return oldCondition.Type == newCondition.Type &&
+		oldCondition.Status == newCondition.Status &&
+		oldCondition.Reason == newCondition.Reason &&
+		oldCondition.Message == newCondition.Message
+}
+
+// preserveConditionTransitionTimes follows the Kubernetes convention that only
+// a Status change resets LastTransitionTime.
+func preserveConditionTransitionTimes(
+	oldConditions, newConditions []v1.NdbClusterCondition,
+) {
+	oldByType := make(map[v1.NdbClusterConditionType]v1.NdbClusterCondition, len(oldConditions))
+	for _, condition := range oldConditions {
+		oldByType[condition.Type] = condition
+	}
+
+	for index, newCondition := range newConditions {
+		if oldCondition, exists := oldByType[newCondition.Type]; exists &&
+			oldCondition.Status == newCondition.Status {
+			newConditions[index].LastTransitionTime = oldCondition.LastTransitionTime
+		}
+	}
 }
 
 // calculateNdbClusterStatus generates the current status for the NdbCluster in SyncContext
@@ -106,6 +158,29 @@ func (sc *SyncContext) calculateNdbClusterStatus() *v1.NdbClusterStatus {
 		}
 	}
 	status.Conditions = append(status.Conditions, upToDateCondition)
+
+	// Events may expire, so also expose legacy access exceptions as durable status.
+	managementAccessCondition := v1.NdbClusterCondition{
+		Type:               v1.NdbClusterManagementAccessProtected,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		Reason:             v1.NdbClusterManagementAccessProtectedReason,
+		Message:            "Managed NetworkPolicy is enabled and the management service is internal",
+	}
+	// Report the external endpoint first when both legacy exceptions are present.
+	if nc.ManagementLoadBalancerEnabled() {
+		managementAccessCondition.Status = corev1.ConditionFalse
+		managementAccessCondition.Reason = v1.NdbClusterManagementLoadBalancerEnabledReason
+		managementAccessCondition.Message = "The deprecated management LoadBalancer setting is still enabled"
+	} else if !nc.ManagementNetworkPolicyExpected() {
+		managementAccessCondition.Status = corev1.ConditionFalse
+		managementAccessCondition.Reason = v1.NdbClusterManagementNetworkPolicyDisabledReason
+		managementAccessCondition.Message = fmt.Sprintf(
+			"Managed NetworkPolicy is explicitly disabled; set annotation %s=true to enable it",
+			constants.ManagementNetworkPolicyAnnotation)
+	}
+	status.Conditions = append(status.Conditions, managementAccessCondition)
+	preserveConditionTransitionTimes(nc.Status.Conditions, status.Conditions)
 
 	return status
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2024, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -11,6 +11,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +31,7 @@ import (
 	ndbclientset "github.com/mysql/ndb-operator/pkg/generated/clientset/versioned"
 	ndbinformers "github.com/mysql/ndb-operator/pkg/generated/informers/externalversions"
 	ndblisters "github.com/mysql/ndb-operator/pkg/generated/listers/ndbcontroller/v1"
+	"github.com/mysql/ndb-operator/pkg/helpers"
 )
 
 // Controller is the main controller implementation for Ndb resources
@@ -48,6 +50,7 @@ type Controller struct {
 	serviceController        ServiceControlInterface
 	serviceAccountController ServiceAccountControlInterface
 	pdbController            PodDisruptionBudgetControlInterface
+	networkPolicyController  NetworkPolicyControlInterface
 
 	// K8s Listers
 	podLister     corelisters.PodLister
@@ -81,6 +84,7 @@ func NewController(
 	secretInformer := k8sSharedIndexInformer.Core().V1().Secrets()
 	serviceAccountInformer := k8sSharedIndexInformer.Core().V1().ServiceAccounts()
 	pvcInformer := k8sSharedIndexInformer.Core().V1().PersistentVolumeClaims()
+	networkPolicyInformer := k8sSharedIndexInformer.Networking().V1().NetworkPolicies()
 
 	// Extract all the InformerSynced methods
 	informerSyncedMethods := []cache.InformerSynced{
@@ -92,6 +96,7 @@ func NewController(
 		secretInformer.Informer().HasSynced,
 		serviceAccountInformer.Informer().HasSynced,
 		pvcInformer.Informer().HasSynced,
+		networkPolicyInformer.Informer().HasSynced,
 	}
 
 	serviceLister := serviceInformer.Lister()
@@ -99,6 +104,13 @@ func NewController(
 	configmapLister := configmapInformer.Lister()
 	secretLister := secretInformer.Lister()
 	serviceAccountLister := serviceAccountInformer.Lister()
+	networkPolicyLister := networkPolicyInformer.Lister()
+
+	// The operator peer must be restricted to the namespace where it actually runs.
+	operatorNamespace, err := helpers.GetCurrentNamespace()
+	if err != nil {
+		klog.Warningf("Failed to determine operator namespace for NetworkPolicy generation: %s", err)
+	}
 
 	controller := &Controller{
 		kubernetesClient:         kubernetesClient,
@@ -110,6 +122,7 @@ func NewController(
 		configMapController:      NewConfigMapControl(kubernetesClient, configmapLister),
 		serviceController:        NewServiceControl(kubernetesClient, serviceLister),
 		serviceAccountController: NewServiceAccountControl(kubernetesClient, serviceAccountLister),
+		networkPolicyController:  newNetworkPolicyControl(kubernetesClient, networkPolicyLister, operatorNamespace),
 		workqueue:                workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Ndbs"),
 		recorder:                 newEventRecorder(kubernetesClient),
 
@@ -149,6 +162,12 @@ func NewController(
 					oldNdb.Generation, newNdb.Generation)
 				klog.Infof("Resource version updated from %s -> %s",
 					oldNdb.ResourceVersion, newNdb.ResourceVersion)
+				klog.Infof("NdbCluster resource %q is added to the queue for reconciliation", ndbKey)
+			} else if managementNetworkPolicyAnnotationChanged(oldNdb, newNdb) {
+				klog.Infof("Management NetworkPolicy annotation of NdbCluster resource %q was updated", ndbKey)
+				klog.Infof("Resource version updated from %s -> %s",
+					oldNdb.ResourceVersion, newNdb.ResourceVersion)
+				controller.recordManagementAccessWarnings(newNdb)
 				klog.Infof("NdbCluster resource %q is added to the queue for reconciliation", ndbKey)
 			} else if oldNdb.ResourceVersion != newNdb.ResourceVersion {
 				// Spec was not updated but the ResourceVersion changed => Status update
@@ -294,6 +313,55 @@ func NewController(
 		0,
 	)
 
+	// Repair policy drift or deletion without waiting for an NdbCluster change.
+	networkPolicyInformer.Informer().AddEventHandlerWithResyncPeriod(
+		cache.FilteringResourceEventHandler{
+			FilterFunc: func(obj interface{}) bool {
+				networkPolicy, ok := networkPolicyFromInformerObject(obj)
+				if !ok {
+					return false
+				}
+				_, clusterLabelExists := networkPolicy.GetLabels()[constants.ClusterLabel]
+				return clusterLabelExists
+			},
+
+			Handler: cache.ResourceEventHandlerFuncs{
+				UpdateFunc: func(oldObj, newObj interface{}) {
+					oldNetworkPolicy := oldObj.(*networkingv1.NetworkPolicy)
+					newNetworkPolicy := newObj.(*networkingv1.NetworkPolicy)
+
+					if reflect.DeepEqual(oldNetworkPolicy.Spec, newNetworkPolicy.Spec) &&
+						reflect.DeepEqual(oldNetworkPolicy.Labels, newNetworkPolicy.Labels) &&
+						reflect.DeepEqual(oldNetworkPolicy.OwnerReferences, newNetworkPolicy.OwnerReferences) {
+						return
+					}
+
+					// Ownership is authoritative; mutable labels must not redirect reconciliation.
+					oldNdbClusterName := getOwningNdbClusterName(oldNetworkPolicy)
+					newNdbClusterName := getOwningNdbClusterName(newNetworkPolicy)
+					controller.extractAndEnqueueNdbCluster(oldNetworkPolicy, "NetworkPolicy", "updated")
+					if oldNetworkPolicy.Namespace != newNetworkPolicy.Namespace ||
+						oldNdbClusterName != newNdbClusterName {
+						controller.extractAndEnqueueNdbCluster(newNetworkPolicy, "NetworkPolicy", "updated")
+					}
+				},
+
+				// Requeue the owner so a deleted security policy is recreated.
+				DeleteFunc: func(obj interface{}) {
+					networkPolicy, ok := networkPolicyFromInformerObject(obj)
+					if !ok {
+						return
+					}
+					klog.Infof("NetworkPolicy %q is deleted", getNamespacedName(networkPolicy))
+					controller.extractAndEnqueueNdbCluster(networkPolicy, "NetworkPolicy", "deleted")
+				},
+			},
+		},
+
+		// Set resyncPeriod to 0 to ignore all re-sync events
+		0,
+	)
+
 	// Set up event handlers for Pod Status changes
 	podInformer.Informer().AddEventHandlerWithResyncPeriod(
 
@@ -329,6 +397,22 @@ func NewController(
 	return controller
 }
 
+// networkPolicyFromInformerObject unwraps deletion tombstones so a missed watch
+// event cannot crash policy reconciliation.
+func networkPolicyFromInformerObject(obj interface{}) (*networkingv1.NetworkPolicy, bool) {
+	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+		obj = tombstone.Obj
+	}
+
+	networkPolicy, ok := obj.(*networkingv1.NetworkPolicy)
+	if !ok {
+		klog.Errorf("Expected NetworkPolicy informer object, got %T", obj)
+		return nil, false
+	}
+
+	return networkPolicy, true
+}
+
 // ndbClusterExists returns true if a NdbCluster object exists with the given namespace/name
 func (c *Controller) ndbClusterExists(namespace, name string) (bool, error) {
 	_, err := c.ndbsLister.NdbClusters(namespace).Get(name)
@@ -346,11 +430,24 @@ func (c *Controller) ndbClusterExists(namespace, name string) (bool, error) {
 	return true, nil
 }
 
-// extractAndEnqueueNdbCluster extracts the key of NdbCluster that owns
-// the given Workload object (i.e. a deployment or a statefulset) and
-// then adds it to the controller's workqueue for reconciliation.
+// getOwningNdbClusterName prefers controller ownership metadata over routing
+// labels.
+func getOwningNdbClusterName(obj metav1.Object) string {
+	// Indirectly owned resources such as Pods still require the cluster label.
+	controllerRef := metav1.GetControllerOf(obj)
+	if controllerRef != nil &&
+		controllerRef.APIVersion == v1.SchemeGroupVersion.String() &&
+		controllerRef.Kind == "NdbCluster" {
+		return controllerRef.Name
+	}
+
+	return obj.GetLabels()[constants.ClusterLabel]
+}
+
+// extractAndEnqueueNdbCluster extracts the key of the NdbCluster that owns
+// the given object and adds it to the workqueue for reconciliation.
 func (c *Controller) extractAndEnqueueNdbCluster(obj metav1.Object, resource string, event string) {
-	ndbClusterName := obj.GetLabels()[constants.ClusterLabel]
+	ndbClusterName := getOwningNdbClusterName(obj)
 	if exists, _ := c.ndbClusterExists(obj.GetNamespace(), ndbClusterName); !exists {
 		// Some error occurred during Get or the object doesn't exist
 		// Skip enqueuing the object for reconciliation
@@ -380,6 +477,8 @@ func (c *Controller) Run(ctx context.Context, threadiness int) error {
 	}
 
 	klog.Info("Starting workers")
+	// Surface legacy exposure immediately instead of waiting for a later edit.
+	c.recordManagementAccessWarningsForExistingClusters()
 	// Launch worker go routines to process Ndb resources
 	for i := 0; i < threadiness; i++ {
 		go func() {
@@ -450,6 +549,7 @@ func (c *Controller) newSyncContext(ndb *v1.NdbCluster) *SyncContext {
 		serviceController:        c.serviceController,
 		serviceaccountController: c.serviceAccountController,
 		pdbController:            c.pdbController,
+		networkPolicyController:  c.networkPolicyController,
 		ndb:                      ndb,
 		kubernetesClient:         c.kubernetesClient,
 		ndbClient:                c.ndbClient,
@@ -549,4 +649,44 @@ func (c *Controller) syncHandler(ctx context.Context, key string) (result syncRe
 	}
 
 	return result
+}
+
+// managementNetworkPolicyAnnotationChanged detects metadata-only changes that
+// do not increment generation.
+func managementNetworkPolicyAnnotationChanged(oldNdb *v1.NdbCluster, newNdb *v1.NdbCluster) bool {
+	oldValue, oldExists := oldNdb.GetAnnotations()[constants.ManagementNetworkPolicyAnnotation]
+	newValue, newExists := newNdb.GetAnnotations()[constants.ManagementNetworkPolicyAnnotation]
+	return oldExists != newExists || oldValue != newValue
+}
+
+// recordManagementAccessWarningsForExistingClusters audits legacy exceptions present at startup.
+func (c *Controller) recordManagementAccessWarningsForExistingClusters() {
+	ndbs, err := c.ndbsLister.List(labels.Everything())
+	if err != nil {
+		klog.Warningf("Failed to list NdbClusters for management access warning audit: %v", err)
+		return
+	}
+
+	for _, ndb := range ndbs {
+		c.recordManagementAccessWarnings(ndb)
+	}
+}
+
+// recordManagementAccessWarnings reports each retained legacy exception.
+func (c *Controller) recordManagementAccessWarnings(ndb *v1.NdbCluster) {
+	if ndb.ManagementLoadBalancerEnabled() {
+		klog.Warningf("NdbCluster resource %q uses deprecated spec.managementNode.enableLoadBalancer",
+			getNamespacedName(ndb))
+		c.recorder.Eventf(ndb, nil,
+			corev1.EventTypeWarning, ReasonManagementLoadBalancerDeprecated, ActionNone,
+			MessageManagementLoadBalancerDeprecated)
+	}
+
+	if !ndb.ManagementNetworkPolicyExpected() {
+		klog.Warningf("NdbCluster resource %q explicitly disables the management node NetworkPolicy",
+			getNamespacedName(ndb))
+		c.recorder.Eventf(ndb, nil,
+			corev1.EventTypeWarning, ReasonManagementNetworkPolicyDisabled, ActionNone,
+			MessageManagementNetworkPolicyDisabled, constants.ManagementNetworkPolicyAnnotation)
+	}
 }
