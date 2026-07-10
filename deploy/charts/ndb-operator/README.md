@@ -11,6 +11,7 @@ License information can be found in the LICENSE file. This distribution may incl
 ## Prerequisites
 
 - Kubernetes v1.23.0+
+- A CNI that enforces `networking.k8s.io/v1` NetworkPolicy
 
 ## Install the Chart
 
@@ -72,7 +73,7 @@ The following table lists the configurable options supported by the chart, along
 | `imagePullPolicy`     | The image pull policy for the NDB Operator.                                                                                                                                                                                                 | `IfNotPresent`              |
 | `imagePullSecretName` | The name of the secret used to authenticate image pulls for the NDB Operator.                                                                                                                                                               | None                        |
 | `clusterScoped`       | Determines the scope of the NDB Operator.<br>When set to `true`, the operator watches for changes to any NdbCluster resource across all namespaces.<br>When set to `false`, the operator only watches for changes within its own namespace. | `true`                      |
-| `watchNamespace`      | Specifies the namespace to monitor for NdbCluster resource changes.<br>This option is only applicable when `clusterScoped` is set to `false`. If not specified, the operator will only watch the namespace where it is deployed.            | None                        |
+| `watchNamespace`      | Specifies the namespace to monitor for NdbCluster resource changes and admission.<br>This option is only applicable when `clusterScoped` is set to `false`. If not specified, the operator and webhooks watch the namespace where it is deployed. | None                        |
 
 These options can be set using the '–set' argument of the Helm CLI.
 
@@ -82,6 +83,16 @@ helm install --set imagePullPolicy=Always ndbop deploy/charts/ndb-operator
 ```
 
 ### Security
+
+The management protocol on port 1186 is unauthenticated. The operator creates a
+managed NetworkPolicy for every NdbCluster and rejects newly enabled management
+LoadBalancers. Legacy LoadBalancers remain supported during recovery until
+explicitly disabled. Existing clusters are protected automatically during upgrade
+unless they were explicitly annotated with
+`mysql.oracle.com/enable-management-network-policy=false` before the upgrade.
+Review the [management access documentation](../../../docs/management-node-access.md)
+for migration steps, CNI requirements, additive policy behavior, and namespace
+trust assumptions.
 
 The following table lists the configurable security options supported by the chart, along with their default values.
 

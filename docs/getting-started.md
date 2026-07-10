@@ -87,11 +87,11 @@ A demonstration is available at [connect-from-inside-k8s-demo.md](connect-from-i
 
 ### Access MySQL Cluster from outside K8s
 
-By default, the Management and MySQL services created by the NDB Operator are of type [ClusterIP](https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types) and are accessible only from within the K8s Cluster. To expose them outside the K8s Cluster, the services have to be upgraded into a `LoadBalancer` type. This can be done by setting the `spec.managementNode.enableLoadBalancer` and `spec.mysqlNode.enableLoadBalancer` fields of the NdbCluster resource to true. These options can be enabled when the NdbCluster resource object is created or via an update to the object when the MySQL Cluster is already running.
+By default, the Management and MySQL services created by the NDB Operator are of type [ClusterIP](https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types). Every cluster receives a managed NetworkPolicy that restricts management server access on port 1186, including existing clusters after an operator upgrade. See [management-node-access.md](management-node-access.md) for the policy details, CNI and namespace trust requirements, and the temporary pre-upgrade compatibility opt-out.
 
-Once enabled, the previously ClusterIP type `example-ndb-mgmd` and `example-ndb-mysqld` services will be upgraded to LoadBalancer type, and they will be available at the external IP assigned to them by the cloud provider.
+The management node LoadBalancer option is deprecated. Admission rejects new clusters and updates that newly enable `spec.managementNode.enableLoadBalancer`. Existing clusters retain their LoadBalancer Services, including during Service recovery, until the setting is disabled; their clusters report `ManagementAccessProtected=False`.
 
-Another way to access these services without enabling the LoadBalancers support is to use the `kubectl port-forward` command.
+MySQL Server services can still be exposed outside the K8s Cluster by setting `spec.mysqlNode.enableLoadBalancer` to true. Another way to access services without enabling LoadBalancer support is to use the `kubectl port-forward` command.
 
 In both ways, only the mysql and ndb_mgm clients work. Any NDB tool which uses the NDBAPI to connect to the MySQL data nodes will not work as expected from outside the K8s Cluster.
 

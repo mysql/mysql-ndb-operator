@@ -12,6 +12,7 @@ License information can be found in the LICENSE file. This distribution may incl
 
 ### Prerequisites
  - Kubernetes Version 1.23+
+ - A CNI that enforces `networking.k8s.io/v1` NetworkPolicy
 
 ### Install using helm
 
@@ -55,7 +56,13 @@ Starting from version 9.6.0 onwards, the NDB Operator is deployed with a stricte
 
 The same hardening mode can be applied as an option to NDB Cluster pods being deployed. This is not done by default because it may break some deployments using Persistent Volumes due to ownership of directories and files. When enabled, one should ensure that the GID of required files matches the one used by NDB Cluster processes, which is, by default, 27.
 
-More details about the available security options can be find in the deployment [README](deploy/charts/ndb-operator/README.md).
+More details about the available security options can be found in the deployment [README](deploy/charts/ndb-operator/README.md).
+
+The management protocol on port 1186 is unauthenticated. The operator manages a
+NetworkPolicy for that port and rejects newly enabled management LoadBalancers.
+Legacy LoadBalancers remain supported during recovery until explicitly disabled.
+Read [Management Node Access](docs/management-node-access.md) before upgrading an
+existing installation or granting administrative management access.
 
 ### Verify Installation
 

@@ -4,7 +4,7 @@ The wiki describes how to build and test MySQL NDB Operator from the source code
 
 ## License
 
-Copyright (c) 2022, 2025, Oracle and/or its affiliates.
+Copyright (c) 2022, 2026, Oracle and/or its affiliates.
 
 License information can be found in the LICENSE file. This distribution may include materials developed by third parties. For license and attribution notices for these materials, please refer to the LICENSE file.
 
@@ -68,20 +68,22 @@ The E2E testcases are collection of integration tests that make changes to a Ndb
 
 To generate the e2e tests image, run :
 ```sh
-make e2e-tests
+make e2e-tests-image
 ```
 
 #### Running the tests in an existing K8s Cluster
 
-The e2e tests can be run in an already running K8s Cluster. This can be done by passing the kubeconfig of the Cluster to the run-e2e-test.go tool. Note that both the `mysql/ndb-operator` and the `e2e-tests` images should be accessible to the K8s Cluster for the tests to run.
+The e2e tests can be run in an already running K8s Cluster. This can be done by passing the kubeconfig of the Cluster to the run-e2e-test.go tool. Note that both the `mysql/ndb-operator` and the `e2e-tests` images should be accessible to the K8s Cluster for the tests to run. The cluster CNI must enforce `networking.k8s.io/v1` NetworkPolicy.
 
 ```sh
-go run e2e-tests/run-e2e-test.go -kubeconfig=<kubeconfig of the existing K8s Cluster>
+go run e2e-tests/run-e2e-test.go \
+  -kubeconfig=<kubeconfig of the existing K8s Cluster> \
+  -e2e-test-image=<pullable e2e-tests image>
 ```
 
 #### Running the tests in their own KinD Cluster
 
-The `run-e2e-test.go` tool can also start its own KinD Cluster and then run the e2e tests in them. Note that a docker instance with both the `mysql/ndb-operator` and the `e2e-tests` images should be accessible from the terminal where the test is being started. The KinD Cluster will be started inside docker.
+The `run-e2e-test.go` tool can also start its own KinD Cluster and then run the e2e tests in it. The tool builds and loads the E2E image automatically for both in-cluster and out-of-cluster runs. A Docker instance and the `mysql/ndb-operator` image must be accessible from the terminal where the test is started.
 
 ```sh
 go run e2e-tests/run-e2e-test.go -use-kind

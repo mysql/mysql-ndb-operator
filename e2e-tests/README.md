@@ -4,7 +4,7 @@ This folder contains test suites written in gingko and a tool to run the e2e tes
 
 ### License
 
-Copyright (c) 2021, 2025, Oracle and/or its affiliates.
+Copyright (c) 2021, 2026, Oracle and/or its affiliates.
 
 License information can be found in the LICENSE file. This distribution may include materials developed by third parties. For license and attribution notices for these materials, please refer to the LICENSE file.
 
@@ -27,10 +27,13 @@ $ go run e2e-tests/run-e2e-test.go --help
     	More details : https://onsi.github.io/ginkgo/#location-based-filtering
   -kind-k8s-version string
     	Kind k8s version used to run tests.
-        Example usage: -kind-k8s-version=1.30 (default "1.32")
+        Example usage: -kind-k8s-version=1.30 (default "1.34")
   -kubeconfig string
     	Kubeconfig of the existing K8s cluster to run tests on.
     	This will not be used if '--use-kind' is enabled. (default "$HOME/.kube/config")
+  -e2e-test-image string
+        Pullable E2E test image to use for the runner and helper pods.
+        If omitted with '--use-kind', the tool builds and loads the image automatically.
   -run-out-of-cluster
     	Enable this to run tests from outside the K8s cluster.
     	By default, this is not enabled and the tests will be run as a pod from inside K8s Cluster.
@@ -46,6 +49,14 @@ $ go run e2e-tests/run-e2e-test.go --help
 ### Running the tests
 
 All the e2e tests are written using ginkgo and are available inside the suites folder.
+The target cluster must use a CNI that enforces `networking.k8s.io/v1`
+NetworkPolicy; the security regression tests fail instead of skipping when
+enforcement is unavailable.
+
+KinD runs build and load the E2E image in both in-cluster and
+`-run-out-of-cluster` modes. For an existing cluster, make the image available
+on every eligible node or pass a pullable image with `-e2e-test-image`.
+
 These tests can be run using :
 - The run-e2e-test.go tool. Eg. ```go run e2e-tests/run-e2e-test.go``` (or)
 - The ginkgo tool. Eg ```go run github.com/onsi/ginkgo/ginkgo e2e-tests/suites```

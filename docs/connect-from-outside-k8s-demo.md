@@ -2,7 +2,7 @@
 
 This demonstration is an extension to the example specified in the [Getting Started](getting-started.md#access-mysql-cluster-from-outside-k8s) wiki.
 
-## Enable the Load Balancers
+## Enable the MySQL Load Balancer
 
 By default, the Management and MySQL services created by the NDB Operator are of type [ClusterIP](https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types) and are accessible only from within the K8s Cluster. 
 
@@ -20,36 +20,24 @@ example-ndb-mysqld   ClusterIP   10.103.117.50   <none>        3306/TCP   4m29s
 example-ndb-ndbmtd   ClusterIP   None            <none>        1186/TCP   4m29s
 ```
 
-The `example-ndb-mgmd` and `example-ndb-mysqld` services are the Management and MySQL Services respectively. Note that they both are of type ClusterIP Service. They have to be upgraded to LoadBalancer service type to make them accessible from outside the K8s Cluster. This can be done by setting the `spec.managementNode.enableLoadBalancer` and `spec.mysqlNode.enableLoadBalancer` fields of the NdbCluster resource to true. These options can be enabled when the NdbCluster resource object is created or via an update to the object when the MySQL Cluster is already running. 
+The `example-ndb-mgmd` and `example-ndb-mysqld` services are the Management and MySQL Services respectively. The management service uses an unauthenticated protocol on port 1186 and is protected by a managed NetworkPolicy. Do not expose it with a LoadBalancer. See [management-node-access.md](management-node-access.md) for controlled management access and the required CNI and namespace trust boundaries.
 
-To enable both the LoadBalancers, patch the NdbCluster object by running :
+To enable the MySQL Server LoadBalancer, patch the NdbCluster object by running :
 ```sh
-kubectl patch ndb example-ndb --type='merge' -p '{"spec":{"managementNode":{"enableLoadBalancer":true},"mysqlNode":{"enableLoadBalancer":true}}}'
+kubectl patch ndb example-ndb --type='merge' -p '{"spec":{"mysqlNode":{"enableLoadBalancer":true}}}'
 ```
 
-Verify that the services have been upgraded :
+Verify that the MySQL service has been upgraded :
 ```
 NAME                 TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)          AGE
-example-ndb-mgmd     LoadBalancer   10.101.29.155   10.101.29.155   1186:32490/TCP   31m
+example-ndb-mgmd     ClusterIP      10.101.29.155   <none>          1186/TCP         31m
 example-ndb-mysqld   LoadBalancer   10.103.117.50   10.103.117.50   3306:32334/TCP   31m
 example-ndb-ndbmtd   ClusterIP      None            <none>          1186/TCP         31m
 ```
 
-The services will now be available outside the Kubernetes Cluster at the `EXTERNAL-IP` assigned to them by the cloud provider. Not that this demo uses minikube so the EXTERNAL-IP is same as the CLUSTER-IP, but it will vary in a production setting depending on the cloud provider used.
+The MySQL service will now be available outside the Kubernetes Cluster at the `EXTERNAL-IP` assigned by the cloud provider. Note that this demo uses minikube so the EXTERNAL-IP is same as the CLUSTER-IP, but it will vary in a production setting depending on the cloud provider used.
 
-The IP addresses can also be extracted using `kubectl`. For example to extract the Management Node service's IP, run :
-```sh
-ndbConnectstring=$(kubectl get service "example-ndb-mgmd" \
-  -o jsonpath={.status.loadBalancer.ingress[0].ip})
-```
-
-The IP address returned by the command can be used as the connectstring to the `ndb_mgm` tool.
-
-```sh
-ndb_mgm -c $(ndbConnectstring)
-```
-
-Similarly, the MySQL Server host can be extracted from the service :
+The MySQL Server host IP address can be extracted from the service :
 ```sh
 mysqlHost=$(kubectl get service "example-ndb-mysqld" \
             -o jsonpath={.status.loadBalancer.ingress[0].ip})
@@ -62,7 +50,7 @@ mysql --protocol=tcp -h $mysqlHost -u root -p
 
 ## Using kubectl port-forward
 
-One can also use the `kubectl port-forward` command to access the services without enabling the LoadBalancers.
+One can also use the `kubectl port-forward` command to access the services without enabling the LoadBalancers. Management access should be limited to trusted administrators; see [management-node-access.md](management-node-access.md) before forwarding port 1186.
 
 To access the Management Server,
 
