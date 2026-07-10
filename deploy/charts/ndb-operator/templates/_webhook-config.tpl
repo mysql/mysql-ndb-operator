@@ -21,3 +21,11 @@ Used by the service and deployment.
 {{- define "webhook-service.pod-label" -}}
 app: ndb-operator-webhook-server
 {{- end -}}
+
+{{- /*
+Namespace watched by a namespace-scoped operator. This must also be used by
+the admission webhook namespace selectors.
+*/}}
+{{- define "ndb-operator.watch-namespace" -}}
+{{- default .Release.Namespace .Values.watchNamespace -}}
+{{- end -}}

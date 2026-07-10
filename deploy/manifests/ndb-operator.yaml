@@ -3919,8 +3919,7 @@ spec:
         matchLabels:
             app: ndb-operator-webhook-server
     strategy:
-        rollingUpdate:
-            maxUnavailable: 0
+        type: Recreate
     template:
         metadata:
             labels:
@@ -3970,8 +3969,7 @@ spec:
         matchLabels:
             app: ndb-operator
     strategy:
-        rollingUpdate:
-            maxUnavailable: 0
+        type: Recreate
     template:
         metadata:
             labels:

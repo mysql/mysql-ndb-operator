@@ -55,10 +55,10 @@ spec:
             capabilities:
               drop:
               - ALL
-  # set maxUnavailable to 0 so that helm will wait for the pod to become ready
+  # Do not route admission requests to mixed webhook versions during upgrades.
+  # failurePolicy=Fail keeps NdbCluster changes fail-closed while the new pod starts.
   strategy:
-    rollingUpdate:
-      maxUnavailable: 0
+    type: Recreate
 ---
 # Deploy Ndb operator
 apiVersion: apps/v1
@@ -143,7 +143,7 @@ spec:
               value: {{.Values.image}}
             - name: NDB_OPERATOR_IMAGE_PULL_SECRET_NAME
               value: {{.Values.imagePullSecretName}}
-  # set maxUnavailable to 0 so that helm will wait for the pod to become ready
+  # The controller has no leader election. Recreate avoids mixed-version
+  # controllers reconciling the same NdbCluster during an upgrade.
   strategy:
-    rollingUpdate:
-      maxUnavailable: 0
+    type: Recreate

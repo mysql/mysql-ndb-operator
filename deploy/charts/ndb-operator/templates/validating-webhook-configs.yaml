@@ -21,9 +21,10 @@ webhooks:
     failurePolicy: Fail
     name: validating-webhook.ndbcluster.mysql.oracle.com
     {{- if not .Values.clusterScoped }}
+    # Admission must follow watchNamespace when it differs from the release namespace.
     namespaceSelector:
       matchLabels:
-        kubernetes.io/metadata.name: {{.Release.Namespace}}
+        kubernetes.io/metadata.name: {{include "ndb-operator.watch-namespace" . | quote}}
     {{- end }}
     rules:
       - apiGroups:
