@@ -1,4 +1,4 @@
-// Copyright (c) 2021, 2023, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -678,13 +678,14 @@ func (mci *mgmClientImpl) getConfig(
 
 	if reply["Content-Type"] != "ndbconfig/octet-stream" ||
 		reply["Content-Transfer-Encoding"] != "base64" {
-		return nil, debug.InternalError("unexpected content in get config reply")
+		return nil, errors.New("unexpected content in get config reply")
 	}
 
 	// extract the required config value from the base64 encoded config data
-	value := readConfigFromBase64EncodedData(reply["Content"], sectionFilter, uint32(nodeId), configKey)
-	if value == nil {
-		return nil, debug.InternalError("getConfig failed")
+	value, err := readConfigFromBase64EncodedData(reply["Content"], sectionFilter, uint32(nodeId), configKey)
+	if err != nil {
+		// The peer controls this payload, so malformed data is a normal protocol error.
+		return nil, fmt.Errorf("failed to read config reply: %w", err)
 	}
 
 	return value, nil

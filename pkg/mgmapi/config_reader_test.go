@@ -1,10 +1,13 @@
-// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
 package mgmapi
 
 import (
+	"encoding/base64"
+	"encoding/binary"
+	"fmt"
 	"testing"
 )
 
@@ -125,7 +128,10 @@ func verifyValue(t *testing.T, id int, actualValue configValue, expectedValue in
 }
 
 func TestConfigReader_ReadConfig(t *testing.T) {
-	cr := getNewConfigReader(binConfigDataBase64)
+	cr, err := getNewConfigReader(binConfigDataBase64)
+	if err != nil {
+		t.Fatalf("getNewConfigReader failed: %v", err)
+	}
 
 	for id, tc := range []*struct {
 		sectionTypeFilter     cfgSectionType
@@ -178,7 +184,173 @@ func TestConfigReader_ReadConfig(t *testing.T) {
 			expectedValue:     "/home/mysql/datadir/ndb_data/node3",
 		},
 	} {
-		value := cr.readConfig(tc.sectionTypeFilter, tc.fromNodeId, tc.configKey)
+		value, err := cr.readConfig(tc.sectionTypeFilter, tc.fromNodeId, tc.configKey)
+		if err != nil {
+			t.Fatalf("TC#%d: readConfig failed: %v", id, err)
+		}
 		verifyValue(t, id, value, tc.expectedValue)
 	}
+}
+
+func encodeConfigWords(magic string, words ...uint32) string {
+	data := []byte(magic)
+	for _, word := range words {
+		encodedWord := make([]byte, 4)
+		binary.BigEndian.PutUint32(encodedWord, word)
+		data = append(data, encodedWord...)
+	}
+	return base64.StdEncoding.EncodeToString(data)
+}
+
+func TestConfigReaderRejectsMalformedConfig(t *testing.T) {
+	const invalidEntryType = 15
+	stringKey := uint32(CfgEntryTypeString<<v2TypeShift) | sysCfgConfigGenerationNumber
+	intKey := uint32(CfgEntryTypeInt<<v2TypeShift) | sysCfgConfigGenerationNumber
+	nodeIdInt64Key := uint32(CfgEntryTypeInt64<<v2TypeShift) | nodeCfgNodeId
+
+	testCases := []struct {
+		name              string
+		encodedData       string
+		sectionTypeFilter cfgSectionType
+		fromNodeId        uint32
+		configKey         uint32
+	}{
+		{
+			name:              "invalid base64",
+			encodedData:       "%",
+			sectionTypeFilter: cfgSectionTypeSystem,
+			configKey:         sysCfgConfigGenerationNumber,
+		},
+		{
+			name:              "truncated header",
+			encodedData:       "AAAA",
+			sectionTypeFilter: cfgSectionTypeSystem,
+			configKey:         sysCfgConfigGenerationNumber,
+		},
+		{
+			name: "unexpected magic",
+			encodedData: encodeConfigWords(
+				"BADCONF2", 9, 2, 0, 0, 0, 0, 0),
+			sectionTypeFilter: cfgSectionTypeSystem,
+			configKey:         sysCfgConfigGenerationNumber,
+		},
+		{
+			name: "declared length mismatch",
+			encodedData: encodeConfigWords(
+				configMagic, 10, 2, 0, 0, 0, 0, 0),
+			sectionTypeFilter: cfgSectionTypeSystem,
+			configKey:         sysCfgConfigGenerationNumber,
+		},
+		{
+			name: "short section",
+			encodedData: encodeConfigWords(
+				configMagic, 15, 2, 1, 0, 0, 0, 0,
+				2, 0, uint32(cfgSectionTypeNDB),
+				3, 0, uint32(cfgSectionTypeSystem)),
+			sectionTypeFilter: cfgSectionTypeSystem,
+			configKey:         sysCfgConfigGenerationNumber,
+		},
+		{
+			name: "section exceeds data",
+			encodedData: encodeConfigWords(
+				configMagic, 12, 2, 0, 0, 0, 0, 0,
+				100, 0, uint32(cfgSectionTypeSystem)),
+			sectionTypeFilter: cfgSectionTypeSystem,
+			configKey:         sysCfgConfigGenerationNumber,
+		},
+		{
+			name: "unsupported entry type",
+			encodedData: encodeConfigWords(
+				configMagic, 13, 2, 0, 0, 0, 0, 0,
+				4, 1, uint32(cfgSectionTypeSystem),
+				uint32(invalidEntryType<<v2TypeShift)|sysCfgConfigGenerationNumber),
+			sectionTypeFilter: cfgSectionTypeSystem,
+			configKey:         sysCfgConfigGenerationNumber,
+		},
+		{
+			name: "entry exceeds section",
+			encodedData: encodeConfigWords(
+				configMagic, 13, 2, 0, 0, 0, 0, 0,
+				4, 1, uint32(cfgSectionTypeSystem), intKey),
+			sectionTypeFilter: cfgSectionTypeSystem,
+			configKey:         sysCfgConfigGenerationNumber,
+		},
+		{
+			name: "zero-length string",
+			encodedData: encodeConfigWords(
+				configMagic, 14, 2, 0, 0, 0, 0, 0,
+				5, 1, uint32(cfgSectionTypeSystem), stringKey, 0),
+			sectionTypeFilter: cfgSectionTypeSystem,
+			configKey:         sysCfgConfigGenerationNumber,
+		},
+		{
+			name: "unterminated string",
+			encodedData: encodeConfigWords(
+				configMagic, 15, 2, 0, 0, 0, 0, 0,
+				6, 1, uint32(cfgSectionTypeSystem), stringKey, 4, 0x41424344),
+			sectionTypeFilter: cfgSectionTypeSystem,
+			configKey:         sysCfgConfigGenerationNumber,
+		},
+		{
+			name: "invalid node id type",
+			encodedData: encodeConfigWords(
+				configMagic, 18, 2, 0, 1, 0, 0, 0,
+				3, 0, uint32(cfgSectionTypeSystem),
+				6, 1, uint32(cfgSectionTypeNDB), nodeIdInt64Key, 0, 1),
+			sectionTypeFilter: cfgSectionTypeNDB,
+			fromNodeId:        1,
+			configKey:         dbCfgNodegroup,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Peer-controlled config data must always fail through the error path.
+			if value, err := readConfigFromBase64EncodedData(
+				tc.encodedData, tc.sectionTypeFilter, tc.fromNodeId, tc.configKey); err == nil {
+				t.Fatalf("expected malformed config to fail, got %v", value)
+			}
+		})
+	}
+}
+
+func newGetConfigReply(encodedData string) []byte {
+	return []byte(fmt.Sprintf(`get config reply
+result: Ok
+Content-Length: %d
+Content-Type: ndbconfig/octet-stream
+Content-Transfer-Encoding: base64
+
+%s`, len(encodedData), encodedData))
+}
+
+func TestMgmClientImpl_getConfig_rejectsMalformedContent(t *testing.T) {
+	mgmServer, mci := newFakeMgmServerAndClient(t)
+	defer mci.Disconnect()
+	defer mgmServer.disconnect()
+
+	// Exercise malformed content through the complete management reply path.
+	mgmServer.run(newGetConfigReply("AAAA"))
+
+	if _, err := mci.getConfig(
+		1, cfgSectionTypeSystem, sysCfgConfigGenerationNumber, true); err == nil {
+		t.Fatal("expected malformed get config content to fail")
+	}
+}
+
+func FuzzConfigReaderDoesNotPanic(f *testing.F) {
+	validData, err := base64.StdEncoding.DecodeString(binConfigDataBase64)
+	if err != nil {
+		f.Fatalf("failed to decode valid config seed: %v", err)
+	}
+	f.Add([]byte{})
+	f.Add(validData)
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		// Keep arbitrary management replies on the parser's error-return path.
+		// No panic should occur
+		_, _ = readConfigFromBase64EncodedData(
+			base64.StdEncoding.EncodeToString(data),
+			cfgSectionTypeSystem, 0, sysCfgConfigGenerationNumber)
+	})
 }
