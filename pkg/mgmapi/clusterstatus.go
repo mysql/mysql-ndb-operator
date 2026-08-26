@@ -1,12 +1,14 @@
-// Copyright (c) 2021, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2021, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
 package mgmapi
 
 import (
-	"github.com/mysql/ndb-operator/config/debug"
+	"fmt"
 	"sort"
+
+	"github.com/mysql/ndb-operator/config/debug"
 )
 
 // NodeTypeEnum identifies the node type used in NodeStatus object
@@ -68,7 +70,7 @@ func (ns *NodeStatus) IsAPINode() bool {
 
 // setNodeTypeFromTLA sets the nodeId's NodeStatus' node type.
 // Allowed TLAs are NDB, MGM, API
-func (ns *NodeStatus) setNodeTypeFromTLA(TLA string) {
+func (ns *NodeStatus) setNodeTypeFromTLA(TLA string) error {
 	// node type NDB, MGM, API
 	switch TLA {
 	case "NDB":
@@ -78,8 +80,10 @@ func (ns *NodeStatus) setNodeTypeFromTLA(TLA string) {
 	case "API":
 		ns.NodeType = NodeTypeAPI
 	default:
-		debug.Panic("unsupported node type : " + TLA)
+		// Node types arrive in the management reply, so reject unknown values.
+		return fmt.Errorf("unsupported node type %q", TLA)
 	}
+	return nil
 }
 
 // ClusterStatus describes the state of all nodes in the cluster

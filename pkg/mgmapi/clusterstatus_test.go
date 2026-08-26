@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2021, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -12,15 +12,21 @@ import (
 func TestClusterStatus_ensureNodeAndSetNodeTypeFromTLA(t *testing.T) {
 
 	cs := NewClusterStatus(8)
+	setNodeType := func(nodeId int, nodeType string) {
+		t.Helper()
+		if err := cs.ensureNode(nodeId).setNodeTypeFromTLA(nodeType); err != nil {
+			t.Fatalf("setNodeTypeFromTLA(%q) failed: %v", nodeType, err)
+		}
+	}
 
-	cs.ensureNode(1).setNodeTypeFromTLA("MGM")
-	cs.ensureNode(2).setNodeTypeFromTLA("MGM")
-	cs.ensureNode(3).setNodeTypeFromTLA("NDB")
-	cs.ensureNode(4).setNodeTypeFromTLA("NDB")
-	cs.ensureNode(5).setNodeTypeFromTLA("NDB")
-	cs.ensureNode(6).setNodeTypeFromTLA("API")
-	cs.ensureNode(7).setNodeTypeFromTLA("API")
-	cs.ensureNode(8).setNodeTypeFromTLA("API")
+	setNodeType(1, "MGM")
+	setNodeType(2, "MGM")
+	setNodeType(3, "NDB")
+	setNodeType(4, "NDB")
+	setNodeType(5, "NDB")
+	setNodeType(6, "API")
+	setNodeType(7, "API")
+	setNodeType(8, "API")
 
 	dnCnt := 0
 	mgmCnt := 0
@@ -39,6 +45,13 @@ func TestClusterStatus_ensureNodeAndSetNodeTypeFromTLA(t *testing.T) {
 
 	if dnCnt != 3 && apiCnt != 3 && mgmCnt != 2 {
 		t.Errorf("Wrong node type count")
+	}
+}
+
+func TestNodeStatus_setNodeTypeFromTLA_rejectsUnknownType(t *testing.T) {
+	// Node types originate in the management reply and need explicit validation.
+	if err := (&NodeStatus{}).setNodeTypeFromTLA("UNKNOWN"); err == nil {
+		t.Fatal("expected an unknown node type to fail")
 	}
 }
 

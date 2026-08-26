@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2022, Oracle and/or its affiliates.
+// Copyright (c) 2020, 2026, Oracle and/or its affiliates.
 //
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 
@@ -565,6 +565,35 @@ AJkAAAAFAAAAAQAAAAIQAAADAAAAmhVv0RY=
 	// Check if the right config version is returned
 	if value.(uint32) != 1 {
 		t.Errorf("getConfig returned a wrong config version. Expected : 1. Recieved : %d", value.(uint32))
+	}
+}
+
+func TestMgmClientImpl_GetConfigVersion_rejectsUnexpectedType(t *testing.T) {
+	mgmServer, mci := newFakeMgmServerAndClient(t)
+	defer mci.Disconnect()
+	defer mgmServer.disconnect()
+
+	stringKey := uint32(CfgEntryTypeString<<v2TypeShift) | sysCfgConfigGenerationNumber
+	encodedData := encodeConfigWords(
+		configMagic, 15, 2, 0, 0, 0, 0, 0,
+		6, 1, uint32(cfgSectionTypeSystem), stringKey, 2, 0x78000000)
+	mgmServer.run(newGetConfigReply(encodedData))
+
+	// A structurally valid value of the wrong type must return an error.
+	if _, err := mci.GetConfigVersion(); err == nil {
+		t.Fatal("expected an unexpected config value type to fail")
+	}
+}
+
+func TestMgmClientImpl_GetStatus_rejectsInvalidNodeCount(t *testing.T) {
+	mgmServer, mci := newFakeMgmServerAndClient(t)
+	defer mci.Disconnect()
+	defer mgmServer.disconnect()
+
+	// Bound the map allocation requested by a management reply.
+	mgmServer.run([]byte("node status\nnodes: 257"))
+	if _, err := mci.GetStatus(); err == nil {
+		t.Fatal("expected an out-of-range node count to fail")
 	}
 }
 

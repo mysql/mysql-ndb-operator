@@ -17,6 +17,7 @@ import (
 	klog "k8s.io/klog/v2"
 
 	"github.com/mysql/ndb-operator/config/debug"
+	"github.com/mysql/ndb-operator/pkg/constants"
 )
 
 // MgmClient defines an interface that communicates with MySQL Cluster.
@@ -409,24 +410,32 @@ func (mci *mgmClientImpl) GetStatus() (ClusterStatus, error) {
 
 	nodeCount, err := strconv.Atoi(reply["nodes"])
 	if err != nil {
-		klog.Error("failed to parse nodes value in node status reply : ", err)
-		return nil, debug.InternalError("'nodes' value in node status reply unexpected format")
+		klog.Error("failed to parse 'nodes' value in node status reply : ", err)
+		return nil, fmt.Errorf("'nodes' value in node status reply has unexpected format: %w", err)
+	}
+	// Bound peer-provided capacity before allocating the status map.
+	if nodeCount < 1 || nodeCount > constants.MaxNumberOfNodes {
+		return nil, fmt.Errorf("'nodes' value %d in node status reply is out of range", nodeCount)
 	}
 	delete(reply, "nodes")
 
 	// loop all values in reply and put them in a ClusterStatus object
 	cs := NewClusterStatus(nodeCount)
+	nodesWithType := make(map[int]struct{}, nodeCount)
 	for aggregateKey, value := range reply {
 		// the key is of form node.3.version
 		keyTokens := strings.SplitN(aggregateKey, ".", 3)
 		if len(keyTokens) != 3 || keyTokens[0] != "node" {
-			return nil, debug.InternalError("node status reply has unexpected format")
+			return nil, fmt.Errorf("node status reply has unexpected format %q", aggregateKey)
 		}
 
 		// extract node id and the actual key
 		nodeId, err := strconv.Atoi(keyTokens[1])
 		if err != nil {
-			return nil, debug.InternalError("node status reply has unexpected format")
+			return nil, fmt.Errorf("node id %q in node status reply has unexpected format: %w", keyTokens[1], err)
+		}
+		if nodeId < 1 || nodeId >= constants.MaxNumberOfNodes {
+			return nil, fmt.Errorf("node id %d in node status reply is out of range", nodeId)
 		}
 		key := keyTokens[2]
 
@@ -434,7 +443,10 @@ func (mci *mgmClientImpl) GetStatus() (ClusterStatus, error) {
 		ns := cs.ensureNode(nodeId)
 		switch key {
 		case "type":
-			ns.setNodeTypeFromTLA(value)
+			if err := ns.setNodeTypeFromTLA(value); err != nil {
+				return nil, fmt.Errorf("node %d: %w", nodeId, err)
+			}
+			nodesWithType[nodeId] = struct{}{}
 
 			// Read and set status here.
 			// This is done here and not in a separate case as
@@ -459,26 +471,37 @@ func (mci *mgmClientImpl) GetStatus() (ClusterStatus, error) {
 					nodeGroupKey := fmt.Sprintf("node.%d.node_group", nodeId)
 					ns.NodeGroup, err = strconv.Atoi(reply[nodeGroupKey])
 					if err != nil {
-						return nil, debug.InternalError("node_group in node status reply has unexpected format")
+						return nil, fmt.Errorf("node_group in node status reply has unexpected format: %w", err)
 					}
 				} else {
 					// NodeGroup is not set in reply as the node is not connected yet.
 					// Retrieve the NodeGroup using 'get config' command
 					nodeGroupValue, err := mci.getConfig(nodeId, cfgSectionTypeNDB, dbCfgNodegroup, true)
 					if err != nil {
-						return nil, debug.InternalError("node_group was not found in data node config " + keyTokens[1])
+						// A peer parse failure is retryable and must not become a debug panic.
+						return nil, fmt.Errorf("node_group was not found in data node config %d: %w", nodeId, err)
 					}
-					ns.NodeGroup = int(nodeGroupValue.(uint32))
+					nodeGroup, err := configValueAsUint32(nodeGroupValue, dbCfgNodegroup)
+					if err != nil {
+						return nil, err
+					}
+					ns.NodeGroup = int(nodeGroup)
 				}
 			}
 
 		case "version":
 			versionNumber, err := strconv.Atoi(value)
 			if err != nil {
-				return nil, debug.InternalError("version in node status reply has unexpected format")
+				return nil, fmt.Errorf("version in node status reply has unexpected format: %w", err)
 			}
 			ns.SoftwareVersion = getMySQLVersionString(versionNumber)
 		}
+	}
+	// Require types so an omitted field cannot be mistaken for the zero-value NDB type.
+	if len(cs) != nodeCount || len(nodesWithType) != nodeCount {
+		return nil, fmt.Errorf(
+			"node status reply declared %d nodes but described %d nodes with %d types",
+			nodeCount, len(cs), len(nodesWithType))
 	}
 
 	return cs, nil
@@ -708,7 +731,7 @@ func (mci *mgmClientImpl) GetConfigVersion(nodeId ...int) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	return value.(uint32), nil
+	return configValueAsUint32(value, sysCfgConfigGenerationNumber)
 }
 
 // GetMgmdArbitrationRank returns the arbitration rank of the connected mgmd node
@@ -717,7 +740,7 @@ func (mci *mgmClientImpl) GetMgmdArbitrationRank() (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	return value.(uint32), nil
+	return configValueAsUint32(value, nodeCfgArbitRank)
 }
 
 // getDataNodeConfigValueUint32 returns the value of the uint32 dbCfgKey config of the data node with id dataNodeId
@@ -726,7 +749,7 @@ func (mci *mgmClientImpl) getDataNodeConfigValueUint32(dataNodeId int, dbCfgKey 
 	if err != nil {
 		return 0, err
 	}
-	return value.(uint32), nil
+	return configValueAsUint32(value, dbCfgKey)
 }
 
 // getDataNodeConfigValueUint64 returns the value of the uint64 dbCfgKey config of the data node with id dataNodeId
@@ -735,7 +758,7 @@ func (mci *mgmClientImpl) getDataNodeConfigValueUint64(dataNodeId int, dbCfgKey 
 	if err != nil {
 		return 0, err
 	}
-	return value.(uint64), nil
+	return configValueAsUint64(value, dbCfgKey)
 }
 
 // GetDataMemory returns the data memory of the datanode with id dataNodeId
